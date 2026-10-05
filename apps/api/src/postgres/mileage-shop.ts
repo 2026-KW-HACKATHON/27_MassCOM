@@ -24,6 +24,7 @@ import {
 } from '../mileage-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { countedVisitFilterSql, countedVisitFromSql } from './badge-rewards.js';
+import { nextCosmeticBonus, EXPERIENCE_COSMETICS } from '../collection-experience.js';
 
 // 적립 공식의 두 항(센 방문·서로 다른 점포)은 배지 집계(badge-rewards.ts)와 완전히 같은 방문 집합을 쓴다:
 // countedVisitFromSql/countedVisitFilterSql을 그대로 가져와 다시 만들지 않는다(design-298.md 4번).
@@ -105,6 +106,11 @@ function requireCatalogItem(itemId: string): { id: string; grade: MileageGrade; 
   const item = findCatalogItem(itemId);
   if (!item) throw new Error(`unknown mileage catalog item persisted: ${itemId}`);
   return item;
+}
+
+function cosmeticBonus(id: string): MileageRerollResult['bonus'] {
+  const item = EXPERIENCE_COSMETICS.find((candidate) => candidate.id === id)!;
+  return { id, name: item.name, slot: item.slot };
 }
 
 const historyCursorPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -229,8 +235,8 @@ export class PostgresMileageShopService implements MileageShopService {
       await this.accountLifecycle.assertActive(client, input.accountId);
       const now = this.now();
 
-      const existingResult = await client.query<{ grade: MileageGrade; item_id: string }>(
-        'SELECT grade, item_id FROM mileage_spends WHERE account_id = $1 AND request_id = $2',
+      const existingResult = await client.query<{ id: string; grade: MileageGrade; item_id: string; cosmetic_bonus_id: string }>(
+        'SELECT id, grade, item_id, cosmetic_bonus_id FROM mileage_spends WHERE account_id = $1 AND request_id = $2',
         [input.accountId, input.requestId],
       );
       const previous = existingResult.rows[0];
@@ -261,7 +267,7 @@ export class PostgresMileageShopService implements MileageShopService {
       if (decision.kind === 'REPLAY') {
         const item = requireCatalogItem(previous!.item_id);
         await client.query('COMMIT');
-        return { item, balance, replayed: true };
+        return { item, bonus: cosmeticBonus(previous!.cosmetic_bonus_id), balance, replayed: true };
       }
       if (decision.kind === 'REQUEST_CONFLICT') throw new MileageShopError('SHOP_REQUEST_CONFLICT');
       if (decision.kind === 'RATE_LIMITED') {
@@ -271,19 +277,25 @@ export class PostgresMileageShopService implements MileageShopService {
       if (decision.kind === 'GRADE_COMPLETE') throw new MileageShopError('SHOP_GRADE_COMPLETE');
       if (decision.kind === 'INSUFFICIENT_MILEAGE') throw new MileageShopError('SHOP_INSUFFICIENT_MILEAGE');
 
+      const bonuses = await client.query<{ cosmetic_bonus_id: string }>(
+        'SELECT cosmetic_bonus_id FROM mileage_spends WHERE account_id = $1 AND grade = $2',
+        [input.accountId, input.grade],
+      );
+      const bonusId = nextCosmeticBonus(input.grade, new Set(bonuses.rows.map((row) => row.cosmetic_bonus_id)));
       const chosen = chooseUniform(unowned, (bound) => randomInt(bound));
       await client.query(
         `INSERT INTO account_characters (account_id, item_id, acquired_at, source)
          VALUES ($1, $2, $3, 'REROLL')`,
         [input.accountId, chosen.id, now],
       );
+      const spendId = this.nextSpendId();
       await client.query(
-        `INSERT INTO mileage_spends (id, account_id, amount, reason, grade, item_id, request_id, created_at)
-         VALUES ($1, $2, $3, 'REROLL', $4, $5, $6, $7)`,
-        [this.nextSpendId(), input.accountId, price, input.grade, chosen.id, input.requestId, now],
+        `INSERT INTO mileage_spends (id, account_id, amount, reason, grade, item_id, request_id, created_at, cosmetic_bonus_id)
+         VALUES ($1, $2, $3, 'REROLL', $4, $5, $6, $7, $8)`,
+        [spendId, input.accountId, price, input.grade, chosen.id, input.requestId, now, bonusId],
       );
       await client.query('COMMIT');
-      return { item: chosen, balance: balance - price, replayed: false };
+      return { item: chosen, bonus: cosmeticBonus(bonusId), balance: balance - price, replayed: false };
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AccountLifecycleError) throw new MileageShopError('ACCOUNT_DELETED');

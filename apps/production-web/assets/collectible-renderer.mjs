@@ -424,12 +424,19 @@ function drawVolume(canvas, front, project, options = {}) {
   const size = Math.min(width, height) * .78 * scale;
   const horizontal = Math.max(.025, Math.abs(Math.cos(radians)));
   const depth = Math.abs(Math.sin(radians)) * (project.thickness || 8) * size / 512;
+  const grade = String(options.gradeId || project.gradeId || '').toLowerCase();
+  const metal = /prism|special/.test(grade) ? ['#6e6e9d', '#eeffff', '#af74d7']
+    : /gold/.test(grade) ? ['#76501e', '#ffebaa', '#b47b22']
+      : /silver/.test(grade) ? ['#61798c', '#f0f8ff', '#8da7ba']
+        : ['#70482f', '#eac09a', '#a76c44'];
+  const sideLight = context.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
+  sideLight.addColorStop(0, metal[0]); sideLight.addColorStop(.48, metal[1]); sideLight.addColorStop(1, metal[2]);
   context.save(); context.translate(width / 2, height / 2 + yOffset);
   context.shadowColor = 'rgba(12,27,35,.25)'; context.shadowBlur = size * .045; context.shadowOffsetY = size * .045;
   for (let offset = Math.ceil(depth); offset >= 0; offset--) {
     context.save(); context.translate(offset - depth / 2, 0); context.scale(horizontal, 1);
     traceShape(context, project.shape, size, size, -size / 2, -size / 2);
-    context.fillStyle = offset % 3 ? '#765931' : '#c19b61'; context.fill(); context.restore();
+    context.fillStyle = offset % 3 ? sideLight : metal[1]; context.fill(); context.restore();
   }
   context.shadowBlur = 0; context.shadowOffsetY = 0;
   context.translate(-depth / 2, 0); context.scale(horizontal, 1);
@@ -450,6 +457,11 @@ function drawVolume(canvas, front, project, options = {}) {
       context.fillStyle = light; context.fillRect(-size / 2, -size / 2, size, size);
     }
   }
+  // A narrow lit bevel connects the face art to the volume and follows the same edge material.
+  traceShape(context, project.shape, size * .97, size * .97, -size * .485, -size * .485);
+  context.strokeStyle = sideLight; context.lineWidth = size * .012; context.stroke();
+  traceShape(context, project.shape, size * .94, size * .94, -size * .47, -size * .47);
+  context.strokeStyle = 'rgba(255,255,255,.32)'; context.lineWidth = size * .004; context.stroke();
   context.restore();
   const confettiPhase = playback === 'once' ? time : time % 5000;
   if (motion === 'confetti' && confettiPhase < 2000) {
@@ -479,7 +491,7 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   const livingOverlay = await livingOverlayFor(project, gradeId, size, options.reducedMotion ? 0 : livingPhaseAt(options.livingTime ?? options.time ?? 0, project.living?.periodMs ?? 2400));
   if (livingOverlay) { const composed = canvasOf(size, size), context = composed.getContext('2d'); context.drawImage(front, 0, 0); context.drawImage(livingOverlay, 0, 0); front = composed; }
   const back = await backFor(project, gradeId, size, options.merchantName || '');
-  drawVolume(canvas, front, project, { ...options, animation, playback, particle, back });
+  drawVolume(canvas, front, project, { ...options, gradeId, animation, playback, particle, back });
 }
 /** angleFrames 스프라이트의 i번째 칸(4×side 그리드)만 잘라낸 side×side 캔버스. */
 async function angleFrameCell(angleFrames, index) {
@@ -548,7 +560,7 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
   const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl) : null;
   // 호출자가 특정 동작(예: once 모션 "다시 보기")을 명시하면 그 값을, 아니면 게시된 기본(loop 또는 still) 동작을 쓴다.
   const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
-  drawVolume(canvas, front, snapshot, { ...options, animation, back });
+  drawVolume(canvas, front, snapshot, { ...options, gradeId: snapshot.gradeId, animation, back });
 }
 // 게시용 이미지는 WebP(품질 0.9)로 저장해 크기를 줄인다(서버 완성본 1 MiB·썸네일 128 KiB·본문 8 MiB 상한 안에 넣기 위함).
 // WebP 인코딩을 지원하지 않는 브라우저는 toDataURL이 PNG를 돌려주므로 그대로 PNG를 쓴다.

@@ -4,6 +4,8 @@ import { test, type TestContext } from 'node:test';
 
 import { Pool } from 'pg';
 
+import { EXPERIENCE_PACKS } from './collection-experience.js';
+import { PostgresCollectionExperienceService } from './postgres/collection-experience.js';
 import { MileageShopError } from './mileage-shop.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
@@ -271,6 +273,7 @@ test('concurrent rerolls on one account never overspend or double-assign', async
   );
   assert.equal(sameRequest.filter((result) => !result.replayed).length, 1);
   assert.equal(new Set(sameRequest.map((result) => result.item.id)).size, 1);
+  assert.equal(new Set(sameRequest.map((result) => result.bonus.id)).size, 1);
   assert.equal(
     (await pool.query('SELECT count(*)::int AS n FROM mileage_spends WHERE request_id = $1', ['dup-request'])).rows[0]!.n,
     1,
@@ -391,6 +394,7 @@ test('(c) showcase bonus adds to balance only: earned/spent stay real, a GOLD re
   // 같은 requestId 재생은 새로 과금하지 않고 지금 잔액을 보여 준다.
   const replay = await bonusShop.reroll({ accountId: 'tester', grade: 'GOLD', requestId: 'bonus-gold', expectedRemaining: 3 });
   assert.deepEqual([replay.replayed, replay.balance, replay.item.id], [true, 99_750, gold.item.id]);
+  assert.deepEqual(replay.bonus, gold.bonus);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM mileage_spends WHERE account_id = $1', ['tester'])).rows[0]!.n, 1);
 
   // 보너스 없는 서비스는 같은 계정을 여전히 진짜 값으로만 본다: spent 400이 earned 150을 넘겨 잔액이 음수다.
@@ -406,13 +410,21 @@ test('(c) with the bonus an account with no earned mileage can buy the whole cat
   const bonusShop = new PostgresMileageShopService(pool, { now, accountLifecycle: lifecycle, showcaseBonusMileage: 100_000, rerollRateLimit: 600 });
   let balance = 100_000;
   for (const [grade, price] of [['BRONZE', 100], ['SILVER', 200], ['GOLD', 400]] as const) {
+    const bonuses = new Set<string>();
     for (let remaining = 3; remaining >= 1; remaining -= 1) {
       const result = await bonusShop.reroll({
         accountId: 'collector', grade, requestId: `${grade}-${remaining}`, expectedRemaining: remaining,
       });
       balance -= price;
       assert.equal(result.balance, balance);
+      assert.ok(!bonuses.has(result.bonus.id));
+      bonuses.add(result.bonus.id);
+      const retry = await bonusShop.reroll({ accountId: 'collector', grade,
+        requestId: `${grade}-${remaining}`, expectedRemaining: remaining });
+      assert.deepEqual(retry.bonus, result.bonus);
+      assert.equal(retry.balance, balance);
     }
+    assert.deepEqual([...bonuses], EXPERIENCE_PACKS.find((pack) => pack.grade === grade)!.bonusItemIds);
     await assert.rejects(
       bonusShop.reroll({ accountId: 'collector', grade, requestId: `${grade}-done`, expectedRemaining: 0 }),
       rejectsWith('SHOP_GRADE_COMPLETE'),
@@ -424,6 +436,11 @@ test('(c) with the bonus an account with no earned mileage can buy the whole cat
     [0, 2_100, 97_900],
   );
   assert.ok(snapshot.items.every((item) => item.owned));
+  const experience = await new PostgresCollectionExperienceService(pool, lifecycle).getSnapshot('collector');
+  assert.ok(experience.progress.packs.every((pack) => pack.opens === 3 && pack.ownedBonuses === 3));
+  assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM mileage_spends WHERE account_id='collector'`)).rows[0]!.n, 9);
+  await assert.rejects(pool.query(`UPDATE mileage_spends SET cosmetic_bonus_id='bronze-decor'
+    WHERE account_id='collector' AND cosmetic_bonus_id='bronze-hat'`), /immutable/);
 });
 
 test('(c) the bonus option must be a non-negative integer', async (t) => {

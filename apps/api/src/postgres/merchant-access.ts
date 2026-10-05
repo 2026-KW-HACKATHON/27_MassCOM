@@ -15,6 +15,8 @@ import {
 type MerchantMembershipRow = {
   merchant_id: string;
   role: MerchantRole;
+  staff_can_confirm_visit: boolean;
+  staff_can_redeem_coupon: boolean;
 };
 
 export type PostgresMerchantAccessOptions = {
@@ -35,7 +37,7 @@ export class PostgresMerchantAccessControl implements MerchantAccessControl {
     permission: MerchantPermission;
   }): Promise<MerchantAccessGrant> {
     const result = await this.pool.query<MerchantMembershipRow>(
-      `SELECT merchant_id, role
+      `SELECT merchant_id, role, staff_can_confirm_visit, staff_can_redeem_coupon
        FROM merchant_members
        WHERE merchant_id = $1
          AND account_id = $2
@@ -54,6 +56,10 @@ export class PostgresMerchantAccessControl implements MerchantAccessControl {
     if (input.permission === 'MANAGE_PROFILE' && !canManageProfile(membership.role, this.staffMayManageArt)) {
       throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
     }
+    if (membership.role === 'STAFF' && (
+      (input.permission === 'CONFIRM_VISIT' && !membership.staff_can_confirm_visit)
+      || (input.permission === 'REDEEM_COUPON' && !membership.staff_can_redeem_coupon)
+    )) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
 
     return {
       merchantId: membership.merchant_id,

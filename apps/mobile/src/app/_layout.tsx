@@ -20,6 +20,8 @@ import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestinati
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
 import { colorsForScheme } from '@/theme/palette';
+import { NotificationSessionBridge } from '@/notifications/session-bridge';
+import { consumeMerchantNotificationRole, consumeNotificationTarget, subscribeMerchantNotificationRole, subscribeNotificationTarget } from '@/notifications/pending-target';
 
 function Routes() {
   const auth = useAuthSession();
@@ -33,6 +35,17 @@ function Routes() {
     // (it consumes it there).
     else if (hasPendingFriendLink()) router.replace('/friends');
   }, [auth.state.status, router]);
+  useEffect(() => {
+    if (!auth.accountId) return;
+    const accountId = auth.accountId;
+    const openPending = () => {
+      const target = consumeNotificationTarget(accountId);
+      if (target) router.push(target as never);
+    };
+    const unsubscribe = subscribeNotificationTarget(openPending);
+    openPending();
+    return unsubscribe;
+  }, [auth.accountId, router]);
   return (
     <Stack
       screenOptions={{
@@ -55,6 +68,7 @@ function Routes() {
       <Stack.Screen name="merchant-art" options={{ headerShown: false }} />
       <Stack.Screen name="recommendations" options={{ headerShown: false }} />
       <Stack.Screen name="wallet" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ title: '알림함' }} />
     </Stack>
   );
 }
@@ -65,6 +79,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style="auto" />
       <AuthSessionProvider>
+        <NotificationSessionBridge />
         <AuthenticatedRoot />
       </AuthSessionProvider>
     </SafeAreaProvider>
@@ -75,6 +90,16 @@ function AuthenticatedRoot() {
   const auth = useAuthSession();
   const themeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [entry, setEntry] = useState<ShowcaseRoleState>({});
+  useEffect(() => {
+    if (!auth.accountId) return;
+    const accountId = auth.accountId;
+    const openMerchant = () => {
+      if (consumeMerchantNotificationRole(accountId)) setEntry({ role: 'merchant', accountId });
+    };
+    const unsubscribe = subscribeMerchantNotificationRole(openMerchant);
+    openMerchant();
+    return unsubscribe;
+  }, [auth.accountId]);
   // 이 실행에서 서버가 "이미 동의했다"고 답한 계정. 기기에는 저장하지 않고 실행마다 서버에 다시 묻는다(D-059).
   const [consentedAccountId, setConsentedAccountId] = useState<string>();
   const acceptConsent = useCallback(() => setConsentedAccountId(auth.accountId), [auth.accountId]);

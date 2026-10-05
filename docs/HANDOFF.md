@@ -1,5 +1,16 @@
 # HANDOFF
 
+## 2026-10-05 수집·게임·점주 운영 전체 연결 (Issue #371)
+
+- 브랜치 `feat/collection-merchant-completion`, 기준 `origin/main aae64d88`. 요청 1–14절을 기존 #364/#365 구현과 연결했다. 신규 내용은 [구현 안내](COLLECTION_MERCHANT_COMPLETION.md)·[전용 증거](evidence/collection-completion-2026-10-05/README.md)를 따른다.
+- migration0044–0049: 장착/목표, 알림/기기/소스 상태, 점주 직접 운영 감사·직원 업무 플래그, 영구 게임 성취, 원장에 고정한 미보유 꾸미기 보너스. 같은 등급 세 번 개봉으로 세 친구·세 꾸미기 완성, 기존 가격/방문 보상/쿠폰 권리 유지.
+- 점주 연장은 현재 종료일 비교·요청 ID·동의·감사로 보호한다. 직원 등록 코드 승인·방문/쿠폰 권한·회수는 계정 잠금 뒤 실제 작업에서 검사한다. 방문 CSV는 인정 방문 SQL·KST·BOM·수식 방어·소유권을 공유한다.
+- 네 게임을 실제 Chrome 입력으로 각각 완주했다. 기억/주문 배지와 노을 방 해금→실제 배지/소품 장착→공간 저장을 확인했다. Native MP4/PNG의 저장·Photos 재생·영상 중단·공유 창 취소, 등급 색·중앙 문구를 별도로 검증했다.
+- 로컬 미리보기 8096→API4312→별도 `masscom-connected-play-qa`의 `masscom_showcase_test`(55542); 영상 QA API4311→별도 `masscom-video-qa`(55543). 운영 DB·사용자 역할·공개 서버를 바꾸지 않았다. `.env.local` 내용·권한·mtime와 에뮬레이터 font_scale2.0 복구, QA Metro 종료. 이전 ignored/untracked export는 보존했다.
+- FCM 실수신은 프로젝트/서비스 계정/패키지 일치 google-services.json이 없어 NOT_RUN. 알림함·토큰 수명·잘못된 대상·재시도·모의 발송은 검증했다. 외부 게시, 실제 점포 QR, 물리 기울임·소리/진동 체감·TalkBack·일반 공개/Play 제출은 NOT_RUN.
+- 공개 반영 전에 최신 API/앱/처리방침 `privacy-2026-10-05`와 migration0044–0049를 함께 적용한다. 코드 롤백 때 새 원장/사용자 표를 DROP하지 않고 최신 삭제·알림 정리를 유지한다. 실제 설정 절차는 구현 안내의 알림 절을 따른다.
+- 구현 커밋 `e70699a8`을 [PR #372](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372)로 push했다. 필수 CI와 최종 통합 상태는 PR의 최신 검사·병합 기록을 따른다. CI 실행 요청과 완료를 구분하며 공개 서버·APK 배포를 뜻하지 않는다.
+
 ## 2026-10-05 `db28003` 운영·시연 배포와 운영 test.10·시연 Preview 19 공개 (Issue #369)
 
 - 기준 커밋: main `db280032a97eee1d9cd50b504d84bc66e2beafda`(PR #362·#364·#368·#366 병합, 열린 PR 없음), 브랜치 `docs/release-db28003`, worktree `.worktrees/release-docs4`. PR #368은 모바일 접근성 의미 검사 위치를 공통 로그인 컴포넌트로 고친 뒤 12m15s PASS(첫 실행 FAIL); #364 11m59s, #366 12m27s, #362 11m50s PASS.

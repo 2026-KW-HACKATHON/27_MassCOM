@@ -24,6 +24,7 @@ type Props = {
   onBrowse: () => void;
   onTour: () => void;
   onAdmin?: () => void;
+  onNotifications?: () => void;
   onArt: () => void;
   onLogout: () => Promise<void>;
 };
@@ -70,6 +71,7 @@ export function MerchantHomeScreen(props: Props) {
     { label: '고객 화면으로', onPress: props.onBrowse },
     { label: '빈 공간 투어', onPress: props.onTour },
     ...(props.onAdmin ? [{ label: '권한 요청 관리', onPress: props.onAdmin }] : []),
+    ...(props.onNotifications ? [{ label: '알림함·푸시 설정', onPress: props.onNotifications }] : []),
     { label: '로그아웃', onPress: () => void props.onLogout().catch(() => setMessage('로그아웃을 완료하지 못했습니다. 다시 시도해 주세요.')) },
   ];
 

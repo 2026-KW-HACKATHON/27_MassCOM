@@ -4,7 +4,7 @@
  * 앱 업데이트를 안내한다.
  */
 export const CONSENT_TERMS_VERSION = 'terms-2026-09-30';
-export const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-04';
+export const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-05';
 
 export const TERMS_URL = 'https://www.masscom.kr/terms';
 export const PRIVACY_URL = 'https://www.masscom.kr/privacy';
@@ -44,11 +44,11 @@ export const consentChecks: readonly ConsentCheck[] = [
 export const consentNotice: readonly { title: string; body: string }[] = [
   {
     title: '수집·이용 목적',
-    body: '음식점 탐색, 방문 인증과 보상 지급, 놀이 기록·공간 꾸미기와 친구에게 진열 보여 주기, 로그인 유지, 부정 이용 방지, 계정 삭제 처리',
+    body: '음식점 탐색, 방문 인증과 보상 지급, 놀이 기록·공간 꾸미기와 친구에게 진열 보여 주기, 선택한 알림 전달과 점주 직접 운영, 로그인 유지, 부정 이용 방지, 계정 삭제 처리',
   },
   {
     title: '수집 항목',
-    body: 'Google 계정 식별자(이메일·이름은 저장하지 않아요), 방문·보상·도감·놀이 실행/점수 기록, 선택한 동행·진열·꾸미기·목표, 로그인 세션. 지갑을 연결하면 공개 지갑 주소, 친구 기능을 쓰면 별명·친구 관계 등(자세한 항목은 개인정보 처리방침)',
+    body: 'Google 계정 식별자(이메일·이름은 저장하지 않아요), 방문·보상·도감·놀이 실행/점수 기록, 선택한 동행·배지·진열·꾸미기·목표, 알림 설정과 선택적 기기 토큰, 로그인 세션. 지갑을 연결하면 공개 지갑 주소, 친구 기능을 쓰면 별명·친구 관계 등(자세한 항목은 개인정보 처리방침)',
   },
   {
     title: '보유 기간',

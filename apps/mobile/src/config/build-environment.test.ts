@@ -12,6 +12,7 @@ const buildSourceCommit = 'a'.repeat(40);
 const buildEnvironmentKeys = [
   'APP_VARIANT',
   'MASSCOM_BUILD_SOURCE_COMMIT',
+  'MASSCOM_FIREBASE_GOOGLE_SERVICES_FILE',
   'EXPO_PUBLIC_API_URL',
   'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
   'EXPO_PUBLIC_REOWN_PROJECT_ID',
@@ -29,6 +30,7 @@ type EvaluatedExpoConfig = {
   extra?: { masscomShowcase?: { googleWebClientId?: string; apiOrigin?: string } };
   android?: {
     package?: string;
+    googleServicesFile?: string;
     blockedPermissions?: string[];
     intentFilters?: {
       action?: string;
@@ -315,9 +317,12 @@ test('actual Expo production config preserves release identity, plugins, and blo
     'expo-splash-screen',
     'expo-secure-store',
     'expo-audio',
+    'expo-notifications',
     './plugins/with-build-source-commit.cjs',
   ]);
   assertPlaybackOnlyAudio(config);
+  assertPushChannel(config);
+  assert.equal(config.android?.googleServicesFile, undefined);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, [
     {
@@ -327,6 +332,19 @@ test('actual Expo production config preserves release identity, plugins, and blo
       data: [{ scheme: 'https', host: 'masscom.kr', pathPrefix: '/open' }],
     },
   ]);
+});
+
+test('Android Firebase services file is opt-in from build environment', () => {
+  const result = evaluateExpoConfig({
+    APP_VARIANT: 'production',
+    EXPO_PUBLIC_API_URL: 'https://api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_FIREBASE_GOOGLE_SERVICES_FILE: '/tmp/masscom-google-services.json',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
+  assert.equal(config.android?.googleServicesFile, '/tmp/masscom-google-services.json');
+  assertPushChannel(config);
 });
 
 test('actual Expo production config rejects local API host variants', () => {
@@ -391,8 +409,10 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-splash-screen',
     'expo-secure-store',
     'expo-audio',
+    'expo-notifications',
   ]);
   assertPlaybackOnlyAudio(config);
+  assertPushChannel(config);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, []);
 });
@@ -416,9 +436,11 @@ test('actual Expo showcase config has its own Android identity and no dev launch
     'expo-splash-screen',
     'expo-secure-store',
     'expo-audio',
+    'expo-notifications',
     './plugins/with-build-source-commit.cjs',
   ]);
   assertPlaybackOnlyAudio(config);
+  assertPushChannel(config);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
   assert.deepEqual(config.android?.intentFilters, [{
     action: 'VIEW',
@@ -518,4 +540,10 @@ function assertPlaybackOnlyAudio(config: EvaluatedExpoConfig): void {
   }, '고객 음성 재생이 마이크·백그라운드 재생·녹음 권한을 추가하지 않아야 한다');
   // 플러그인 설정과 별개로, 다른 라이브러리가 마이크 권한을 끌어와도 병합 manifest에서 막는다(모든 variant).
   assert.ok(config.android?.blockedPermissions?.includes('android.permission.RECORD_AUDIO'), 'RECORD_AUDIO는 android.blockedPermissions로 막아야 한다');
+}
+
+function assertPushChannel(config: EvaluatedExpoConfig): void {
+  const notifications = config.plugins?.find((plugin) => Array.isArray(plugin) && plugin[0] === 'expo-notifications');
+  assert.ok(Array.isArray(notifications));
+  assert.deepEqual(notifications[1], { defaultChannel: 'masscom-updates' });
 }

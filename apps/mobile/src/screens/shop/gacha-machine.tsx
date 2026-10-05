@@ -14,7 +14,7 @@ import type { MileageGrade, ShopGradeView, ShopRerollResult, ShopSnapshot } from
 import { friendArt, ticketArt } from '@/shop/shop-art';
 import { rerollDisclosure } from '@/shop/shop-rules';
 
-import { gachaAffordability, gachaPhaseAfter, gachaTimeline, isNewDraw, type GachaPhase, type GachaStage } from './gacha-rules';
+import { themePackName, cosmeticSequenceDisclosure, gachaAffordability, gachaPhaseAfter, gachaTimeline, isNewDraw, type GachaPhase, type GachaStage } from './gacha-rules';
 
 type Props = {
   snapshot: ShopSnapshot;
@@ -26,6 +26,8 @@ type Props = {
   avatarBusy: boolean;
   avatarError?: string;
   isAvatar?: boolean;
+  wishId?: string | null;
+  onWish?: (itemId: string | null) => void;
   onDraw: (grade: ShopGradeView) => Promise<boolean>;
   onSetAvatar: () => void;
   onClose: () => void;
@@ -42,7 +44,7 @@ const stages: GachaStage[] = ['crank', 'shake', 'drop', 'wobble', 'split', 'burs
 
 /** The same full-screen purchase experience opens from the shop and the visit reward reel. */
 export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
-  onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
+  wishId, onWish, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   const [phase, setPhase] = useState<GachaPhase>('picker');
@@ -51,7 +53,6 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
   const activeResult = useRef<ShopRerollResult | undefined>(undefined);
   const skipRequested = useRef(false);
   const [drawing, setDrawing] = useState<ShopGradeView>();
-  const [wishId, setWishId] = useState<string>();
   const timelineTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const advancePhase = useCallback((next: typeof phase) => { phaseRef.current = next; setPhase(next); }, []);
   const bob = useSharedValue(0);
@@ -173,12 +174,12 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
           {displayPhase === 'picker' ? (
             <>
               <Text accessibilityRole="header" style={styles.heading}>어떤 친구를 만날까요?</Text>
-              <Text style={styles.description}>등급을 고르고 뽑기 기계를 돌려 보세요.</Text>
+              <Text style={styles.description}>테마 팩을 열어 해당 등급의 미보유 캐릭터와 꾸미기를 모아요.</Text>
               <View style={styles.catalog}>
                 {snapshot.items.map((item) => <Pressable key={item.id} accessibilityRole="button"
                   accessibilityLabel={`${item.name}, ${gradeStyle[item.grade].name}, ${item.owned ? '소유 중' : wishId === item.id ? '내 목표' : '목표로 보기'}`}
                   accessibilityState={{ selected: wishId === item.id, disabled: item.owned }} disabled={item.owned}
-                  onPress={() => setWishId(wishId === item.id ? undefined : item.id)}
+                  onPress={() => onWish?.(wishId === item.id ? null : item.id)}
                   style={[styles.catalogItem, { borderColor: wishId === item.id ? '#FFCE70' : 'transparent' }]}>
                   {friendArt[item.id] ? <Image source={friendArt[item.id]} resizeMode="contain" style={styles.catalogArt} accessible={false} /> : null}
                   <Text style={styles.catalogName}>{item.name}</Text>
@@ -190,12 +191,12 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
               <View style={styles.tickets}>
                 {snapshot.grades.map((item) => {
                   const available = availability.find((entry) => entry.grade === item.grade)!;
-                  const label = gradeStyle[item.grade].name;
+                  const label = `${themePackName(item.grade)} · ${gradeStyle[item.grade].name} 캐릭터`;
                   return <Pressable key={item.grade} accessibilityRole="button" accessibilityLabel={`${label} ${item.price}마일리지${available.reason ? `, ${available.reason}` : ''}`}
                     accessibilityState={{ disabled: !available.enabled || busy || !!refreshing }} disabled={!available.enabled || busy || refreshing}
                     onPress={() => { void startDraw(item); }} style={[styles.ticketButton, !available.enabled && styles.disabled]}>
                     <Image source={ticketArt[item.grade]} style={styles.ticketArt} resizeMode="contain" accessible={false} />
-                    <View style={styles.ticketCopy}><Text style={styles.ticketName}>{label} · {item.price}P</Text><Text style={styles.ticketNote}>{available.reason ?? rerollDisclosure(item)}</Text></View>
+                    <View style={styles.ticketCopy}><Text style={styles.ticketName}>{label} · {item.price}P</Text><Text style={styles.ticketNote}>{available.reason ?? rerollDisclosure(item)}</Text><Text style={styles.ticketNote}>{cosmeticSequenceDisclosure}</Text></View>
                   </Pressable>;
                 })}
               </View>
@@ -227,6 +228,7 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
                 {isNewDraw(result.item, ownedBefore) ? <Text style={styles.newBadge}>NEW</Text> : null}
                 {friendArt[result.item.id] ? <Image source={friendArt[result.item.id]} style={styles.character} resizeMode="contain" accessible={false} /> : <Text style={styles.missingCharacter}>?</Text>}
                 <Text style={styles.characterName}>{result.item.name}</Text>
+                {result.bonus ? <Text style={styles.description}>함께 얻은 꾸미기 · {result.bonus.name}</Text> : null}
                 <Text style={styles.description}>{wishId === result.item.id ? '기다리던 동행을 만났어요!' : '내 공간에서 함께 놀고, 가게를 탐험해요.'}</Text>
                 <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>
                 </Animated.View>

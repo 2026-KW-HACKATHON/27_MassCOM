@@ -24,6 +24,7 @@ import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
 import { forgetWalletSession } from '@/wallet/forget-wallet-session';
+import { unregisterCurrentNotificationDevice } from '@/notifications/native';
 
 export type { AuthSessionState } from './auth-startup';
 
@@ -202,11 +203,17 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
         });
         return;
       }
+      if (publicApiConfiguration.available && credential?.kind === 'bearer') {
+        await unregisterCurrentNotificationDevice(publicApiConfiguration.apiUrl, credential).catch(() => undefined);
+      }
       await controllerRef.current?.logout();
     },
     async switchAccount() {
       clearPendingFriendLink();
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
+      if (publicApiConfiguration.available && credential?.kind === 'bearer') {
+        await unregisterCurrentNotificationDevice(publicApiConfiguration.apiUrl, credential).catch(() => undefined);
+      }
       await controllerRef.current.switchAccount();
     },
     async invalidateSession() {

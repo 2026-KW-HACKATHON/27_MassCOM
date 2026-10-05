@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useW
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { createExperienceApiClient, type DisplayExperienceProfile } from '@/experience/experience-api';
 import { consentRequiredMessage, consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createStudioApiClient, type FriendStudioSnapshot, type StudioApiError } from '@/studio/studio-api';
@@ -24,11 +25,15 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(Math.max(width - 28, 280), 460);
   const client = useMemo(() => createStudioApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const experienceClient = useMemo(() => createExperienceApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const [snapshot, setSnapshot] = useState<FriendStudioSnapshot>();
+  const [friendExperience, setFriendExperience] = useState<DisplayExperienceProfile>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string>();
   const [errorNeedsConsent, setErrorNeedsConsent] = useState(false);
+  const [goalSaving, setGoalSaving] = useState<string>();
+  const [goalNotice, setGoalNotice] = useState<string>();
   const active = useRef(false);
   const generation = useRef(0);
   const load = useCallback(async (refresh = false) => {
@@ -37,12 +42,15 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
     setError(undefined);
     setErrorNeedsConsent(false);
     try {
-      const result = await client.getFriend(friendshipId);
-      if (active.current && generation.current === request) setSnapshot(result);
+      const [result, display] = await Promise.all([
+        client.getFriend(friendshipId),
+        experienceClient.getFriend(friendshipId).catch(() => undefined),
+      ]);
+      if (active.current && generation.current === request) { setSnapshot(result); setFriendExperience(display); }
     } catch (caught) {
       if (active.current && generation.current === request) {
         const apiError = caught as StudioApiError;
-        setSnapshot(undefined);
+        setSnapshot(undefined); setFriendExperience(undefined);
         const consentRequired = needsConsentRecheck(caught);
         setErrorNeedsConsent(consentRequired);
         setError(consentRequired ? consentRequiredMessage : apiError.status === 404 || apiError.status === 403 ? '친구 관계가 끝났거나 볼 수 없는 공간이에요.' : '친구 공간을 불러오지 못했어요.');
@@ -50,11 +58,22 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
     } finally {
       if (active.current && generation.current === request) { setLoading(false); setRefreshing(false); }
     }
-  }, [client, friendshipId]);
+  }, [client, experienceClient, friendshipId]);
   useFocusEffect(useCallback(() => {
-    active.current = true; void load();
+    active.current = true; setGoalSaving(undefined); void load();
     return () => { active.current = false; generation.current += 1; };
   }, [load]));
+  const saveVisitGoal = async (merchantId: string, merchantName: string) => {
+    if (goalSaving) return;
+    setGoalSaving(merchantId); setGoalNotice(undefined);
+    try {
+      const mine = await client.getMine();
+      await client.save({ ...mine.studio, goal: { kind: 'discover', merchantId } });
+      if (active.current) setGoalNotice(`${merchantName}을 내 다음 방문 목표로 저장했어요.`);
+    } catch {
+      if (active.current) setGoalNotice('방문 목표를 저장하지 못했어요. 다시 시도해 주세요.');
+    } finally { if (active.current) setGoalSaving(undefined); }
+  };
   const header = <BackHeader title="친구 공간" />;
   return <SkyBackdrop><SkyScrollView header={header} contentContainerStyle={styles.content}
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} progressViewOffset={insets.top} />}>
@@ -65,16 +84,22 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]} numberOfLines={2}>{snapshot.nickname}의 공간</Text>
       <View style={styles.sceneFrame}>
         <StudioScene studio={snapshot.studio} items={snapshot.items} avatar={snapshot.avatar} apiUrl={apiUrl}
+          experienceProfile={friendExperience} badgeName={friendExperience?.badgeName ?? undefined}
           width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
           onItemPress={(item) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })} />
       </View>
       <Text style={[styles.count, { color: palette.secondaryLabel }]}>진열된 수집품 {snapshot.items.length}개</Text>
+      {goalNotice ? <Text accessibilityRole="alert" style={[styles.count, { color: palette.primary }]}>{goalNotice}</Text> : null}
       {snapshot.items.map((item, index) => <Pressable key={`${item.merchantId}:${index}`} accessibilityRole="button"
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })}
         style={styles.row}>
         <View style={styles.rowText}><Text numberOfLines={1} style={styles.name}>{item.displayName}</Text>
           <Text numberOfLines={1} style={styles.merchant}>{item.merchantName}</Text></View>
         <Text style={styles.arrow}>›</Text>
+      </Pressable>)}
+      {snapshot.items.filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`goal:${item.merchantId}`} accessibilityRole="button"
+        disabled={Boolean(goalSaving)} onPress={() => void saveVisitGoal(item.merchantId, item.merchantName)} style={styles.goal}>
+        <Text style={styles.goalText}>{goalSaving === item.merchantId ? '저장 중…' : `${item.merchantName} 방문 목표로 저장`}</Text>
       </Pressable>)}
       {!snapshot.items.length ? <Text style={[styles.empty, { color: palette.secondaryLabel }]}>아직 진열한 수집품이 없어요.</Text> : null}
       {snapshot.studio.goal?.merchantId ? <Pressable accessibilityRole="button" style={styles.goal}

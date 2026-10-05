@@ -268,6 +268,10 @@ async function pseudonymizeAccount(
   await client.query('DELETE FROM play_runs WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM play_records WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM studios WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM collection_experience_profiles WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM notification_items WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM notification_devices WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM notification_preferences WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM wallet_challenges WHERE account_id = $1', [accountId]);
   // Sessions are deleted, not just revoked: a revoked row would keep the raw account id. A leaked token then finds no
   // row and fails as SESSION_INVALID / WEB_SESSION_INVALID, and the account tombstone still refuses anything that
@@ -283,6 +287,15 @@ async function pseudonymizeAccount(
   await client.query(`UPDATE staff_registration_audit SET actor_account_id = $1
     WHERE actor_account_id = $2`, [deletedAlias, accountId]);
   await client.query(`UPDATE staff_registration_audit SET target_account_id = $1
+    WHERE target_account_id = $2`, [deletedAlias, accountId]);
+  // Keep the merchant action trail, but remove the deleted identity from both scalar fields and JSON snapshots.
+  await client.query(`UPDATE merchant_campaign_extension_audit SET actor_account_id = $1
+    WHERE actor_account_id = $2`, [deletedAlias, accountId]);
+  await client.query(`UPDATE merchant_staff_action_audit SET actor_account_id = $1
+    WHERE actor_account_id = $2`, [deletedAlias, accountId]);
+  await client.query(`UPDATE merchant_staff_action_audit SET target_account_id = $1,
+    before_permissions = before_permissions - 'accountId',
+    after_permissions = after_permissions - 'accountId'
     WHERE target_account_id = $2`, [deletedAlias, accountId]);
   await client.query(
     'UPDATE platform_admin_role_audit SET target_account_id = $1 WHERE target_account_id = $2',

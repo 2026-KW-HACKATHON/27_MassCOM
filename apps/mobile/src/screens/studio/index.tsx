@@ -5,6 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
+import { ExperienceWardrobe } from '@/experience/experience-wardrobe';
+import { useExperience } from '@/experience/use-experience';
 import { getAppPackageId } from '@/config/app-identity';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
@@ -47,6 +49,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const client = useMemo(() => createStudioApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const collectionClient = useMemo(() => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shopClient = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const merchantClient = useMemo(() => createMerchantApiClient(apiUrl), [apiUrl]);
   const [snapshot, setSnapshot] = useState<StudioSnapshot>();
   const [collection, setCollection] = useState<CollectionSnapshot>();
@@ -126,6 +129,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
     const owned = new Map(collection.collectibles.map((item) => [item.entitlementId, item]));
     return draft.slots.flatMap((id) => { const item = owned.get(id); return item ? [itemFromCollection(item)] : []; });
   }, [draft, collection]);
+  const representativeCoin = collection?.collectibles.find((item) => item.entitlementId === experience.snapshot?.profile.coinEntitlementId);
   const options = useMemo(() => snapshot && collection ? studioGoalOptions(merchants, collection, snapshot.records) : [], [merchants, collection, snapshot]);
   const dirty = !!draft && !!snapshot && JSON.stringify(draft) !== JSON.stringify(snapshot.studio);
   const goalAvailable = !draft?.goal || options.some((option) => JSON.stringify(option.goal) === JSON.stringify(draft.goal));
@@ -182,10 +186,25 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} progressViewOffset={insets.top} />}>
       <View style={styles.sceneFrame}>
         <StudioScene studio={draft} items={selected} avatar={avatarChoice} apiUrl={apiUrl} width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
+          experienceProfile={experience.snapshot?.profile}
+          representativeCoin={representativeCoin ? itemFromCollection(representativeCoin) : undefined}
+          badgeName={experience.snapshot?.catalog.badges.find((badge) => badge.id === experience.snapshot?.profile.badgeId)?.name}
           onItemPress={(item) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })} />
       </View>
       <Text style={[styles.hint, { color: palette.secondaryLabel }]}>{selected.length}/6개 전시 · 동행 {shop.items.find((item) => item.id === avatarChoice)?.name ?? '기본 마스코트'}</Text>
       <Text style={[styles.visibilityNote, { color: palette.secondaryLabel }]}>저장한 동행과 수집품은 친구 공간에 바로 보여요.</Text>
+      {experience.error ? <Pressable accessibilityRole="button" onPress={() => void experience.refresh()}><Text style={styles.rowMeta}>{experience.error} · 다시 확인</Text></Pressable> : null}
+      {experience.snapshot ? <ExperienceWardrobe snapshot={experience.snapshot} saving={experience.saving}
+        onEquip={(equipment) => void experience.save(equipment)} onWish={(itemId) => void experience.wish(itemId)} /> : null}
+      {experience.snapshot && owned.length ? <View style={styles.section}>
+        <Text style={[styles.heading, { color: palette.label }]}>대표 수집 코인</Text>
+        <View style={styles.choices}>{page.items.map((item) => <Pressable key={item.entitlementId}
+          accessibilityRole="button" accessibilityState={{ selected: experience.snapshot?.profile.coinEntitlementId === item.entitlementId }}
+          disabled={experience.saving} onPress={() => void experience.save({ coinEntitlementId: experience.snapshot?.profile.coinEntitlementId === item.entitlementId ? null : item.entitlementId })}
+          style={[styles.choice, experience.snapshot?.profile.coinEntitlementId === item.entitlementId && styles.choiceSelected]}>
+          <Text style={styles.choiceText}>{item.displayName}</Text>
+        </Pressable>)}</View>
+      </View> : null}
       <View style={styles.section} pointerEvents={avatarSaving ? 'none' : 'auto'}>
         <Text style={[styles.heading, { color: palette.label }]}>동행</Text>
         {shop.items.some((item) => item.owned) ? <View style={styles.avatarList}>{shop.items.filter((item) => item.owned).map((item) => <Pressable
@@ -274,16 +293,18 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         <Text style={styles.saveText}>{saving ? '저장 중…' : '내 공간 저장'}</Text>
       </Pressable>
       <View style={styles.section}>
-        <Text style={[styles.heading, { color: palette.label }]}>공유 이미지</Text>
-        <ShareFormatButtons disabled={share.sharing} onShare={(format) => {
+        <Text style={[styles.heading, { color: palette.label }]}>공유 이미지·영상</Text>
+        <ShareFormatButtons disabled={share.sharing} onShare={(format, media) => {
           setShareStatus(undefined);
-          void share.share(draft, selected, avatarChoice, format)
+          void share.share(draft, selected, avatarChoice, format, media, experience.snapshot?.profile,
+            experience.snapshot?.catalog.badges.find((badge) => badge.id === experience.snapshot?.profile.badgeId)?.name,
+            representativeCoin ? itemFromCollection(representativeCoin) : undefined)
             .then((outcome) => {
               if (!active.current) return;
-              setShareStatus({ shared: '공유 창을 열었어요.', saved: '이미지를 저장했어요.',
-                cancelled: '공유가 취소됐어요.', unavailable: '이 기기에서는 이미지 내보내기를 사용할 수 없어요.' }[outcome]);
+              setShareStatus({ shared: '공유 창을 열었어요.', saved: `${media === 'video' ? '영상을' : '이미지를'} 저장했어요.`,
+                cancelled: '공유가 취소됐어요.', unavailable: `이 기기에서는 ${media === 'video' ? '영상' : '이미지'} 내보내기를 사용할 수 없어요.` }[outcome]);
             })
-            .catch(() => { if (active.current) setShareStatus('이미지를 내보내지 못했어요. 다시 시도해 주세요.'); });
+            .catch(() => { if (active.current) setShareStatus('내보내지 못했어요. 다시 시도해 주세요.'); });
         }} />
         {shareStatus ? <Text accessibilityRole="alert" style={[styles.notice, { color: palette.success }]}>{shareStatus}</Text> : null}
       </View>

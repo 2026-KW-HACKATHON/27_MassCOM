@@ -100,8 +100,15 @@ test('play runs replay once, studio requires ownership, friend view hides identi
     const finished = await play.finish({ accountId: 'player', runId: run.id, actions });
     assert.equal(finished.completed, true);
     assert.equal(finished.plays, index + 1);
+    assert.equal(finished.skill?.id, 'order-streak');
+    assert.equal(finished.skill?.achieved, true);
+    assert.equal(finished.newlyEarned, index === 0);
     assert.deepEqual(await play.finish({ accountId: 'player', runId: run.id, actions: [] }), finished);
   }
+  assert.equal((await play.getPlay('player')).achievements?.find((skill) => skill.id === 'order-streak')?.achieved, true);
+  await pool.query(`UPDATE play_runs SET result = result - 'skill' WHERE account_id='player' AND kind='orders'`);
+  assert.equal((await play.getPlay('player')).achievements?.find((skill) => skill.id === 'order-streak')?.achieved, true,
+    'perfect legacy scores still prove the achievement when old run JSON lacks skill details');
   const pending = await play.start({ accountId: 'player', kind: 'orders' });
   await assert.rejects(() => play.finish({ accountId: 'other', runId: pending.id, actions: [] }),
     (error) => error instanceof PlayError && error.code === 'PLAY_RUN_NOT_FOUND');
@@ -227,4 +234,38 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   }
   await assert.rejects(() => play.getStudio('player'),
     (error) => error instanceof PlayError && error.code === 'ACCOUNT_DELETED');
+});
+
+test('non-perfect game achievements and equipped rewards survive actual run retention', async (t) => {
+  const connectionString = process.env.TEST_DATABASE_URL;
+  if (!connectionString || !decodeURIComponent(new URL(connectionString).pathname).endsWith('_test')) throw new Error('dedicated test database required');
+  const pool = new Pool({ connectionString }); t.after(() => pool.end());
+  await runMigrations(pool);
+  const now = new Date('2026-10-05T00:00:00Z');
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const play = new PostgresPlayService(pool, lifecycle, { now: () => now });
+  const accountId = `retained-skill-${randomUUID()}`;
+  const run = await play.start({ accountId, kind: 'memory' });
+  const board = getGameBoard('memory', run.seed);
+  if (board.kind !== 'memory') throw new Error('wrong board');
+  const mismatch = board.cards.findIndex(face => face !== board.cards[0]);
+  const choices = [0, mismatch];
+  for (let face=0; face<6; face++) choices.push(...board.cards.flatMap((value,index)=>value===face ? [index] : []));
+  const actions = choices.map((choice,index)=>({choice,at:(index+1)*500}));
+  now.setTime(now.getTime()+7500);
+  const result = await play.finish({ accountId, runId: run.id, actions });
+  assert.equal(result.score,585);
+  assert.equal(result.skill?.achieved,true);
+  const { PostgresCollectionExperienceService } = await import('./postgres/collection-experience.js');
+  const experience = new PostgresCollectionExperienceService(pool,lifecycle);
+  await experience.setEquipment({ accountId, badgeId: 'match-efficient', cosmetics: { prop: 'memory-card' } });
+  now.setTime(now.getTime()+31*86400_000);
+  const { PostgresRetentionService } = await import('./postgres/retention.js');
+  const retention = await new PostgresRetentionService(pool,{now:()=>now}).run();
+  assert.deepEqual(retention.failed,[]);
+  assert.equal((await pool.query('SELECT 1 FROM play_runs WHERE id=$1',[run.id])).rowCount,0);
+  assert.equal((await play.getPlay(accountId)).achievements?.find(a=>a.id==='match-efficient')?.achieved,true);
+  const snapshot = await experience.getSnapshot(accountId);
+  assert.equal(snapshot.profile.badgeId,'match-efficient');
+  assert.equal(snapshot.profile.cosmetics.prop,'memory-card');
 });

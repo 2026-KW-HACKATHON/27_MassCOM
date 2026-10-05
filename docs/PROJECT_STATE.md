@@ -1,5 +1,13 @@
 # 프로젝트 상태
 
+## 수집·게임·점주 운영 전체 연결 (Issue #371, 2026-10-05)
+
+구현 커밋 `e70699a8`을 [PR #372](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372)로 push했다. 필수 CI와 최종 통합 상태는 PR의 최신 검사·병합 기록을 따른다. CI 실행 요청과 완료를 구분하며 공개 서버·APK 배포를 뜻하지 않는다.
+
+홈·팩·장착 배지·동행·공간·친구 목표, 네 게임의 영구 성취, PNG와 실제 MP4/WebM, 알림함/FCM, 점주 연장·직원 권한·방문 CSV를 구현했다. 기록이 정리돼도 성취를 유지하고, 재시도 시 원장의 같은 꾸미기를 돌려주며, 취소/권한 변경/캠페인 연장 뒤의 오래된 알림을 차단한다.
+
+코드·로컬 실행과 공개 배포를 구분한다. 현재 공개 설치본은 이번 변경을 포함한다고 주장하지 않는다. [변경과 후속 설정](COLLECTION_MERCHANT_COMPLETION.md), [검증](evidence/collection-completion-2026-10-05/README.md), [시험 현황](TEST_STATUS.md)을 따른다. 외부 Firebase 설정과 실제 기기 수신/감각, 공개 반영은 별도 확인이다.
+
 ## `db28003` 운영·시연 배포와 운영 test.10·시연 Preview 19 공개 (Issue #369, 2026-10-05)
 
 [Issue #369](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/369), 브랜치 `docs/release-db28003`, 기준 main `db280032a97eee1d9cd50b504d84bc66e2beafda`(PR #362·#364·#368·#366 병합, 열린 PR 없음). PR #368은 모바일 접근성 의미 검사에서 상태 live region의 공통 로그인 컴포넌트 이동을 처음 반영하지 못해 한 번 실패했고 검사 위치 수정 뒤 12m15s에 PASS했다. PR #364·#366·#362도 각각 11m59s·12m27s·11m50s PASS했다.

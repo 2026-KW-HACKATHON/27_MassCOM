@@ -196,6 +196,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         input.createdByAccountId,
         customerAccountId,
       ]);
+      const staffGrant = await requireActiveMerchantMember(client, input.merchantId, input.createdByAccountId, 'CONFIRM_VISIT');
       if (identityHash) {
         const identity = await client.query<{
           customer_account_id: string;
@@ -235,7 +236,8 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         }
         if (row.expires_at.getTime() <= this.options.now().getTime()) throw new ClaimSlotError('CUSTOMER_IDENTITY_EXPIRED');
       }
-      await requireActiveMerchantForStaff(client, input.merchantId, input.createdByAccountId);
+      // 이미 수령한 QR의 멱등 조회는 점포 숨김 뒤에도 복구하지만, 새 발급은 활성 점포에서만 한다.
+      if (staffGrant.merchantStatus !== 'ACTIVE') throw new ClaimSlotError('CLAIM_MERCHANT_INACTIVE');
       const access = await client.query<AccessAndDuplicateRow>(
         `SELECT
            EXISTS (
@@ -802,7 +804,7 @@ async function isActiveMember(client: PoolClient, merchantId: string, accountId:
 async function requireActiveMerchantForStaff(
   client: PoolClient, merchantId: string, staffAccountId: string,
 ): Promise<void> {
-  const { merchantStatus } = await requireActiveMerchantMember(client, merchantId, staffAccountId);
+  const { merchantStatus } = await requireActiveMerchantMember(client, merchantId, staffAccountId, 'CONFIRM_VISIT');
   if (merchantStatus !== 'ACTIVE') throw new ClaimSlotError('CLAIM_MERCHANT_INACTIVE');
 }
 

@@ -369,7 +369,8 @@ test('run deletes exactly the rows older than each period in every table and not
   const reported = counts(await service.report());
   assert.deepEqual(reported, {
     auth_sessions: 3, web_sessions: 2, deletion_intake: 3, admin_audit: 1, admin_owner_audit: 2,
-    admin_role_audit: 1, staff_registration_audit: 1, coupon_audit: 1, customer_identity_tokens: 1,
+    admin_role_audit: 1, staff_registration_audit: 1, merchant_campaign_extension_audit: 0, merchant_staff_action_audit: 0,
+    coupon_audit: 1, customer_identity_tokens: 1,
     wallet_challenges: 1, web_oauth_states: 1, staff_registration_requests: 2, showcase_access_requests: 1,
     play_runs: 0,
   });
@@ -413,7 +414,7 @@ test('run deletes exactly the rows older than each period in every table and not
   );
 
   // A second run has nothing left to delete.
-  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(14).fill(0));
+  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(16).fill(0));
 });
 
 test('play run retention removes old expired and finished runs but preserves boundary runs and best records', async (t) => {
@@ -847,7 +848,8 @@ test('the command prints counts only and leaves the exit code at zero when every
   assert.equal(lines[0], 'RETENTION_RUN');
   assert.deepEqual(lines.slice(1), [
     'auth_sessions\t2', 'web_sessions\t0', 'deletion_intake\t1', 'admin_audit\t0', 'admin_owner_audit\t0',
-    'admin_role_audit\t1', 'staff_registration_audit\t0', 'coupon_audit\t0', 'customer_identity_tokens\t0',
+    'admin_role_audit\t1', 'staff_registration_audit\t0', 'merchant_campaign_extension_audit\t0', 'merchant_staff_action_audit\t0',
+    'coupon_audit\t0', 'customer_identity_tokens\t0',
     'wallet_challenges\t0', 'web_oauth_states\t0', 'staff_registration_requests\t0', 'showcase_access_requests\t0',
     'play_runs\t0',
     'deleted_play_data\t0', 'admin_audit_deleted_targets\t0',

@@ -6,13 +6,15 @@ import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../account-conse
 import { defaultStudio, PlayError, type FriendStudioSnapshot, type PlayEvent, type PlayMetrics, type PlayRecord,
   type PlayResult, type PlayService, type PlaySnapshot, type Studio, type StudioItem,
   type StudioSnapshot } from '../play.js';
-import { gameDurationMs, gameKinds, isGameKind, scoreRunAtElapsed, type GameAction, type GameKind, type PlayRun } from '../play-rules.js';
+import { evaluateGameSkill, gameDurationMs, gameKinds, gameSkills, isGameKind, legacyGameAchievementScore,
+  scoreRunAtElapsed, type GameAction, type GameKind, type GameSkill, type PlayRun } from '../play-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
 
 type RunRow = { id: string; kind: GameKind; seed: number; started_at: Date; expires_at: Date;
   result: PlayResult | null };
 type RecordRow = { kind: GameKind; best_score: number; plays: number };
+type SkillRow = { kind: GameKind; progress: number | null; achieved: boolean | null };
 type ItemRow = StudioItem & { entitlement_id: string; artwork: StudioItem['artwork'] | null };
 
 const themes = ['daylight', 'evening', 'garden'] as const;
@@ -88,6 +90,9 @@ export class PostgresPlayService implements PlayService {
       let score: ReturnType<typeof scoreRunAtElapsed>;
       try { score = scoreRunAtElapsed(run.kind, run.seed, input.actions, elapsed); }
       catch { throw new PlayError('PLAY_ACTIONS_INVALID'); }
+      const priorRecords = await this.records(client, input.accountId);
+      const priorSkills = await this.achievements(client, input.accountId, priorRecords);
+      const skill = evaluateGameSkill(run.kind, run.seed, input.actions, score);
       let record: PlayRecord | undefined;
       if (score.completed) {
         const updated = await client.query<RecordRow>(`INSERT INTO play_records (account_id, kind, best_score, plays)
@@ -97,10 +102,17 @@ export class PostgresPlayService implements PlayService {
         record = this.mapRecord(updated.rows[0]!);
         await this.count(client, 'complete', run.kind, now);
       }
+      // 입력 로그의 보관 기간이 지나도 실제로 얻은 성취와 장착 조건은 유지한다.
+      await client.query(`INSERT INTO play_records (account_id,kind,best_score,plays,skill_progress,skill_achieved)
+        VALUES ($1,$2,0,0,$3,$4) ON CONFLICT (account_id,kind) DO UPDATE SET
+        skill_progress=greatest(play_records.skill_progress,excluded.skill_progress),
+        skill_achieved=play_records.skill_achieved OR excluded.skill_achieved`,
+      [input.accountId, run.kind, skill.progress, skill.achieved]);
       const records = await this.records(client, input.accountId);
       const currentRecord = record ?? records.find((candidate) => candidate.kind === run.kind);
       const result: PlayResult = { kind: run.kind, ...score, bestScore: currentRecord?.bestScore ?? 0,
-        plays: currentRecord?.plays ?? 0, unlockedThemes: unlocked(records) };
+        plays: currentRecord?.plays ?? 0, unlockedThemes: unlocked(records), skill,
+        newlyEarned: skill.achieved && !priorSkills.some((candidate) => candidate.id === skill.id && candidate.achieved) };
       await client.query(`UPDATE play_runs SET finished_at = $2, result = $3 WHERE id = $1`,
         [input.runId, now, JSON.stringify(result)]);
       return result;
@@ -111,7 +123,7 @@ export class PostgresPlayService implements PlayService {
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, accountId);
       const records = await this.records(client, accountId);
-      return { records, unlockedThemes: unlocked(records) };
+      return { records, unlockedThemes: unlocked(records), achievements: await this.achievements(client, accountId, records) };
     });
   }
 
@@ -141,7 +153,7 @@ export class PostgresPlayService implements PlayService {
       [input.accountId, JSON.stringify(input.studio), this.now()]);
       await this.count(client, 'studio-save', 'all', this.now());
       return { studio: input.studio, items, avatar: await this.avatar(client, input.accountId),
-        records, unlockedThemes: unlocked(records) };
+        records, unlockedThemes: unlocked(records), achievements: await this.achievements(client, input.accountId, records) };
     });
   }
 
@@ -213,7 +225,7 @@ export class PostgresPlayService implements PlayService {
     const goal = stored.goal?.kind !== 'play' && stored.goal &&
       !(await this.publicMerchant(client, stored.goal.merchantId)) ? null : stored.goal;
     const studio = { ...stored, slots: items.map((item) => item.entitlementId!), goal };
-    return { studio, records, unlockedThemes: unlocked(records),
+    return { studio, records, unlockedThemes: unlocked(records), achievements: await this.achievements(client, accountId, records),
       items, avatar: await this.avatar(client, accountId) };
   }
 
@@ -229,6 +241,19 @@ export class PostgresPlayService implements PlayService {
 
   private mapRecord(row: RecordRow): PlayRecord {
     return { kind: row.kind, bestScore: row.best_score, plays: row.plays };
+  }
+
+  private async achievements(client: PoolClient, accountId: string, records: readonly PlayRecord[]): Promise<GameSkill[]> {
+    const rows = (await client.query<SkillRow>(`SELECT kind, skill_progress AS progress, skill_achieved AS achieved
+      FROM play_records WHERE account_id=$1`, [accountId])).rows;
+    return gameKinds.map((kind) => {
+      const row = rows.find((candidate) => candidate.kind === kind);
+      const legacy = (records.find((record) => record.kind === kind)?.bestScore ?? 0) >= legacyGameAchievementScore[kind];
+      const definition = gameSkills[kind];
+      const achieved = Boolean(row?.achieved || legacy);
+      return { id: definition.id, progress: achieved ? definition.target : Math.min(row?.progress ?? 0, definition.target),
+        target: definition.target, achieved };
+    });
   }
 
   private async items(client: PoolClient, accountId: string, slots: readonly string[]): Promise<StudioItem[]> {

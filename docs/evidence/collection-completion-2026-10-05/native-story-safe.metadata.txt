@@ -1,0 +1,1 @@
+codec=avc1 size=(1080.0, 1920.0) fps=20.0 duration=4.0

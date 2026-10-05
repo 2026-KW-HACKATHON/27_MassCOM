@@ -16,7 +16,7 @@ const { loadMerchants } = productionWeb;
 
 // 도감은 동의를 확인한 뒤에만 읽는다(Issue #253). 아래 기존 시험은 이미 동의한 계정을 전제로 하므로 동의 조회에 "동의함"으로 답하는 fetcher로 감싼다.
 // 동의 화면 자체의 시험은 이 파일 끝의 "웹 첫 로그인 동의" 시험이 감싸지 않은 productionWeb.loadCollection으로 한다.
-const consentAccepted = { required: false, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-04' };
+const consentAccepted = { required: false, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05' };
 const withConsent = (fetcher) => (url, options) => (url === '/api/web/consent'
   ? Promise.resolve({ ok: true, status: 200, json: async () => consentAccepted })
   : fetcher(url, options));
@@ -3009,9 +3009,9 @@ function consentDocument() {
   return fixture;
 }
 
-const consentRequired = { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-04' };
+const consentRequired = { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05' };
 const consentBodySent = {
-  termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-04',
+  termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05',
   ageConfirmed: true, termsAccepted: true, privacyAccepted: true,
 };
 
@@ -3175,7 +3175,7 @@ test('웹 동의: 기록이 거절되거나 실패하면 화면과 체크를 그
     [{ ok: false, status: 409, body: { code: 'CONSENT_VERSION_MISMATCH' } }, /새로 바뀌었어요/],
     [{ ok: false, status: 400, body: { code: 'CONSENT_INCOMPLETE' } }, /기록하지 못했어요/],
     [{ ok: false, status: 500, body: {} }, /기록하지 못했어요/],
-    [{ ok: true, status: 200, body: { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-04' } }, /기록하지 못했어요/],
+    [{ ok: true, status: 200, body: { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05' } }, /기록하지 못했어요/],
     [{ ok: true, status: 200, body: null }, /기록하지 못했어요/],
   ]) {
     const { nodes, doc } = consentDocument();

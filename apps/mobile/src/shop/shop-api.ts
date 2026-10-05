@@ -46,6 +46,7 @@ export type ShopHistory = {
 
 export type ShopRerollResult = {
   item: { id: string; grade: MileageGrade; name: string };
+  bonus?: { id: string; name: string; slot: 'hat' | 'bag' | 'prop' | 'pose' | 'decor' };
   balance: number;
   replayed: boolean;
 };
@@ -163,7 +164,11 @@ function parseShopHistory(value: unknown): ShopHistory {
 
 function parseRerollResult(value: unknown): ShopRerollResult {
   if (!isRecord(value) || !isInteger(value.balance) || typeof value.replayed !== 'boolean') throw invalidResponse();
-  return { item: parseCatalogRef(value.item), balance: value.balance, replayed: value.replayed };
+  const bonus = value.bonus;
+  if (bonus !== undefined && (!isRecord(bonus) || typeof bonus.id !== 'string' || !bonus.id ||
+    typeof bonus.name !== 'string' || !bonus.name || !['hat', 'bag', 'prop', 'pose', 'decor'].includes(bonus.slot as string))) throw invalidResponse();
+  return { item: parseCatalogRef(value.item), balance: value.balance, replayed: value.replayed,
+    ...(bonus ? { bonus: bonus as ShopRerollResult['bonus'] } : {}) };
 }
 
 function parseMileage(value: unknown): ShopSnapshot['mileage'] {
