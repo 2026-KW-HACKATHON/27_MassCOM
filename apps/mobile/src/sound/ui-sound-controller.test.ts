@@ -21,10 +21,10 @@ async function flush() {
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
-function fixture(options: { stored?: string | null; prepare?: () => Promise<void>; read?: () => Promise<string | null>; music?: boolean } = {}) {
+function fixture(options: { stored?: string | null; prepare?: () => Promise<void>; read?: () => Promise<string | null>; music?: boolean; musicLoaded?: boolean } = {}) {
   const events: string[] = [];
   const players = new Map<string, SoundPlayer>();
-  const musicPlayers = new Map<MusicSoundName, SoundPlayer & { finish?: () => void }>();
+  const musicPlayers = new Map<MusicSoundName, SoundPlayer & { finish?: () => void; load?: () => void }>();
   const writes: { key: string; value: string }[] = [];
   let clock = 1000;
   function playerFor(name: string): SoundPlayer {
@@ -45,13 +45,16 @@ function fixture(options: { stored?: string | null; prepare?: () => Promise<void
         return player;
       },
       createMusicPlayer: options.music ? (name) => {
-        let listener: ((status: { didJustFinish?: boolean }) => void) | undefined;
+        let listener: ((status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) | undefined;
+        let loaded = options.musicLoaded !== false;
         const player = {
           ...playerFor(name),
-          addListener(_event: 'playbackStatusUpdate', next: (status: { didJustFinish?: boolean }) => void) {
+          get isLoaded() { return loaded; },
+          addListener(_event: 'playbackStatusUpdate', next: (status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) {
             listener = next;
             return { remove() { listener = undefined; } };
           },
+          load() { loaded = true; listener?.({ isLoaded: true }); },
           finish() { listener?.({ didJustFinish: true }); },
         };
         musicPlayers.set(name, player);
@@ -279,6 +282,89 @@ test('draw music plays intro on focus, switches to loop on finish, and falls bac
   await flush();
   assert.equal(events.at(-1), 'drawLoop:play');
   stop();
+});
+
+test('draw intro starts once when a focused native player finishes loading', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true, musicLoaded: false });
+  const stop = controller.start(true);
+  await flush();
+  controller.setDrawMusicFocused(true);
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
+
+  musicPlayers.get('drawIntro')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  musicPlayers.get('drawIntro')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  stop();
+});
+
+test('draw loop waits for loading after the intro finishes', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true, musicLoaded: false });
+  const stop = controller.start(true);
+  await flush();
+  controller.setDrawMusicFocused(true);
+  musicPlayers.get('drawIntro')!.load!();
+  await flush();
+  musicPlayers.get('drawIntro')!.finish!();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+
+  musicPlayers.get('drawLoop')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play', 'drawLoop:play']);
+  stop();
+});
+
+test('blur replaces an unloaded intro with the loop', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true, musicLoaded: false });
+  const stop = controller.start(true);
+  await flush();
+  controller.setDrawMusicFocused(true);
+  controller.setDrawMusicFocused(false);
+  musicPlayers.get('drawIntro')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
+
+  musicPlayers.get('drawLoop')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
+  stop();
+});
+
+test('blur stops a playing intro while the loop is still loading', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true, musicLoaded: false });
+  const stop = controller.start(true);
+  await flush();
+  controller.setDrawMusicFocused(true);
+  musicPlayers.get('drawIntro')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+
+  const beforeBlur = events.length;
+  controller.setDrawMusicFocused(false);
+  assert.ok(events.slice(beforeBlur).includes('drawIntro:pause'));
+  musicPlayers.get('drawLoop')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play', 'drawLoop:play']);
+  stop();
+});
+
+test('unloaded music does not start after mute, background or teardown', async () => {
+  for (const deactivate of ['mute', 'background', 'stop'] as const) {
+    const { controller, events, musicPlayers } = fixture({ music: true, musicLoaded: false });
+    const stop = controller.start(true);
+    await flush();
+    controller.setDrawMusicFocused(true);
+    if (deactivate === 'mute') controller.setBgmEnabled(false);
+    if (deactivate === 'background') controller.setForeground(false);
+    if (deactivate === 'stop') stop();
+    musicPlayers.get('drawIntro')!.load!();
+    await flush();
+    assert.deepEqual(events.filter((event) => event.endsWith(':play')), [], deactivate);
+    stop();
+  }
 });
 
 test('stale intro finish, disabled BGM and foreground changes cannot restart old draw music', async () => {
