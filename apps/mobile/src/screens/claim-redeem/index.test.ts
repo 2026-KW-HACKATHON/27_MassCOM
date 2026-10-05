@@ -77,3 +77,23 @@ test('#295 테스트 방문 만들기는 가상 점포만 /merchants에서 걸�
   assert.match(screen, /createMerchantApiClient\(apiUrl\)\.listMerchants\(\)/);
   assert.match(screen, /merchants\.filter\(\(merchant\) => merchant\.demo\)/);
 });
+
+test('방문 인증 헤더는 성공 전에도 숨은 탭에서 홈으로 나갈 수 있다', () => {
+  const header = between('header={', 'contentContainerStyle=');
+  assert.match(header, /<AppHeader title="방문 인증" subtitle="가게에서 도장을 받아요">/);
+  assert.match(header, /accessibilityLabel="홈으로"/);
+  assert.match(header, /onPress=\{\(\) => router\.replace\('\/'\)\}/);
+  assert.match(header, />홈으로</);
+});
+
+test('Android 뒤로가기도 숨은 방문 인증 탭에서 홈으로 돌아간다', () => {
+  assert.match(screen, /import \{ BackHandler, Pressable,/);
+  assert.match(screen, /BackHandler\.addEventListener\('hardwareBackPress', \(\) => \{\s*router\.replace\('\/'\);\s*return true;\s*\}\)/);
+});
+
+test('방문 완료 카드는 QR 방문과 테스트 방문 모두 홈으로 돌아갈 수 있다', () => {
+  const card = between('{redeemed ? (', '</SkyScrollView>');
+  assert.match(card, /accessibilityLabel="홈으로"/);
+  assert.match(card, /onPress=\{\(\) => router\.replace\('\/'\)\}/);
+  assert.match(card, />홈으로</);
+});

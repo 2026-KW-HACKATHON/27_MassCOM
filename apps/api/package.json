@@ -26,8 +26,8 @@
     "start": "tsx src/server.ts",
     "start:local": "tsx --env-file=.env src/server.ts",
     "start:production": "node dist/server.js",
-    "test": "tsx --test 'src/**/*.test.ts'",
-    "test:postgres": "tsx --test --test-concurrency=1 'src/**/*.postgres.integration.ts'",
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "test:postgres": "tsx --test --test-concurrency=1 \"src/**/*.postgres.integration.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

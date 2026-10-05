@@ -16,6 +16,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const releaseLike = production || showcase;
   const buildSourceCommit = process.env.MASSCOM_BUILD_SOURCE_COMMIT;
   const webBaseUrl = process.env.MASSCOM_WEB_BASE_URL?.trim();
+  const notificationProjectId = process.env.MASSCOM_NOTIFICATION_PROJECT_ID?.trim();
+  if (notificationProjectId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(notificationProjectId)) {
+    throw new Error('MASSCOM_NOTIFICATION_PROJECT_ID must be a UUID');
+  }
   validateBuildEnvironment(variant, {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
     EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
@@ -44,6 +48,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       enableBackgroundPlayback: false,
       enableBackgroundRecording: false,
     }] satisfies [string, Record<string, unknown>],
+    ['expo-notifications', { defaultChannel: 'mail' }] satisfies [string, Record<string, unknown>],
   ];
   return {
     ...config,
@@ -65,6 +70,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     extra: {
       ...config.extra,
+      ...(notificationProjectId ? { eas: { projectId: notificationProjectId } } : {}),
       // 시연 API origin은 시연 빌드의 extra에만 둔다(Issue #325). JS 소스에 리터럴로 두면 운영 번들에도
       // 들어가 scripts/check-embedded-api.sh가 운영 AAB를 막는다. validateBuildEnvironment가 시연
       // EXPO_PUBLIC_API_URL에 요구하는 것과 같은 상수다.
@@ -77,6 +83,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       ...config.android,
+      ...(process.env.MASSCOM_FIREBASE_ANDROID_CONFIG?.trim()
+        ? { googleServicesFile: process.env.MASSCOM_FIREBASE_ANDROID_CONFIG.trim() } : {}),
       package: production ? PRODUCTION_PACKAGE
         : showcase ? `${PRODUCTION_PACKAGE}.demo` : `${PRODUCTION_PACKAGE}.dev`,
       // The development client library declares the overlay permission; the store app never uses it.

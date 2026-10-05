@@ -2,7 +2,7 @@ import { getAppPackageId } from '@/config/app-identity';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Image, Linking, Pressable, StyleSheet, Switch, Text, TextInput, View, useColorScheme } from 'react-native';
+import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -45,6 +45,7 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
 
 import { makeAccountSettingsStyles } from './styles';
+import { SettingsVolume } from './settings-volume';
 
 export function AccountSettingsScreen({
   apiUrl,
@@ -309,21 +310,7 @@ export function AccountSettingsScreen({
       </FloatingCard>
 
       <FloatingCard style={styles.groupCard}>
-        <View style={styles.soundRow}>
-          <View style={styles.soundCopy}>
-            <Text style={styles.sectionTitle}>효과음</Text>
-            <Text style={styles.intro}>버튼·화면 이동·보상 획득 효과음. 이 기기에 저장돼요.</Text>
-          </View>
-          <Switch
-            accessibilityLabel="효과음"
-            accessibilityHint="버튼, 화면 이동, 보상 획득 효과음을 켜거나 끕니다."
-            value={soundSettings.enabled}
-            disabled={!soundSettings.ready}
-            onValueChange={soundSettings.setEnabled}
-            trackColor={{ true: palette.primary, false: palette.separator }}
-            thumbColor={palette.surface}
-          />
-        </View>
+        <SettingsVolume settings={soundSettings} styles={styles} palette={palette} />
         {soundSettings.persistenceError ? (
           <Text accessibilityLiveRegion="polite" style={styles.error}>{soundSettings.persistenceError}</Text>
         ) : null}

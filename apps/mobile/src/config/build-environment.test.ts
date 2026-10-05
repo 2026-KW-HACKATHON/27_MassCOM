@@ -315,6 +315,7 @@ test('actual Expo production config preserves release identity, plugins, and blo
     'expo-splash-screen',
     'expo-secure-store',
     'expo-audio',
+    'expo-notifications',
     './plugins/with-build-source-commit.cjs',
   ]);
   assertPlaybackOnlyAudio(config);
@@ -391,6 +392,7 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-splash-screen',
     'expo-secure-store',
     'expo-audio',
+    'expo-notifications',
   ]);
   assertPlaybackOnlyAudio(config);
   assert.deepEqual(config.android?.blockedPermissions, ['android.permission.RECORD_AUDIO']);
@@ -416,6 +418,7 @@ test('actual Expo showcase config has its own Android identity and no dev launch
     'expo-splash-screen',
     'expo-secure-store',
     'expo-audio',
+    'expo-notifications',
     './plugins/with-build-source-commit.cjs',
   ]);
   assertPlaybackOnlyAudio(config);

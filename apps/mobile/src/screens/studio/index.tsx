@@ -11,6 +11,7 @@ import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { createShopApiClient, type ShopSnapshot } from '@/shop/shop-api';
 import { friendArt } from '@/shop/shop-art';
+import { useEquippedClothingArt } from '@/shop/wardrobe';
 import { StudioScene } from '@/studio/studio-scene';
 import { ShareFormatButtons, useStudioShare } from '@/studio/studio-share';
 import { createStudioApiClient, studioErrorMessage, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme } from '@/studio/studio-api';
@@ -56,6 +57,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const [draft, setDraft] = useState<Studio>();
   const [avatarChoice, setAvatarChoice] = useState<string | null>(null);
   const [avatarSaving, setAvatarSaving] = useState(false);
+  const [clothingChoice, setClothingChoice] = useState<string | null>(null);
+  const [clothingSaving, setClothingSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -98,6 +101,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         ? { ...studio.studio, slots: [...studio.studio.slots, requestedEntitlement] } : studio.studio);
       setAvatarChoice(requestedAvatar && shopSnapshot.items.some((item) => item.id === requestedAvatar && item.owned)
         ? requestedAvatar : studio.avatar);
+      setClothingChoice(shopSnapshot.clothing.items.some((item) => item.id === shopSnapshot.clothing.equipped && item.owned)
+        ? shopSnapshot.clothing.equipped : null);
       setNotice(needsPlace && studio.studio.slots.length >= 6 ? '전시가 가득 찼어요. 다른 수집품을 빼고 골라 주세요.' : undefined);
     } catch (caught) {
       if (active.current && request === generation.current) { setError(studioErrorMessage(caught)); setErrorNeedsConsent(needsConsentRecheck(caught)); }
@@ -127,6 +132,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
     return draft.slots.flatMap((id) => { const item = owned.get(id); return item ? [itemFromCollection(item)] : []; });
   }, [draft, collection]);
   const options = useMemo(() => snapshot && collection ? studioGoalOptions(merchants, collection, snapshot.records) : [], [merchants, collection, snapshot]);
+  const clothingPreview = useMemo(() => shop ? { clothing: { ...shop.clothing, equipped: clothingChoice } } : undefined, [shop, clothingChoice]);
+  const clothingArt = useEquippedClothingArt(clothingPreview);
   const dirty = !!draft && !!snapshot && JSON.stringify(draft) !== JSON.stringify(snapshot.studio);
   const goalAvailable = !draft?.goal || options.some((option) => JSON.stringify(option.goal) === JSON.stringify(draft.goal));
 
@@ -160,6 +167,30 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
     });
   }
 
+  async function saveClothing() {
+    if (clothingSaving || !shop || (clothingChoice !== null && !shop.clothing.items.some((item) => item.id === clothingChoice && item.owned))) return;
+    setClothingSaving(true); setError(undefined); setErrorNeedsConsent(false); setNotice(undefined);
+    const request = generation.current;
+    await runStudioSave(() => shopClient.setClothing(clothingChoice), {
+      isMounted: () => mounted.current,
+      canApply: () => active.current && request === generation.current,
+      onSuccess: (result) => {
+        setClothingChoice(result.equippedClothing);
+        setShop((current) => current ? {
+          ...current,
+          clothing: {
+            ...current.clothing,
+            equipped: result.equippedClothing,
+            items: current.clothing.items.map((item) => ({ ...item, equipped: item.id === result.equippedClothing })),
+          },
+        } : current);
+        setNotice(result.equippedClothing ? '동행 옷을 바꿨어요.' : '동행 옷을 벗겼어요.');
+      },
+      onError: (caught) => { setError(studioErrorMessage(caught)); setErrorNeedsConsent(needsConsentRecheck(caught)); },
+      onSettled: () => setClothingSaving(false),
+    });
+  }
+
   function toggleSlot(id: string) {
     if (!draft || saving) return;
     if (!draft.slots.includes(id) && draft.slots.length >= 6) {
@@ -181,12 +212,12 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
     <SkyScrollView header={header} contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} progressViewOffset={insets.top} />}>
       <View style={styles.sceneFrame}>
-        <StudioScene studio={draft} items={selected} avatar={avatarChoice} apiUrl={apiUrl} width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
+        <StudioScene studio={draft} items={selected} avatar={avatarChoice} clothing={clothingArt} apiUrl={apiUrl} width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
           onItemPress={(item) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })} />
       </View>
-      <Text style={[styles.hint, { color: palette.secondaryLabel }]}>{selected.length}/6개 전시 · 동행 {shop.items.find((item) => item.id === avatarChoice)?.name ?? '기본 마스코트'}</Text>
+      <Text style={[styles.hint, { color: palette.secondaryLabel }]}>{selected.length}/6개 전시 · 동행 {shop.items.find((item) => item.id === avatarChoice)?.name ?? '기본 마스코트'} · 옷 {shop.clothing.items.find((item) => item.id === clothingChoice)?.name ?? '없음'}</Text>
       <Text style={[styles.visibilityNote, { color: palette.secondaryLabel }]}>저장한 동행과 수집품은 친구 공간에 바로 보여요.</Text>
-      <View style={styles.section} pointerEvents={avatarSaving ? 'none' : 'auto'}>
+      <View style={styles.section} pointerEvents={avatarSaving || clothingSaving ? 'none' : 'auto'}>
         <Text style={[styles.heading, { color: palette.label }]}>동행</Text>
         {shop.items.some((item) => item.owned) ? <View style={styles.avatarList}>{shop.items.filter((item) => item.owned).map((item) => <Pressable
           key={item.id} accessibilityRole="radio" accessibilityLabel={`${item.name} 동행 선택`}
@@ -197,6 +228,26 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         </Pressable>)}</View> : <Text style={[styles.emptyText, { color: palette.secondaryLabel }]}>아직 뽑은 동행이 없어요.</Text>}
         {avatarChoice !== snapshot.avatar ? <Pressable accessibilityRole="button" disabled={avatarSaving} onPress={() => void saveAvatar()} style={styles.avatarSave}>
           <Text style={styles.avatarSaveText}>{avatarSaving ? '동행 저장 중…' : '이 동행으로 저장'}</Text>
+        </Pressable> : null}
+        <Text style={[styles.subheading, { color: palette.secondaryLabel }]}>동행 옷</Text>
+        <View style={styles.avatarList}>
+          <Pressable key="none" accessibilityRole="radio" accessibilityLabel="옷 입히지 않기"
+            accessibilityState={{ selected: clothingChoice === null }} onPress={() => setClothingChoice(null)}
+            style={[styles.clothingOption, clothingChoice === null && styles.rowSelected]}>
+            <View style={styles.noClothingBadge}><Text style={styles.noClothingText}>—</Text></View>
+            <Text numberOfLines={2} style={styles.avatarName}>없음</Text>
+          </Pressable>
+          {shop.clothing.items.filter((item) => item.owned).map((item) => <Pressable
+            key={item.id} accessibilityRole="radio" accessibilityLabel={`${item.name} 착용 선택`}
+            accessibilityState={{ selected: clothingChoice === item.id }} onPress={() => setClothingChoice(item.id)}
+            style={[styles.clothingOption, clothingChoice === item.id && styles.rowSelected]}>
+            <View style={styles.clothingBadge}><Text style={styles.clothingBadgeText}>{item.name.slice(0, 1)}</Text></View>
+            <Text numberOfLines={2} style={styles.avatarName}>{item.name}</Text>
+          </Pressable>)}
+        </View>
+        {shop.clothing.items.some((item) => item.owned) ? null : <Text style={[styles.emptyText, { color: palette.secondaryLabel }]}>아직 받은 옷이 없어요. 상점 뽑기에서 얻을 수 있어요.</Text>}
+        {clothingChoice !== shop.clothing.equipped ? <Pressable accessibilityRole="button" disabled={clothingSaving} onPress={() => void saveClothing()} style={styles.avatarSave}>
+          <Text style={styles.avatarSaveText}>{clothingSaving ? '옷 저장 중…' : '이 옷으로 저장'}</Text>
         </Pressable> : null}
       </View>
       <View style={styles.section} pointerEvents={saving ? 'none' : 'auto'}>
@@ -298,6 +349,11 @@ const styles = StyleSheet.create({
   avatarList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   avatarOption: { width: 91, minHeight: 103, alignItems: 'center', justifyContent: 'center', padding: 5, borderWidth: 1, borderColor: '#DBE3EC', borderRadius: 6, backgroundColor: '#FFFFFF' },
   avatarImage: { width: 62, height: 62 }, avatarName: { color: '#263A52', fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  clothingOption: { width: 91, minHeight: 84, alignItems: 'center', justifyContent: 'center', padding: 5, borderWidth: 1, borderColor: '#DBE3EC', borderRadius: 6, backgroundColor: '#FFFFFF' },
+  clothingBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2E8B57', borderColor: '#D9F8D7', borderWidth: 2 },
+  clothingBadgeText: { color: '#FFFFFF', fontWeight: '900', fontSize: 17 },
+  noClothingBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F5F9', borderColor: '#DCE5EF', borderWidth: 1 },
+  noClothingText: { color: '#6B7A8F', fontWeight: '900', fontSize: 20 },
   avatarSave: { minHeight: 44, justifyContent: 'center', alignItems: 'center', backgroundColor: '#EAF1FF', borderRadius: 6 },
   avatarSaveText: { color: '#2456D6', fontSize: 14, fontWeight: '800' },
   hint: { color: '#58677D', fontSize: 13, fontWeight: '600', textAlign: 'center' },

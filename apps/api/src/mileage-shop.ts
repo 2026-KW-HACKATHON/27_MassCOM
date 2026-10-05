@@ -17,6 +17,13 @@ export type MileageShopItemView = {
   owned: boolean;
 };
 
+export type MileageShopClothingView = {
+  id: string;
+  name: string;
+  owned: boolean;
+  equipped: boolean;
+};
+
 export type MileageShopSnapshot = {
   mileage: {
     earned: number;
@@ -29,6 +36,20 @@ export type MileageShopSnapshot = {
   grades: MileageShopGradeView[];
   items: MileageShopItemView[];
   avatar: string | null;
+  clothing: {
+    items: MileageShopClothingView[];
+    equipped: string | null;
+    draw: {
+      probability: number;
+    };
+  };
+  drawRewards: {
+    bonusMileage: {
+      min: number;
+      max: number;
+      probabilityPerAmount: number;
+    };
+  };
 };
 
 export type MileageShopHistoryEntry = {
@@ -50,6 +71,21 @@ export type MileageRerollResult = {
   item: { id: string; grade: MileageGrade; name: string };
   balance: number;
   replayed: boolean;
+  rewards: {
+    mileage: {
+      amount: number;
+      min: number;
+      max: number;
+      probabilityPerAmount: number;
+    };
+    clothing: {
+      awarded: boolean;
+      duplicate: boolean;
+      item: { id: string; name: string } | null;
+      probability: number;
+    };
+    sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'];
+  };
 };
 
 export interface MileageShopService {
@@ -62,6 +98,7 @@ export interface MileageShopService {
     expectedRemaining: number;
   }): Promise<MileageRerollResult>;
   setAvatar(input: { accountId: string; itemId: string | null }): Promise<{ avatar: string | null }>;
+  setClothing(input: { accountId: string; itemId: string | null }): Promise<{ equippedClothing: string | null }>;
 }
 
 export type MileageShopErrorCode =
@@ -72,6 +109,7 @@ export type MileageShopErrorCode =
   | 'SHOP_REQUEST_CONFLICT'
   | 'SHOP_RATE_LIMITED'
   | 'SHOP_ITEM_NOT_OWNED'
+  | 'SHOP_CLOTHING_NOT_OWNED'
   | 'ACCOUNT_DELETED';
 
 export class MileageShopError extends Error {

@@ -2,6 +2,19 @@
 
 이 문서는 실행 절차 초안입니다. RPC·발행 중지·민터 잔액·DB 장애의 Worker 동작은 Local Anvil과 Docker PostgreSQL에서 검증해 O02를 `PASS`로 기록했습니다(Issue #77). 외부 백업 저장소, 운영 DB, 운영 RPC 제공자의 실제 장애는 검증하지 않았습니다.
 
+
+## 푸시·소리 운영 메모 (Issue #367, 미배포)
+
+- Expo push 전송 토큰은 서버 런타임의 `EXPO_PUSH_ACCESS_TOKEN`으로만 주입한다. 토큰 값은 문서, 로그, 커밋, PR 본문에 쓰지 않는다.
+- 모바일 빌드의 `MASSCOM_NOTIFICATION_PROJECT_ID`는 Expo project UUID일 때만 앱 설정의 `extra.eas.projectId`로 들어간다. `MASSCOM_FIREBASE_ANDROID_CONFIG`는 Android Firebase 설정 파일 경로이며 파일 내용은 Git에 넣지 않는다.
+- 앱 variant는 push token DB에서 `ANDROID`와 `SHOWCASE_APP`만 허용한다. 운영/시연 토큰을 섞어 재사용하지 않는다.
+- 알림 outbox는 우편·식사 초대 응답 알림을 재시도/영수증 상태로 추적하기 위한 로컬 큐다. `0046_notification_deliveries.sql` 적용 뒤에는 outbox 1건에 token별 `notification_deliveries`가 생기고 `lease_generation`으로 stale gateway/receipt 완료를 막는다. `0047_push_token_binding_revision.sql` 적용 뒤에는 deviceId별 active binding과 `binding_revision`으로 늦은 register/unregister가 새 계정 binding을 지우지 못하게 한다. `0048_notification_delivery_token_version.sql` 적용 뒤에는 delivery가 dispatch 때 authorization된 push token id와 binding revision을 저장해 receipt 효과를 그 binding으로만 제한한다.
+- migration 적용 순서: 기존 DB는 0043→0044→0045가 이미 적용됐어도 checksum을 고치지 말고 0046→0047→0048을 forward로 추가 적용한다. fresh DB는 0043부터 0048까지 순서대로 적용한다. 0046은 중복 active `(app_variant, token)`을 최신 row만 남기고 revoke한 뒤 unique index를 만들며, 기존 outbox row는 synthetic legacy token delivery로 보존한다. 0047은 중복 active `(app_variant, device_id)`를 가장 높은 `binding_revision` 기준으로 정리한 뒤 unique index를 만든다. 0048은 `notification_deliveries`에 nullable `push_token_id`와 `binding_revision`을 추가하고 둘의 부분 index를 만든다. 실제 서버 적용은 최종 배포 절차에서 별도 확인한다.
+- 운영 판단 경계: dispatch authorization transaction commit이 외부 Expo gateway 호출을 시작해도 되는 시점이다. commit 전 revoke/삭제/동의 철회는 발송 0건이어야 한다. commit 뒤 이미 authorization된 generic push는 회수할 수 없으므로 receipt와 retry 상태로 추적한다. Expo receipt OK는 gateway 처리 근거이지 실제 기기 수신 증명이 아니다. receipt 처리는 0048의 token-version fence를 통과한 delivery에만 반영한다.
+- cycle3 architecture review 기준 cycle4 repair 전에는 push 경로가 최종 승인 상태가 아니다. 남은 HIGH 항목은 older registration ACK overwrite, legacy registration token tombstone bypass, receipt/dead-token atomicity gap, aggregate update clearing a new dispatch lease, retry stealing an unexpired parent lease다. repair 뒤 API/PG/mobile/export와 독립 리뷰를 다시 기록한다.
+- 실제 Android 기기 push delivery와 수신 UX, hardware back은 아직 `NOT_RUN`이므로 공개 배포 전 FCM/EAS credential과 실제 기기로 확인해야 한다.
+- BGM 자산은 사용자 제공 `draw-intro.mp3`·`draw-loop.mp3`, SE 자산은 Kenney CC0 WAV다. 실제 기기 청음, Android 무음 모드, 진동 체감은 ADB/기기 검증이 없어 아직 `NOT_RUN`이다.
+
 ## PostgreSQL 백업
 
 1. 신규 발행 요청을 중지하고 Worker의 활성 lease를 확인합니다.

@@ -1,4 +1,5 @@
 import { getAppPackageId } from '@/config/app-identity';
+import Constants from 'expo-constants';
 import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Stack } from 'expo-router/stack';
@@ -18,12 +19,27 @@ import { initializeUiSounds } from '@/sound/ui-sounds';
 import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
+import { SocialPushProvider } from '@/social/push-runtime';
 import { colorsForScheme } from '@/theme/palette';
+
+function expoProjectId(): string | undefined {
+  const extra = Constants.expoConfig?.extra;
+  const eas = extra && typeof extra === 'object' && 'eas' in extra
+    ? (extra as { eas?: { projectId?: unknown } }).eas
+    : undefined;
+  const projectId = eas?.projectId ?? Constants.easConfig?.projectId;
+  return typeof projectId === 'string' && projectId.length > 0 ? projectId : undefined;
+}
 
 function Routes() {
   const auth = useAuthSession();
   const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
+  const projectId = expoProjectId();
+  const openMail = useCallback((mailId: string) => {
+    if (!auth.accountId || !auth.credential) return;
+    router.push({ pathname: '/mail/[mailId]', params: { mailId } });
+  }, [auth.accountId, auth.credential, router]);
   useEffect(() => {
     if (auth.state.status !== 'signedIn') return;
     const merchantId = consumeMerchantReturn();
@@ -33,28 +49,43 @@ function Routes() {
     else if (hasPendingFriendLink()) router.replace('/friends');
   }, [auth.state.status, router]);
   return (
-    <Stack
-      screenOptions={{
-        headerShadowVisible: false,
-        headerBackButtonDisplayMode: 'minimal',
-        headerStyle: { backgroundColor: palette.surface },
-        headerTintColor: palette.label,
-        contentStyle: { backgroundColor: palette.background },
-      }}
+    <SocialPushProvider
+      apiUrl={publicApiConfig.available ? publicApiConfig.apiUrl : undefined}
+      accountId={auth.accountId}
+      credential={auth.credential}
+      projectId={projectId}
+      onSessionInvalid={auth.invalidateSession}
+      onOpenMail={openMail}
     >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="foundation-preview" options={{ title: 'UI 시안 미리보기' }} />
-      <Stack.Screen name="showcase-tour" options={{ title: '체험용 다섯 공간' }} />
-      <Stack.Screen name="merchants/[merchantId]" options={{ headerShown: false }} />
-      <Stack.Screen name="friends/[friendshipId]" options={{ headerShown: false }} />
-      <Stack.Screen name="friends/[friendshipId]/studio" options={{ headerShown: false }} />
-      <Stack.Screen name="studio" options={{ headerShown: false }} />
-      <Stack.Screen name="play" options={{ headerShown: false }} />
-      <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
-      <Stack.Screen name="merchant-art" options={{ headerShown: false }} />
-      <Stack.Screen name="recommendations" options={{ headerShown: false }} />
-      <Stack.Screen name="wallet" options={{ headerShown: false }} />
-    </Stack>
+      <Stack
+        screenOptions={{
+          headerShadowVisible: false,
+          headerBackButtonDisplayMode: 'minimal',
+          headerStyle: { backgroundColor: palette.surface },
+          headerTintColor: palette.label,
+          contentStyle: { backgroundColor: palette.background },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="foundation-preview" options={{ title: 'UI 시안 미리보기' }} />
+        <Stack.Screen name="showcase-tour" options={{ title: '체험용 다섯 공간' }} />
+        <Stack.Screen name="merchants/[merchantId]" options={{ headerShown: false }} />
+        <Stack.Screen name="friends/[friendshipId]" options={{ headerShown: false }} />
+        <Stack.Screen name="friends/[friendshipId]/studio" options={{ headerShown: false }} />
+        <Stack.Screen name="friends/[friendshipId]/message" options={{ headerShown: false }} />
+        <Stack.Screen name="friends/[friendshipId]/meal-invite" options={{ headerShown: false }} />
+        <Stack.Screen name="mail/index" options={{ headerShown: false }} />
+        <Stack.Screen name="mail/[mailId]" options={{ headerShown: false }} />
+        <Stack.Screen name="meal-merchant" options={{ headerShown: false }} />
+        <Stack.Screen name="home/missions" options={{ headerShown: false }} />
+        <Stack.Screen name="studio" options={{ headerShown: false }} />
+        <Stack.Screen name="play" options={{ headerShown: false }} />
+        <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
+        <Stack.Screen name="merchant-art" options={{ headerShown: false }} />
+        <Stack.Screen name="recommendations" options={{ headerShown: false }} />
+        <Stack.Screen name="wallet" options={{ headerShown: false }} />
+      </Stack>
+    </SocialPushProvider>
   );
 }
 

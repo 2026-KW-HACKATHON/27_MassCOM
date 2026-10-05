@@ -20,6 +20,7 @@ import { ConsentError, CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION,
 import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
+import { StoreTicketError, type StoreTicketService } from './store-tickets.js';
 import type { PlayService } from './play.js';
 import { GoogleIdTokenError } from './google-id-token.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
@@ -249,6 +250,7 @@ async function startFixture(
   merchantDetailViews?: MerchantDetailViewService,
   adminFunnel?: AdminFunnelReader,
   play?: PlayService,
+  storeTickets?: StoreTicketService,
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -298,6 +300,7 @@ async function startFixture(
     merchantDetailViews,
     adminFunnel,
     play,
+    storeTickets,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -343,6 +346,36 @@ async function webRequest(baseUrl: string, path: string, options: {
 }
 
 // 기존 위치 인자를 유지하면서 #354 서비스만 끝에 넣는다.
+test('store ticket HTTP routes authenticate, reject malformed input and preserve ownership errors', async t => {
+  const calls: unknown[] = [];
+  const tickets: StoreTicketService = {
+    list: async accountId => { calls.push(accountId); return { tickets: [] }; },
+    open: async input => {
+      calls.push(input);
+      if (input.entitlementId === 'foreign') throw new StoreTicketError('STORE_TICKET_NOT_FOUND');
+      return { opened: true, replayed: true };
+    },
+  };
+  const args: Parameters<typeof startFixture> = [t];
+  args[36] = tickets;
+  const base = await startFixture(...args);
+  assert.equal((await webRequest(base, '/me/store-tickets')).status, 401);
+  const headers = { 'x-account-id': 'ticket-user', 'content-type': 'application/json' };
+  const list = await webRequest(base, '/me/store-tickets', { headers });
+  assert.equal(list.status, 200);
+  assert.deepEqual(await list.json(), { tickets: [] });
+  const open = (id: string, body = '{}') => webRequest(base, `/me/store-tickets/${id}/open`, { method: 'POST', headers, body });
+  assert.equal((await open('%00')).status, 400);
+  assert.equal((await open('%E0%A4%A')).status, 400);
+  assert.equal((await open('own', '{"accountId":"other"}')).status, 400);
+  assert.equal((await open('own', '{')).status, 400);
+  assert.equal((await open('foreign')).status, 404);
+  const replay = await open('own');
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { opened: true, replayed: true });
+  assert.deepEqual(calls, ['ticket-user', { accountId: 'ticket-user', entitlementId: 'foreign' }, { accountId: 'ticket-user', entitlementId: 'own' }]);
+});
+
 async function startDiscoveryFixture(t: TestContext, options: {
   preview?: CollectiblePreviewService;
   views?: MerchantDetailViewService;
@@ -1171,6 +1204,7 @@ function mileageShopFixture(snapshot: MileageShopSnapshot, history: MileageShopH
     getHistory: async () => history,
     reroll: async () => { throw new Error('unexpected reroll call'); },
     setAvatar: async () => { throw new Error('unexpected setAvatar call'); },
+    setClothing: async () => { throw new Error('unexpected setClothing call'); },
   };
 }
 
@@ -1192,6 +1226,8 @@ test('#333 without the showcase signal /showcase/test-visits stays 404 even with
   const rules = { visit: 50, newStore: 100, series: 200 };
   const operatingSnapshot: MileageShopSnapshot = {
     mileage: { earned: 150, spent: 0, balance: 150, rules }, grades: [], items: [], avatar: null,
+    clothing: { items: [], equipped: null, draw: { probability: 0.5 } },
+    drawRewards: { bonusMileage: { min: 10, max: 50, probabilityPerAmount: 1 / 41 } },
   };
   const operatingHistory: MileageShopHistory = {
     mileage: { earned: 150, spent: 0, balance: 150 }, spends: [], nextCursor: null,
@@ -1225,6 +1261,8 @@ test('#333 a showcase server passes the shop showcaseBonus through next to the r
   const rules = { visit: 50, newStore: 100, series: 200 };
   const boosted: MileageShopSnapshot = {
     mileage: { earned: 150, spent: 0, balance: 100_150, showcaseBonus: 100_000, rules }, grades: [], items: [], avatar: null,
+    clothing: { items: [], equipped: null, draw: { probability: 0.5 } },
+    drawRewards: { bonusMileage: { min: 10, max: 50, probabilityPerAmount: 1 / 41 } },
   };
   const showcase = await startShopFixture(
     t,

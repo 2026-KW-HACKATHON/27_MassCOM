@@ -1,9 +1,10 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { randomInt as cryptoRandomInt, randomUUID } from 'node:crypto';
 
 import type { Pool, PoolClient } from 'pg';
 
 import {
   MileageShopError,
+  type MileageShopClothingView,
   type MileageRerollResult,
   type MileageShopHistory,
   type MileageShopService,
@@ -11,11 +12,17 @@ import {
 } from '../mileage-shop.js';
 import {
   MILEAGE_CATALOG,
+  MILEAGE_CLOTHING_CATALOG,
+  DRAW_BONUS_MILEAGE,
+  DRAW_CLOTHING_PROBABILITY,
   MILEAGE_EARN_RULES,
   MILEAGE_GRADE_PRICES,
+  canEquipClothing,
   canSetAvatar,
   chooseUniform,
   computeEarnedMileage,
+  decideDrawRewards,
+  findClothingItem,
   decideReroll,
   findCatalogItem,
   itemsOfGrade,
@@ -72,6 +79,7 @@ const earnedMileageSql = `
 
 type EarnedRow = { counted_visits: number; distinct_merchants: number; completed_series: number };
 type SpentRow = { spent: number };
+type CreditRow = { credited: number };
 type Queryable = Pool | PoolClient;
 
 // db가 PoolClient면 한 연결이라 동시에 두 질의를 보낼 수 없다(Pool과 달리 질의를 줄 세워야 한다) —
@@ -82,13 +90,17 @@ async function earnedAndSpent(db: Queryable, accountId: string): Promise<{ earne
     `SELECT coalesce(sum(amount), 0)::integer AS spent FROM mileage_spends WHERE account_id = $1`,
     [accountId],
   );
+  const creditResult = await db.query<CreditRow>(
+    `SELECT coalesce(sum(amount), 0)::integer AS credited FROM mileage_credits WHERE account_id = $1`,
+    [accountId],
+  );
   const row = earnedResult.rows[0]!;
   return {
     earned: computeEarnedMileage({
       countedVisits: row.counted_visits,
       distinctMerchants: row.distinct_merchants,
       completedSeries: row.completed_series,
-    }),
+    }) + (creditResult.rows[0]?.credited ?? 0),
     spent: spentResult.rows[0]?.spent ?? 0,
   };
 }
@@ -101,10 +113,50 @@ async function ownedItemIds(db: Queryable, accountId: string): Promise<Set<strin
   return new Set(rows.rows.map((row) => row.item_id));
 }
 
+async function ownedClothingIds(db: Queryable, accountId: string): Promise<Set<string>> {
+  const rows = await db.query<{ item_id: string }>(
+    'SELECT item_id FROM account_clothing WHERE account_id = $1',
+    [accountId],
+  );
+  return new Set(rows.rows.map((row) => row.item_id));
+}
+
 function requireCatalogItem(itemId: string): { id: string; grade: MileageGrade; name: string } {
   const item = findCatalogItem(itemId);
   if (!item) throw new Error(`unknown mileage catalog item persisted: ${itemId}`);
   return item;
+}
+
+function requireClothingItem(itemId: string): { id: string; name: string } {
+  const item = findClothingItem(itemId);
+  if (!item) throw new Error(`unknown clothing catalog item persisted: ${itemId}`);
+  return item;
+}
+
+function kstBusinessDate(now: Date): string {
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function drawRewardPayload(input: {
+  bonusMileage: number;
+  clothingItemId: string | null;
+  clothingDuplicate: boolean;
+}): MileageRerollResult['rewards'] {
+  return {
+    mileage: {
+      amount: input.bonusMileage,
+      min: DRAW_BONUS_MILEAGE.min,
+      max: DRAW_BONUS_MILEAGE.max,
+      probabilityPerAmount: DRAW_BONUS_MILEAGE.probabilityPerAmount,
+    },
+    clothing: {
+      awarded: input.clothingItemId !== null,
+      duplicate: input.clothingDuplicate,
+      item: input.clothingItemId === null ? null : requireClothingItem(input.clothingItemId),
+      probability: DRAW_CLOTHING_PROBABILITY,
+    },
+    sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'],
+  };
 }
 
 const historyCursorPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -120,6 +172,8 @@ export class PostgresMileageShopService implements MileageShopService {
   private readonly rerollRateLimitWindowMs: number;
   // 시연 전부 체험(#333): 시연 서버만 server.ts에서 양수로 넘긴다. 잔액(balance)에만 더해지고 earned·spent는 진짜 값 그대로다.
   private readonly showcaseBonusMileage: number;
+  private readonly randomInt: (bound: number) => number;
+  private readonly nextCreditId: () => string;
 
   constructor(
     private readonly pool: Pool,
@@ -127,6 +181,8 @@ export class PostgresMileageShopService implements MileageShopService {
       accountLifecycle: PostgresAccountLifecycle;
       now?: () => Date;
       nextSpendId?: () => string;
+      nextCreditId?: () => string;
+      randomInt?: (bound: number) => number;
       rerollRateLimit?: number;
       rerollRateLimitWindowMs?: number;
       showcaseBonusMileage?: number;
@@ -135,6 +191,8 @@ export class PostgresMileageShopService implements MileageShopService {
     this.accountLifecycle = options.accountLifecycle;
     this.now = options.now ?? (() => new Date());
     this.nextSpendId = options.nextSpendId ?? randomUUID;
+    this.nextCreditId = options.nextCreditId ?? randomUUID;
+    this.randomInt = options.randomInt ?? cryptoRandomInt;
     this.rerollRateLimit = options.rerollRateLimit ?? 30;
     this.rerollRateLimitWindowMs = options.rerollRateLimitWindowMs ?? 60 * 60 * 1000;
     this.showcaseBonusMileage = options.showcaseBonusMileage ?? 0;
@@ -144,11 +202,12 @@ export class PostgresMileageShopService implements MileageShopService {
   }
 
   async getShop(accountId: string): Promise<MileageShopSnapshot> {
-    const [{ earned, spent }, owned, avatarResult] = await Promise.all([
+    const [{ earned, spent }, owned, clothingOwned, profileResult] = await Promise.all([
       earnedAndSpent(this.pool, accountId),
       ownedItemIds(this.pool, accountId),
-      this.pool.query<{ avatar_item_id: string | null }>(
-        'SELECT avatar_item_id FROM account_profile WHERE account_id = $1',
+      ownedClothingIds(this.pool, accountId),
+      this.pool.query<{ avatar_item_id: string | null; equipped_clothing_item_id: string | null }>(
+        'SELECT avatar_item_id, equipped_clothing_item_id FROM account_profile WHERE account_id = $1',
         [accountId],
       ),
     ]);
@@ -165,6 +224,12 @@ export class PostgresMileageShopService implements MileageShopService {
         probabilityPerItem: remaining > 0 ? 1 / remaining : null,
       };
     });
+    const equippedClothing = profileResult.rows[0]?.equipped_clothing_item_id ?? null;
+    const clothingItems: MileageShopClothingView[] = MILEAGE_CLOTHING_CATALOG.map((item) => ({
+      ...item,
+      owned: clothingOwned.has(item.id),
+      equipped: item.id === equippedClothing,
+    }));
     return {
       mileage: {
         ...summarizeMileage({ earned, spent, showcaseBonus: this.showcaseBonusMileage }),
@@ -172,7 +237,19 @@ export class PostgresMileageShopService implements MileageShopService {
       },
       grades,
       items: MILEAGE_CATALOG.map((item) => ({ ...item, owned: owned.has(item.id) })),
-      avatar: avatarResult.rows[0]?.avatar_item_id ?? null,
+      avatar: profileResult.rows[0]?.avatar_item_id ?? null,
+      clothing: {
+        items: clothingItems,
+        equipped: equippedClothing,
+        draw: { probability: DRAW_CLOTHING_PROBABILITY },
+      },
+      drawRewards: {
+        bonusMileage: {
+          min: DRAW_BONUS_MILEAGE.min,
+          max: DRAW_BONUS_MILEAGE.max,
+          probabilityPerAmount: DRAW_BONUS_MILEAGE.probabilityPerAmount,
+        },
+      },
     };
   }
 
@@ -229,8 +306,15 @@ export class PostgresMileageShopService implements MileageShopService {
       await this.accountLifecycle.assertActive(client, input.accountId);
       const now = this.now();
 
-      const existingResult = await client.query<{ grade: MileageGrade; item_id: string }>(
-        'SELECT grade, item_id FROM mileage_spends WHERE account_id = $1 AND request_id = $2',
+      const existingResult = await client.query<{
+        grade: MileageGrade;
+        item_id: string;
+        bonus_mileage_amount: number;
+        clothing_item_id: string | null;
+        clothing_duplicate: boolean;
+      }>(
+        `SELECT grade, item_id, bonus_mileage_amount, clothing_item_id, clothing_duplicate
+         FROM mileage_spends WHERE account_id = $1 AND request_id = $2`,
         [input.accountId, input.requestId],
       );
       const previous = existingResult.rows[0];
@@ -242,6 +326,7 @@ export class PostgresMileageShopService implements MileageShopService {
         [input.accountId, new Date(now.getTime() - this.rerollRateLimitWindowMs)],
       );
       const owned = await ownedItemIds(client, input.accountId);
+      const clothingOwned = await ownedClothingIds(client, input.accountId);
       const { earned, spent } = await earnedAndSpent(client, input.accountId);
       const unowned = itemsOfGrade(input.grade).filter((item) => !owned.has(item.id));
       const price = MILEAGE_GRADE_PRICES[input.grade];
@@ -261,7 +346,16 @@ export class PostgresMileageShopService implements MileageShopService {
       if (decision.kind === 'REPLAY') {
         const item = requireCatalogItem(previous!.item_id);
         await client.query('COMMIT');
-        return { item, balance, replayed: true };
+        return {
+          item,
+          balance,
+          replayed: true,
+          rewards: drawRewardPayload({
+            bonusMileage: previous!.bonus_mileage_amount,
+            clothingItemId: previous!.clothing_item_id,
+            clothingDuplicate: previous!.clothing_duplicate,
+          }),
+        };
       }
       if (decision.kind === 'REQUEST_CONFLICT') throw new MileageShopError('SHOP_REQUEST_CONFLICT');
       if (decision.kind === 'RATE_LIMITED') {
@@ -271,19 +365,50 @@ export class PostgresMileageShopService implements MileageShopService {
       if (decision.kind === 'GRADE_COMPLETE') throw new MileageShopError('SHOP_GRADE_COMPLETE');
       if (decision.kind === 'INSUFFICIENT_MILEAGE') throw new MileageShopError('SHOP_INSUFFICIENT_MILEAGE');
 
-      const chosen = chooseUniform(unowned, (bound) => randomInt(bound));
+      const chosen = chooseUniform(unowned, this.randomInt);
+      const rewards = decideDrawRewards(this.randomInt);
+      const clothingDuplicate = rewards.clothingItem !== null && clothingOwned.has(rewards.clothingItem.id);
+      const spendId = this.nextSpendId();
       await client.query(
         `INSERT INTO account_characters (account_id, item_id, acquired_at, source)
          VALUES ($1, $2, $3, 'REROLL')`,
         [input.accountId, chosen.id, now],
       );
+      if (rewards.clothingItem) {
+        await client.query(
+          `INSERT INTO account_clothing (account_id, item_id, acquired_at, source)
+           VALUES ($1, $2, $3, 'REROLL')
+           ON CONFLICT DO NOTHING`,
+          [input.accountId, rewards.clothingItem.id, now],
+        );
+      }
       await client.query(
-        `INSERT INTO mileage_spends (id, account_id, amount, reason, grade, item_id, request_id, created_at)
-         VALUES ($1, $2, $3, 'REROLL', $4, $5, $6, $7)`,
-        [this.nextSpendId(), input.accountId, price, input.grade, chosen.id, input.requestId, now],
+        `INSERT INTO mileage_spends (
+           id, account_id, amount, reason, grade, item_id, request_id, created_at,
+           bonus_mileage_amount, clothing_item_id, clothing_awarded, clothing_duplicate
+         )
+         VALUES ($1, $2, $3, 'REROLL', $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
+          spendId, input.accountId, price, input.grade, chosen.id, input.requestId, now,
+          rewards.bonusMileage, rewards.clothingItem?.id ?? null, rewards.clothingItem !== null, clothingDuplicate,
+        ],
+      );
+      await client.query(
+        `INSERT INTO mileage_credits (id, account_id, amount, reason, source_id, business_date, created_at)
+         VALUES ($1, $2, $3, 'DRAW_BONUS', $4, $5, $6)`,
+        [this.nextCreditId(), input.accountId, rewards.bonusMileage, `shop-reroll:${spendId}`, kstBusinessDate(now), now],
       );
       await client.query('COMMIT');
-      return { item: chosen, balance: balance - price, replayed: false };
+      return {
+        item: chosen,
+        balance: balance - price + rewards.bonusMileage,
+        replayed: false,
+        rewards: drawRewardPayload({
+          bonusMileage: rewards.bonusMileage,
+          clothingItemId: rewards.clothingItem?.id ?? null,
+          clothingDuplicate,
+        }),
+      };
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AccountLifecycleError) throw new MileageShopError('ACCOUNT_DELETED');
@@ -309,6 +434,31 @@ export class PostgresMileageShopService implements MileageShopService {
       );
       await client.query('COMMIT');
       return { avatar: input.itemId };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      if (error instanceof AccountLifecycleError) throw new MileageShopError('ACCOUNT_DELETED');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async setClothing(input: { accountId: string; itemId: string | null }): Promise<{ equippedClothing: string | null }> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      await this.accountLifecycle.assertActive(client, input.accountId);
+      const owned = await ownedClothingIds(client, input.accountId);
+      if (!canEquipClothing(input.itemId, owned)) throw new MileageShopError('SHOP_CLOTHING_NOT_OWNED');
+      const now = this.now();
+      await client.query(
+        `INSERT INTO account_profile (account_id, equipped_clothing_item_id, updated_at)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (account_id) DO UPDATE SET equipped_clothing_item_id = $2, updated_at = $3`,
+        [input.accountId, input.itemId, now],
+      );
+      await client.query('COMMIT');
+      return { equippedClothing: input.itemId };
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AccountLifecycleError) throw new MileageShopError('ACCOUNT_DELETED');

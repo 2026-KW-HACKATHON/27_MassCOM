@@ -1,4 +1,4 @@
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import {
   FlatList,
@@ -9,16 +9,10 @@ import {
   TextInput,
   View,
   useColorScheme,
-  useWindowDimensions,
-  type ImageSourcePropType,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthSession } from '@/auth/auth-provider';
-import type { BadgeApiClient, BadgeBook, OpenedReward } from '@/gamification/badge-api';
-import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
-import { HomeRewardCard } from '@/gamification/home-reward-card';
-import { RewardReveal } from '@/gamification/reward-reveal';
 import { applyMerchantFilters, hasActiveFilters, type ProgressFilter } from '@/merchant/apply-merchant-filters';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import type { MerchantCategory } from '@/merchant/merchant-categories';
@@ -26,18 +20,10 @@ import { visitorTagLabels } from '@/merchant/visitor-feedback-codes';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
-import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
-import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
-import { medalColorsForScheme, tierColors } from '@/theme/medal-colors';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
-import { heroMascotSize } from '@/ui/large-text';
-import { Mascot } from '@/ui/mascot';
-import { Companion } from '@/ui/companion';
-import { ExperienceEntry } from '@/ui/experience-entry';
-import { HomeExploration } from '@/ui/home-exploration';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
@@ -54,8 +40,6 @@ import {
 } from './discovery-filters';
 import { MerchantCrest } from './merchant-crest';
 import { merchantCardHint, merchantCardLabel } from './merchant-card-label';
-import { passportChipData, type PassportChipData } from './passport-chip';
-import { homeNextGoalTitle } from './next-goal-card';
 import { makeMerchantListStyles } from './styles';
 import { useDiscoveryProgress } from './use-discovery-progress';
 import { useMerchantListStyles } from './use-merchant-list-styles';
@@ -72,7 +56,6 @@ export function MerchantListScreen({ apiUrl }: Props) {
   const router = useRouter();
   const auth = useAuthSession();
   const insets = useSafeAreaInsets();
-  const { fontScale } = useWindowDimensions();
   const clearance = useTabBarClearance();
   const scrim = useStatusBarScrim();
   const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
@@ -86,43 +69,12 @@ export function MerchantListScreen({ apiUrl }: Props) {
     void refresh();
     setBadgeRefreshToken((value) => value + 1);
   }, [refresh]);
-  // design-298.md: 홈 헤더 아바타가 상점에서 고른 대표 캐릭터를 보여준다(없으면 AppHeader의 기본 마스코트). 탭 포커스가
-  // 돌아올 때(useShopAvatarArt 내부)와 이 당겨서 새로고침에도 다시 읽는다(PR #312 리뷰 5번).
-  const avatarArt = useShopAvatarArt(apiUrl, auth.credential, badgeRefreshToken);
 
   // Issue #331: 검색어·업종·진행 칩으로 거른다. 진행 칩은 로그인했고 데이터(/collection, /me/badges)를 불러왔을 때만 보인다.
   const signedIn = Boolean(auth.credential && auth.accountId);
   const discovery = useDiscoveryProgress({
     apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession, refreshToken: badgeRefreshToken,
   });
-  const recommendationApi = useMemo(
-    () => signedIn && auth.credential ? createRecommendationApiClient({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession }) : undefined,
-    [apiUrl, signedIn, auth.credential, auth.invalidateSession],
-  );
-  const [nextGoal, setNextGoal] = useState<{ api: typeof recommendationApi; item: Recommendation | undefined }>();
-  const [recommendationFailure, setRecommendationFailure] = useState<typeof recommendationApi>();
-  const [recommendationRetry, setRecommendationRetry] = useState(0);
-  const bestNextGoal = signedIn && nextGoal?.api === recommendationApi ? nextGoal?.item : undefined;
-  const recommendationStale = Boolean(recommendationApi && recommendationFailure === recommendationApi);
-  useFocusEffect(useCallback(() => {
-    // 포커스 중 당겨 새로고침·재시도도 같은 조회를 다시 시작한다.
-    void badgeRefreshToken;
-    void recommendationRetry;
-    if (!recommendationApi) return;
-    const controller = new AbortController();
-    void recommendationApi.listRecommendations(controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) {
-          setNextGoal({ api: recommendationApi, item: items[0] });
-          setRecommendationFailure(undefined);
-        }
-      })
-      .catch(() => {
-        // 기존 추천은 남겨 두되 최신 안내가 아님을 알리고 다시 확인할 수 있게 한다.
-        if (!controller.signal.aborted) setRecommendationFailure(recommendationApi);
-      });
-    return () => controller.abort();
-  }, [recommendationApi, badgeRefreshToken, recommendationRetry]));
   const categoryOptions = useMemo(() => categoryChipOptions(merchants), [merchants]);
   const progressOptions = useMemo(
     () => progressChipOptions({ signedIn, collectionReady: discovery.collection !== undefined, badgesReady: discovery.book !== undefined }),
@@ -171,56 +123,14 @@ export function MerchantListScreen({ apiUrl }: Props) {
         ListHeaderComponent={
           <>
             <AppHeader
-              title="어디로 탐험할까요?"
-              subtitle="안 가본 가게에 도장을 찍어요"
-              showFriendsEntry
-              avatarArt={avatarArt}
+              title="가게 검색"
+              subtitle="이름·메뉴·주소로 찾고 지도로도 볼 수 있어요"
             >
-              <View style={styles.heroRow}>
-                <View style={styles.heroCopy}>
-                  <View style={styles.chipRow}>
-                    {auth.credential && auth.accountId ? (
-                      <PassportChip copy="내 탐험 여권 보기" data={passportChipData(discovery.book)} />
-                    ) : (
-                      <PassportChip copy="로그인하면 여권이 열려요" />
-                    )}
-                    <MapChip />
-                  </View>
-                </View>
-                {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
-                {avatarArt ? <Companion art={avatarArt} interactive size={heroMascotSize(fontScale, 120)} />
-                  : <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />}
+              <View style={styles.chipRow}>
+                <MapChip />
               </View>
             </AppHeader>
-            {auth.credential && auth.accountId ? (
-              <View style={styles.rewardCardWrap}>
-                <SignedInRewardCard book={discovery.book} badgeApi={discovery.badgeApi} refreshQuietly={discovery.refreshQuietly} applyOpened={discovery.applyOpened} companionArt={avatarArt} key={auth.accountId} />
-              </View>
-            ) : null}
             <View style={styles.header}>
-              {signedIn ? <ExperienceEntry /> : null}
-              {auth.credential ? <HomeExploration apiUrl={apiUrl} credential={auth.credential}
-                onSessionInvalid={auth.invalidateSession} merchants={merchants} collection={discovery.collection} /> : null}
-              {bestNextGoal ? (
-                <FloatingCard>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${homeNextGoalTitle(bestNextGoal)}, ${bestNextGoal.reasonText}`}
-                    accessibilityHint="추천 가게 상세 보기"
-                    onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: bestNextGoal.merchantId, from: 'recommendation' } })}
-                    style={styles.nextGoalCard}
-                  >
-                    <Text style={styles.nextGoalTitle}>{homeNextGoalTitle(bestNextGoal)}</Text>
-                    <Text style={styles.nextGoalReason}>{bestNextGoal.reasonText}</Text>
-                  </Pressable>
-                </FloatingCard>
-              ) : null}
-              {recommendationStale ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="최신 추천 다시 확인"
-                  onPress={() => setRecommendationRetry((value) => value + 1)} style={styles.recommendationRetry}>
-                  <Text style={styles.nextGoalReason}>최신 추천을 확인하지 못했어요 · 다시 확인</Text>
-                </Pressable>
-              ) : null}
               {merchants.length > 0 ? (
                 <View style={styles.discoveryTools}>
                   <View style={styles.searchField}>
@@ -261,13 +171,6 @@ export function MerchantListScreen({ apiUrl }: Props) {
                     {filtering ? `${visibleMerchants.length} / ${merchants.length}곳` : `${merchants.length}곳`}
                   </Text>
                 </View>
-                {merchants.length > 0 ? (
-                  <Link href="/recommendations" asChild>
-                    <Pressable accessibilityRole="button" accessibilityLabel="다음 가게 추천 보기" style={styles.recommendationAction}>
-                      <Text style={styles.recommendationActionText}>추천 보기 →</Text>
-                    </Pressable>
-                  </Link>
-                ) : null}
               </View>
               {merchants.length > 0 ? (
                 <View style={styles.notice}>
@@ -322,21 +225,6 @@ export function MerchantListScreen({ apiUrl }: Props) {
   );
 }
 
-/** The chip that opens the passport. `data` (from the badge book) swaps the plain copy for "배지 3/9" and a best-tier medal dot. */
-function PassportChip({ copy, data }: { copy?: string; data?: PassportChipData }) {
-  const scheme = useColorScheme();
-  const styles = useMerchantListStyles();
-  const dot = data && data.tier !== 0 ? tierColors(medalColorsForScheme(scheme), data.tier) : undefined;
-  return (
-    <Link href="/collection" asChild>
-      <Pressable accessibilityRole="button" accessibilityLabel={data?.label} style={styles.passportChip}>
-        {dot ? <View accessible={false} style={[styles.passportChipDot, { backgroundColor: dot.base, borderColor: dot.edge }]} /> : null}
-        <Text style={styles.passportChipText}>{data ? data.text : copy}</Text>
-      </Pressable>
-    </Link>
-  );
-}
-
 /** Opens the 지도 tab: the same shops as a picture map (Issue #228). */
 function MapChip() {
   const palette = colorsForScheme(useColorScheme());
@@ -348,39 +236,6 @@ function MapChip() {
         <Text style={styles.mapChipText}>지도로 보기</Text>
       </Pressable>
     </Link>
-  );
-}
-
-/** 배지 책은 진행 필터·여권 칩과 공유하고, 상자를 열면 같은 책에 즉시 반영한다. */
-function SignedInRewardCard({ book, badgeApi, refreshQuietly, applyOpened, companionArt }: {
-  book: BadgeBook | undefined;
-  badgeApi: BadgeApiClient | undefined;
-  refreshQuietly: () => Promise<void>;
-  applyOpened: (result: OpenedReward) => void;
-  companionArt?: ImageSourcePropType;
-}) {
-  const router = useRouter();
-  const [revealed, setRevealed] = useState<OpenedReward>();
-  // PR #301 리뷰: 보상이 거절됐는데(예: 마지막 쿠폰 소진) 책을 다시 읽지 않으면 그 상자가 계속 READY로 보여
-  // homeFeaturedReward가 같은(이제 못 여는) 상자만 돌려주고 그 뒤 진짜 READY 상자를 가린다.
-  const onOpenFailed = useCallback((code: string | undefined) => {
-    if (shouldRefreshBadgesQuietly(code)) void refreshQuietly();
-  }, [refreshQuietly]);
-  const onRevealed = useCallback((result: OpenedReward) => { applyOpened(result); setRevealed(result); }, [applyOpened]);
-  if (!book || !badgeApi) return null;
-  return (
-    <>
-      <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
-      <RewardReveal
-        result={revealed}
-        companionArt={companionArt}
-        onClose={() => setRevealed(undefined)}
-        onUse={() => {
-          setRevealed(undefined);
-          router.navigate({ pathname: '/collection', params: { focus: 'rewards' } });
-        }}
-      />
-    </>
   );
 }
 

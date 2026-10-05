@@ -25,6 +25,9 @@ import { linkVariantFor } from '@/friends/link';
 import { consumePendingFriendCode, consumePendingFriendProblem } from '@/friends/pending-friend-link';
 import { useFriends } from '@/friends/use-friends';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { createSocialApiClient, createSocialRequestId, socialErrorMessage, type SocialFriend, type SocialSnapshot } from '@/social/social-api';
+import { useSocial } from '@/social/use-social';
+import { useSocialPush } from '@/social/push-runtime';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { BounceButton } from '@/ui/bounce-button';
@@ -72,8 +75,15 @@ export function FriendsScreen({
     () => createFriendsApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
+  const socialApi = useMemo(
+    () => createSocialApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
   const friends = useFriends(api);
+  const social = useSocial(socialApi);
+  const push = useSocialPush();
   const { snapshot, refreshQuietly, applyMe } = friends;
+  const { refreshQuietly: refreshSocialQuietly } = social;
   const myCode = snapshot?.me.code;
 
   const [refreshing, setRefreshing] = useState(false);
@@ -99,6 +109,10 @@ export function FriendsScreen({
   // A code that arrives by link waits here while my own snapshot loads (see held-friend-code.ts).
   const [heldCode] = useState(createHeldFriendCode);
   const statusRef = useRef(friends.status);
+  const refreshFriendsAndSocial = useCallback(
+    () => Promise.allSettled([refreshQuietly(), refreshSocialQuietly()]),
+    [refreshQuietly, refreshSocialQuietly],
+  );
 
   const addFriend = useCallback(async (code: string) => {
     if (addingNow.current) return;
@@ -117,14 +131,14 @@ export function FriendsScreen({
         tone: 'success',
         text: result.created ? `${result.friend.nickname} 님과 친구가 되었어요.` : `${result.friend.nickname} 님은 이미 친구예요.`,
       });
-      await refreshQuietly();
+      await refreshFriendsAndSocial();
     } catch (error) {
       setAddNotice({ tone: 'error', text: friendsErrorMessage(error) });
     } finally {
       addingNow.current = false;
       setAdding(false);
     }
-  }, [api, refreshQuietly]);
+  }, [api, refreshFriendsAndSocial]);
 
   // A code that arrived by QR or link is asked about first: adding shares my passport with its owner as well.
   // My own code is only said so: there is nothing to add. A link opens this tab before my code is loaded, so it goes through
@@ -172,13 +186,13 @@ export function FriendsScreen({
     const problem = consumePendingFriendProblem();
     if (problem) setAddNotice({ tone: 'error', text: friendLinkProblemMessage(problem) });
     if (pending) receiveLinkCode(pending);
-    else if (focusCount.current > 1) void refreshQuietly();
+    else if (focusCount.current > 1) void refreshFriendsAndSocial();
     // An add result belongs to the visit it was made on; after a friend is removed elsewhere it would read as stale.
     return () => {
       setScanning(false);
       setAddNotice(undefined);
     };
-  }, [receiveLinkCode, refreshQuietly]));
+  }, [receiveLinkCode, refreshFriendsAndSocial]));
 
   function submitTyped() {
     const checked = validateFriendCode(codeInput);
@@ -273,7 +287,7 @@ export function FriendsScreen({
   async function refresh() {
     setRefreshing(true);
     try {
-      await refreshQuietly();
+      await refreshFriendsAndSocial();
     } finally {
       setRefreshing(false);
     }
@@ -443,21 +457,49 @@ export function FriendsScreen({
       </Stagger>
 
       <Stagger index={2}>
+        <FloatingCard style={styles.card}>
+          <Text accessibilityRole="header" style={styles.eyebrow}>우편 알림</Text>
+          <Text style={styles.note}>{push.state.message}</Text>
+          <View style={styles.actions}>
+            <View style={styles.action}>
+              <BounceButton
+                label={push.state.status === 'registered' ? '알림 켜짐' : '우편 알림 켜기'}
+                variant="secondary"
+                disabled={!push.state.canAskPermission && push.state.status !== 'error'}
+                onPress={() => { void push.requestPermissionAndBind(); }}
+              />
+            </View>
+          </View>
+        </FloatingCard>
+      </Stagger>
+
+      <Stagger index={3}>
         <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>친구 순위</Text>
           <Text style={styles.sectionNote}>{rankingNote(me.asOf)}</Text>
+          {social.snapshot ? <Text style={styles.sectionNote}>오늘 우정 보내기 {social.snapshot.friendshipGift.sendRemaining}/5 · 우정 보상 남은 한도 {social.snapshot.friendshipGift.rewardRemainingToday}</Text> : null}
           <View style={styles.sectionBody}>
             {snapshot.friends.length === 0 ? (
               <StateScene kind="empty" title="아직 친구가 없어요" body="친구 코드를 주고받으면 여기에 순위가 생겨요." />
             ) : (
               rows.map((row) => (
-                <RankingRowCard
+                <View key={row.key} style={{ gap: 8 }}>
+                  <RankingRowCard
                   key={row.key}
                   row={row}
                   onPress={row.friendshipId
                     ? () => router.push({ pathname: '/friends/[friendshipId]', params: { friendshipId: row.friendshipId! } })
                     : undefined}
                 />
+                  {row.friendshipId ? (
+                    <FriendSocialActions
+                      friend={social.snapshot?.friends.find((item) => item.friendshipId === row.friendshipId)}
+                      social={social.snapshot}
+                      onRefresh={() => { void Promise.allSettled([social.refreshQuietly(), refreshQuietly()]); }}
+                      socialApi={socialApi}
+                    />
+                  ) : null}
+                </View>
               ))
             )}
           </View>
@@ -466,6 +508,95 @@ export function FriendsScreen({
     </>,
     <RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} colors={[palette.primary]} />,
   );
+}
+
+function FriendSocialActions({
+  friend,
+  social,
+  socialApi,
+  onRefresh,
+}: {
+  friend?: SocialFriend;
+  social?: SocialSnapshot;
+  socialApi: ReturnType<typeof createSocialApiClient>;
+  onRefresh: () => void;
+}) {
+  const router = useRouter();
+  const styles = useFriendsStyles();
+  const [busy, setBusy] = useState<'send' | 'receive'>();
+  const [notice, setNotice] = useState<string>();
+  if (!friend) return null;
+  const target = friend;
+
+  async function sendGift() {
+    if (busy) return;
+    setBusy('send');
+    setNotice(undefined);
+    try {
+      const result = await socialApi.sendFriendshipGift({ friendshipId: target.friendshipId, requestId: createSocialRequestId('friendship-send') });
+      setNotice(result.senderReward > 0 ? `우정을 보냈어요. 마일리지 ${result.senderReward}을 받았어요.` : '우정을 보냈어요. 오늘 우정 보상 한도는 모두 채웠어요.');
+      onRefresh();
+    } catch (caught) {
+      setNotice(socialErrorMessage(caught));
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  async function receiveGift() {
+    if (busy || !target.gift.pendingGiftId) return;
+    setBusy('receive');
+    setNotice(undefined);
+    try {
+      const result = await socialApi.receiveFriendshipGift({ giftId: target.gift.pendingGiftId, requestId: createSocialRequestId('friendship-receive') });
+      setNotice(result.receiverReward > 0 ? `우정을 받았어요. 마일리지 ${result.receiverReward}을 받았어요.` : '우정을 받았어요. 오늘 우정 보상 한도는 모두 채웠어요.');
+      onRefresh();
+    } catch (caught) {
+      setNotice(socialErrorMessage(caught));
+    } finally {
+      setBusy(undefined);
+    }
+  }
+
+  const sendDisabled = !target.gift.canSend || (social?.friendshipGift.sendRemaining ?? 0) <= 0 || busy !== undefined;
+  const receiveDisabled = !target.gift.canReceive || !target.gift.pendingGiftId || busy !== undefined;
+  const pendingCopy = friendshipPendingCopy(target.gift.pendingDirection);
+
+  return (
+    <FloatingCard style={styles.card}>
+      <View style={{ gap: 8 }}>
+        {pendingCopy ? <Text style={styles.note}>{pendingCopy}</Text> : null}
+        <View style={styles.actions}>
+          <View style={styles.action}>
+            <BounceButton label={busy === 'send' ? '보내는 중…' : '우정 보내기'} disabled={sendDisabled} onPress={() => { void sendGift(); }} />
+          </View>
+          <View style={styles.action}>
+            <BounceButton label={busy === 'receive' ? '받는 중…' : '우정 받기'} variant="secondary" disabled={receiveDisabled} onPress={() => { void receiveGift(); }} />
+          </View>
+        </View>
+        <View style={styles.actions}>
+          <View style={styles.action}>
+            <BounceButton label="쪽지" variant="secondary" onPress={() => router.push({ pathname: '/friends/[friendshipId]/message', params: { friendshipId: target.friendshipId } })} />
+          </View>
+          <View style={styles.action}>
+            <BounceButton label="같이 밥 먹기" variant="secondary" onPress={() => router.push({ pathname: '/friends/[friendshipId]/meal-invite', params: { friendshipId: target.friendshipId } })} />
+          </View>
+        </View>
+        {notice ? <Text accessibilityLiveRegion="polite" style={notice.includes('못') || notice.includes('만료') ? styles.errorMessage : styles.successMessage}>{notice}</Text> : null}
+      </View>
+    </FloatingCard>
+  );
+}
+
+function friendshipPendingCopy(direction: SocialFriend['gift']['pendingDirection']): string | undefined {
+  switch (direction) {
+    case 'SENT':
+      return '친구가 아직 받지 않았어요.';
+    case 'RECEIVED':
+      return '받을 우정이 있어요.';
+    case null:
+      return undefined;
+  }
 }
 
 function RankingRowCard({ row, onPress }: { row: RankingRow; onPress?: () => void }) {

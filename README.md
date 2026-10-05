@@ -65,6 +65,13 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 점주 제작기는 권한 있는 점포의 메뉴·그림으로 시작하고 방문 단계별 문양·재질·동작을 제안합니다. 운영자는 실제 놀이·공간 처리와 앱이 보낸 공유 완료 알림을 기존 방문·쿠폰 집계와 구분해서 봅니다. **새 소스는 공개 설치본과 서버에 아직 반영하지 않았습니다.** [구현·검증과 화면](docs/evidence/connected-play-2026-10-04/README.md), [피드·스토리 홍보 원본](docs/instagram/connected-play.html)을 참고하세요.
 
+
+## 다음 앱 개편: 상점·홈·우정/우편
+
+[Issue #367](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/367)의 로컬 작업은 앱 안 상점과 홈을 새 흐름으로 정리합니다. 상점은 등급을 누르면 재뽑기권 상세로 바로 들어가고, 초록 구매 버튼 뒤에 마일리지 → 옷 → 캐릭터 순서로 결과를 보여 줍니다. 실제 브라우저 확인에서는 200P 초록 구매 버튼, 마일리지→옷→최종 캐릭터 순서, 테스트 방문 뒤 홈 가게권 1개 추가, 홈 QR·친구·미션 노출, 설정 스위치·초기화·뒤로가기, 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, A 가게 2026-10-06 12~14시 식사 초대에 B가 12:40을 골랐고 보낸 사람 우편 상세에 확정 시간이 표시되는 것을 확인했습니다. 하단 탭은 사용자 확정대로 `상점 · 도감 · 홈 · 검색 · 상점` 중복 구성을 유지하고, 두 상점 진입은 같은 화면을 씁니다. 홈은 우편·설정·방문 인증·친구 진입을 둡니다. 친구끼리 우정을 보내거나 받고, 우편으로 쪽지와 같이 밥 먹기 초대를 주고받는 흐름도 들어갑니다.
+
+이 개편은 아직 공개 운영 test.9·시연 Preview 18 APK, 운영/시연 서버, `/open`에 반영하지 않았습니다. Cycle4 push-only repair 전 기준선은 API 463/463 PASS와 build PASS, 모바일 1532/1532 PASS·typecheck·lint PASS, PostgreSQL targeted 49/49 PASS입니다. production+showcase Android export는 fresh PASS(run marker 97284)이고 variant asset separation과 Hermes origin assertion도 PASS입니다. 웹 final fresh run 98375와 최종 push repair, API 추가 preflight concurrency coverage/absent-install logout tombstone fix, 최종 리뷰·UltraQA는 아직 대기입니다. 모바일 `npm audit --omit=dev`는 baseline HEAD와 같은 33건(12 moderate, 21 high, critical 0)이며 새 권고는 0건인 `KNOWN_BASELINE`입니다. Store ticket 브라우저 QA는 fixture media fallback 때문에 실제 표시/ACK 증거가 없고, API 시험이 ACK authorization을 덮으며 UI는 티켓이 유지되는 것까지만 확인했습니다. Android 실제 푸시, BGM/SE/진동, hardware back 실기, migration 0048의 실제 서버 적용, 공개 배포와 merge도 `NOT_RUN`이며, 현재 검증 상태는 [TEST_STATUS](docs/TEST_STATUS.md)의 Issue #367 항목과 [검증 출처](docs/evidence/shop-home-social-2026-10-05/validation.md)를 따릅니다.
+
 ## 왜 만드는가
 
 | 대상 | 다루는 문제 | MassCOM의 접근 | 현재 근거 |

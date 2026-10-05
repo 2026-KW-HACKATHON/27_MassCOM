@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { ConsentApiClient, ConsentApiError } from './consent-api';
+import { CONSENT_PRIVACY_VERSION, CONSENT_TERMS_VERSION } from './consent-copy';
 
 const bearer = { kind: 'bearer', sessionToken: 'app-session' } as const;
-const versions = { termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-04' };
+const versions = { termsVersion: CONSENT_TERMS_VERSION, privacyVersion: CONSENT_PRIVACY_VERSION };
 
 function client(respond: (url: string, init: RequestInit) => Response, credential = bearer as never) {
   const calls: { url: string; init: RequestInit }[] = [];

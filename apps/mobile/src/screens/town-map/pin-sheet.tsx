@@ -21,6 +21,7 @@ type Props = {
   bottom: number;
   onClose: () => void;
   onMeasure: (height: number) => void;
+  selectionAction?: { label: string; onSelect: () => void };
 };
 
 /** Sheet rise: how far below its place it starts. */
@@ -29,7 +30,7 @@ const RISE = 16;
 const FOCUS_DELAY_MS = 350;
 
 /** The shop card that floats up from the bottom when a pin (or a listed shop) is tapped. */
-export function PinSheet({ pin, bottom, onClose, onMeasure }: Props) {
+export function PinSheet({ pin, bottom, onClose, onMeasure, selectionAction }: Props) {
   const styles = useTownMapStyles();
   const router = useRouter();
   const enabled = useMotionEnabled();
@@ -88,6 +89,11 @@ export function PinSheet({ pin, bottom, onClose, onMeasure }: Props) {
                 onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: pin.merchantId, from: 'map' } })}
               />
             </View>
+            {selectionAction ? (
+              <View style={styles.sheetAction}>
+                <BounceButton variant="secondary" label={selectionAction.label} onPress={selectionAction.onSelect} />
+              </View>
+            ) : null}
             {targets ? (
               <View style={styles.sheetAction}>
                 <BounceButton variant="secondary" label="길찾기" onPress={() => chooseProvider(pin, targets)} />

@@ -81,22 +81,23 @@ test('the store list has no dimming press style (the capacity chip was removed w
   assert.doesNotMatch(source, /cardPressed/);
 });
 
-test('the "지도로 보기" chip beside the passport chip is a 48dp secondary control with readable text', () => {
+test('the "지도로 보기" chip is a 48dp secondary control with readable text', () => {
   for (const [palette, world] of schemes) {
     const styles = makeMerchantListStyles(palette, world);
     assert.ok((styles.mapChip.minHeight as number) >= uiMetrics.minTouch);
     assert.equal(styles.mapChip.backgroundColor, palette.primaryContainer);
     assert.ok(contrast(styles.mapChipText.color as string, styles.mapChip.backgroundColor as string) >= 4.5, 'map chip text');
-    // It sits with the passport chip in one wrapping row, so a narrow hero column drops it to the next line instead of clipping.
+    // It sits in a wrapping row so a narrow header can drop it to the next line instead of clipping.
     assert.equal(styles.chipRow.flexWrap, 'wrap');
   }
 });
 
-test('explore links to the map tab from the hero, next to the passport chip', () => {
+test('search keeps map access in the header without bringing home-only chips back', () => {
   const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
   assert.match(source, /<Link href="\/map" asChild>/);
   assert.match(source, /accessibilityLabel="지도로 보기, 동네 그림 지도 열기"/);
-  assert.match(source, /style=\{styles\.chipRow\}[\s\S]*?<PassportChip[\s\S]*?<MapChip \/>/);
+  assert.match(source, /style=\{styles\.chipRow\}[\s\S]*?<MapChip \/>/);
+  assert.doesNotMatch(source, /<PassportChip/);
   assert.match(source, /<TabGlyph name="map"/);
   assert.match(source, />지도로 보기</);
 });
@@ -119,7 +120,7 @@ test('the discovery chips are 48dp buttons that stay readable and bounded, selec
 });
 
 
-test('홈 다음 목표는 두 테마에서 읽을 수 있고 최소 터치 높이를 갖는다 (#354)', () => {
+test('legacy home goal teaser styles stay readable if reused outside search (#354)', () => {
   for (const [palette, world] of schemes) {
     const styles = makeMerchantListStyles(palette, world);
     assert.ok(styles.nextGoalCard.minHeight >= uiMetrics.minTouch);

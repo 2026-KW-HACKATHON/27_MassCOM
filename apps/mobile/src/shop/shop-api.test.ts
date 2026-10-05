@@ -16,6 +16,12 @@ function snapshotBody(overrides: Record<string, unknown> = {}) {
       { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이', owned: false },
     ],
     avatar: 'cook-cat',
+    clothing: {
+      items: [{ id: 'green-apron', name: '초록 앞치마', owned: true, equipped: true }],
+      equipped: 'green-apron',
+      draw: { probability: 0.5 },
+    },
+    drawRewards: { bonusMileage: { min: 10, max: 50, probabilityPerAmount: 1 / 41 } },
     ...overrides,
   };
 }
@@ -34,6 +40,8 @@ test('parses a GET /shop snapshot', async () => {
   assert.equal(shop.grades[2]!.probabilityPerItem, null);
   assert.equal(shop.avatar, 'cook-cat');
   assert.equal(shop.items[0]!.owned, true);
+  assert.equal(shop.clothing.items[0]!.equipped, true);
+  assert.equal(shop.drawRewards.bonusMileage.min, 10);
 });
 
 test('showcaseBonus: a missing field means 0, a present one is read as the separate bonus on top of the real balance', async () => {
@@ -112,7 +120,16 @@ test('reroll posts grade, requestId and expectedRemaining', async () => {
     credential: { kind: 'bearer', sessionToken: 'session' },
     fetcher: async (input, init) => {
       calls.push({ url: String(input), method: init?.method, body: JSON.parse(String(init?.body)) });
-      return Response.json({ item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false }, { status: 201 });
+      return Response.json({
+        item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' },
+        balance: 330,
+        replayed: false,
+        rewards: {
+          mileage: { amount: 30, min: 10, max: 50, probabilityPerAmount: 1 / 41 },
+          clothing: { awarded: true, duplicate: false, item: { id: 'green-apron', name: '초록 앞치마' }, probability: 0.5 },
+          sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'],
+        },
+      }, { status: 201 });
     },
   });
   const result = await client.reroll({ grade: 'BRONZE', requestId: 'req-1', expectedRemaining: 2 });
@@ -121,8 +138,10 @@ test('reroll posts grade, requestId and expectedRemaining', async () => {
     body: { grade: 'BRONZE', requestId: 'req-1', expectedRemaining: 2 },
   });
   assert.equal(result.item.id, 'cafe-bear');
-  assert.equal(result.balance, 300);
+  assert.equal(result.balance, 330);
   assert.equal(result.replayed, false);
+  assert.equal(result.rewards.mileage.amount, 30);
+  assert.equal(result.rewards.clothing.item?.id, 'green-apron');
 });
 
 test('setAvatar PUTs itemId (or null) and reads the avatar back', async () => {
@@ -139,6 +158,22 @@ test('setAvatar PUTs itemId (or null) and reads the avatar back', async () => {
   assert.deepEqual(await client.setAvatar(null), { avatar: null });
   assert.deepEqual(bodies, [{ itemId: 'cook-cat' }, { itemId: null }]);
 });
+
+test('setClothing PUTs itemId (or null) and reads the equipped clothing back', async () => {
+  const bodies: unknown[] = [];
+  const client = createShopApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json({ equippedClothing: (bodies.at(-1) as { itemId: string | null }).itemId });
+    },
+  });
+  assert.deepEqual(await client.setClothing('green-apron'), { equippedClothing: 'green-apron' });
+  assert.deepEqual(await client.setClothing(null), { equippedClothing: null });
+  assert.deepEqual(bodies, [{ itemId: 'green-apron' }, { itemId: null }]);
+});
+
 
 test('maps every documented error status to its code and reads Retry-After only on 429', async () => {
   const responses = [
@@ -183,7 +218,7 @@ test('a thrown fetch becomes NETWORK_ERROR, not an unhandled rejection shape', a
 test('shopErrorMessage covers every documented code and never leaks a raw status or code', () => {
   const codes = [
     'INVALID_REQUEST', 'SHOP_INSUFFICIENT_MILEAGE', 'SHOP_GRADE_COMPLETE', 'SHOP_STATE_CHANGED',
-    'SHOP_REQUEST_CONFLICT', 'SHOP_RATE_LIMITED', 'SHOP_ITEM_NOT_OWNED', 'ACCOUNT_DELETED',
+    'SHOP_REQUEST_CONFLICT', 'SHOP_RATE_LIMITED', 'SHOP_ITEM_NOT_OWNED', 'SHOP_CLOTHING_NOT_OWNED', 'ACCOUNT_DELETED',
     'MILEAGE_SHOP_NOT_CONFIGURED', 'SESSION_INVALID', 'NETWORK_ERROR', 'INVALID_RESPONSE', 'HTTP_500',
   ];
   for (const code of codes) {

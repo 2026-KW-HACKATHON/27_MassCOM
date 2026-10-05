@@ -17,6 +17,7 @@ import { resolveRuntimeIdentity } from '@/config/showcase-identity';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
 import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
 import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
+import { appVariantForPackage, beginSocialPushBindingRevocation, revokeSocialPushBindings } from '@/social/push-runtime';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
@@ -78,6 +79,16 @@ const productionAuthAvailable = !isWeb && authConfiguration.available && publicA
 // 별개로, 로컬 `expo start --web` 같은 경로를 통해서도 새지 않게 막는 2차 방어선이다.
 const guestTrialAvailable = isWeb && publicApiConfiguration.available
   && isApprovedGuestTrialOrigin(getAppPackageId(), publicApiConfiguration.apiUrl, Constants.expoConfig?.extra);
+
+async function revokeSocialPushBindingForAuthSession(accountId?: string, credential?: AccountCredential): Promise<void> {
+  beginSocialPushBindingRevocation();
+  await revokeSocialPushBindings({
+    apiUrl: publicApiConfiguration.available ? publicApiConfiguration.apiUrl : undefined,
+    accountId,
+    credential,
+    appVariant: appVariantForPackage(getAppPackageId()),
+  });
+}
 
 function initialAuthState(): AuthSessionState {
   if (productionAuthAvailable || guestTrialAvailable) return { status: 'restoring' };
@@ -150,7 +161,6 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     latestAccountIdRef.current = accountId;
   }, [accountId]);
-
   useEffect(() => {
     if (!accountId) return;
     void purgeForeignWalletSessions({
@@ -191,6 +201,9 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.
       clearPendingFriendLink();
+      const previousAccountId = accountId;
+      const previousCredential = credential;
+      await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (state.status === 'demo') {
         await forgetWalletSession({
           disconnect: async () => {
@@ -205,11 +218,17 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     },
     async switchAccount() {
       clearPendingFriendLink();
+      const previousAccountId = accountId;
+      const previousCredential = credential;
+      await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       await controllerRef.current.switchAccount();
     },
     async invalidateSession() {
       clearPendingFriendLink();
+      const previousAccountId = accountId;
+      const previousCredential = credential;
+      await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (!session || !controllerRef.current) return;
       await controllerRef.current.invalidateSession(session.sessionToken);
     },

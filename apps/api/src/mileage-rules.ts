@@ -10,6 +10,11 @@ export type MileageCharacter = {
   name: string;
 };
 
+export type MileageClothing = {
+  id: string;
+  name: string;
+};
+
 // 정적 카탈로그: 하늘 동네 가게 친구들 9종, 등급마다 3종(소유자 결정 — 펭귄일 필요 없음, docs/DECISIONS.md).
 export const MILEAGE_CATALOG: readonly MileageCharacter[] = [
   { id: 'cook-cat', grade: 'BRONZE', name: '요리사 냥이' },
@@ -29,6 +34,15 @@ export const MILEAGE_GRADE_PRICES: Readonly<Record<MileageGrade, number>> = {
   GOLD: 400,
 };
 
+export const MILEAGE_CLOTHING_CATALOG: readonly MileageClothing[] = [
+  { id: 'green-apron', name: '초록 앞치마' },
+  { id: 'sky-hoodie', name: '하늘 후드' },
+  { id: 'market-scarf', name: '장터 스카프' },
+];
+
+export const DRAW_BONUS_MILEAGE = { min: 10, max: 50, probabilityPerAmount: 1 / 41 } as const;
+export const DRAW_CLOTHING_PROBABILITY = 0.5;
+
 // 적립 공식의 가중치. 앱이 하드코딩하지 않도록 GET /shop 응답에도 그대로 실어 보낸다.
 export const MILEAGE_EARN_RULES = { visit: 50, newStore: 100, series: 200 } as const;
 
@@ -42,6 +56,10 @@ export function itemsOfGrade(grade: MileageGrade): readonly MileageCharacter[] {
 
 export function findCatalogItem(itemId: string): MileageCharacter | undefined {
   return MILEAGE_CATALOG.find((item) => item.id === itemId);
+}
+
+export function findClothingItem(itemId: string): MileageClothing | undefined {
+  return MILEAGE_CLOTHING_CATALOG.find((item) => item.id === itemId);
 }
 
 // earned(account) = 50 × 센 방문 + 100 × 그 방문들의 서로 다른 점포 + 200 × 완성한 점포 시리즈.
@@ -70,8 +88,20 @@ export function chooseUniform<T>(items: readonly T[], randomInt: (bound: number)
   return items[index]!;
 }
 
+export function decideDrawRewards(
+  randomInt: (bound: number) => number,
+): { bonusMileage: number; clothingItem: MileageClothing | null } {
+  const bonusMileage = DRAW_BONUS_MILEAGE.min + randomInt(DRAW_BONUS_MILEAGE.max - DRAW_BONUS_MILEAGE.min + 1);
+  const clothingItem = randomInt(2) === 1 ? chooseUniform(MILEAGE_CLOTHING_CATALOG, randomInt) : null;
+  return { bonusMileage, clothingItem };
+}
+
 // 대표 캐릭터는 가진 것만 될 수 있다. null(대표 없음)은 언제나 허용한다.
 export function canSetAvatar(itemId: string | null, ownedItemIds: ReadonlySet<string>): boolean {
+  return itemId === null || ownedItemIds.has(itemId);
+}
+
+export function canEquipClothing(itemId: string | null, ownedItemIds: ReadonlySet<string>): boolean {
   return itemId === null || ownedItemIds.has(itemId);
 }
 

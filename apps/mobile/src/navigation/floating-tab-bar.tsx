@@ -18,7 +18,16 @@ import { CLAIM_SLOT_FLEX, barHeightFor, tabIndicator } from './tab-bar-style';
 type GlyphName = ComponentProps<typeof TabGlyph>['name'];
 type Route = BottomTabBarProps['state']['routes'][number];
 
-const glyphByRoute: Record<string, GlyphName> = { index: 'explore', map: 'map', claim: 'claim', collection: 'collection', shop: 'shop', friends: 'friends' };
+const glyphByRoute: Record<string, GlyphName> = {
+  shop: 'shop',
+  collection: 'collection',
+  index: 'home',
+  search: 'explore',
+  'shop-again': 'shop',
+  map: 'map',
+  claim: 'claim',
+  friends: 'friends',
+};
 // The raised claim button rises this far above the bar; the wrapper is that much taller so every tap lands inside it.
 const LIFT = 22;
 const GAP = 16;
@@ -36,7 +45,7 @@ function useKeyboardShown(): boolean {
   return shown;
 }
 
-/** Floating five-slot bar: 탐색 · 지도 · (raised 방문 인증 stamp) · 도감 · 상점, the stamp exactly in the middle. Routes hidden with `href: null` (친구, 내 정보) get no slot. */
+/** Floating five-slot bar: 상점 · 도감 · (raised 홈) · 검색 · 상점. Routes hidden with `href: null` get no slot. */
 export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const world = worldForScheme(useColorScheme());
   const { fontScale } = useWindowDimensions();
@@ -92,8 +101,8 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
                 navigation.navigate(route.name, route.params);
               }
             };
-            return route.name === 'claim'
-              ? <ClaimSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />
+            return route.name === 'index'
+              ? <HomeSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />
               : <TabSlot key={route.key} route={route} label={label} accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} onPress={onPress} />;
           })}
         </View>
@@ -135,7 +144,7 @@ function TabSlot({ route, label, accessibilityLabel, selected, onPress }: SlotPr
   );
 }
 
-function ClaimSlot({ label, accessibilityLabel, selected, onPress }: SlotProps) {
+function HomeSlot({ label, accessibilityLabel, selected, onPress }: SlotProps) {
   const palette = colorsForScheme(useColorScheme());
   const world = worldForScheme(useColorScheme());
   const indicator = tabIndicator(selected, palette, world);
@@ -161,7 +170,7 @@ function ClaimSlot({ label, accessibilityLabel, selected, onPress }: SlotProps) 
           ]}
         >
           {indicator.claimRing ? <View pointerEvents="none" style={indicator.claimRing} /> : null}
-          <TabGlyph name="claim" color={palette.onPrimary} size={30} />
+          <TabGlyph name="home" color={palette.onPrimary} size={30} />
         </Animated.View>
         <Text
           maxFontSizeMultiplier={1.5}

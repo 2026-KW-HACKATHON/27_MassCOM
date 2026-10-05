@@ -7,9 +7,8 @@ import { fileURLToPath } from 'node:url';
 const app = fileURLToPath(new URL('../app/', import.meta.url));
 
 test('the primary route files keep the production root while the foundation preview stays separate', () => {
-  // Seven files, five tab slots: 지도(#228)와 상점(#298)이 탐색·방문 인증·도감에 합류했고, 친구(#230)는 #298에서 탭을 나와
-  // 내 정보처럼 숨은 라우트가 됐다(화면은 그대로, 홈 헤더·내 정보에서 들어간다).
-  for (const name of ['index', 'map', 'claim', 'collection', 'shop', 'friends', 'settings']) {
+  // Nine files, five visible tab slots: 상점 · 도감 · 홈 · 검색 · 상점. 지도·방문 인증·친구·내 정보는 홈/검색에서 여는 숨은 route다.
+  for (const name of ['shop', 'collection', 'index', 'search', 'shop-again', 'map', 'claim', 'friends', 'settings']) {
     assert.ok(existsSync(join(app, '(tabs)', name + '.tsx')), name);
     assert.equal(existsSync(join(app, name + '.tsx')), false, name);
   }
@@ -22,20 +21,21 @@ test('the primary route files keep the production root while the foundation prev
   assert.match(root, /<AuthenticatedRoot\s*\/>/);
 });
 
-test('floating tab bar shows explore, map, a raised claim stamp, collection and shop; account and friends move to the header', () => {
+test('floating tab bar shows shop, collection, a raised home, search and the duplicate shop', () => {
   const layout = readFileSync(join(app, '(tabs)', '_layout.tsx'), 'utf8');
-  for (const title of ['탐색', '지도', '방문 인증', '도감', '상점']) assert.ok(layout.includes(title), title);
+  for (const title of ['홈', '검색', '도감', '상점']) assert.ok(layout.includes(title), title);
   assert.match(layout, /name="shop" options=\{\{ title: '상점', tabBarAccessibilityLabel: '상점' \}\}/);
   assert.doesNotMatch(layout, /name="shop"[^\n]*href: null/, 'the shop tab is visible');
-  assert.match(layout, /name="map" options=\{\{ title: '지도', tabBarAccessibilityLabel: '지도' \}\}/);
-  assert.doesNotMatch(layout, /name="map"[^\n]*href: null/, 'the map tab is visible');
-  // #298: 친구 kept its screen and route, but left the bar (settings-style hidden tab) when 상점 took its slot.
+  assert.match(layout, /name="shop-again" options=\{\{ title: '상점', tabBarAccessibilityLabel: '상점' \}\}/);
+  assert.match(layout, /name="map" options=\{\{ title: '지도', href: null \}\}/);
+  assert.match(layout, /name="claim" options=\{\{ title: '방문 인증', href: null \}\}/);
   assert.match(layout, /name="friends" options=\{\{ title: '친구', href: null \}\}/);
   assert.match(layout, /name="settings"[\s\S]*?href: null/);
-  // The bar draws routes in the order they are declared: 탐색 · 지도 · (방문 인증) · 도감 · 상점, so the raised claim stamp is the third of five visible slots: dead centre.
-  const order = ['index', 'map', 'claim', 'collection', 'shop'].map((name) => layout.indexOf(`name="${name}"`));
+  // The bar draws routes in the order they are declared: 상점 · 도감 · 홈 · 검색 · 상점, so home is the third of five visible slots.
+  const order = ['shop', 'collection', 'index', 'search', 'shop-again'].map((name) => layout.indexOf(`name="${name}"`));
   assert.ok(order.every((position) => position >= 0), 'every route is declared');
   assert.deepEqual(order, [...order].sort((a, b) => a - b), 'declared in bar order');
+  assert.match(layout, /initialRouteName="index"/);
   assert.match(layout, /tabBar=\{\(props\) => <FloatingTabBar \{\.\.\.props\} \/>\}/);
   const bar = readFileSync(fileURLToPath(new URL('./floating-tab-bar.tsx', import.meta.url)), 'utf8');
   assert.match(bar, /useMotionEnabled\(\)/);
@@ -44,9 +44,11 @@ test('floating tab bar shows explore, map, a raised claim stamp, collection and 
   assert.match(bar, /maxFontSizeMultiplier=\{1\.5\}/);
   assert.match(bar, /accessibilityRole="tab"/);
   // Every visible tab has its own glyph; an unmapped route would silently show the explore magnifier.
-  assert.match(bar, /const glyphByRoute[^\n]*map: 'map'/);
-  assert.match(bar, /const glyphByRoute[^\n]*shop: 'shop'/);
-  assert.match(bar, /route\.name === 'claim'/);
+  assert.match(bar, /index: 'home'/);
+  assert.match(bar, /search: 'explore'/);
+  assert.match(bar, /shop: 'shop'/);
+  assert.match(bar, /'shop-again': 'shop'/);
+  assert.match(bar, /route\.name === 'index'/);
 });
 
 test('the floating bar skips hidden routes and steps aside for the keyboard', () => {
@@ -63,7 +65,7 @@ test('the floating bar skips hidden routes and steps aside for the keyboard', ()
 
 test('every primary screen offers the account avatar', () => {
   // The header is the first thing inside each screen's scroll content, so the claim route no longer draws one itself.
-  for (const screen of ['merchant-list', 'collection', 'claim-redeem', 'shop']) {
+  for (const screen of ['home', 'merchant-list', 'collection', 'claim-redeem', 'shop']) {
     const source = readFileSync(fileURLToPath(new URL(`../screens/${screen}/index.tsx`, import.meta.url)), 'utf8');
     assert.match(source, /<AppHeader/, screen);
   }
@@ -85,4 +87,16 @@ test('the role preview Link child does not pass a style array to Expo Router Slo
   const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];
   assert.ok(pressable, 'Link direct Pressable child');
   assert.doesNotMatch(pressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
+});
+
+test('the home quick action Link children do not pass style arrays to Expo Router Slot', () => {
+  const home = readFileSync(join(app, '..', 'screens', 'home', 'index.tsx'), 'utf8');
+  for (const href of ['/claim', '/friends']) {
+    const link = home.match(new RegExp(`<Link href="${href}" asChild>([\\s\\S]*?)<\\/Link>`))?.[1];
+    assert.ok(link, `${href} quick action Link`);
+    const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];
+    assert.ok(pressable, `${href} Link direct Pressable child`);
+    assert.match(pressable, /StyleSheet\.flatten\(/, `${href} child flattens style before Expo Router Slot`);
+    assert.doesNotMatch(pressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
+  }
 });

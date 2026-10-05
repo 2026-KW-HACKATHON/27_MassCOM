@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
 
 import { friendArt } from '@/shop/shop-art';
+import { AvatarWardrobe, type EquippedClothingArt } from '@/shop/wardrobe';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
 import { Companion } from '@/ui/companion';
 
@@ -15,17 +16,22 @@ const rooms = {
 const mascot = require('../../assets/images/mascot/v2/wave.png');
 const accentColors = { mint: '#68BAAC', rose: '#E78F9B', sky: '#72A7E6' } as const;
 
-export function CompanionScene({ avatar, size = 160, onLoad, onError }: {
-  avatar: string | null; size?: number; onLoad?: () => void; onError?: () => void;
+export function CompanionScene({ avatar, clothing, size = 160, onLoad, onError }: {
+  avatar: string | null; clothing?: EquippedClothingArt | null; size?: number; onLoad?: () => void; onError?: () => void;
 }) {
   const source: ImageSourcePropType | undefined = avatar ? friendArt[avatar] : undefined;
-  if (onLoad) return <Image source={source ?? mascot} resizeMode="contain" onLoad={onLoad} onError={onError}
-    accessible accessibilityLabel={source ? '선택한 동행' : '동행을 기다리는 마스코트'} style={{ width: size, height: size }} />;
-  return <Companion art={source} size={size} />;
+  const label = `${source ? '선택한 동행' : '동행을 기다리는 마스코트'}${clothing ? `, ${clothing.name} 착용` : ''}`;
+  return <View accessible accessibilityLabel={label} style={{ width: size, height: size }}>
+    {onLoad ? <Image source={source ?? mascot} resizeMode="contain" onLoad={onLoad} onError={onError}
+      style={{ width: size, height: size }} /> : <Companion art={source} size={size} />}
+    <View style={[styles.wardrobe, { left: Math.round(size * 0.19), top: Math.round(size * 0.43) }]}>
+      <AvatarWardrobe clothing={clothing ?? null} size={Math.max(44, Math.round(size * 0.56))} />
+    </View>
+  </View>;
 }
 
-export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAssetsReady, onAssetError, width = 360, height = 330 }: {
-  studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; apiUrl: string;
+export function StudioScene({ studio, items, avatar, clothing, apiUrl, onItemPress, onAssetsReady, onAssetError, width = 360, height = 330 }: {
+  studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; clothing?: EquippedClothingArt | null; apiUrl: string;
   onItemPress?: (item: StudioItem) => void; onAssetsReady?: () => void; onAssetError?: () => void;
   width?: number; height?: number;
 }) {
@@ -47,7 +53,7 @@ export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAsse
         onLoad={() => markLoaded('room')} onError={onAssetError} />
       <View style={[styles.accentLine, { borderColor: accent }]} />
       <View style={[styles.companion, { left: width * 0.285, bottom: height * 0.17 }]}>
-        <CompanionScene avatar={avatar} size={Math.min(width * 0.43, height * 0.46)}
+        <CompanionScene avatar={avatar} clothing={clothing} size={Math.min(width * 0.43, height * 0.46)}
           onLoad={onAssetsReady ? () => markLoaded('companion') : undefined} onError={onAssetError} />
       </View>
       {sceneItems.map((item, index) => {
@@ -82,6 +88,7 @@ const styles = StyleSheet.create({
   backdrop: { position: 'absolute', width: '100%', height: '100%', top: 0 },
   accentLine: { position: 'absolute', bottom: 0, left: 0, width: '100%', borderBottomWidth: 5 },
   companion: { position: 'absolute' },
+  wardrobe: { position: 'absolute' },
   item: { position: 'absolute', backgroundColor: '#FFFFFF', borderWidth: 2, borderRadius: 7, alignItems: 'center', justifyContent: 'center', padding: 3 },
   itemImage: { width: '100%', height: '100%' },
   missingArt: { color: '#35445B', textAlign: 'center', fontSize: 10, fontWeight: '700' },

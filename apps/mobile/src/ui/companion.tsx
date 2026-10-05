@@ -1,15 +1,17 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
-import { Image, Pressable, type ImageSourcePropType } from 'react-native';
+import { Image, Pressable, View, type ImageSourcePropType } from 'react-native';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { lightHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
+import { AvatarWardrobe, type EquippedClothingArt } from '@/shop/wardrobe';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Mascot } from './mascot';
 
-export function Companion({ art, size = 120, celebrate = false, interactive = false }: {
+export function Companion({ art, clothing, size = 120, celebrate = false, interactive = false }: {
   art?: ImageSourcePropType;
+  clothing?: EquippedClothingArt | null;
   size?: number;
   celebrate?: boolean;
   interactive?: boolean;
@@ -28,9 +30,12 @@ export function Companion({ art, size = 120, celebrate = false, interactive = fa
   if (!art) return <Mascot pose={celebrate ? 'cheer' : 'wave'} size={size} interactive={interactive} />;
   const character = <Animated.View style={[{ width: size, height: size }, style]}>
     <Image source={art} style={{ width: size, height: size }} resizeMode="contain" accessible={false} />
+    <View pointerEvents="none" style={{ position: 'absolute', left: Math.round(size * 0.19), top: Math.round(size * 0.43) }}>
+      <AvatarWardrobe clothing={clothing ?? null} size={Math.round(size * 0.56)} />
+    </View>
   </Animated.View>;
   if (!interactive) return character;
-  return <Pressable accessibilityRole="button" accessibilityLabel="내 동행과 인사하기" onPress={() => {
+  return <Pressable accessibilityRole="button" accessibilityLabel={clothing ? `내 동행과 인사하기, ${clothing.name} 착용` : '내 동행과 인사하기'} onPress={() => {
     if (motion) scale.set(withSequence(withSpring(1.13), withSpring(1)));
     void lightHaptic();
     playUiSound('tap');

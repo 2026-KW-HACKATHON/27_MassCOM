@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { installMiniDom, settle } from '../fixtures/mini-dom.mjs';
 import { createProject, createId, cloneProject, cropTransform, livingBoundingBox } from '../../apps/production-web/assets/collectible-model.mjs';
 import { renderCollectible, clearCollectibleRenderCache } from '../../apps/production-web/assets/collectible-renderer.mjs';
@@ -16,7 +17,7 @@ const tinyPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfF
 const realTinyPng = tinyPng;
 
 function runRealServerValidation(project, publish = false) {
-  const out = execFileSync('node', ['--experimental-transform-types', new URL('../fixtures/run-collectible-rules.mjs', import.meta.url).pathname], {
+  const out = execFileSync(process.execPath, ['--experimental-transform-types', fileURLToPath(new URL('../fixtures/run-collectible-rules.mjs', import.meta.url))], {
     input: JSON.stringify({ project, publish }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
   });
   return JSON.parse(out);

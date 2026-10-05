@@ -19,6 +19,12 @@ import { isRewardMilestone } from './badge-rules.js';
 import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { FriendError, type FriendService } from './friends.js';
+import { StoreTicketError, type StoreTicketService } from './store-tickets.js';
+import { PostgresStoreTicketService } from './postgres/store-tickets.js';
+import { SocialError, socialErrorStatus, startNotificationsRunner, type SocialService } from './social.js';
+import { handleSocialHttp, SocialHttpError } from './social-http.js';
+import { PostgresSocialService } from './postgres/social.js';
+import { ExpoPushGateway } from './expo-push-gateway.js';
 import { PlayError, type PlayService, type Studio } from './play.js';
 import { isGameKind, type GameAction } from './play-rules.js';
 import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
@@ -242,6 +248,8 @@ export function createApiServer(
   merchantDetailViews?: MerchantDetailViewService,
   adminFunnel?: AdminFunnelReader,
   play?: PlayService,
+  storeTickets?: StoreTicketService,
+  social?: SocialService,
 ) {
   // 로컬 시연(DEMO 헤더) 배치에서는 체험 세션 Bearer도 받는다(#309). Authorization이 없으면 기존 헤더 해석 그대로이고,
   // 운영·hosted 해석기(Bearer 세션)는 이미 같은 auth_sessions 행으로 체험 세션을 푼다.
@@ -265,6 +273,7 @@ export function createApiServer(
   const playFlowWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60 * 60 * 1000 });
   // 실행별 멱등 재시도도 본문·DB 진입 전에 계정별로 센다. 분당 60회는 정상 완료·재시도에 여유를 둔다.
   const playFinishLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
+  const socialWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
   const requireCurrentPlayConsent = async (accountId: string): Promise<void> => {
     if (!consent) throw new RequestError(503, 'CONSENT_NOT_CONFIGURED');
     const state = await consent.status(accountId);
@@ -1120,10 +1129,39 @@ export function createApiServer(
         return;
       }
 
+      if (await handleSocialHttp({ request, response, path, service: social,
+        resolveAccountId: async () => resolveAccountId(request), requireConsent: requireCurrentPlayConsent,
+        readBody: () => readJson(request, true), decode: decodePathParameter,
+        send: (status, result) => sendJson(response, status, result),
+        consumeWrite: accountId => {
+          const decision = socialWriteLimiter.consume(accountId);
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            throw new SocialHttpError(429, 'SOCIAL_WRITE_RATE_LIMITED');
+          }
+        },
+      })) return;
+
       if (request.method === 'GET' && request.url === '/me/friends') {
         if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
         sendJson(response, 200, await friends.list(accountId));
+        return;
+      }
+
+      if (request.method === 'GET' && path === '/me/store-tickets') {
+        if (!storeTickets) throw new RequestError(503, 'STORE_TICKETS_NOT_CONFIGURED');
+        sendJson(response, 200, await storeTickets.list(await resolveAccountId(request)));
+        return;
+      }
+      const ticketOpenMatch = path.match(/^\/me\/store-tickets\/([^/]+)\/open$/);
+      if (request.method === 'POST' && ticketOpenMatch) {
+        if (!storeTickets) throw new RequestError(503, 'STORE_TICKETS_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request, true);
+        if (Object.keys(body).length) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, await storeTickets.open({ accountId,
+          entitlementId: decodePathParameter(ticketOpenMatch[1]!) }));
         return;
       }
 
@@ -1200,7 +1238,8 @@ export function createApiServer(
         if (requestId.length > 128) throw new RequestError(400, 'INVALID_REQUEST');
         const expectedRemaining = requireNumber(body, 'expectedRemaining');
         if (expectedRemaining < 0) throw new RequestError(400, 'INVALID_REQUEST');
-        sendJson(response, 201, await mileageShop.reroll({ accountId, grade, requestId, expectedRemaining }));
+        const result = await mileageShop.reroll({ accountId, grade, requestId, expectedRemaining });
+        sendJson(response, result.replayed ? 200 : 201, result);
         return;
       }
 
@@ -1212,6 +1251,17 @@ export function createApiServer(
         const itemId = body.itemId;
         if (itemId !== null && typeof itemId !== 'string') throw new RequestError(400, 'INVALID_REQUEST');
         sendJson(response, 200, await mileageShop.setAvatar({ accountId, itemId }));
+        return;
+      }
+
+      if (request.method === 'PUT' && request.url === '/shop/clothing') {
+        if (!mileageShop) throw new RequestError(503, 'MILEAGE_SHOP_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const body = await readJson(request);
+        if (Object.keys(body).some((key) => key !== 'itemId')) throw new RequestError(400, 'INVALID_REQUEST');
+        const itemId = body.itemId;
+        if (itemId !== null && typeof itemId !== 'string') throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, await mileageShop.setClothing({ accountId, itemId }));
         return;
       }
 
@@ -1740,6 +1790,17 @@ export function createApiServer(
         sendJson(response, statusForFriend(error.code), { code: error.code });
         return;
       }
+      if (error instanceof StoreTicketError) {
+        sendJson(response, error.code === 'STORE_TICKET_NOT_FOUND' ? 404 : 400, { code: error.code });
+        return;
+      }
+      if (error instanceof SocialError || error instanceof SocialHttpError) {
+        if (error instanceof SocialError && error.retryAfterSeconds !== undefined) {
+          response.setHeader('Retry-After', String(error.retryAfterSeconds));
+        }
+        sendJson(response, error instanceof SocialHttpError ? error.status : socialErrorStatus(error.code), { code: error.code });
+        return;
+      }
       if (error instanceof MerchantArtError) {
         if (error.retryAfterSeconds !== undefined) {
           response.setHeader('Retry-After', String(error.retryAfterSeconds));
@@ -2141,7 +2202,7 @@ function statusForReversal(code: string): number {
 function statusForMileageShop(code: string): number {
   if (code === 'INVALID_REQUEST') return 400;
   if (code === 'SHOP_INSUFFICIENT_MILEAGE') return 402;
-  if (code === 'SHOP_ITEM_NOT_OWNED') return 404;
+  if (code === 'SHOP_ITEM_NOT_OWNED' || code === 'SHOP_CLOTHING_NOT_OWNED') return 404;
   if (code === 'ACCOUNT_DELETED') return 410;
   if (code === 'SHOP_RATE_LIMITED') return 429;
   // SHOP_GRADE_COMPLETE, SHOP_STATE_CHANGED, SHOP_REQUEST_CONFLICT
@@ -2511,6 +2572,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
         accountLifecycle, appSource: showcaseInvites ? 'SHOWCASE_APP' : 'ANDROID',
       })
     : undefined;
+  const social = pool && accountLifecycle
+    ? new PostgresSocialService(pool, {
+        accountLifecycle,
+        appVariant: showcaseDeployment ? 'SHOWCASE_APP' : 'ANDROID',
+        gateway: new ExpoPushGateway({ bearerCredential: process.env.EXPO_PUSH_ACCESS_TOKEN }),
+      })
+    : undefined;
   // OPENAI_API_KEY가 비어 있으면 client가 없어 생성 API만 503 AI_ART_NOT_CONFIGURED이고 조회·되돌리기·공개 그림은 그대로 동작한다.
   const merchantArt = pool
     ? new PostgresMerchantArtService(pool, {
@@ -2590,7 +2658,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? developmentHeaderReauthenticationGuard
       : undefined;
 
-  createApiServer(
+  const server = createApiServer(
     configuredService(bindingStore, challengeStore),
     accountResolver,
     merchantCatalog,
@@ -2645,7 +2713,30 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     pool ? new PostgresMerchantDetailViewService(pool) : undefined,
     pool ? new PostgresAdminFunnelService(pool) : undefined,
     pool && accountLifecycle ? new PostgresPlayService(pool, accountLifecycle) : undefined,
+    pool && accountLifecycle && collection
+      ? new PostgresStoreTicketService(pool, collection, accountLifecycle) : undefined,
+    social,
   ).listen(port, bindHost, () => {
     console.log(`wallet API listening on http://${bindHost}:${port}`);
   });
+  const notificationsRunner = social ? startNotificationsRunner(social, {
+    onError: (error) => console.error(safeErrorMetadata('notifications.runner', error)),
+  }) : undefined;
+  let stopping = false;
+  const shutdown = async () => {
+    if (stopping) return;
+    stopping = true;
+    try {
+      await Promise.all([
+        notificationsRunner?.stop(),
+        new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())),
+      ]);
+      await pool?.end();
+    } catch (error) {
+      console.error(safeErrorMetadata('api.shutdown', error));
+      process.exitCode = 1;
+    }
+  };
+  process.once('SIGTERM', () => { void shutdown(); });
+  process.once('SIGINT', () => { void shutdown(); });
 }

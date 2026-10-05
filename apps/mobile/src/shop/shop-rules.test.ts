@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import type { ShopGradeView } from './shop-api';
 import {
   buildFriendGrid,
+  drawRewardDisclosure,
   earnRulesText,
   formatMileage,
   rerollButtonState,
@@ -89,4 +90,19 @@ test('showcaseBonusLabel shows only when the server reports a positive bonus', (
   assert.equal(showcaseBonusLabel(1), '시연 체험 마일리지 포함');
   assert.equal(showcaseBonusLabel(0), null);
   assert.equal(showcaseBonusLabel(undefined), null);
+});
+
+
+test('drawRewardDisclosure states mileage, overall clothing and per-catalog probabilities from the server snapshot', () => {
+  assert.equal(drawRewardDisclosure({
+    drawRewards: { bonusMileage: { min: 10, max: 50, probabilityPerAmount: 1 / 41 } },
+    clothing: {
+      equipped: null,
+      draw: { probability: 0.5 },
+      items: [
+        { id: 'green-apron', name: '초록 앞치마', owned: false, equipped: false },
+        { id: 'sky-hoodie', name: '하늘 후드', owned: false, equipped: false },
+      ],
+    },
+  }), '추가 마일리지 10-50P는 각 약 2.44% 확률, 옷은 전체 50% 확률(카탈로그 2종 각 약 25.00%)이에요.');
 });

@@ -21,16 +21,33 @@ export function isNewDraw(item: { id: string }, ownedBefore: readonly string[]):
 }
 
 export type GachaStage = 'crank' | 'shake' | 'drop' | 'wobble' | 'split' | 'burst' | 'pop';
-export type GachaPhase = 'picker' | 'pending' | GachaStage | 'result';
+export type GachaRewardPhase = 'reward-mileage' | 'reward-clothing' | 'reward-character';
+export type GachaPhase = 'detail' | 'pending' | GachaStage | GachaRewardPhase | 'result';
 type GachaEvent = { type: 'draw-started' } | { type: 'purchase-failed' } | { type: 'skip'; busy: boolean };
+
+const rewardPhases: readonly GachaRewardPhase[] = ['reward-mileage', 'reward-clothing', 'reward-character'];
+export const gachaRewardPhases = rewardPhases;
 
 /** 구매 실패는 오류 문구와 독립적으로 선택 상태를 복원한다. */
 export function gachaPhaseAfter(phase: GachaPhase, event: GachaEvent): GachaPhase {
   if (event.type === 'draw-started') return 'pending';
-  if (event.type === 'purchase-failed') return phase === 'pending' ? 'picker' : phase;
-  if (phase === 'pending') return event.busy ? 'pending' : 'picker';
-  return phase === 'picker' ? 'picker' : 'result';
+  if (event.type === 'purchase-failed') return phase === 'pending' ? 'detail' : phase;
+  if (phase === 'pending') return event.busy ? 'pending' : 'detail';
+  if (phase === 'detail') return 'detail';
+  if (phase === 'result') return 'result';
+  if (rewardPhases.includes(phase as GachaRewardPhase)) return gachaNextRewardPhase(phase as GachaRewardPhase);
+  return 'reward-mileage';
 }
+
+export function gachaNextRewardPhase(phase: GachaRewardPhase): GachaRewardPhase | 'result' {
+  const index = rewardPhases.indexOf(phase);
+  return rewardPhases[index + 1] ?? 'result';
+}
+
+export function gachaRewardDelayMs(_reduceMotion: boolean): number {
+  return 900;
+}
+
 
 const stageDurations: Readonly<Record<GachaStage, number>> = {
   crank: 500, shake: 450, drop: 500, wobble: 300, split: 400, burst: 350, pop: 300,

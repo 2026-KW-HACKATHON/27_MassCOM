@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   createUiSoundController,
+  type MusicSoundName,
   UI_SOUND_NAMES,
   UI_SOUND_STORAGE_ERROR,
   UI_SOUND_STORAGE_KEY,
@@ -20,25 +21,42 @@ async function flush() {
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
-function fixture(options: { stored?: string | null; prepare?: () => Promise<void>; read?: () => Promise<string | null> } = {}) {
+function fixture(options: { stored?: string | null; prepare?: () => Promise<void>; read?: () => Promise<string | null>; music?: boolean } = {}) {
   const events: string[] = [];
   const players = new Map<string, SoundPlayer>();
+  const musicPlayers = new Map<MusicSoundName, SoundPlayer & { finish?: () => void }>();
   const writes: { key: string; value: string }[] = [];
   let clock = 1000;
+  function playerFor(name: string): SoundPlayer {
+    return {
+      isLoaded: true,
+      async seekTo(seconds) { events.push(`${name}:seek:${seconds}`); },
+      play() { events.push(`${name}:play`); },
+      pause() { events.push(`${name}:pause`); },
+      remove() { events.push(`${name}:remove`); },
+    };
+  }
   const controller = createUiSoundController({
     backend: {
       prepare: options.prepare ?? (async () => undefined),
       createPlayer(name) {
-        const player: SoundPlayer = {
-          isLoaded: true,
-          async seekTo(seconds) { events.push(`${name}:seek:${seconds}`); },
-          play() { events.push(`${name}:play`); },
-          pause() { events.push(`${name}:pause`); },
-          remove() { events.push(`${name}:remove`); },
-        };
+        const player = playerFor(name);
         players.set(name, player);
         return player;
       },
+      createMusicPlayer: options.music ? (name) => {
+        let listener: ((status: { didJustFinish?: boolean }) => void) | undefined;
+        const player = {
+          ...playerFor(name),
+          addListener(_event: 'playbackStatusUpdate', next: (status: { didJustFinish?: boolean }) => void) {
+            listener = next;
+            return { remove() { listener = undefined; } };
+          },
+          finish() { listener?.({ didJustFinish: true }); },
+        };
+        musicPlayers.set(name, player);
+        return player;
+      } : undefined,
     },
     storage: {
       getItem: options.read ?? (async () => options.stored ?? null),
@@ -46,7 +64,17 @@ function fixture(options: { stored?: string | null; prepare?: () => Promise<void
     },
     now: () => clock,
   });
-  return { controller, events, players, writes, advance: (ms: number) => { clock += ms; } };
+  return { controller, events, players, musicPlayers, writes, advance: (ms: number) => { clock += ms; } };
+}
+
+function parsed(value: string) {
+  return JSON.parse(value) as {
+    soundEffectsEnabled: boolean;
+    soundEffectsVolume: number;
+    bgmEnabled: boolean;
+    bgmVolume: number;
+    hapticMode: string;
+  };
 }
 
 test('hydrates saved false before any sound and never auto-plays on startup', async () => {
@@ -163,10 +191,10 @@ test('failed storage shows a notice; rapid setting writes preserve their order',
   controller.setEnabled(false);
   controller.setEnabled(true);
   await flush();
-  assert.deepEqual(writes, ['false']);
+  assert.deepEqual(writes.map((value) => parsed(value).soundEffectsEnabled), [false]);
   firstWrite.resolve();
   await flush();
-  assert.deepEqual(writes, ['false', 'true']);
+  assert.deepEqual(writes.map((value) => parsed(value).soundEffectsEnabled), [false, true]);
   assert.equal(controller.getSnapshot().persistenceError, undefined);
   stop();
 });
@@ -180,7 +208,8 @@ test('a late preference read cannot override a user toggle', async () => {
   await flush();
   assert.equal(controller.getSnapshot().enabled, false);
   assert.equal(controller.getSnapshot().ready, true);
-  assert.deepEqual(writes, [{ key: UI_SOUND_STORAGE_KEY, value: 'false' }]);
+  assert.equal(writes[0].key, UI_SOUND_STORAGE_KEY);
+  assert.equal(parsed(writes[0].value).soundEffectsEnabled, false);
   stop();
 });
 
@@ -192,7 +221,7 @@ test('a failed write reports the problem and a later successful toggle clears it
       getItem: async () => null,
       setItem: async (_key, value) => {
         values.push(value);
-        if (value === 'false') throw Error('disk full');
+        if (!parsed(value).soundEffectsEnabled) throw Error('disk full');
       },
     },
   });
@@ -203,7 +232,7 @@ test('a failed write reports the problem and a later successful toggle clears it
   assert.equal(controller.getSnapshot().persistenceError, UI_SOUND_STORAGE_ERROR);
   controller.setEnabled(true);
   await flush();
-  assert.deepEqual(values, ['false', 'true']);
+  assert.deepEqual(values.map((value) => parsed(value).soundEffectsEnabled), [false, true]);
   assert.equal(controller.getSnapshot().persistenceError, undefined);
   stop();
 });
@@ -233,5 +262,63 @@ test('a rewind taking longer than 250 ms cannot play stale audio', async () => {
   seek.resolve();
   await flush();
   assert.equal(events.includes('open:play'), false);
+  stop();
+});
+
+test('draw music plays intro on focus, switches to loop on finish, and falls back to loop on blur', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true });
+  const stop = controller.start(true);
+  await flush();
+  controller.setDrawMusicFocused(true);
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  musicPlayers.get('drawIntro')!.finish!();
+  await flush();
+  assert.equal(events.includes('drawLoop:play'), true);
+  controller.setDrawMusicFocused(false);
+  await flush();
+  assert.equal(events.at(-1), 'drawLoop:play');
+  stop();
+});
+
+test('stale intro finish, disabled BGM and foreground changes cannot restart old draw music', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true });
+  const stop = controller.start(true);
+  await flush();
+  controller.setDrawMusicFocused(true);
+  await flush();
+  controller.setDrawMusicFocused(false);
+  musicPlayers.get('drawIntro')!.finish!();
+  await flush();
+  assert.equal(events.filter((event) => event === 'drawLoop:play').length, 1);
+  controller.setBgmEnabled(false);
+  controller.setDrawMusicFocused(true);
+  await flush();
+  assert.equal(events.filter((event) => event === 'drawIntro:play').length, 1);
+  controller.setBgmEnabled(true);
+  controller.setForeground(false);
+  controller.setForeground(true);
+  await flush();
+  assert.equal(events.at(-1), 'drawIntro:play');
+  stop();
+});
+
+test('volume, haptic mode and reset persist together while updating live players', async () => {
+  const { controller, players, musicPlayers, writes } = fixture({ music: true });
+  const stop = controller.start(true);
+  await flush();
+  controller.setSoundEffectsVolume(0.8);
+  controller.setBgmVolume(0.6);
+  controller.setHapticMode('DRAW_ONLY');
+  await flush();
+  assert.equal(players.get('tap')!.volume, 0.8);
+  assert.equal(musicPlayers.get('drawLoop')!.volume, 0.6);
+  assert.equal(controller.getSnapshot().hapticMode, 'DRAW_ONLY');
+  controller.getSnapshot().reset();
+  await flush();
+  assert.equal(controller.getSnapshot().soundEffectsVolume, 0.3);
+  assert.equal(controller.getSnapshot().bgmVolume, 0.3);
+  assert.equal(controller.getSnapshot().hapticMode, 'ALL');
+  assert.ok(writes.some((write) => parsed(write.value).hapticMode === 'DRAW_ONLY'));
   stop();
 });

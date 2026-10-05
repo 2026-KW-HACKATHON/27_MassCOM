@@ -29,12 +29,31 @@ test('shared controls play tap only from enabled press handlers and tab navigati
 test('account setting is accessible, waits for persisted state, and describes its device scope', () => {
   const layout = source('./app/_layout.tsx');
   const settings = source('./screens/account-settings/index.tsx');
+  const volume = source('./screens/account-settings/settings-volume.tsx');
   assert.match(layout, /useEffect\(\(\) => initializeUiSounds\(\), \[\]\)/);
-  assert.match(settings, /accessibilityLabel="효과음"/);
-  assert.match(settings, /disabled=\{!soundSettings\.ready\}/);
-  assert.match(settings, /onValueChange=\{soundSettings\.setEnabled\}/);
-  assert.match(settings, /버튼·화면 이동·보상 획득 효과음\. 이 기기에 저장돼요\./);
+  assert.match(settings, /<SettingsVolume settings=\{soundSettings\} styles=\{styles\} palette=\{palette\} \/>/);
+  assert.match(volume, /accessibilityLabel="효과음"/);
+  assert.match(volume, /disabled=\{!settings\.ready\}/);
+  assert.match(volume, /onValueChange=\{settings\.setEnabled\}/);
+  assert.match(volume, /버튼·화면 이동·보상 획득 효과음\. 이 기기에 저장돼요\./);
+  assert.match(volume, /accessibilityLabel="배경음악"/);
+  assert.match(volume, /label: '뽑기만'/);
+  assert.match(volume, /소리·진동 초기화/);
   assert.match(settings, /soundSettings\.persistenceError/);
+});
+
+test('draw music and draw haptics are owned by the gacha modal without changing root initialization', () => {
+  const sounds = source('./sound/ui-sounds.ts');
+  const gacha = source('./screens/shop/gacha-machine.tsx');
+  const effects = source('./gamification/native-effects.ts');
+  assert.match(sounds, /export function useDrawMusic\(enabled = true\)/);
+  assert.match(sounds, /controller\.setDrawMusicFocused\(true\)/);
+  assert.match(sounds, /controller\.setDrawMusicFocused\(false\)/);
+  assert.match(gacha, /import \{ playUiSound, useDrawMusic \} from '@\/sound\/ui-sounds'/);
+  assert.match(gacha, /useDrawMusic\(\)/);
+  assert.match(gacha, /void drawHaptic\(\); playUiSound\('open'\)/);
+  assert.match(effects, /export async function drawHaptic\(\)/);
+  assert.match(effects, /mode !== 'DRAW_ONLY' && mode !== 'ALL'/);
 });
 
 test('claim and reward success sounds require fresh server results', () => {

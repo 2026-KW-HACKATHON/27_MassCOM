@@ -1,5 +1,15 @@
 # 프로젝트 상태
 
+## 앱 내 상점·홈·우정/우편 개편 (Issue #367, 2026-10-05)
+
+브랜치 `feat/shop-home-social`은 사용자가 보낸 상점 상세 그림과 홈 구성 그림을 기준으로 고객 앱 흐름을 재배치하는 로컬 작업이다. 아직 공개 앱, 운영/시연 서버, `/open`, GitHub Release에는 반영하지 않았다. 기존 최신 공개 설치본은 운영 test.9·시연 Preview 18 그대로이며, 이 항목은 그 출시 증거를 대체하지 않는다. Cycle4 push-only repair 전 로컬 기준선은 API 463/463 PASS와 build PASS, 모바일 1532/1532 PASS·typecheck·lint PASS, PostgreSQL targeted 49/49 PASS다. production+showcase Android export는 fresh PASS(run marker 97284)이고 variant asset separation과 Hermes origin assertion도 PASS다. 웹 final fresh run 98375, API 추가 preflight concurrency coverage/absent-install logout tombstone fix, cycle4 push repair, 최종 리뷰·UltraQA는 아직 대기다. 모바일 `npm audit --omit=dev`는 baseline HEAD와 같은 33건(12 moderate, 21 high, critical 0)이며 새 권고는 0건인 `KNOWN_BASELINE`이다.
+
+상점은 등급 선택 뒤 한 번 더 선택하게 만들던 흐름을 없애고, 등급 카드 터치가 바로 해당 재뽑기권 상세로 이어진다. 상세에는 큰 재뽑기권 그림, 이름, 보상 확률, 초록 구매 버튼을 보여 준다. 보상은 사용자 확정대로 캐릭터 1개, 마일리지 10~50P, 옷 0~1개이고 `코인`은 캐릭터를 뜻한다. 결과 연출 순서는 마일리지 → 옷 → 캐릭터다. 홈은 하단 탭을 `상점 · 도감 · 홈 · 검색 · 상점`으로 정리하고, 두 상점 진입은 같은 화면을 쓴다. 친구는 탭이 아니라 홈의 지도 자리에 넣는다. 우편과 설정은 홈 오른쪽 위, 방문 인증 QR은 홈 하단 진입, 지도/가게 찾기는 검색과 식사 초대에서 연결한다. 검색에는 검색만 남기고 기존 보상 상자는 홈/미션으로 옮긴다.
+
+소셜 범위는 친구 우정 보내기/받기, 친구 정보·쪽지, 우편, 같이 밥 먹기 초대다. 우정 보내기는 하루 5회, 받기는 무제한이지만 계정당 하루 우정 마일리지 총액은 25P가 상한이다. 실제 브라우저에서 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, A 가게 2026-10-06 12~14시 식사 초대에 B가 12:40을 고른 뒤 보낸 사람 우편 상세에 확정 시간이 표시되는 흐름을 확인했다. 같은 친구에게 보낸 우정은 상대가 받을 때까지 다시 보낼 수 없다. 식사 초대는 확정 시간 또는 날짜+시간 범위로 보내고, 범위 초대의 수신자가 정확한 시간을 골라 답하면 보낸 사람에게 우편과 앱 푸시로 돌아간다. 메시지·식사 시간·푸시 토큰은 온체인/IPFS/로그에 남기지 않는 개인정보 경계로 문서화했다.
+
+스키마는 migration `0043_social_mail.sql`, `0044_shop_draw_rewards.sql`, `0045_store_ticket_openings.sql`, `0046_notification_deliveries.sql`, `0047_push_token_binding_revision.sql`, `0048_notification_delivery_token_version.sql`을 추가하는 형태다. 0043은 소셜 우편·우정·푸시 outbox, 0044는 뽑기 보너스 마일리지와 옷장, 0045는 열린 보상권 ACK 표식이다. 0046은 token별 push delivery와 lease generation을 추가하고, 0047은 device binding revision으로 계정 전환·logout·token rotation의 늦은 요청을 fencing한다. 0048은 receipt 효과를 dispatch 때 authorization된 push token id와 binding revision에 묶는 token-version fence다. 0048의 실제 서버 적용은 아직 최종 대기다. 개인정보 동의판은 `privacy-2026-10-05`로 올렸고, 푸시 빌드 변수는 `EXPO_PUSH_ACCESS_TOKEN`(서버), `MASSCOM_NOTIFICATION_PROJECT_ID`(Expo project UUID), `MASSCOM_FIREBASE_ANDROID_CONFIG`(Android Firebase 설정 파일 경로)로 나뉜다. Store ticket의 브라우저 QA는 fixture media fallback 때문에 실제 표시/ACK 증거가 없고, API 시험이 ACK authorization을 덮으며 UI는 티켓이 유지되는 것까지만 확인했다. Mounted shop focus는 idle 약 62초 동안 shop GET 4328→4328이고 재포커스에서 bounded +2였다. 실제 Android 푸시 수신, native BGM/SE 청음, haptic 체감, hardware back, 공개 배포, merge는 아직 `NOT_RUN`이다. 검증 세부 결과와 남은 root 삽입 자리는 [TEST_STATUS](TEST_STATUS.md)의 Issue #367 항목을 따른다.
+
 ## 방문·수집·동행·놀이 통합 (Issue #363, 2026-10-04)
 
 `feat/connected-play-collection`은 최신 `origin/main 237d5471`에서 공통 고객 앱/웹, API·DB, 점주/운영자 웹을 확장했다. 서로 다른 게임4종은 시작·조작·끝·기록·재도전·장면해금까지 구현됐고 방문 마일리지/쿠폰과 분리된다. 실제 보유품과 동행을 서버 공간에 저장해 친구·피드/스토리 이미지로 연결한다. 주간 탐험·현재 캠페인 수집 목표, 배지 실루엣과 뽑기 대상/활용, 실제 점주 메뉴의 제작 시작점, 익명 흐름 집계를 추가했다. 기존 권리·방문/운영 권한을 보존한다.

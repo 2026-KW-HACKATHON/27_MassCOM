@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { runStudioSave } from './studio-save';
 
-for (const kind of ['공간', '동행']) {
+for (const kind of ['공간', '동행', '옷']) {
   for (const outcome of ['success', 'failure'] as const) {
     test(`${kind} ${outcome}: blur 뒤 완료해도 busy를 해제하고 응답은 버린다`, async () => {
       let focused = true;
@@ -72,12 +72,13 @@ test('최신 저장의 성공·오류와 완료는 각 한 번 전달한다', as
   }
 });
 
-test('공간·동행 저장은 같은 수명 제어기를 사용하고 각각 busy를 해제한다', async () => {
+test('공간·동행·옷 저장은 같은 수명 제어기를 사용하고 각각 busy를 해제한다', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../screens/studio/index.tsx', import.meta.url), 'utf8');
-  assert.equal((source.match(/await runStudioSave\(/g) ?? []).length, 2);
-  assert.equal((source.match(/isMounted: \(\) => mounted\.current/g) ?? []).length, 2);
-  assert.equal((source.match(/canApply: \(\) => active\.current && request === generation\.current/g) ?? []).length, 2);
+  assert.equal((source.match(/await runStudioSave\(/g) ?? []).length, 3);
+  assert.equal((source.match(/isMounted: \(\) => mounted\.current/g) ?? []).length, 3);
+  assert.equal((source.match(/canApply: \(\) => active\.current && request === generation\.current/g) ?? []).length, 3);
   assert.match(source, /onSettled: \(\) => setSaving\(false\)/);
   assert.match(source, /onSettled: \(\) => setAvatarSaving\(false\)/);
+  assert.match(source, /onSettled: \(\) => setClothingSaving\(false\)/);
 });

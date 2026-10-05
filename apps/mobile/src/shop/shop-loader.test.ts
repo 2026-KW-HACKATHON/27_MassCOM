@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { ShopSnapshot } from './shop-api';
+import type { ShopRerollResult, ShopSnapshot } from './shop-api';
 import { createShopLoader, failed, initialShopLoad, loaded, withAvatar, withReroll } from './shop-loader';
 
 function snapshot(overrides: Partial<ShopSnapshot> = {}): ShopSnapshot {
@@ -13,6 +13,29 @@ function snapshot(overrides: Partial<ShopSnapshot> = {}): ShopSnapshot {
       { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이', owned: false },
     ],
     avatar: null,
+    clothing: {
+      items: [
+        { id: 'green-apron', name: '초록 앞치마', owned: false, equipped: false },
+        { id: 'sky-hoodie', name: '하늘 후드', owned: false, equipped: false },
+      ],
+      equipped: null,
+      draw: { probability: 0.5 },
+    },
+    drawRewards: { bonusMileage: { min: 10, max: 50, probabilityPerAmount: 1 / 41 } },
+    ...overrides,
+  };
+}
+
+function reroll(overrides: Partial<ShopRerollResult> = {}): ShopRerollResult {
+  return {
+    item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' },
+    balance: 330,
+    replayed: false,
+    rewards: {
+      mileage: { amount: 30, min: 10, max: 50, probabilityPerAmount: 1 / 41 },
+      clothing: { awarded: true, duplicate: false, item: { id: 'green-apron', name: '초록 앞치마' }, probability: 0.5 },
+      sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'],
+    },
     ...overrides,
   };
 }
@@ -36,22 +59,25 @@ test('a loud failure (first load or retry) becomes an error state', () => {
 
 test('withReroll marks the drawn item owned, shrinks remaining and sets the server balance', () => {
   const state = loaded(snapshot());
-  const next = withReroll(state, { item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false });
+  const next = withReroll(state, reroll());
   assert.equal(next.snapshot!.items.find((item) => item.id === 'cafe-bear')!.owned, true);
   assert.deepEqual(next.snapshot!.grades[0], { grade: 'BRONZE', price: 100, total: 3, owned: 2, remaining: 1, probabilityPerItem: 1 });
-  assert.equal(next.snapshot!.mileage.balance, 300);
+  assert.equal(next.snapshot!.mileage.balance, 330);
+  assert.equal(next.snapshot!.mileage.earned, 530);
+  assert.equal(next.snapshot!.mileage.spent, 200);
+  assert.equal(next.snapshot!.clothing.items.find((item) => item.id === 'green-apron')!.owned, true);
 });
 
 test('withReroll on a replayed (already-owned) item does not double-count the grade', () => {
   const state = loaded(snapshot());
-  const next = withReroll(state, { item: { id: 'cook-cat', grade: 'BRONZE', name: '요리사 냥이' }, balance: 400, replayed: true });
+  const next = withReroll(state, reroll({ item: { id: 'cook-cat', grade: 'BRONZE', name: '요리사 냥이' }, balance: 400, replayed: true }));
   assert.deepEqual(next.snapshot!.grades[0], state.snapshot!.grades[0]);
   assert.equal(next.snapshot!.mileage.balance, 400);
 });
 
 test('withReroll grading to a fully complete grade reports null probability', () => {
   const state = loaded(snapshot({ grades: [{ grade: 'BRONZE', price: 100, total: 2, owned: 1, remaining: 1, probabilityPerItem: 1 }] }));
-  const next = withReroll(state, { item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false });
+  const next = withReroll(state, reroll());
   assert.deepEqual(next.snapshot!.grades[0], { grade: 'BRONZE', price: 100, total: 2, owned: 2, remaining: 0, probabilityPerItem: null });
 });
 
@@ -125,7 +151,7 @@ test('applyReroll invalidates an in-flight getShop so its late answer cannot ove
   const loader = createShopLoader(api, (update) => states.push(update(states.at(-1) as never ?? initialShopLoad)));
   states.push(loaded(snapshot()));
   const pendingGet = loader.load(true);
-  loader.applyReroll({ item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false });
+  loader.applyReroll(reroll({ balance: 300 }));
   resolveGet(snapshot()); // 재뽑기 전의 낡은 스냅샷(400P·남은 2종)이 뒤늦게 돌아온다.
   await pendingGet;
   const last = states.at(-1) as { snapshot?: ShopSnapshot };
@@ -154,7 +180,7 @@ test('applyReroll and applyAvatar do nothing after dispose', () => {
   const loader = createShopLoader(api, (update) => states.push(update(states.at(-1) as never ?? initialShopLoad)));
   states.push(loaded(snapshot()));
   loader.dispose();
-  loader.applyReroll({ item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false });
+  loader.applyReroll(reroll({ balance: 300 }));
   loader.applyAvatar('cafe-bear');
   assert.equal(states.length, 1, 'no update must be applied after dispose');
 });

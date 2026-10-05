@@ -27,19 +27,31 @@ export function withReroll(state: ShopLoad, result: ShopRerollResult): ShopLoad 
   const snapshot = state.snapshot;
   const items = snapshot.items.map((item) => (item.id === result.item.id ? { ...item, owned: true } : item));
   const alreadyOwned = snapshot.items.find((item) => item.id === result.item.id)?.owned ?? false;
+  const spentPrice = snapshot.grades.find((grade) => grade.grade === result.item.grade)?.price ?? 0;
   const grades = snapshot.grades.map((grade) => {
     if (grade.grade !== result.item.grade || alreadyOwned) return grade;
     const owned = grade.owned + 1;
     const remaining = grade.total - owned;
     return { ...grade, owned, remaining, probabilityPerItem: remaining > 0 ? 1 / remaining : null };
   });
+  const clothingReward = result.rewards.clothing.item;
+  const clothingItems = snapshot.clothing.items.map((item) => (
+    clothingReward && item.id === clothingReward.id ? { ...item, owned: true } : item
+  ));
+  const firstApply = !result.replayed && !alreadyOwned;
   return {
     ...state,
     snapshot: {
       ...snapshot,
       items,
       grades,
-      mileage: { ...snapshot.mileage, balance: result.balance, spent: snapshot.mileage.earned - result.balance },
+      clothing: { ...snapshot.clothing, items: clothingItems },
+      mileage: {
+        ...snapshot.mileage,
+        earned: firstApply ? snapshot.mileage.earned + result.rewards.mileage.amount : snapshot.mileage.earned,
+        spent: firstApply ? snapshot.mileage.spent + spentPrice : snapshot.mileage.spent,
+        balance: result.balance,
+      },
     },
   };
 }

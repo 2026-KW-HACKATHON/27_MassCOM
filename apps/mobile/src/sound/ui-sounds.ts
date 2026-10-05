@@ -1,16 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSyncExternalStore } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useSyncExternalStore } from 'react';
 import { AppState } from 'react-native';
 
 import { foregroundAudioMode } from './playback-audio-mode';
 import {
   createUiSoundController,
+  type MusicSoundName,
   type SoundBackend,
   type UiSoundName,
   type UiSoundSettings,
 } from './ui-sound-controller';
 
-export type { UiSoundName, UiSoundSettings } from './ui-sound-controller';
+export type { HapticMode, UiSoundName, UiSoundSettings } from './ui-sound-controller';
 
 // Literal requires let Metro include all sounds in both app variants.
 const sources: Record<UiSoundName, number> = {
@@ -21,6 +23,10 @@ const sources: Record<UiSoundName, number> = {
   open: require('../../assets/sounds/open.wav'),
   flip: require('../../assets/sounds/flip.wav'),
   close: require('../../assets/sounds/close.wav'),
+};
+const musicSources: Record<MusicSoundName, number> = {
+  drawIntro: require('../../assets/sounds/draw-intro.mp3'),
+  drawLoop: require('../../assets/sounds/draw-loop.mp3'),
 };
 
 type ExpoAudio = typeof import('expo-audio');
@@ -35,6 +41,13 @@ const backend: SoundBackend = {
     if (!audio) throw new Error('Audio module unavailable');
     const player = audio.createAudioPlayer(sources[name], { downloadFirst: false });
     player.volume = 0.3;
+    return player;
+  },
+  createMusicPlayer(name) {
+    if (!audio) throw new Error('Audio module unavailable');
+    const player = audio.createAudioPlayer(musicSources[name], { downloadFirst: false });
+    player.volume = 0.3;
+    if (name === 'drawLoop') player.loop = true;
     return player;
   },
 };
@@ -58,6 +71,19 @@ export function playUiSound(name: UiSoundName): void {
   try { controller.play(name); } catch { /* UI sounds are optional. */ }
 }
 
+/** Play the draw intro while focused; cleanup falls back to the normal loop. */
+export function useDrawMusic(enabled = true): void {
+  useFocusEffect(useCallback(() => {
+    if (!enabled) return undefined;
+    controller.setDrawMusicFocused(true);
+    return () => controller.setDrawMusicFocused(false);
+  }, [enabled]));
+}
+
 export function useUiSoundSettings(): UiSoundSettings {
   return useSyncExternalStore(controller.subscribe, controller.getSnapshot, controller.getSnapshot);
+}
+
+export function getUiSoundSnapshot(): UiSoundSettings {
+  return controller.getSnapshot();
 }
