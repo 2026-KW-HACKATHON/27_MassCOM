@@ -1,6 +1,6 @@
 import { Link, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Alert, Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg from 'react-native-svg';
 
@@ -22,6 +22,7 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
+import { isLargeText } from '@/ui/large-text';
 
 import { merchantArt } from '../collection/merchant-art';
 import { buildMerchantGoals } from '../collection/collection-stamps';
@@ -113,7 +114,7 @@ function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: strin
           <Stagger index={0}>
             <FloatingCard style={styles.hero}>
               <View style={styles.heroTopline}>
-                <Text style={styles.heroEyebrow}>WOLGYE LOCAL TABLE</Text>
+                <Text style={styles.heroEyebrow}>월계 동네 식탁</Text>
                 {merchant.demo ? <Text style={styles.demoBadge}>DEMO DATA</Text> : null}
               </View>
               <Text selectable accessibilityRole="header" style={styles.title}>{merchant.name}</Text>
@@ -315,10 +316,14 @@ function MyVisitorFeedback({ merchantId, apiUrl, credential, onSessionInvalid, s
 }
 
 function InfoRow({ styles, label, value }: { styles: MerchantDetailStyles; label: string; value: string }) {
+  const { fontScale, width } = useWindowDimensions();
+  const [wrappedAtWidth, setWrappedAtWidth] = useState<number | null>(null);
+  const stacked = isLargeText(fontScale) || wrappedAtWidth === width;
   return (
-    <View style={styles.infoRow}>
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text selectable style={styles.infoValue}>{value}</Text>
+    <View style={[styles.infoRow, stacked && styles.infoRowStacked]}>
+      <Text style={[styles.infoLabel, stacked && styles.infoLabelStacked]}
+        onTextLayout={(event) => { if (!stacked && event.nativeEvent.lines.length > 1) setWrappedAtWidth(width); }}>{label}</Text>
+      <Text selectable style={[styles.infoValue, stacked && styles.infoValueStacked]}>{value}</Text>
     </View>
   );
 }

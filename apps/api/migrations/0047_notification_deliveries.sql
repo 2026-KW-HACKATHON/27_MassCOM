@@ -1,5 +1,5 @@
 -- Per-token push delivery durability and lease fencing for social notifications.
--- 0043 may already be applied in QA, so this forward migration upgrades both existing and fresh databases.
+-- The social schema may already be applied in QA, so this forward migration upgrades both existing and fresh databases.
 
 ALTER TABLE notification_outbox
   ADD COLUMN IF NOT EXISTS lease_generation integer NOT NULL DEFAULT 0 CHECK (lease_generation >= 0);
@@ -46,7 +46,7 @@ CREATE UNIQUE INDEX push_tokens_active_variant_token_unique
   ON push_tokens (app_variant, token)
   WHERE revoked_at IS NULL;
 
--- Forward-upgrade existing 0043-0045 outbox rows into safe per-token legacy rows.
+-- Forward-upgrade existing social outbox rows into safe per-token legacy rows.
 -- The legacy token is intentionally synthetic, so old receipt dead-token results cannot revoke every account token.
 INSERT INTO notification_deliveries (
   id, outbox_id, account_id, app_variant, token, status, attempts, next_attempt_at,

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   AccessibilityInfo, Animated, BackHandler, Image, Platform, Pressable, ScrollView,
   StyleSheet, Text, View, useColorScheme, type NativeScrollEvent, type NativeSyntheticEvent,
@@ -23,10 +23,11 @@ type Props = {
   onChooseRole?: (role: Role) => void;
   showcaseTour?: boolean;
   onExit?: () => void;
+  authActions?: ReactNode;
 };
 const pages = Array.from({ length: PAGE_COUNT }, (_, index) => index);
 
-export function FoundationScreen({ initialRole, isFocused = true, onConnectWallet, onChooseRole, showcaseTour = false, onExit }: Props) {
+export function FoundationScreen({ initialRole, isFocused = true, onConnectWallet, onChooseRole, showcaseTour = false, onExit, authActions }: Props) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = foundationColors[scheme];
   const world = worldForScheme(scheme);
@@ -99,6 +100,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
                   <RoleChoice title="점주예요" subtitle={!onChooseRole ? '점주 화면 미리보기' : Platform.OS === 'web' ? '내 체험 가게가 바로 열려요' : '로그인하면 점주 권한을 확인해요'} role="merchant" onPress={() => choose('merchant')} />
                 </View>
                 <Text style={[styles.footnote, { color: world.skyMuted }]}>편하게 선택해 주세요. 언제든 바꿀 수 있어요.</Text>
+                {authActions ? <View style={{ gap: 18, paddingTop: 24 }}>{authActions}</View> : null}
               </>
             ) : (
               <>

@@ -169,19 +169,24 @@ async function waitForAsync(condition: () => Promise<boolean>): Promise<void> {
   throw new Error('async condition was not reached');
 }
 
-test('migration 0043 creates social, mail, push, and credit tables with the required credit contract', async (t) => {
+test('migration 0044 creates social, mail, push, and credit tables with the required credit contract', async (t) => {
   const { pool } = await setup(t);
+  await runMigrations(pool);
   const migrated = await pool.query<{ filename: string }>(
     `SELECT filename FROM schema_migrations
-     WHERE filename IN ('0043_social_mail.sql', '0046_notification_deliveries.sql',
-                        '0047_push_token_binding_revision.sql', '0048_notification_delivery_token_version.sql')
+     WHERE filename IN ('0043_campaign_extended_audit.sql', '0044_social_mail.sql',
+                        '0045_shop_draw_rewards.sql', '0046_store_ticket_openings.sql', '0047_notification_deliveries.sql',
+                        '0048_push_token_binding_revision.sql', '0049_notification_delivery_token_version.sql')
      ORDER BY filename`,
   );
   assert.deepEqual(migrated.rows.map((row) => row.filename), [
-    '0043_social_mail.sql',
-    '0046_notification_deliveries.sql',
-    '0047_push_token_binding_revision.sql',
-    '0048_notification_delivery_token_version.sql',
+    '0043_campaign_extended_audit.sql',
+    '0044_social_mail.sql',
+    '0045_shop_draw_rewards.sql',
+    '0046_store_ticket_openings.sql',
+    '0047_notification_deliveries.sql',
+    '0048_push_token_binding_revision.sql',
+    '0049_notification_delivery_token_version.sql',
   ]);
   for (const table of [
     'mileage_credits', 'friendship_gifts', 'social_mail', 'meal_invitations', 'push_tokens', 'notification_outbox',
@@ -225,7 +230,7 @@ test('migration 0043 creates social, mail, push, and credit tables with the requ
 });
 
 
-test('migration 0046 upgrades legacy outbox statuses and duplicate active tokens in an isolated schema', async (t) => {
+test('migration 0047 upgrades legacy outbox statuses and duplicate active tokens in an isolated schema', async (t) => {
   const { pool, state } = await setup(t);
   const schema = `social_migration_${randomUUID().replaceAll('-', '_')}`;
   const client = await pool.connect();
@@ -287,7 +292,7 @@ test('migration 0046 upgrades legacy outbox statuses and duplicate active tokens
       );
     }
 
-    await client.query(await readFile(new URL('../migrations/0046_notification_deliveries.sql', import.meta.url), 'utf8'));
+    await client.query(await readFile(new URL('../migrations/0047_notification_deliveries.sql', import.meta.url), 'utf8'));
 
     assert.deepEqual((await client.query<{ account_id: string; revoked: boolean }>(
       `SELECT account_id, revoked_at IS NOT NULL AS revoked FROM push_tokens ORDER BY account_id`,
@@ -314,7 +319,7 @@ test('migration 0046 upgrades legacy outbox statuses and duplicate active tokens
 });
 
 
-test('migration 0047 upgrades duplicate active device rows before the unique binding index', async (t) => {
+test('migration 0048 upgrades duplicate active device rows before the unique binding index', async (t) => {
   const { pool, state } = await setup(t);
   const schema = `social_migration_${randomUUID().replaceAll('-', '_')}`;
   const client = await pool.connect();
@@ -341,7 +346,7 @@ test('migration 0047 upgrades duplicate active device rows before the unique bin
       [randomUUID(), randomUUID(), new Date(state.now.getTime() - 1_000), state.now],
     );
 
-    const sql = await readFile(new URL('../migrations/0047_push_token_binding_revision.sql', import.meta.url), 'utf8');
+    const sql = await readFile(new URL('../migrations/0048_push_token_binding_revision.sql', import.meta.url), 'utf8');
     await client.query(sql);
     await client.query(sql);
 
@@ -995,6 +1000,81 @@ test('stale other-account cleanup held before locks cannot revoke newer caller t
   )).rows, [
     { account_id: 'alice', token: 'ExpoPushToken[a-held-cycle5]', binding_revision: 6, active: false },
     { account_id: 'bob', token: 'ExpoPushToken[b-held-cycle5]', binding_revision: 5, active: false },
+  ]);
+});
+
+
+test('current cleanup safe-noop after newer caller tombstone preserves active binding until exact fresh cleanup', async (t) => {
+  const { pool, social, lifecycle, state } = await setup(t);
+  await addConsent(pool, 'alice');
+  await addConsent(pool, 'bob');
+  await social.registerPushToken({
+    accountId: 'alice', appVariant: 'ANDROID', token: 'ExpoPushToken[a-old-cycle6]', deviceId: 'install-cycle6', bindingRevision: 2,
+  });
+  await social.registerPushToken({
+    accountId: 'bob', appVariant: 'ANDROID', token: 'ExpoPushToken[b-cycle6]', deviceId: 'install-cycle6', bindingRevision: 4,
+  });
+  await social.registerPushToken({
+    accountId: 'alice', appVariant: 'ANDROID', token: 'ExpoPushToken[a-new-cycle6]', deviceId: 'install-cycle6', bindingRevision: 5,
+  });
+
+  let pauseReached!: () => void;
+  let resumeUnregister!: () => void;
+  const reached = new Promise<void>((resolve) => { pauseReached = resolve; });
+  const resume = new Promise<void>((resolve) => { resumeUnregister = resolve; });
+  const heldCurrentCleanup = new PostgresSocialService(pool, {
+    accountLifecycle: lifecycle,
+    appVariant: 'ANDROID',
+    gateway: new StubGateway(),
+    now: () => state.now,
+    beforePushTokenAuthorization: async (operation) => {
+      if (operation === 'unregister') {
+        pauseReached();
+        await resume;
+      }
+    },
+  });
+
+  const staleCurrentCleanup = heldCurrentCleanup.unregisterPushToken({
+    accountId: 'alice', appVariant: 'ANDROID', token: 'ExpoPushToken[a-new-cycle6]', deviceId: 'install-cycle6', bindingRevision: 6,
+  });
+  await reached;
+  await social.unregisterPushToken({
+    accountId: 'bob', appVariant: 'ANDROID', token: 'ExpoPushToken[b-cycle6]', deviceId: 'install-cycle6', bindingRevision: 7,
+  });
+  resumeUnregister();
+  await staleCurrentCleanup;
+
+  await social.unregisterPushToken({
+    accountId: 'alice', appVariant: 'ANDROID', token: 'ExpoPushToken[a-old-cycle6]', deviceId: 'install-cycle6', bindingRevision: 8,
+  });
+  await assert.rejects(social.registerPushToken({
+    accountId: 'bob', appVariant: 'ANDROID', token: 'ExpoPushToken[b-cycle6]', deviceId: 'install-cycle6', bindingRevision: 6,
+  }), rejectsWith('SOCIAL_REQUEST_CONFLICT'));
+
+  assert.deepEqual((await pool.query<{ account_id: string; token: string; binding_revision: number; active: boolean }>(
+    `SELECT account_id, token, binding_revision, revoked_at IS NULL AS active
+     FROM push_tokens
+     WHERE app_variant = 'ANDROID' AND device_id = 'install-cycle6'
+     ORDER BY account_id, token`,
+  )).rows, [
+    { account_id: 'alice', token: 'ExpoPushToken[a-new-cycle6]', binding_revision: 5, active: true },
+    { account_id: 'alice', token: 'ExpoPushToken[a-old-cycle6]', binding_revision: 8, active: false },
+    { account_id: 'bob', token: 'ExpoPushToken[b-cycle6]', binding_revision: 7, active: false },
+  ]);
+
+  await social.unregisterPushToken({
+    accountId: 'alice', appVariant: 'ANDROID', token: 'ExpoPushToken[a-new-cycle6]', deviceId: 'install-cycle6', bindingRevision: 9,
+  });
+  assert.deepEqual((await pool.query<{ account_id: string; token: string; binding_revision: number; active: boolean }>(
+    `SELECT account_id, token, binding_revision, revoked_at IS NULL AS active
+     FROM push_tokens
+     WHERE app_variant = 'ANDROID' AND device_id = 'install-cycle6'
+     ORDER BY account_id, token`,
+  )).rows, [
+    { account_id: 'alice', token: 'ExpoPushToken[a-new-cycle6]', binding_revision: 9, active: false },
+    { account_id: 'alice', token: 'ExpoPushToken[a-old-cycle6]', binding_revision: 8, active: false },
+    { account_id: 'bob', token: 'ExpoPushToken[b-cycle6]', binding_revision: 7, active: false },
   ]);
 });
 

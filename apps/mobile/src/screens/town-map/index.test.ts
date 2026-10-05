@@ -31,9 +31,10 @@ function callBodies(source: string, name: string): string[] {
 test('the map route wears the standard sky header with the illustration disclosure, once', () => {
   assert.match(route, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\}>/);
   assert.match(screen, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\}>/);
-  // The header drops its subtitle at 150% text; the same sentence then sits above the map instead.
-  assert.match(screen, /isLargeText\(fontScale\)/);
-  assert.equal((screen.match(/TOWN_MAP_DISCLOSURE/g) ?? []).length >= 2, true);
+  // AppHeader owns large-text wrapping; the map does not render a duplicate disclosure below it.
+  assert.equal((screen.match(/TOWN_MAP_DISCLOSURE/g) ?? []).length, 3, 'import and two header occurrences');
+  assert.doesNotMatch(screen, /styles\.disclosure/);
+
 });
 
 test('the standalone hidden map tab has a visible home escape, while meal selection has a visible back escape', () => {
@@ -112,7 +113,7 @@ test('tapping a pin opens the sheet and the pin is scrolled clear of it', () => 
   assert.match(reveal, /coverHeight: sheetBottom \+ sheetMeasure\.height/);
   // The native ScrollView clamps scrollTo against its live content size; a JS copy of that size can lag one layout behind.
   assert.doesNotMatch(reveal, /contentHeight:/);
-  assert.match(screen, /setSheetMeasure\(undefined\);\n  \}, \[selectedId, setSheetMeasure\]\);/);
+  assert.match(screen, /setSheetMeasure\(undefined\);\r?\n  \}, \[selectedId, setSheetMeasure\]\);/);
   assert.match(reveal, /requestAnimationFrame\(/);
   assert.doesNotMatch(screen, /onContentSizeChange=/);
   assert.match(screen, /onMeasure=\{\(height\) => setSheetMeasure\(\{ id: selected\.merchantId, height \}\)\}/);

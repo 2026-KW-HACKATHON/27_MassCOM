@@ -31,3 +31,32 @@ test('bold reward box names use the simple Android line breaker so the second wo
   assert.match(source, /<Text textBreakStrategy="simple" style=\{styles\.boxName\}>\s*\{rewardBoxName\(reward\.milestone\)\}\s*<Text style=\{styles\.boxRequirement\}>/);
   assert.doesNotMatch(source, /styles\.boxRowTitleLine/);
 });
+
+test('쿠폰과 방문 축하 내용은 짧으면 가운데, 길면 스크롤 높이만큼 늘어난다', () => {
+  const styles = makeGamificationStyles(lightColors, lightMedalColors);
+  for (const key of ['revealCenter', 'celebrationScroll'] as const) {
+    const content: { flex?: number; flexGrow?: number; justifyContent?: string } = styles[key];
+    assert.equal(content.flexGrow, 1, key);
+    assert.equal(content.flex, undefined, key);
+    assert.equal(content.justifyContent, 'center', key);
+  }
+  const source = readFileSync(new URL('./reward-reveal.tsx', import.meta.url), 'utf8');
+  assert.match(source, /contentContainerStyle=\{\[styles\.revealCenter/);
+});
+
+test('방문 축하의 주요 행동은 요약 다음, 보상 상세 목록보다 먼저 나온다', () => {
+  const source = readFileSync(new URL('./celebration.tsx', import.meta.url), 'utf8');
+  const summary = source.indexOf('{celebrationNote(content)}');
+  const primary = source.indexOf('onPress={onPrimaryAction}');
+  const details = source.indexOf('{shownBeat >= 2 ? (');
+  assert.ok(summary >= 0 && summary < primary && primary < details);
+  assert.equal(source.match(/onPress=\{onPrimaryAction\}/g)?.length, 1);
+});
+
+test('줄 바뀌는 축하 링크에는 홀로 남을 구분점이 없다', () => {
+  const source = readFileSync(new URL('./celebration.tsx', import.meta.url), 'utf8');
+  const links = source.slice(source.indexOf('accessibilityLabel="도감 보기"'), source.indexOf('{featured ? ('));
+  assert.doesNotMatch(links, />·<\/Text>/);
+  assert.match(links, /onOpenGacha \?/);
+  assert.match(links, /onOpenFeedback \?/);
+});

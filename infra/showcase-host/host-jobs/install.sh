@@ -48,6 +48,10 @@ case "${1:-install}" in
   --verify)
     [[ "$("$systemctl_bin" is-enabled "$name.timer" 2>/dev/null)" == enabled ]] || { echo "$name.timer is not enabled" >&2; exit 1; }
     cmp -s "$here/masscom-retention.sh" "$sbin" || { echo "$sbin differs from this release" >&2; exit 1; }
+    # 시연 캠페인의 자동 연장을 빠뜨린 설치를 검증 완료로 세지 않는다.
+    grep -Fq 'node dist/showcase/host-seed-command.js' "$sbin" \
+      && grep -Fq "grep -Fxq 'SHOWCASE_HOST_SEEDED'" "$sbin" \
+      || { echo 'installed showcase seed step is missing' >&2; exit 1; }
     cmp -s "$here/$name.service" "$unit_dir/$name.service" || { echo "$name.service differs from this release" >&2; exit 1; }
     cmp -s "$here/$name.timer" "$unit_dir/$name.timer" || { echo "$name.timer differs from this release" >&2; exit 1; }
     # 마지막 실행 결과(systemd의 Result)도 보고한다. 한 번도 실행하지 않은 작업은 Result가 success로 보이므로 마지막 실행 시각(ExecMainStartTimestamp)이

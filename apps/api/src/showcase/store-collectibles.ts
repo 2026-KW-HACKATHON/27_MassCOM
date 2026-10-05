@@ -3,9 +3,9 @@
 // 점주 편집기 경로(PostgresCollectibleProjectService.publish)는 ACTIVE 점주 계정 행을 요구하지만 호스트 시드는 계정·멤버
 // 행을 만들지 않는 것이 규칙이라(host-seed 시험이 merchant_members 0건을 못 박는다), 같은 검증(validateCollectibleProject)과
 // 같은 발행 스냅샷(collectibleSnapshot)으로 같은 표에 직접 넣는다.
-// #333(R-333a): 목표 1·3·5회가 서로 다른 세 등급(브론즈·실버·골드)이어야 시연에서 은·금 수집품까지 볼 수 있다. 옛 시드(등급 하나 '체험')가
-// 이미 걸린 시연 DB는, 그 게시물이 "시드가 직접 넣은 옛 단일 등급 게시물"일 때만 재시드가 새 3등급 게시물로 한 번 갈아 끼운다.
-// 점주가 편집기로 만든 게시물은 어떤 경우에도 건드리지 않고, 이미 3등급이 걸린 캠페인은 두 번 돌려도 같다.
+// #333(R-333a)·#365: 목표 1·3·5회는 그대로 두고 A·B는 브론즈·실버·골드, C는 5회에 프리즘을 줘 시연에서도 프리즘 재질을 볼 수 있다.
+// 옛 시드의 단일 등급 '체험'과 C의 이전 브론즈·실버·골드 게시물만, 이름·테마·빈 작성자 열·남은 미디어까지 맞으면 한 번 갈아 끼운다.
+// 점주 게시물과 이미 현재 등급이 걸린 캠페인은 건드리지 않고, 이미 받은 보상의 옛 스냅샷도 그대로 둔다.
 import { randomUUID } from 'node:crypto';
 
 import type { PoolClient } from 'pg';
@@ -14,7 +14,10 @@ import type { CollectibleArtwork, CollectibleProject } from '../collectible-proj
 import { collectibleSnapshot, validateCollectibleProject } from '../collectible-project-rules.js';
 import { storeCollectibleArt } from './store-collectible-art.js';
 
-export type StoreCollectibleTarget = { merchantId: string; campaignId: string; storeName: string; art: keyof typeof storeCollectibleArt };
+export type StoreCollectibleTarget = {
+  merchantId: string; campaignId: string; storeName: string; art: keyof typeof storeCollectibleArt;
+  topGrade?: 'gold' | 'prism';
+};
 
 export const STORE_COLLECTIBLE_GRADE_IDS = ['bronze', 'silver', 'gold'] as const;
 // 목표 방문 횟수 → 등급. 서버의 보상 목표(1·3·5)와 같은 키다.
@@ -34,6 +37,11 @@ const storeMotions = [
   { id: 'motion-gold-sparkle', type: 'sparkle', gradeIds: ['gold'], playback: 'loop' },
   { id: 'motion-gold-burst', type: 'confetti', gradeIds: ['gold'], playback: 'once', particle: 'sparkles' },
 ] as const;
+const prismMotions = [
+  { id: 'motion-prism-sparkle', type: 'sparkle', gradeIds: ['prism'], playback: 'loop' },
+  { id: 'motion-prism-pulse', type: 'pulse', gradeIds: ['prism'], playback: 'loop' },
+  { id: 'motion-prism-burst', type: 'confetti', gradeIds: ['prism'], playback: 'once', particle: 'sparkles' },
+] as const;
 const storeGreetings = [
   { id: 'greeting-bronze', gradeIds: ['bronze'], themeName: '', text: `브론즈 수집품: 첫 방문을 축하해요. ${storeDisclosure}` },
   { id: 'greeting-silver', gradeIds: ['silver'], themeName: '', text: `실버 수집품: 세 번째 방문이에요, 단골이 되어 가고 있어요. ${storeDisclosure}` },
@@ -47,26 +55,33 @@ const legacyGrades = [{ id: 'bronze', name: '체험', kind: 'basic', enabled: tr
 
 export function storeCollectibleProject(target: StoreCollectibleTarget): CollectibleProject {
   const { image, thumbnail } = storeCollectibleArt[target.art];
+  const topGrade = target.topGrade ?? 'gold';
+  const grades = storeGrades.map((grade) => grade.id === 'gold' && topGrade === 'prism'
+    ? { ...grade, id: 'prism', name: '프리즘' } : { ...grade });
+  const motions = topGrade === 'prism' ? [storeMotions[0], ...prismMotions] : storeMotions;
+  const greetings = storeGreetings.map((greeting) => greeting.id === 'greeting-gold' && topGrade === 'prism'
+    ? { ...greeting, id: 'greeting-prism', gradeIds: ['prism'], text: `프리즘 수집품: 다섯 번째 방문까지 모두 채웠어요! ${storeDisclosure}` }
+    : greeting);
   return {
     schemaVersion: 2, name: projectName(target), campaignId: target.campaignId, theme: { name: themeName },
     photo: { originalDataUrl: image, width: 512, height: 512 }, shape: 'circle', crop: { x: 0, y: 0, zoom: 1 },
     photoEdits: { brightness: 0, contrast: 0, merge: 0, simplify: 0, cartoon: 0, strokes: [] },
     style: 'original', baseColor: '#bf8149', photoColor: 100, relief: 45, stickers: [],
     back: { mode: 'default', color: '#bf8149', stickers: [] },
-    grades: storeGrades.map((grade) => ({ ...grade })),
-    effects: [], motion: storeMotions.map((motion) => ({ ...motion, gradeIds: [...motion.gradeIds] })), thickness: 8, angle: 0,
+    grades,
+    effects: [], motion: motions.map((motion) => ({ ...motion, gradeIds: [...motion.gradeIds] })), thickness: 8, angle: 0,
     greeting: storeDisclosure,
-    greetingOverrides: storeGreetings.map((greeting) => ({ ...greeting, gradeIds: [...greeting.gradeIds] })), audio: null,
+    greetingOverrides: greetings.map((greeting) => ({ ...greeting, gradeIds: [...greeting.gradeIds] })), audio: null,
     story: { type: 'zoom', frames: [], cartoon: 0, strength: 50 },
     parallax: { strength: 0, strokes: [] }, living: { periodMs: 2400, items: [] },
-    derived: Object.fromEntries(STORE_COLLECTIBLE_GRADE_IDS.map((gradeId) => [gradeId, { imageDataUrl: image, thumbnailDataUrl: thumbnail }])),
-    rewardGrades: { ...STORE_COLLECTIBLE_REWARD_GRADES },
+    derived: Object.fromEntries(grades.map(({ id }) => [id, { imageDataUrl: image, thumbnailDataUrl: thumbnail }])),
+    rewardGrades: { ...STORE_COLLECTIBLE_REWARD_GRADES, 5: topGrade },
   } as CollectibleProject;
 }
 
 /**
- * 호출자가 이미 연 거래 안에서 실행한다. 게시물이 새로 걸렸거나 옛 시드 게시물에서 3등급으로 갈아 끼워진 캠페인 id 목록을 돌려준다.
- * 이미 걸린 게시물이 점주가 만든 것이거나(작성자 열이 채워짐) 이미 3등급이면 건드리지 않는다.
+ * 호출자가 이미 연 거래 안에서 실행한다. 게시물이 새로 걸렸거나 과거 시드 게시물에서 현재 등급으로 갈아 끼워진 캠페인 id 목록을 돌려준다.
+ * 이미 걸린 게시물이 점주가 만든 것이거나(작성자 열이 채워짐) 현재 등급이면 건드리지 않는다.
  *
  * 게시·미디어 제거와 같은 점포 원본 잠금을 먼저 잡는다. 전체 시드는 이 잠금을 점포 갱신 전부터 잡아 순서를 맞춘다.
  * 동시 점주 게시와의 경합: 실제 게시(PostgresCollectibleProjectService.publish)와 같이 캠페인 행을 "연결을 읽기 전에" 무조건 FOR UPDATE로
@@ -99,11 +114,13 @@ export async function seedStoreCollectibles(
                   AND source.project IS NOT NULL
                   AND source.name = $3
                   AND source.project #>> '{theme,name}' = $4
-                  AND source.project -> 'grades' = $5::jsonb
+                  AND (source.project -> 'grades' = $5::jsonb OR source.project -> 'grades' = $6::jsonb)
               ) AS legacy_seed
        FROM campaign_collectible_publications AS link
        WHERE link.campaign_id = $1`,
-      [target.campaignId, target.merchantId, projectName(target), themeName, JSON.stringify(legacyGrades)]);
+      [target.campaignId, target.merchantId, projectName(target), themeName, JSON.stringify(legacyGrades),
+        // A·B의 현재 골드 배열은 교체 대상이 아니다. 프리즘을 선택한 C만 정확한 이전 3등급 시드 배열도 허용한다.
+        target.topGrade === 'prism' ? JSON.stringify(storeGrades) : null]);
     const link = linked.rows[0];
     if (link && !link.legacy_seed) continue;
     if (!link) {
@@ -125,7 +142,7 @@ export async function seedStoreCollectibles(
       `INSERT INTO collectible_publications (id, project_id, merchant_id, campaign_id, project_version, reward_grades, published_at)
        VALUES ($1, $2, $3, $4, 1, $5::jsonb, $6)`,
       [publicationId, projectId, target.merchantId, target.campaignId, JSON.stringify(project.rewardGrades), now]);
-    for (const gradeId of STORE_COLLECTIBLE_GRADE_IDS) {
+    for (const { id: gradeId } of project.grades) {
       const { projectId: _project, publicationId: _publication, gradeId: _grade, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
         collectibleSnapshot(project, projectId, publicationId, gradeId);
       const summary: CollectibleArtwork = { projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl };

@@ -7,6 +7,7 @@ import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { createBadgeApiClient, type BadgeApiClient, type BadgeBook, type OpenedReward } from '@/gamification/badge-api';
 import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
+import { couponExpiryNotice } from '@/gamification/coupon-expiry';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
@@ -274,6 +275,7 @@ function HomeMissionsPanel({ badgeApi, companionArt, onOpenMissions }: {
   const world = worldForScheme(useColorScheme());
   const styles = useMemo(() => StyleSheet.create(makeHomeStyles(palette, world, StyleSheet.hairlineWidth)), [palette, world]);
   const [book, setBook] = useState<BadgeBook>();
+  const expiryNotice = couponExpiryNotice(book, new Date());
   const [error, setError] = useState<string>();
   const [revealed, setRevealed] = useState<OpenedReward>();
 
@@ -318,7 +320,12 @@ function HomeMissionsPanel({ badgeApi, companionArt, onOpenMissions }: {
           ))}
         </View>
         {book ? (
-          <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
+          <>
+            {expiryNotice ? (
+              <Text accessibilityLiveRegion="polite" style={styles.couponNotice}>{expiryNotice}</Text>
+            ) : null}
+            <HomeRewardCard book={book} onOpen={badgeApi.openReward} onRevealed={onRevealed} onOpenFailed={onOpenFailed} />
+          </>
         ) : error ? (
           <Pressable accessibilityRole="button" onPress={() => { void loadBook(); }} style={styles.inlineError}>
             <Text style={styles.inlineErrorText}>{error} 눌러서 다시 시도</Text>
@@ -362,6 +369,7 @@ function makeHomeStyles(palette: ReturnType<typeof colorsForScheme>, world: Retu
     inlineError: { minHeight: uiMetrics.minTouch, justifyContent: 'center', padding: 12, borderRadius: 12, backgroundColor: palette.errorContainer },
     inlineErrorText: { color: palette.onErrorContainer, fontSize: 13, lineHeight: 19, fontWeight: '700' },
     inlineNotice: { color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer, padding: 12, borderRadius: 12, fontSize: 13, lineHeight: 19, fontWeight: '700' },
+    couponNotice: { color: palette.onAccentContainer, backgroundColor: palette.accentContainer, padding: 12, borderRadius: 12, fontSize: 13, lineHeight: 19, fontWeight: '800' },
     quickActions: { flexDirection: 'row', gap: 12, paddingHorizontal: uiMetrics.pageInset, marginBottom: 18 },
     quickAction: { flex: 1, minHeight: 82, borderRadius: 16, padding: 14, justifyContent: 'center', gap: 5 },
     quickActionTitle: { fontSize: 16, lineHeight: 23, fontWeight: '900' },

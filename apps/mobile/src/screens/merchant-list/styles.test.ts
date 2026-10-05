@@ -44,6 +44,13 @@ test('merchant cards float on world.card and keep their text readable in light a
   }
 });
 
+test('merchant card keeps the full demo address and gives its story more lines at large text', () => {
+  const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
+  assert.match(source, /numberOfLines=\{isLargeText\(fontScale\) \? 4 : 2\} style=\{styles\.cardStory\}/);
+  assert.match(source, /<Text selectable style=\{styles\.cardAddress\}>\{merchant\.roadAddress\}<\/Text>/);
+  assert.doesNotMatch(source, /numberOfLines=\{\d+\} style=\{styles\.cardAddress\}/);
+});
+
 test('the passport chip and the sky headings stay readable and touchable', () => {
   for (const [palette, world] of schemes) {
     const styles = makeMerchantListStyles(palette, world);

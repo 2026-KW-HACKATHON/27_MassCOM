@@ -173,11 +173,11 @@ async function fixture(t: TestContext, options: {
   const social = options.social?.(calls) ?? socialFixture(calls);
   const args: Parameters<typeof createApiServer> = [challengeService(), developmentHeaderAccountResolver];
   args[26] = consent;
-  args[39] = social;
+  args[40] = social;
   assert.equal(args[0] instanceof WalletChallengeService, true);
   assert.equal(args[1], developmentHeaderAccountResolver);
   assert.equal(args[26], consent);
-  assert.equal(args[39], social);
+  assert.equal(args[40], social);
   const server = createApiServer(...args);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));

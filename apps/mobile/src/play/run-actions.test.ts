@@ -1,7 +1,32 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { gameKinds, getGameBoard, minimumActionGapMs, minimumCompletedElapsedMs, scoreRun, scoreRunAtElapsed, type GameAction } from '../../../api/src/play-rules';
-import { appendAction, finalizeDeliveryActions, memoryRevealDelay, mobileMinimumActionGapMs, shouldWaitForDeliverySample } from './run-actions';
+import { activeMomentFeedback, appendAction, completedRecordLabel, finalizeDeliveryActions, memoryRevealDelay, mobileMinimumActionGapMs, sessionProgress, shouldWaitForDeliverySample } from './run-actions';
+
+test('progress width follows completed units on every board, including an early 12/12 result', () => {
+  for (const kind of gameKinds) {
+    const board = getGameBoard(kind, 17);
+    const total = kind === 'stack' ? 6 : kind === 'memory' ? 6 : 12;
+    const done = sessionProgress(board, total, kind === 'memory' ? 12 : 0, kind === 'delivery' ? 12 : 0);
+    assert.equal(done.width, '100%');
+    assert.match(done.label, new RegExp(`${total} / ${total}`));
+  }
+  const orders = getGameBoard('orders', 17);
+  assert.deepEqual(sessionProgress(orders, 2, 0, 0), { label: '2 / 12개', width: `${2 / 12 * 100}%` });
+});
+
+test('transient game feedback disappears outside active play', () => {
+  const stack = { text: '정확해요 +80점', good: true };
+  const delivery = { text: '무사 통과 +65점', good: true };
+  assert.deepEqual(activeMomentFeedback('playing', 'delivery', stack, delivery), delivery);
+  assert.equal(activeMomentFeedback('result', 'delivery', stack, delivery), undefined);
+  assert.equal(activeMomentFeedback('finishing', 'stack', stack, delivery), undefined);
+});
+
+test('an unfinished first attempt does not claim a zero-point best record', () => {
+  assert.equal(completedRecordLabel(0, 0), '아직 기록이 없어요');
+  assert.equal(completedRecordLabel(2, 340), '최고 340점');
+});
 
 test('mobile input gaps match the server contract for every game', () => {
   assert.deepEqual(mobileMinimumActionGapMs, minimumActionGapMs);

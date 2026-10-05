@@ -29,6 +29,10 @@ test('skip is always available, independent of the current stage', () => {
   assert.match(source, /<SkipButton onPress=\{onSkip\} \/>/);
 });
 
+test('single-card envelopes do not show a redundant 1 / 1 pager', () => {
+  assert.match(source, /cards\.length > 1 \? <Text style=\{styles\.cardCount\}>\{cardStep\.index \+ 1\} \/ \{cards\.length\}<\/Text> : null/);
+});
+
 test('only a card that reached the visible stage is acknowledged as presented', () => {
   assert.match(source, /if \(foreground && uiStage === 'open' && current\) onCardShown\(current\.entitlementId\);/);
   assert.match(source, /\[foreground, uiStage, current, onCardShown\]/);

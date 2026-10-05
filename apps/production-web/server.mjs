@@ -18,6 +18,11 @@ const files = new Map([
   ['/merchant/', ['merchant.html', 'text/html; charset=utf-8']],
   ['/merchant/assets/merchant.mjs', ['assets/merchant.mjs', 'text/javascript; charset=utf-8']],
 ]);
+for (const prefix of ['/assets/', '/app/assets/', '/admin/assets/', '/merchant/assets/']) {
+  files.set(`${prefix}commercial-operation.mjs`, ['assets/commercial-operation.mjs', 'text/javascript; charset=utf-8']);
+  files.set(`${prefix}merchant-profile.mjs`, ['assets/merchant-profile.mjs', 'text/javascript; charset=utf-8']);
+  files.set(`${prefix}install-qr.png`, ['assets/install-qr.png', 'image/png']);
+}
 for (const file of ['collectible-model.mjs', 'collectible-errors.mjs', 'collectible-assist.mjs', 'collectible-editor.mjs', 'collectible-studio.mjs', 'collectible-waveform.mjs', 'collectible-renderer.mjs', 'collectible-viewer.mjs', 'collectible-editor.css', 'collectible-viewer.css']) {
   const mime = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
   for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) files.set(`${prefix}${file}`, [`assets/${file}`, mime]);

@@ -61,3 +61,13 @@ test('the receipt lookup field stays readable and touchable in both schemes', ()
     assert.ok((styles.input.minHeight as number) >= uiMetrics.minTouch);
   }
 });
+
+test('trial session actions wrap within the card and can grow with large text', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeAccountSettingsStyles(palette, world);
+    assert.equal(styles.sessionActions.width, '100%');
+    assert.equal(styles.trialAction.alignSelf, 'stretch');
+    assert.equal('height' in styles.trialAction, false);
+    assert.equal('height' in styles.secondaryLink, false);
+  }
+});

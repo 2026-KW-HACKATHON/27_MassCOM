@@ -211,7 +211,7 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
           </View>
           <View style={styles.cardNav}>
             <NavButton label="이전 카드" disabled={cardStep.index === 0} onPress={() => goTo(-1)} glyph="‹" />
-            <Text style={styles.cardCount}>{cardStep.index + 1} / {cards.length}</Text>
+            {cards.length > 1 ? <Text style={styles.cardCount}>{cardStep.index + 1} / {cards.length}</Text> : null}
             <NavButton label="다음 카드" onPress={() => goTo(1)} glyph="›" />
           </View>
         </View>

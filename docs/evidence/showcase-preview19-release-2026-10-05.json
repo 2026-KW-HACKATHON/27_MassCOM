@@ -1,0 +1,70 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-05",
+  "sourceCommit": "db280032a97eee1d9cd50b504d84bc66e2beafda",
+  "pullRequests": [
+    362,
+    364,
+    368,
+    366
+  ],
+  "issues": [
+    338,
+    363,
+    365,
+    369
+  ],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.19",
+  "releaseKind": "GitHub prerelease",
+  "releaseTarget": "db28003",
+  "artifact": {
+    "name": "MassCOM-showcase-android-db28003.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "sha256": "c32477e05d6ff510a3779f1fb2ab28044462e10457f53d0d9cf683a54a5a5c17",
+    "bytes": 168399189,
+    "provenanceName": "MassCOM-showcase-android-db28003.provenance.json",
+    "checksumsName": "SHA256SUMS.txt",
+    "package": "kr.masscom.wolgye.demo",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "CDB0DC37750C907EAA2F1B9EB172B0911F14B9C9F2DAB78B481F1751D8EBF28A",
+    "provenanceSha256": "fd1732f544d3c801e7463e0ac550b7f8dc527d1d305fb7378853e59e6950f107"
+  },
+  "checks": {
+    "embeddedApi": "PASS; APK와 AAB 모두 demo-api.masscom.kr만 포함하고 api.masscom.kr는 포함하지 않는다.",
+    "walletSurface": "NOT_RUN",
+    "recordAudioPermission": "NOT_RUN",
+    "anonymousDownload": "PASS; 익명 다운로드한 APK의 SHA-256이 c32477e05d6ff510a3779f1fb2ab28044462e10457f53d0d9cf683a54a5a5c17과 일치한다."
+  },
+  "notRun": [
+    "실제 휴대전화",
+    "공개 서버에서 동의 수락 이후 홈·테스트 방문·가상 점포 C 프리즘 수령",
+    "체험 처음부터 다시",
+    "체험 점포 점주 화면",
+    "Google 로그인",
+    "실제 QR 방문",
+    "지갑",
+    "TalkBack",
+    "글자 200%"
+  ],
+  "limitations": "Preview 19는 시연 전용 GitHub prerelease다. 공개 서버에서 동의를 수락하지 않았으므로 동의 이후 흐름은 NOT_RUN이다.",
+  "physicalAndroid": {
+    "device": "NOT_RUN; 실제 휴대전화",
+    "environment": "NOT_RUN",
+    "apkInstall": "NOT_RUN"
+  },
+  "emulatorAndroid": {
+    "device": "Android 에뮬레이터, 720×1280, 글꼴 100%",
+    "environment": "이 정확한 APK·공개 시연 서버",
+    "apkInstall": "PASS; 이전 Preview 위 설치 Success",
+    "firstScreen": "PASS; Google로 로그인, 테두리 있는 로그인 없이 바로 체험 버튼과 설명",
+    "guestTrial": "PASS; 버튼을 누르면 임시 체험이 시작되고 로그인 동작이 사라짐",
+    "consentScreen": "PASS; 사용자 선택 → 필수 체크 3개가 있는 첫 동의 화면",
+    "rejectConsent": "PASS; 동의하지 않고 로그아웃 → 정상 상태 문구·오류 없는 로그아웃 첫 화면",
+    "acceptConsent": "NOT_RUN; 공개 서버에서 동의를 수락하지 않음",
+    "screenshots": [
+      "docs/evidence/demo-ready-2026-10-05/emulator-preview19-guest-trial-on-showcase-server.jpg"
+    ],
+    "evidenceDirectory": "docs/evidence/demo-ready-2026-10-05/"
+  },
+  "buildNote": "추가 빌드 실패 이력 NOT_RUN"
+}

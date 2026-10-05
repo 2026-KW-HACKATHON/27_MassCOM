@@ -162,6 +162,31 @@ test('conditional binding store requires exact status and pending token intent',
 });
 
 
+
+test('current binding removal requires the latest persisted device revision', async () => {
+  const storage = installAsyncStorageMock();
+  const revoking = pushBindingPendingUnregister(pushBindingForRegistration({ ...base, bindingRevision: 2 }));
+  storage.seedBinding(revoking);
+  storage.seedDeviceState(3);
+
+  await queuedPushBindingStore.removeIfCurrent(revoking);
+  assert.deepEqual(storage.binding(), revoking);
+
+  storage.seedDeviceState(2);
+  await queuedPushBindingStore.removeIfCurrent(revoking);
+  assert.equal(storage.binding(), null);
+});
+
+test('current binding removal keeps authority when device revision cannot be read strictly', async () => {
+  const storage = installAsyncStorageMock();
+  const revoking = pushBindingPendingUnregister(pushBindingForRegistration({ ...base, bindingRevision: 2 }));
+  storage.seedBinding(revoking);
+  storage.values.set(deviceStateKey, JSON.stringify({ deviceId: 1, bindingRevision: 2 }));
+
+  await queuedPushBindingStore.removeIfCurrent(revoking);
+  assert.deepEqual(storage.binding(), revoking);
+});
+
 test('registration preserves prior cleanup authority before replacing current binding', async () => {
   const storage = installAsyncStorageMock();
   const old = pushBindingRegistered(pushBindingForRegistration(base));

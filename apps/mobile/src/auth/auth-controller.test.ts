@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { AuthApiError } from './auth-api';
 import { AuthControllerError, createAuthController, type AuthControllerDependencies, type AuthState } from './auth-controller';
 import { GoogleSignInAdapterError } from './google-sign-in';
-import { AuthStorageError, type StoredAuthSessionV1 } from './session-store';
+import { AuthStorageError, createSessionStore, type StoredAuthSessionV1 } from './session-store';
 
 const oldSession: StoredAuthSessionV1 = {
   version: 1,
@@ -435,6 +435,74 @@ test('guest trial sign-in saves and publishes the issued session like a bearer l
     session: guestSession,
     credential: { kind: 'bearer', sessionToken: 'guest-session' },
   });
+});
+
+test('restores a guest trial after creating a new auth controller', async () => {
+  const guestSession: StoredAuthSessionV1 = {
+    version: 1,
+    sessionToken: 'guest-session',
+    accountId: 'guest-account',
+    expiresAt: '2026-10-21T02:00:00.000Z',
+    guest: true,
+  };
+  const f = fixture({
+    authApi: {
+      async signIn() { throw new Error('unexpected signIn'); },
+      async logout() { throw new Error('unexpected logout'); },
+      async startGuestTrial() {
+        f.calls.push('api.startGuestTrial');
+        return guestSession;
+      },
+    },
+  });
+  f.setStored(undefined);
+  await createAuthController(f.dependencies).signInAsGuest();
+  f.calls.length = 0;
+
+  const restarted = createAuthController(f.dependencies);
+  await restarted.restore();
+
+  assert.deepEqual(restarted.getState(), {
+    status: 'signedIn',
+    session: guestSession,
+    credential: { kind: 'bearer', sessionToken: 'guest-session' },
+  });
+  assert.deepEqual(f.calls, ['store.load']);
+});
+
+test('invalidated guest trial clears its credential and returns to signed out', async () => {
+  const f = fixture();
+  f.setStored({ ...oldSession, guest: true });
+  const controller = createAuthController(f.dependencies);
+  await controller.restore();
+  f.calls.length = 0;
+
+  await controller.invalidateSession('old-session');
+
+  assert.deepEqual(controller.getState(), { status: 'signedOut' });
+  assert.equal(f.stored(), undefined);
+  assert.deepEqual(f.calls, [
+    'api.logout:old-session',
+    'store.clear',
+    'wallet.clear',
+    'google.signOut',
+  ]);
+});
+
+test('expired guest trial is discarded and restores as signed out', async () => {
+  let persisted: string | null = JSON.stringify({ ...oldSession, guest: true });
+  const sessionStore = createSessionStore({
+    async getItemAsync() { return persisted; },
+    async setItemAsync(_key, value) { persisted = value; },
+    async deleteItemAsync() { persisted = null; },
+  }, () => new Date('2026-10-22T00:00:00.000Z'));
+  const f = fixture({ sessionStore });
+  const controller = createAuthController(f.dependencies);
+
+  await controller.restore();
+
+  assert.deepEqual(controller.getState(), { status: 'signedOut' });
+  assert.equal(persisted, null);
 });
 
 test('guest trial rate limit stays distinct from the global trial capacity limit', async () => {

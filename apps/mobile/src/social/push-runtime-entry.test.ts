@@ -117,6 +117,46 @@ function installDeferredPushFetch() {
   };
 }
 
+
+function installCurrentCleanupFenceFetch() {
+  const calls: FetchCall[] = [];
+  const activeTokens = new Set(['ExponentPushToken[A-new]', 'ExponentPushToken[A-old]']);
+  let serverRevision = 5;
+  let heldAnewDelete: Deferred<Response> | undefined;
+
+  function removedFor(body: NonNullable<FetchCall['body']>): Response {
+    const revision = body.bindingRevision ?? 0;
+    if (revision >= serverRevision) {
+      serverRevision = revision;
+      if (body.token) activeTokens.delete(body.token);
+    }
+    return new Response(JSON.stringify({ status: 'REMOVED' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+
+  mock.method(globalThis, 'fetch', async (url: string, init?: RequestInit) => {
+    const body = init?.body ? JSON.parse(String(init.body)) as NonNullable<FetchCall['body']> : undefined;
+    calls.push({ url, method: init?.method ?? 'GET', body });
+    if (init?.method === 'DELETE' && body) {
+      if (body.token === 'ExponentPushToken[A-new]' && body.bindingRevision === 6) {
+        heldAnewDelete = deferred<Response>();
+        return heldAnewDelete.promise;
+      }
+      return removedFor(body);
+    }
+    return new Response(JSON.stringify({ status: init?.method === 'POST' ? 'REGISTERED' : 'REMOVED' }), { status: 200, headers: { 'content-type': 'application/json' } });
+  });
+
+  return {
+    calls,
+    activeTokens,
+    get serverRevision() { return serverRevision; },
+    releaseHeldAnewDelete() {
+      assert.ok(heldAnewDelete, 'missing held A-new rev6 delete');
+      heldAnewDelete.resolve(removedFor({ token: 'ExponentPushToken[A-new]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 6 }));
+    },
+  };
+}
+
 function seedBinding(binding: StoredBinding) {
   storage.set(bindingKey, JSON.stringify(binding));
 }
@@ -428,6 +468,51 @@ test('runtime confirmed higher-revision exact-device B transfer retires A cleanu
   await waitFor(() => readCleanups().length === 0);
   assert.equal(readBinding()?.token, 'ExponentPushToken[B]');
   assert.deepEqual(readCleanups(), []);
+});
+
+
+test('runtime current cleanup ACK at stale revision keeps current authority until fresh authorized cleanup', async () => {
+  const currentA = { apiUrl: 'https://api.example.test', accountId: 'account-a', token: 'ExponentPushToken[A-new]', appVariant: 'ANDROID' as const, status: 'REGISTERING' as const, deviceId: 'device-1', bindingRevision: 5 };
+  const oldA = { apiUrl: 'https://api.example.test', accountId: 'account-a', token: 'ExponentPushToken[A-old]', appVariant: 'ANDROID' as const, status: 'UNREGISTER_PENDING' as const, deviceId: 'device-1', bindingRevision: 2 };
+  const oldB = { apiUrl: 'https://api.example.test', accountId: 'account-b', token: 'ExponentPushToken[B-old]', appVariant: 'ANDROID' as const, status: 'UNREGISTER_PENDING' as const, deviceId: 'device-1', bindingRevision: 4 };
+  seedBinding(currentA);
+  seedCleanups([oldA, oldB]);
+  seedDeviceState(5);
+  const fetcher = installCurrentCleanupFenceFetch();
+
+  const staleA = runtimeModule.revokeSocialPushBindings({ apiUrl: 'https://api.example.test', accountId: 'account-a', appVariant: 'ANDROID', credential: { kind: 'bearer', sessionToken: 'a-secret' } });
+  await waitFor(() => fetcher.calls.some((call) => call.method === 'DELETE' && call.body?.token === 'ExponentPushToken[A-new]' && call.body.bindingRevision === 6));
+
+  await runtimeModule.revokeSocialPushBindings({ apiUrl: 'https://api.example.test', accountId: 'account-b', appVariant: 'ANDROID', credential: { kind: 'bearer', sessionToken: 'b-secret' } });
+  assert.deepEqual(fetcher.calls.filter((call) => call.method === 'DELETE').map((call) => call.body), [
+    { token: 'ExponentPushToken[A-new]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 6 },
+    { token: 'ExponentPushToken[B-old]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 7 },
+  ]);
+
+  fetcher.releaseHeldAnewDelete();
+  await staleA;
+
+  assert.deepEqual(fetcher.calls.filter((call) => call.method === 'DELETE').map((call) => call.body), [
+    { token: 'ExponentPushToken[A-new]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 6 },
+    { token: 'ExponentPushToken[B-old]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 7 },
+    { token: 'ExponentPushToken[A-old]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 8 },
+  ]);
+  assert.equal(fetcher.activeTokens.has('ExponentPushToken[A-new]'), true);
+  assert.deepEqual(readBinding(), { ...currentA, status: 'UNREGISTER_PENDING', bindingRevision: 6, pendingUnregisterTokens: [] });
+  assert.deepEqual(readCleanups(), []);
+
+  await reloadRuntimeModulesForTest();
+  await runtimeModule.revokeSocialPushBindings({ apiUrl: 'https://api.example.test', accountId: 'account-a', appVariant: 'ANDROID', credential: { kind: 'bearer', sessionToken: 'a-secret' } });
+
+  assert.deepEqual(fetcher.calls.filter((call) => call.method === 'DELETE').map((call) => call.body), [
+    { token: 'ExponentPushToken[A-new]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 6 },
+    { token: 'ExponentPushToken[B-old]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 7 },
+    { token: 'ExponentPushToken[A-old]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 8 },
+    { token: 'ExponentPushToken[A-new]', appVariant: 'ANDROID', deviceId: 'device-1', bindingRevision: 9 },
+  ]);
+  assert.equal(fetcher.activeTokens.has('ExponentPushToken[A-new]'), false);
+  assert.equal(readBinding(), null);
+  assert.equal(fetcher.serverRevision, 9);
 });
 
 test('runtime hook compensates an in-flight registration after revocation generation changes', async () => {

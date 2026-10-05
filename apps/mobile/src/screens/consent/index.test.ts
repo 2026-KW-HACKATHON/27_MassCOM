@@ -49,7 +49,7 @@ test('button labels span their buttons so a narrow Android measurement cannot cl
 test('the screen never leaves the user stuck: retry after a failed check, sign-out always', () => {
   assert.match(screen, /consentCopy\.retry/);
   assert.match(screen, /consentCopy\.logout/);
-  assert.match(screen, /onLogout\(\)/);
+  assert.match(screen, /finishConsentLogout\(onLogout\)/);
   assert.match(screen, /onSessionInvalid\(\)/);
   assert.match(screen, /gate\.kind === 'outdated' \? consentCopy\.versionMismatch : consentCopy\.checkFailed/);
   // Where the user has not refused anything (a failed check, an outdated app) sign-out is not called "not agreeing".

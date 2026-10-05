@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions 
 import { getGameBoard, stackCursor, type GameAction, type PlayRun } from '../../../../api/src/play-rules';
 import { lightHaptic, successHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
-import { appendAction, finalizeDeliveryActions, memoryRevealDelay, shouldWaitForDeliverySample } from '@/play/run-actions';
+import { activeMomentFeedback, appendAction, completedRecordLabel, finalizeDeliveryActions, memoryRevealDelay, sessionProgress, shouldWaitForDeliverySample, type MomentFeedback } from '@/play/run-actions';
 import { playErrorMessage, type PlayFinish } from '@/play/play-api';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
@@ -29,7 +29,6 @@ const foodNames = ['크루아상', '커피', '샌드위치', '과일 타르트']
 const laneNames = ['왼쪽', '가운데', '오른쪽'];
 const currentTime = () => performance.now();
 const elapsedSince = (startedAt: number) => Math.max(0, currentTime() - startedAt);
-type MomentFeedback = { text: string; good: boolean };
 
 function laneAtTick(actions: readonly GameAction[], at: number): number {
   let lane = 1;
@@ -86,6 +85,8 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
       const saved = await onFinish(run, log, abort.current.signal);
       if (abort.current.signal.aborted) return;
       setResult(saved);
+      setStackFeedback(undefined);
+      setDeliveryFeedback(undefined);
       setRunPhase('result');
       onResult(saved);
       playUiSound('success');
@@ -213,11 +214,9 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
 
   const copy = gameCopy[run.kind];
   const seconds = Math.ceil(Math.max(0, run.durationMs - elapsed) / 1000);
-  const progress = board.kind === 'stack' ? `${actions.length} / ${board.rounds.length}층`
-    : board.kind === 'memory' ? `${matched.length / 2} / 6쌍`
-      : board.kind === 'orders' ? `${actions.length} / 12개` : `${Math.min(12, Math.floor(elapsed / 2000))} / 12구간`;
+  const progress = sessionProgress(board, actions.length, matched.length, crossed);
   const newUnlocks = result?.unlockedThemes.filter((theme) => theme !== 'daylight') ?? [];
-  const feedback = run.kind === 'stack' ? stackFeedback : run.kind === 'delivery' ? deliveryFeedback : undefined;
+  const feedback = activeMomentFeedback(phase, run.kind, stackFeedback, deliveryFeedback);
   const status = phase === 'playing' ? `${seconds}s` : phase === 'result' ? '결과' : phase === 'finishing' ? '저장 중' : '재시도';
 
   return <View style={styles.session}>
@@ -225,12 +224,12 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
       <View style={styles.statusTitle}><Text style={[styles.kicker, { color: copy.color }]}>{copy.tag}</Text><Text style={[styles.title, { color: palette.label }]}>{copy.title}</Text></View>
       <Text style={[styles.timer, { color: phase === 'playing' && seconds <= 5 ? palette.error : palette.label }]} accessibilityLabel={phase === 'playing' ? `남은 시간 ${seconds}초` : status}>{status}</Text>
     </View>
-    <View style={styles.progressRow}><Text style={[styles.progressText, { color: palette.secondaryLabel }]}>{progress}</Text><View style={[styles.progressTrack, { backgroundColor: palette.separator }]}><View style={[styles.progressFill, { width: `${Math.min(100, elapsed / run.durationMs * 100)}%`, backgroundColor: copy.color }]} /></View></View>
+    <View style={styles.progressRow}><Text style={[styles.progressText, { color: palette.secondaryLabel }]}>{progress.label}</Text><View style={[styles.progressTrack, { backgroundColor: palette.separator }]}><View style={[styles.progressFill, { width: progress.width, backgroundColor: copy.color }]} /></View></View>
     {feedback ? <Text accessibilityLiveRegion="polite" style={[styles.feedback, { color: feedback.good ? palette.success : palette.error }]}>{feedback.text}</Text> : null}
     {phase === 'result' && result ? <View style={styles.result}>
       <Text style={[styles.resultLabel, { color: palette.secondaryLabel }]}>{result.completed ? '완주 기록' : '이번 도전'}</Text>
       <Text style={[styles.score, { color: palette.label }]}>{result.score.toLocaleString()}점</Text>
-      <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{result.correct} / {result.total} 성공 · 최고 {result.bestScore.toLocaleString()}점 · {result.plays}회 완주</Text>
+      <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{result.correct} / {result.total} 성공 · {completedRecordLabel(result.plays, result.bestScore)} · {result.plays}회 완주</Text>
       {result.completed && result.bestScore > (startingBest ?? 0) ? <Text style={[styles.newBest, { color: palette.success }]}>새 최고 기록!</Text> : null}
       {newUnlocks.length ? <Text style={[styles.unlock, { color: palette.label }]}>내 공간 장식: {newUnlocks.map((theme) => themeNames[theme] ?? theme).join(' · ')}</Text> : null}
       <View style={styles.actions}>

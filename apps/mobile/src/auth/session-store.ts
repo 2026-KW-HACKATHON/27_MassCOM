@@ -7,6 +7,7 @@ export type StoredAuthSessionV1 = {
   sessionToken: string;
   accountId: string;
   expiresAt: string;
+  guest?: true;
 };
 
 export type AuthStorageErrorCode = 'READ_FAILED' | 'WRITE_FAILED' | 'DELETE_FAILED';
@@ -42,7 +43,7 @@ function parseSession(raw: string): StoredAuthSessionV1 | undefined {
     || !expiresAt
     || !Number.isFinite(Date.parse(expiresAt))
   ) return undefined;
-  return { version: 1, sessionToken, accountId, expiresAt };
+  return { version: 1, sessionToken, accountId, expiresAt, ...(candidate.guest === true ? { guest: true } : {}) };
 }
 
 export function createSessionStore(

@@ -121,6 +121,8 @@ export const queuedPushBindingStore = {
   },
   removeIfCurrent(binding: StoredSocialPushBinding): Promise<void> {
     return withPushStorageMutationQueue(async () => {
+      const deviceState = await readPushDeviceStateForCompletionFence();
+      if (!deviceState || deviceState.bindingRevision !== binding.bindingRevision) return;
       const stored = await readBindingStrict();
       if (!sameStoredBinding(stored, binding)) return;
       await AsyncStorage.removeItem(bindingStorageKey);
@@ -168,6 +170,14 @@ async function nextPushDeviceRevisionPreservingInstallInQueue(fallbackDeviceId: 
   const next = { deviceId: current?.deviceId ?? fallbackDeviceId, bindingRevision: Math.max(current?.bindingRevision ?? 0, 0) + 1 };
   await storePushDeviceStateStrict(next);
   return next.bindingRevision;
+}
+
+async function readPushDeviceStateForCompletionFence(): Promise<PushDeviceState | null> {
+  try {
+    return await readPushDeviceStateStrict();
+  } catch {
+    return null;
+  }
 }
 
 async function readPushDeviceStateStrict(): Promise<PushDeviceState | null> {
