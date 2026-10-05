@@ -193,7 +193,7 @@ function effectPaint(context, effect, size, angle, time = 0, shape = 'circle') {
     context.globalCompositeOperation = 'destination-in'; context.globalAlpha = 1 - strength * .45; context.fillStyle = '#fff'; context.fillRect(0, 0, size, size);
     context.globalCompositeOperation = 'source-atop'; context.globalAlpha = strength * .7; context.fillStyle = '#dcefff'; context.fillRect(0, 0, size, size);
   } else {
-    const phase = angle / 180 + time / 6000;
+    const phase = angle / 180;
     const shift = Math.sin(phase * Math.PI) * size * .55;
     const gradient = context.createLinearGradient(-size * .3 + shift, 0, size * 1.3 + shift, size);
     if (effect.type === 'hologram') {
@@ -404,6 +404,15 @@ export async function backFor(project, gradeId, size, merchantName = '') {
   context.drawImage(border, 0, 0);
   return canvas;
 }
+/** Same grade aliases and metal stops as the mobile material preset. */
+export function collectibleMetalColors(gradeId, gradeName = '') {
+  const grade = `${gradeId} ${gradeName}`.toLowerCase();
+  return /prism|special|프리즘|특별/.test(grade) ? ['#67E8F9', '#E8C5FF', '#FFFFFF']
+    : /gold|골드|금색|금등급/.test(grade) ? ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C']
+      : /silver|실버|은색|은등급/.test(grade) ? ['#D3E2EF', '#FFFFFF', '#8DACC8']
+        : ['#E3BB8B', '#FFF1DC', '#A9673F'];
+}
+
 function drawVolume(canvas, front, project, options = {}) {
   const context = canvas.getContext('2d'), width = canvas.width, height = canvas.height;
   context.clearRect(0, 0, width, height);
@@ -424,16 +433,16 @@ function drawVolume(canvas, front, project, options = {}) {
   const size = Math.min(width, height) * .78 * scale;
   const horizontal = Math.max(.025, Math.abs(Math.cos(radians)));
   const depth = Math.abs(Math.sin(radians)) * (project.thickness || 8) * size / 512;
-  const grade = String(options.gradeId || project.gradeId || '').toLowerCase();
-  const metal = /prism|special/.test(grade) ? ['#6e6e9d', '#eeffff', '#af74d7']
-    : /gold/.test(grade) ? ['#76501e', '#ffebaa', '#b47b22']
-      : /silver/.test(grade) ? ['#61798c', '#f0f8ff', '#8da7ba']
-        : ['#70482f', '#eac09a', '#a76c44'];
+  const gradeName = project.grades?.find(item => item.id === options.gradeId)?.name ?? project.gradeName ?? '';
+  const metal = collectibleMetalColors(options.gradeId || project.gradeId || '', gradeName);
   const sideLight = context.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
-  sideLight.addColorStop(0, metal[0]); sideLight.addColorStop(.48, metal[1]); sideLight.addColorStop(1, metal[2]);
+  metal.forEach((color, index) => sideLight.addColorStop(index / (metal.length - 1), color));
   context.save(); context.translate(width / 2, height / 2 + yOffset);
   context.shadowColor = 'rgba(12,27,35,.25)'; context.shadowBlur = size * .045; context.shadowOffsetY = size * .045;
   for (let offset = Math.ceil(depth); offset >= 0; offset--) {
+    // Cast one contact shadow; each edge slice must not darken it again.
+    context.shadowBlur = offset === Math.ceil(depth) ? size * .045 : 0;
+    context.shadowOffsetY = offset === Math.ceil(depth) ? size * .045 : 0;
     context.save(); context.translate(offset - depth / 2, 0); context.scale(horizontal, 1);
     traceShape(context, project.shape, size, size, -size / 2, -size / 2);
     context.fillStyle = offset % 3 ? sideLight : metal[1]; context.fill(); context.restore();

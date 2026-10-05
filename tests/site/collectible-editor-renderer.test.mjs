@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
-import { processPhotoPixels, validateStory } from '../../apps/production-web/assets/collectible-renderer.mjs';
+import { processPhotoPixels, validateStory, collectibleMetalColors } from '../../apps/production-web/assets/collectible-renderer.mjs';
 import { validatePublish } from '../../apps/production-web/assets/collectible-editor.mjs';
 
 const pixels = (width, height, value = 90) => Uint8ClampedArray.from({ length: width * height * 4 }, (_, index) => index % 4 === 3 ? 255 : value);
@@ -73,4 +73,12 @@ test('publication asks only for photo, name, campaign and explicit existing rewa
   project.rewardGrades = { '1': 'bronze' }; assert.equal(validatePublish(project), '');
   assert.equal(project.effects.length, 0); assert.equal(project.audio, null);
   project.grades[0].enabled = false; assert.match(validatePublish(project), /방문 목표/);
+});
+
+
+test('metal edge aliases and stops agree with mobile grades', () => {
+  assert.deepEqual(collectibleMetalColors('', '금등급'), ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C']);
+  assert.deepEqual(collectibleMetalColors('', '은색'), ['#D3E2EF', '#FFFFFF', '#8DACC8']);
+  assert.deepEqual(collectibleMetalColors('gold', '특별'), ['#67E8F9', '#E8C5FF', '#FFFFFF']);
+  assert.deepEqual(collectibleMetalColors('unknown'), ['#E3BB8B', '#FFF1DC', '#A9673F']);
 });

@@ -2,12 +2,15 @@ import { useCallback, useRef, useState, type Ref } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { captureViewAsPng, exportImageFile } from '@/gamification/native-effects';
+import { useMotionEnabled } from '@/motion/use-motion';
+import { studioComposition } from './studio-composition';
 import type { ExperienceProfile } from '@/experience/experience-api';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
 import { gradeMaterialFor, gradeMaterialPresets } from '@/screens/collection/grade-material';
 
 import type { PublicStudio, StudioItem } from './studio-api';
-import { CompanionScene, StudioScene } from './studio-scene';
+import { CompanionScene, StudioCoin, StudioScene } from './studio-scene';
+import { studioShareLifetime } from './studio-share-lifetime';
 import { cancelStudioVideo, exportStudioVideo, saveStudioImage } from './studio-video';
 
 type Format = 'feed' | 'story';
@@ -63,7 +66,8 @@ type ShareTarget = { id: number; studio: PublicStudio; items: StudioItem[]; avat
 export type StudioShareOutcome = 'shared' | 'saved' | 'cancelled' | 'unavailable';
 
 export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote: boolean,
-  onEvent?: (event: 'share-open' | 'image-created') => void) {
+  onEvent?: (event: 'share-open' | 'image-created') => void, generation?: () => number) {
+  const motionEnabled = useMotionEnabled();
   const [target, setTarget] = useState<ShareTarget>();
   const [sharing, setSharing] = useState(false);
   const busy = useRef(false);
@@ -72,8 +76,9 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
   const avatarView = useRef<View>(null);
   const coinView = useRef<View>(null);
   const readyFlags = useRef({ card: false, avatar: false, coin: false });
-  const pending = useRef<{ resolve: () => void; reject: (error: Error) => void }>(undefined);
-  const markReady = (key: 'card' | 'avatar' | 'coin') => {
+  const pending = useRef<{ id: number; resolve: () => void; reject: (error: Error) => void }>(undefined);
+  const markReady = (key: 'card' | 'avatar' | 'coin', id: number) => {
+    if (pending.current?.id !== id) return;
     readyFlags.current[key] = true;
     if (Object.values(readyFlags.current).every(Boolean)) pending.current?.resolve();
   };
@@ -81,10 +86,12 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
   const share = useCallback(async (studio: PublicStudio, items: readonly StudioItem[], avatar: string | null,
     format: Format, media: Media = 'image', experienceProfile?: ExperienceProfile, badgeName?: string,
     representativeCoin?: StudioItem): Promise<StudioShareOutcome> => {
-    if (busy.current || !isAlive()) return 'cancelled';
+    const alive = studioShareLifetime(isAlive, generation);
+    if (busy.current || !alive()) return 'cancelled';
     busy.current = true;
     setSharing(true);
-    const ready = new Promise<void>((resolve, reject) => { pending.current = { resolve, reject }; });
+    const id = ++nextId.current;
+    const ready = new Promise<void>((resolve, reject) => { pending.current = { id, resolve, reject }; });
     const featured = representativeCoin ?? items.find((item) => item.entitlementId === experienceProfile?.coinEntitlementId);
     const ordered = featured ? [featured, ...items.filter((item) => item.entitlementId !== featured.entitlementId)].slice(0, 6) : [...items];
     const first = ordered[0];
@@ -93,37 +100,40 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
     readyFlags.current = { card: false, avatar: media === 'image', coin: media === 'image' || !coinSource };
     const timeout = setTimeout(() => pending.current?.reject(new Error('SHARE_ASSET_TIMEOUT')), 8000);
     const cancellation = setInterval(() => {
-      if (!isAlive()) { pending.current?.reject(new Error('SHARE_CANCELLED')); void cancelStudioVideo(); }
+      if (!alive()) { pending.current?.reject(new Error('SHARE_CANCELLED')); void cancelStudioVideo(); }
     }, 100);
-    setTarget({ id: ++nextId.current, studio, items: ordered, avatar, format, media, experienceProfile, badgeName, demoNote });
+    setTarget({ id, studio, items: ordered, avatar, format, media, experienceProfile, badgeName, demoNote });
     try {
       await ready;
       clearTimeout(timeout);
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      if (!isAlive() || !card.current) return 'cancelled';
+      if (!alive() || !card.current) return 'cancelled';
       const size = imageSizes[format];
       const uri = await captureViewAsPng(card.current, { ...size, fileName: `masscom-studio-${format}` });
-      if (!isAlive()) return 'cancelled';
+      if (!alive()) return 'cancelled';
       if (media === 'video') {
         if (!avatarView.current) throw new Error('SHARE_AVATAR_MISSING');
         const avatarUri = await captureViewAsPng(avatarView.current, { width: 512, height: 512, fileName: 'masscom-video-avatar' });
         const coinUri = coinSource && coinView.current
           ? await captureViewAsPng(coinView.current, { width: 512, height: 512, fileName: 'masscom-video-coin' }) : undefined;
-        if (!isAlive()) return 'cancelled';
+        if (!alive()) return 'cancelled';
         const coinMaterial = gradeMaterialFor(first?.artwork?.gradeId ?? '', first?.artwork?.gradeName ?? '');
         const outcome = await exportStudioVideo({ backgroundUri: uri, avatarUri, coinUri,
           coinColors: gradeMaterialPresets[coinMaterial].colors,
           width: size.width, height: size.height, sceneHeight: sceneHeights[format] * 3,
-          sceneTop: sceneTops[format] * 3, coinSizeRatio: .30 }, isAlive,
-          () => { if (isAlive()) onEvent?.('share-open'); });
+          sceneTop: sceneTops[format] * 3, coinSizeRatio: studioComposition.coinSizeRatio, motionEnabled }, alive,
+          () => { if (alive()) onEvent?.('share-open'); });
         return outcome;
       }
       onEvent?.('image-created');
       const saved = await saveStudioImage(uri);
-      if (!isAlive()) return 'cancelled';
-      const outcome = await exportImageFile(uri, `masscom-studio-${format}`, '나의 공간 공유', isAlive);
-      if (outcome === 'shared' && isAlive()) onEvent?.('share-open');
+      if (!alive()) return 'cancelled';
+      const outcome = await exportImageFile(uri, `masscom-studio-${format}`, '나의 공간 공유', alive);
+      if (outcome === 'shared' && alive()) onEvent?.('share-open');
       return saved ? 'saved' : outcome;
+    } catch (error) {
+      if (!alive() || error instanceof Error && error.message === 'SHARE_CANCELLED') return 'cancelled';
+      throw error;
     } finally {
       clearTimeout(timeout);
       clearInterval(cancellation);
@@ -132,7 +142,7 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
       busy.current = false;
       setSharing(false);
     }
-  }, [apiUrl, demoNote, isAlive, onEvent]);
+  }, [apiUrl, demoNote, isAlive, onEvent, motionEnabled, generation]);
 
   const face = target?.items[0];
   const coinSource = face?.artwork?.thumbnailDataUrl
@@ -140,17 +150,16 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
   const host = target ? (
     <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.offscreen}>
       <StudioShareCard key={target.id} ref={card} {...target} apiUrl={apiUrl}
-        onReady={() => markReady('card')}
-        onAssetError={() => pending.current?.reject(new Error('SHARE_ASSET_FAILED'))} />
+        onReady={() => markReady('card', target.id)}
+        onAssetError={() => { if (pending.current?.id === target.id) pending.current.reject(new Error('SHARE_ASSET_FAILED')); }} />
       {target.media === 'video' ? <>
         <View ref={avatarView} collapsable={false} style={styles.layer}>
-          <CompanionScene avatar={target.avatar} experienceProfile={target.experienceProfile} size={170} onLoad={() => markReady('avatar')}
-            onError={() => pending.current?.reject(new Error('SHARE_ASSET_FAILED'))} />
+          <CompanionScene avatar={target.avatar} experienceProfile={target.experienceProfile} size={170} onLoad={() => markReady('avatar', target.id)}
+            onError={() => { if (pending.current?.id === target.id) pending.current.reject(new Error('SHARE_ASSET_FAILED')); }} />
         </View>
         {coinSource ? <View ref={coinView} collapsable={false} style={styles.layer}>
-          <Image source={coinSource} resizeMode="contain" style={styles.layerImage}
-            onLoad={() => markReady('coin')}
-            onError={() => pending.current?.reject(new Error('SHARE_ASSET_FAILED'))} />
+          <StudioCoin item={face!} apiUrl={apiUrl} size={170} onLoad={() => markReady('coin', target.id)}
+            onError={() => { if (pending.current?.id === target.id) pending.current.reject(new Error('SHARE_ASSET_FAILED')); }} />
         </View> : null}
       </> : null}
     </View>
@@ -178,7 +187,6 @@ export function ShareFormatButtons({ disabled, onShare }: { disabled: boolean; o
 const styles = StyleSheet.create({
   offscreen: { position: 'absolute', left: -10000, top: 0, width: 360, height: 640 },
   layer: { width: 170, height: 170, backgroundColor: 'transparent' },
-  layerImage: { width: 170, height: 170 },
   card: { backgroundColor: '#FFFFFF', overflow: 'hidden' },
   copy: { paddingHorizontal: 20, paddingVertical: 3, alignItems: 'center', justifyContent: 'center', gap: 2 },
   eyebrow: { color: '#327C8B', fontSize: 11, lineHeight: 14, fontWeight: '800' },

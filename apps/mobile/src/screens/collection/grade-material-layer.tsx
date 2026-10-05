@@ -100,7 +100,7 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
   const vivid = isGold || isPrism;
   const reflection = useDerivedValue(() => {
     const t = moving ? tilt?.get() ?? STATIC_TILT : STATIC_TILT;
-    return reflectionAt({ tiltX: t.x, tiltY: t.y, timeMs: moving ? clock.get() : 0, active: moving }, preset);
+    return reflectionAt({ tiltX: t.x, tiltY: t.y, timeMs: moving ? clock.get() : 0, active: moving, ambient: !tilt }, preset);
   });
   const bandProps = useAnimatedProps(() => {
     const light = reflection.get();

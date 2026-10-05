@@ -66,15 +66,19 @@ test('the header keeps account tools one tap away, and says so under the avatar'
   assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
 });
 
-test('at 150% text and up the header keeps a capped title and a small hero; the subtitle wraps instead of disappearing', () => {
+test('large text grows freely with reflow while home keeps one exhibit and claim decoration shrinks', () => {
   const header = read('app-header.tsx');
-  assert.match(header, /maxFontSizeMultiplier=\{1\.6\}[^>]*>\{title\}/);
-  // PR #312 QA: at 2.0x the subtitle used to vanish outright instead of wrapping. It always renders now (capped at the
-  // same 1.6x as the title) and is never given numberOfLines/a fixed height, so Text wraps it freely and the header's
-  // own minHeight (not a fixed height) grows to fit.
-  assert.match(header, /\{subtitle \? <Text maxFontSizeMultiplier=\{1\.6\}[^>]*>\{subtitle\}<\/Text> : null\}/);
-  assert.doesNotMatch(header, /isLargeText|numberOfLines/);
-  assert.match(readSource('screens/merchant-list/index.tsx'), /size=\{heroMascotSize\(fontScale, 120\)\}/);
+  assert.doesNotMatch(header, /maxFontSizeMultiplier|numberOfLines/);
+  assert.match(header, /\{subtitle \? <Text style=\{styles\.headerSubtitle\}>\{subtitle\}<\/Text> : null\}/);
+  assert.match(header, /stackedHeader && \{ flexBasis: '100%' \}/);
+  assert.match(header, /flexWrap: 'wrap'/);
+  assert.doesNotMatch(read('bounce-button.tsx'), /maxFontSizeMultiplier|numberOfLines/);
+  const home = readSource('screens/merchant-list/index.tsx');
+  const exhibit = readSource('experience/home-collection-display.tsx');
+  assert.doesNotMatch(home, /heroMascotSize|<Mascot|<CompanionScene|<AvatarPortrait/);
+  assert.equal((home.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
+  assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
+  assert.match(exhibit, /showcase: \{[^}]*flexWrap: 'wrap'/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /size=\{heroMascotSize\(fontScale, 112\)\}/);
 });
 
@@ -257,19 +261,26 @@ test('state scenes map to the right mascot', () => {
   assert.match(scene, /loading: 'search'/);
 });
 
-test('mascots are plain images unless asked to be interactive, and only standalone heroes are', () => {
+test('mascots are plain images unless asked to be interactive, and home has one accessible exhibit greeting', () => {
   const mascot = read('mascot.tsx');
   assert.match(mascot, /interactive = false/);
   assert.match(mascot, /mascotAccessibility\(accessibilityLabel, interactive\)/);
   // Without `interactive` the mascot is a bare Animated.Image: no Pressable, no wiggle handler.
   assert.match(mascot, /if \(!interactive\) return <Animated\.Image \{\.\.\.picture\} \{\.\.\.a11y\} \/>;/);
   assert.match(mascot, /<Pressable onPress=\{wiggle\} \{\.\.\.a11y\}>/);
-  // Heroes that stand on the sky wiggle; mascots inside cards and modals do not.
-  assert.match(readSource('screens/merchant-list/index.tsx'), /<Mascot\s+interactive\b/);
+  // Home has one equipped greeting target in its exhibit; the header no longer repeats it.
+  const home = readSource('screens/merchant-list/index.tsx');
+  const exhibit = readSource('experience/home-collection-display.tsx');
+  assert.doesNotMatch(home, /<Mascot|<CompanionScene|<AvatarPortrait/);
+  assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
+  assert.match(exhibit, /<CompanionScene[^>]*interactive/);
+  const portrait = readSource('illustration/avatar-portrait.tsx');
+  assert.match(portrait, /interactive \? <Pressable accessibilityRole="button" accessibilityLabel="동행과 인사하기"/);
+  // Standalone foundation/claim heroes retain their original interaction contracts.
   assert.match(readSource('screens/foundation/index.tsx'), /<Mascot interactive pose="wave"/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /<Mascot interactive pose="stamp"/);
-  // Explore and claim heroes are decorative (no label, so no extra focus stop); only the role screen's wave is announced as a button.
-  for (const file of ['screens/merchant-list/index.tsx', 'screens/claim-redeem/index.tsx']) {
+  // Claim remains decorative; home's explicit greeting and the role screen's wave are announced buttons.
+  for (const file of ['screens/claim-redeem/index.tsx']) {
     const hero = readSource(file).match(/<Mascot\s+interactive[\s\S]*?\/>/)?.[0];
     assert.ok(hero, `${file} hero mascot`);
     assert.doesNotMatch(hero, /accessibilityLabel/, `${file} hero mascot is decorative`);

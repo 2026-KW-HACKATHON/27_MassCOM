@@ -1,0 +1,15 @@
+{
+  "width": 1080,
+  "height": 1920,
+  "duration": 4,
+  "bytes": 1407623,
+  "avc1": true,
+  "decodedFrames": 3,
+  "frameChanges": true,
+  "file": "final-story.mp4",
+  "decodedFrameFiles": [
+    "final-story.mp4-frame0.png",
+    "final-story.mp4-frame1.png",
+    "final-story.mp4-frame2.png"
+  ]
+}

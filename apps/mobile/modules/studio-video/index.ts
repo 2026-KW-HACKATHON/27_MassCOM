@@ -8,6 +8,9 @@ type VideoRequest = {
   width: number;
   height: number;
   sceneHeight: number;
+  sceneTop?: number;
+  coinSizeRatio?: number;
+  motionEnabled?: boolean;
 };
 
 type StudioVideoModule = {

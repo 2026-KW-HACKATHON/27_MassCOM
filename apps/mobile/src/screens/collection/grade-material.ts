@@ -83,7 +83,7 @@ export function combineMaterialTilt(angleDegrees: number, drag: MaterialTilt, gr
   };
 }
 
-export type ReflectionInput = { tiltX: number; tiltY: number; timeMs: number; active?: boolean };
+export type ReflectionInput = { tiltX: number; tiltY: number; timeMs: number; active?: boolean; ambient?: boolean };
 export type ReflectionFrame = {
   bandOffset: number;
   bandAngle: number;
@@ -101,14 +101,15 @@ export function reflectionAt(input: ReflectionInput, preset: GradeMaterialPreset
   const x = active ? clampTilt(input.tiltX) : 0;
   const y = active ? clampTilt(input.tiltY) : 0;
   // 먼저 나머지를 취해 매우 큰 시간에도 삼각함수 입력이 유한하고 정밀하게 유지되도록 한다.
-  const time = active && Number.isFinite(input.timeMs) ? Math.max(0, input.timeMs) : 0;
+  const ambient = active && input.ambient !== false;
+  const time = ambient && Number.isFinite(input.timeMs) ? Math.max(0, input.timeMs) : 0;
   const cycle = (time % preset.sweepPeriodMs) / preset.sweepPeriodMs;
   // 주기의 80% 동안 가로지르고 나머지는 윤곽 밖에서 쉰다. 반복 위치 초기화는 그림 밖에서 일어난다.
-  const drift = active ? -2.2 + Math.min(1, cycle / .8) * 4.4 : 0;
+  const drift = ambient ? -2.2 + Math.min(1, cycle / .8) * 4.4 : 0;
   const rainbow = .25 + x * .28 + y * .18 + cycle;
   const rainbowPhase = ((rainbow % 1) + 1) % 1;
   const glintOpacities = Array.from({ length: preset.glintCount }, (_, index) => {
-    const wave = active ? Math.max(0, Math.sin(cycle * Math.PI * 4 + index * 2.399 + x * 1.7 + y)) : .70;
+    const wave = ambient ? Math.max(0, Math.sin(cycle * Math.PI * 4 + index * 2.399 + x * 1.7 + y)) : .70;
     return unit(preset.glintFloor + (1 - preset.glintFloor) * wave ** 2 * (.65 + preset.intensity * .35));
   });
   return {

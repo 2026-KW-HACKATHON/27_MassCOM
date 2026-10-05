@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
-import { getGameBoard, stackCursor, type GameAction, type PlayRun } from '../../../../api/src/play-rules';
+import { gameSkills, getGameBoard, stackCursor, type GameAction, type PlayRun } from '../../../../api/src/play-rules';
+import { BadgeArt, CosmeticArt } from '@/illustration/artwork';
 import { lightHaptic, successHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { activeMomentFeedback, appendAction, completedRecordLabel, finalizeDeliveryActions, memoryRevealDelay, sessionProgress, shouldWaitForDeliverySample, type MomentFeedback } from '@/play/run-actions';
@@ -13,14 +14,15 @@ import { colorsForScheme } from '@/theme/palette';
 import { BounceButton } from '@/ui/bounce-button';
 import { Companion, FoodToken, GameToken, type OwnedArt } from './play-art';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
-import { gameCopy, skillCopy, themeNames } from './play-copy';
+import { gameCopy, skillCopy, skillRewardArt, rewardState, themeNames, tokenName } from './play-copy';
 
-type Props = {
+export type GameSessionProps = {
   run: PlayRun;
   art: readonly OwnedArt[];
   avatar: string | null;
   equipment?: DisplayExperienceProfile;
   previousBest: number | undefined;
+  previouslyEarned?: boolean;
   onFinish: (run: PlayRun, actions: readonly GameAction[], signal: AbortSignal) => Promise<PlayFinish>;
   onResult: (result: PlayFinish) => void;
   onRetry: () => void;
@@ -41,7 +43,7 @@ function laneAtTick(actions: readonly GameAction[], at: number): number {
   return lane;
 }
 
-export function GameSession({ run, art, avatar, equipment, previousBest, onFinish, onResult, onRetry, onExit }: Props) {
+export function GameSession({ run, art, avatar, equipment, previousBest, previouslyEarned = false, onFinish, onResult, onRetry, onExit }: GameSessionProps) {
   const router = useRouter();
   const recheckConsent = useConsentRecheck();
   const board = useMemo(() => getGameBoard(run.kind, run.seed), [run.kind, run.seed]);
@@ -217,6 +219,7 @@ export function GameSession({ run, art, avatar, equipment, previousBest, onFinis
   const copy = gameCopy[run.kind];
   const seconds = Math.ceil(Math.max(0, run.durationMs - elapsed) / 1000);
   const progress = sessionProgress(board, actions.length, matched.length, crossed);
+  const reward = rewardState(previouslyEarned, result);
   const newUnlocks = result?.unlockedThemes.filter((theme) => theme !== 'daylight') ?? [];
   const feedback = activeMomentFeedback(phase, run.kind, stackFeedback, deliveryFeedback);
   const status = phase === 'playing' ? `${seconds}s` : phase === 'result' ? '결과' : phase === 'finishing' ? '저장 중' : '재시도';
@@ -236,13 +239,13 @@ export function GameSession({ run, art, avatar, equipment, previousBest, onFinis
       <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{result.correct} / {result.total} 성공 · {completedRecordLabel(result.plays, result.bestScore)} · {result.plays}회 완주</Text>
       {result.completed && result.bestScore > (startingBest ?? 0) ? <Text style={[styles.newBest, { color: palette.success }]}>새 최고 기록!</Text> : null}
       {result.skill ? <View style={[styles.skillResult, { borderColor: copy.color, backgroundColor: palette.surface }]}>
-        <Text style={[styles.skillTitle, { color: palette.label }]}>{result.newlyEarned ? '새 실력 배지 획득!' : result.skill.achieved ? '실력 배지 달성' : '다음 실력 목표'} · {skillCopy[run.kind].badge}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12 }}><BadgeArt id={gameSkills[run.kind].id} size={64} /><CosmeticArt id={skillRewardArt[run.kind]} size={80} /></View><Text style={[styles.skillTitle, { color: palette.label }]}>{reward.newlyEarned ? '새 실력 배지 획득!' : reward.owned ? '획득한 실력 배지' : '다음 실력 목표'} · {skillCopy[run.kind].badge}</Text>
         <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{skillCopy[run.kind].metric} {result.skill.progress}/{result.skill.target} · {skillCopy[run.kind].goal}</Text>
-        <Text style={[styles.resultText, { color: palette.label }]}>{result.skill.achieved ? `해금: ${skillCopy[run.kind].reward}` : `다음 도전으로 ${skillCopy[run.kind].reward} 해금`}</Text>
+        <Text style={[styles.resultText, { color: palette.label }]}>{reward.owned ? `해금: ${skillCopy[run.kind].reward}` : `다음 도전으로 ${skillCopy[run.kind].reward} 해금`}</Text>
       </View> : null}
       {newUnlocks.length ? <Text style={[styles.unlock, { color: palette.label }]}>내 공간 장식: {newUnlocks.map((theme) => themeNames[theme] ?? theme).join(' · ')}</Text> : null}
       <View style={styles.actions}>
-        {newUnlocks.length || result.skill?.achieved ? <BounceButton label="해금한 꾸미기 보기" onPress={() => router.push('/studio')} /> : null}
+        {newUnlocks.length || reward.owned ? <BounceButton label="해금한 꾸미기 보기" onPress={() => router.push('/studio')} /> : null}
         <BounceButton label="다시 하기" onPress={onRetry} /><BounceButton label="다른 게임" variant="secondary" onPress={onExit} />
       </View>
     </View> : phase === 'finishing' || phase === 'finishError' ? <View style={styles.result}>
@@ -253,7 +256,7 @@ export function GameSession({ run, art, avatar, equipment, previousBest, onFinis
       {board.kind === 'stack' ? <StackBoard board={board} actions={actions} elapsed={elapsed} motionEnabled={motionEnabled} onDrop={dropStack} /> : null}
       {board.kind === 'memory' ? <View style={styles.memoryGrid}>{board.cards.map((value, index) => {
         const shown = matched.includes(index) || flipped.includes(index);
-        return <Pressable key={index} accessibilityRole="button" accessibilityLabel={`카드 ${index + 1}${shown ? `, ${art[value]?.name ?? (value < 4 ? foodNames[value] : `그림 ${value + 1}`)}` : ', 뒤집힘'}`}
+        return <Pressable key={index} accessibilityRole="button" accessibilityLabel={`카드 ${index + 1}${shown ? `, ${tokenName(art, value)}` : ', 뒤집힘'}`}
           accessibilityState={{ disabled: shown || memoryLocked }} disabled={shown || memoryLocked} onPress={() => flip(index)}
           style={[styles.memoryCard, { backgroundColor: shown ? '#FFF9EB' : '#3C777D', borderColor: shown ? '#D8B972' : '#2C666D' }]}>
           {shown ? <GameToken value={value} art={art} size={Math.min(58, (width - 100) / 4)} /> : <Text style={styles.cardBack}>✦</Text>}

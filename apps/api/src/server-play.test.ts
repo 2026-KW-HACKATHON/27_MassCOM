@@ -83,6 +83,34 @@ function consentFixture(): ConsentService {
   };
 }
 
+test('play start negotiates legacy 1 for old bodies and explicit version 2 for new clients', async () => {
+  const inputs: unknown[] = [];
+  const { server } = fixture(consentFixture(), args => {
+    args[37] = { ...args[37]!, start: async input => {
+      inputs.push(input);
+      return { id: '00000000-0000-4000-8000-000000000001', kind: input.kind, seed: 17,
+        rulesVersion: (input as { rulesVersion?: 1 | 2 }).rulesVersion ?? 2,
+        startedAt: '2026-10-05T00:00:00Z', expiresAt: '2026-10-05T00:00:45Z', durationMs: 30000 };
+    } };
+  });
+  for (const [body, version] of [
+    [{ kind: 'orders' }, 1], [{ kind: 'orders', rulesVersion: 2 }, 2],
+    [{ rulesVersion: 1, kind: 'orders' }, 1],
+  ] as const) {
+    const response = await request(server, 'POST', '/me/play/runs', 'current', JSON.stringify(body));
+    assert.equal(response.status, 201);
+    assert.equal((response.body as { rulesVersion: number }).rulesVersion, version);
+    assert.deepEqual(inputs.at(-1), { accountId: 'current', kind: 'orders', rulesVersion: version });
+  }
+  for (const body of [
+    ...[0, 3, 1.5, '2', null, false].map(rulesVersion => ({ kind: 'orders', rulesVersion })),
+    { kind: 'orders', rulesVersion: 2, score: 999 }, { rulesVersion: 2 }, { kind: 'invented', rulesVersion: 2 },
+  ]) {
+    assert.equal((await request(server, 'POST', '/me/play/runs', 'current', JSON.stringify(body))).status, 400);
+  }
+  assert.equal(inputs.length, 3, 'invalid negotiation must not reach the play service');
+});
+
 const routes = [
   ['GET', '/me/play', undefined, 200],
   ['POST', '/me/play/runs', JSON.stringify({ kind: 'orders' }), 201],

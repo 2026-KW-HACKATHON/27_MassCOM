@@ -34,3 +34,15 @@ test('studio retains 403 CONSENT_REQUIRED on own and friend reads and explains r
       && studioErrorMessage(error) === '개인정보 처리방침이 바뀌어 다시 동의가 필요해요.');
   }
 });
+
+
+test('studio keeps version two records separate and rejects malformed counts', () => {
+  const payload = { studio, items: [item], avatar: null, records: [{ kind: 'stack', bestScore: 999, plays: 12, version2BestScore: 20, version2Plays: 1 }], unlockedThemes: ['daylight'] };
+  assert.deepEqual(parseStudioSnapshot(payload).records, payload.records);
+  assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ ...payload.records[0], version2Plays: -1 }] }));
+  for (const version2BestScore of [Infinity, -1, .5, Number.MAX_SAFE_INTEGER + 1, null]) {
+    assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ ...payload.records[0], version2BestScore }] }));
+  }
+  assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ ...payload.records[0], version2Plays: 13 }] }));
+  assert.throws(() => parseStudioSnapshot({ ...payload, records: [{ kind: 'stack', bestScore: 0, plays: 0, version2BestScore: 0 }] }));
+});

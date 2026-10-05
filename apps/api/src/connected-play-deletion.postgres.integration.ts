@@ -34,12 +34,13 @@ test('rollback deletion ledger is repaired by retention for every 0042 account t
       for (const runId of ids) {
         await pool.query(
           `INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version)
-           VALUES ($1, $2, 'stack', 1, $3, $3::timestamptz + interval '1 hour', 1)`,
+           VALUES ($1, $2, 'stack', 1, $3, $3::timestamptz + interval '1 hour', 2)`,
           [runId, accountId, now],
         );
       }
       await pool.query(
-        `INSERT INTO play_records (account_id, kind, best_score, plays) VALUES ($1, 'stack', 10, 1)`,
+        `INSERT INTO play_records (account_id, kind, best_score, plays, version2_best_score, version2_plays)
+         VALUES ($1, 'stack', 10, 2, 500, 1)`,
         [accountId],
       );
       await pool.query(

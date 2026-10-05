@@ -1,29 +1,50 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
-import type { ExperienceSnapshot } from './experience-api';
+import { CosmeticArt, PackArt } from '@/illustration/artwork';
+import { AvatarPortrait } from '@/illustration/avatar-portrait';
+import { StudioDecor } from '@/studio/studio-scene';
+import { colorsForScheme } from '@/theme/palette';
+import { worldForScheme } from '@/theme/world';
+import type { DisplayExperienceProfile, ExperienceSnapshot } from './experience-api';
 
 export function ThemePackBoard({ snapshot }: { snapshot: ExperienceSnapshot }) {
+  const scheme = useColorScheme();
+  const styles = makeStyles(colorsForScheme(scheme), worldForScheme(scheme));
   return <View style={styles.section}>
     <Text accessibilityRole="header" style={styles.heading}>테마 꾸미기</Text>
     <Text style={styles.intro}>테마 팩을 열면 해당 등급의 미보유 캐릭터와 미보유 꾸미기 1개가 확정돼요. 모자 → 소품 → 장식 순서로 세 번 열면 테마를 완성해요. 모은 꾸미기는 내 공간에서 장착해요.</Text>
     {snapshot.catalog.packs.map((pack) => {
       const progress = snapshot.progress.packs.find((item) => item.id === pack.id);
-      const names = pack.bonusItemIds.map((id) => snapshot.catalog.cosmetics.find((item) => item.id === id)?.name).filter(Boolean);
+
       return <View key={pack.id} style={styles.pack}>
-        <Text style={styles.name}>{pack.name} · {{ BRONZE: '브론즈', SILVER: '실버', GOLD: '골드' }[pack.grade]} 캐릭터</Text>
-        <Text style={styles.description}>{pack.theme} · {names.join(' · ')}</Text>
-        <Text style={styles.progress}>{progress ? `${progress.ownedBonuses}/${progress.totalBonuses}개 소장 · ${progress.opens}번 열었어요` : '진행 정보를 확인 중'}</Text>
+        <PackArt grade={pack.grade} size={100} /><Text style={styles.name}>{pack.name} · {{ BRONZE: '브론즈', SILVER: '실버', GOLD: '골드' }[pack.grade]} 캐릭터</Text>
+        <Text style={styles.description}>{pack.theme} · {pack.price.toLocaleString('ko-KR')} 마일리지</Text>
+        <View style={styles.rewards}>{pack.bonusItemIds.map((id) => <View key={id} style={styles.reward}><CosmeticArt id={id} size={54} /><Text style={styles.description}>{snapshot.catalog.cosmetics.find((item) => item.id === id)?.name}</Text></View>)}</View><Text style={styles.progress}>{progress ? `${progress.ownedBonuses}/${progress.totalBonuses}개 소장 · ${progress.opens}번 열었어요` : '진행 정보를 확인 중'}</Text>
       </View>;
     })}
   </View>;
 }
 
-const styles = StyleSheet.create({
-  section: { marginHorizontal: 14, padding: 14, borderRadius: 12, borderColor: '#E2D3A9', borderWidth: 1, backgroundColor: '#FFFAEB', gap: 9 },
-  heading: { color: '#5D401C', fontWeight: '900', fontSize: 17 },
-  intro: { color: '#705C41', fontSize: 12, lineHeight: 18 },
-  pack: { borderTopWidth: 1, borderColor: '#E9D9B3', paddingTop: 8 },
-  name: { color: '#5D401C', fontWeight: '800', fontSize: 13 },
-  description: { color: '#705C41', fontSize: 11, marginTop: 3 },
-  progress: { color: '#92622D', fontSize: 11, fontWeight: '700', marginTop: 3 },
+/** A local reference room: no visits, collectible records or equipment are created. */
+export function ThemeOutfitPreview({ avatar, profile }: { avatar: string | null; profile?: DisplayExperienceProfile }) {
+  return <View style={{ width: 264, maxWidth: '100%', height: 200, overflow: 'hidden', borderRadius: 14 }}>
+    <Image source={require('../../assets/images/play/room-daylight.png')} resizeMode="cover" accessible={false}
+      style={{ position: 'absolute', width: '100%', height: '100%' }} />
+    {profile?.cosmetics.decor ? <StudioDecor id={profile.cosmetics.decor} width={264} height={200} /> : null}
+    <View pointerEvents="none" style={{ position: 'absolute', left: 124, bottom: 30, width: 72, height: 10, borderRadius: 36, backgroundColor: '#584B3D24' }} />
+    <View style={{ position: 'absolute', left: 96, bottom: 34, width: 128, height: 128 }}>
+      <AvatarPortrait avatar={avatar} profile={profile} size={128} reaction="idle" animated={false} />
+    </View>
+  </View>;
+}
+
+const makeStyles = (palette: ReturnType<typeof colorsForScheme>, world: ReturnType<typeof worldForScheme>) => StyleSheet.create({
+  section: { marginHorizontal: 14, padding: 14, borderRadius: 12, borderColor: world.paperLine, borderWidth: 1, backgroundColor: world.paper, gap: 9 },
+  heading: { color: world.paperInk, fontWeight: '900', fontSize: 17 },
+  intro: { color: world.paperInk, fontSize: 12, lineHeight: 18 },
+  rewards: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, reward: { alignItems: 'center', flex: 1, minWidth: 70 },
+  pack: { borderTopWidth: 1, borderColor: world.paperLine, paddingTop: 8 },
+  name: { color: world.paperInk, fontWeight: '800', fontSize: 13 },
+  description: { color: world.paperInk, fontSize: 11, marginTop: 3 },
+  progress: { color: world.paperInk, fontSize: 11, fontWeight: '700', marginTop: 3 },
 });

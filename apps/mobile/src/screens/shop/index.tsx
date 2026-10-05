@@ -4,6 +4,8 @@ import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, us
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { CharacterArt } from '@/illustration/character-art';
+import { PackArt } from '@/illustration/artwork';
 import { ThemePackBoard } from '@/experience/theme-pack-board';
 import { useExperience } from '@/experience/use-experience';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
@@ -19,7 +21,7 @@ import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 
 import { ShopApiError, createShopApiClient, shopErrorMessage, type MileageGrade, type ShopGradeView, type ShopRerollResult } from '@/shop/shop-api';
-import { friendArt, mileageCoinArt, ticketArt } from '@/shop/shop-art';
+import { mileageCoinArt } from '@/shop/shop-art';
 import {
   buildFriendGrid, earnRulesText, formatMileage, rerollDisclosure, rerollButtonState, resumeOrStartPurchase, showcaseBonusLabel,
   type FriendGridCell, type PendingPurchase,
@@ -133,7 +135,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   async function buy(grade: ShopGradeView): Promise<boolean> {
     // avatarBusy 동안에도 새 뽑기를 막는다 — 안 그러면 닫힌 모달에서 아직 날아가고 있는 대표 설정 요청이
     // 실패했을 때 그 알림이 방금 연 새 뽑기 모달 뒤에 깔려 아무도 못 본다(PR #312 리뷰 라운드 4).
-    if (busyGrade || avatarBusy) return false;
+    if (busyGrade || avatarBusy || experience.saving) return false;
     if (refreshing) return false;
     const attempt = resumeOrStartPurchase(pending, grade.grade);
     if (attempt !== pending) purchaseOwnership.current = shop.snapshot?.items.filter((item) => item.owned).map((item) => item.id) ?? [];
@@ -260,8 +262,10 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   const { snapshot } = shop;
   const grid = buildFriendGrid(snapshot.items, snapshot.avatar);
   const machine = (gachaOnly ? gachaVisible : machineOpen) ? <GachaMachine
-    snapshot={snapshot} result={reveal} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
-    busy={Boolean(busyGrade) || avatarBusy} error={notice?.tone === 'error' ? notice.text : undefined}
+    snapshot={snapshot} profile={experience.snapshot?.profile} bonusSaving={experience.saving} bonusError={experience.error}
+    onEquipBonus={reveal?.bonus ? () => { if (reveal.bonus) void experience.save({ cosmetics: { [reveal.bonus.slot]: reveal.bonus.id } }); } : undefined}
+    result={reveal} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
+    busy={Boolean(busyGrade) || avatarBusy || experience.saving} error={notice?.tone === 'error' ? notice.text : undefined}
     avatarBusy={avatarBusy} avatarError={avatarError}
     wishId={experience.snapshot?.profile.wishlist} onWish={(itemId) => { void experience.wish(itemId); }}
     refreshing={refreshing} onRefresh={() => { void refresh(); }}
@@ -289,6 +293,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
           <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
           <View accessibilityLiveRegion="polite">
+            {experience.error ? <Text style={styles.errorMessage}>{experience.error}</Text> : null}
             {notice ? <Text style={notice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{notice.text}</Text> : null}
           </View>
         </FloatingCard>
@@ -307,8 +312,9 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
               key={grade.grade}
               grade={grade}
               balance={snapshot.mileage.balance}
+              friends={snapshot.items.filter((item) => item.grade === grade.grade && !item.owned)}
               busy={busyGrade === grade.grade}
-              purchaseBusy={Boolean(busyGrade) || avatarBusy}
+              purchaseBusy={Boolean(busyGrade) || avatarBusy || experience.saving}
               onBuy={() => { setReveal(undefined); setNotice(undefined); setMachineOpen(true); }}
               styles={styles}
             />
@@ -331,8 +337,9 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   );
 }
 
-function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
+function GradeRow({ grade, balance, friends, busy, purchaseBusy, onBuy, styles }: {
   grade: ShopGradeView; balance: number; busy: boolean; purchaseBusy: boolean; onBuy: () => void;
+  friends: readonly { id: string; name: string }[];
   styles: ReturnType<typeof useShopStyles>;
 }) {
   const button = rerollButtonState(grade, balance);
@@ -342,12 +349,15 @@ function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
   return (
     <FloatingCard style={styles.card}>
       <View style={styles.gradeHeader}>
-        <Image source={ticketArt[grade.grade]} style={styles.ticket} accessible={false} accessibilityIgnoresInvertColors />
+        <PackArt grade={grade.grade} size={100} />
         <View style={styles.gradeCopy}>
           <Text style={styles.gradeName}>{themePackName(grade.grade)} · {gradeLabel(grade.grade)} 캐릭터</Text>
           <Text style={styles.gradePrice}>{formatMileage(grade.price)} · 가진 친구 {grade.owned}/{grade.total}</Text>
         </View>
       </View>
+      {friends.length ? <View style={styles.grid}>{friends.map((friend) => <View key={friend.id} style={styles.cell}>
+        <CharacterArt avatar={friend.id} frame="calm" size={72} /><Text style={styles.cellName}>{friend.name}</Text>
+      </View>)}</View> : null}
       <Text style={styles.disclosure}>{rerollDisclosure(grade)}</Text>
       <Text style={styles.disclosure}>{cosmeticSequenceDisclosure}</Text>
       {button.reason ? <Text style={styles.disabledReason}>{button.reason}</Text> : null}
@@ -376,11 +386,10 @@ function FriendCell({ cell, onPress, styles }: {
       style={styles.cell}
     >
       <View style={[styles.cellRing, cell.isAvatar && styles.cellRingAvatar]}>
-        {cell.owned
-          ? <Image source={friendArt[cell.id]} style={styles.cellArt} accessible={false} accessibilityIgnoresInvertColors />
-          : <Text style={styles.cellSilhouette}>?</Text>}
+        <CharacterArt avatar={cell.id} frame="calm" size={64} />
       </View>
-      <Text numberOfLines={1} style={[styles.cellName, !cell.owned && styles.cellNameUnowned]}>{cell.owned ? cell.name : '???'}</Text>
+      <Text numberOfLines={1} style={[styles.cellName, !cell.owned && styles.cellNameUnowned]}>{cell.name}</Text>
+      {!cell.owned ? <Text style={styles.cellNameUnowned}>미보유</Text> : null}
       {cell.isAvatar ? <View style={styles.avatarChip}><Text style={styles.avatarChipText}>대표</Text></View> : null}
     </Pressable>
   );
