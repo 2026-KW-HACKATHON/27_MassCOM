@@ -15,6 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const showcase = variant === 'showcase';
   const releaseLike = production || showcase;
   const buildSourceCommit = process.env.MASSCOM_BUILD_SOURCE_COMMIT;
+  const firebaseServicesFile = process.env.MASSCOM_FIREBASE_GOOGLE_SERVICES_FILE?.trim();
   const webBaseUrl = process.env.MASSCOM_WEB_BASE_URL?.trim();
   validateBuildEnvironment(variant, {
     EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
@@ -44,6 +45,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       enableBackgroundPlayback: false,
       enableBackgroundRecording: false,
     }] satisfies [string, Record<string, unknown>],
+    ['expo-notifications', { defaultChannel: 'masscom-updates' }] satisfies [string, Record<string, unknown>],
   ];
   return {
     ...config,
@@ -77,6 +79,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       ...config.android,
+      ...(firebaseServicesFile ? { googleServicesFile: firebaseServicesFile } : {}),
       package: production ? PRODUCTION_PACKAGE
         : showcase ? `${PRODUCTION_PACKAGE}.demo` : `${PRODUCTION_PACKAGE}.dev`,
       // The development client library declares the overlay permission; the store app never uses it.

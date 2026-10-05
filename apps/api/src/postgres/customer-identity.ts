@@ -5,6 +5,7 @@ import type { Pool, PoolClient } from 'pg';
 import { CustomerIdentityError, type CustomerIdentityService } from '../customer-identity.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
+import { requireActiveMerchantMember } from './merchant-membership.js';
 
 export const hashCustomerIdentityToken = (token: string): Buffer =>
   createHash('sha256').update(token).digest();
@@ -43,6 +44,7 @@ export async function resolveBoundCustomerIdentity(
   }
   if (row.expires_at.getTime() <= input.now.getTime()) throw new CustomerIdentityError('CUSTOMER_IDENTITY_EXPIRED');
   await input.accountLifecycle.assertAllActive(client, [input.staffAccountId, row.customer_account_id]);
+  await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId, 'SCAN_CUSTOMER');
   const bound = await client.query(
     `UPDATE customer_identity_tokens SET bound_merchant_id = $2, bound_staff_account_id = $3
      WHERE token_hash = $1 AND revoked_at IS NULL AND consumed_at IS NULL AND expires_at > $4

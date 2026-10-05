@@ -1,0 +1,102 @@
+[
+  {
+    "file": "README.md",
+    "bytes": 7241,
+    "sha256": "3f076ec3a4aa36c9b71312c8b01f26401b4b33d3a9e87efa6eba2b89aa8537af"
+  },
+  {
+    "file": "bronze-timing.json",
+    "bytes": 151,
+    "sha256": "04a08eff3b138c48b82588cd2eb984a9467fde04c60c24db74ddf8b3bb9ab2a8"
+  },
+  {
+    "file": "cancellation.json",
+    "bytes": 178,
+    "sha256": "4c4364449e34e7e12082a61195d2b6e5a0975c5abf3d0be1c2878a32315b9f19"
+  },
+  {
+    "file": "checks.txt",
+    "bytes": 2171,
+    "sha256": "da6165b9450bff28e91b8988293c999b993092b7ff5722fe49f8eb03a2e2f338"
+  },
+  {
+    "file": "games-and-space.json",
+    "bytes": 888,
+    "sha256": "760a7115fc00b6a541c7c209964aa308124157af38f9943b4b90c552a37f907b"
+  },
+  {
+    "file": "home-equipped-final.png",
+    "bytes": 377386,
+    "sha256": "e3e73bf7708647706ca5dcd55ffc8497e2a04313ed7af74762047fedf8447483"
+  },
+  {
+    "file": "native-feed-final-gallery.png",
+    "bytes": 645430,
+    "sha256": "8c35133bef15ada618117226687d14b575f11efe006916b2c7a1f3cdc4e7430f"
+  },
+  {
+    "file": "native-feed-final.metadata.txt",
+    "bytes": 55,
+    "sha256": "a464f9113d3c8bd900ca19e3f131b4bd5144adc20a87e8eb1856d4a073c2332a"
+  },
+  {
+    "file": "native-feed-final.mp4",
+    "bytes": 1509097,
+    "sha256": "809ebf14a9b44ded7ae4b5e7e603641b29d5d41595439a300a3decfb76f9b29b"
+  },
+  {
+    "file": "native-feed-final.png",
+    "bytes": 1200207,
+    "sha256": "7baf4614b5b4190a5c522d87acd9b0995f5b587e4d2eda9492d02a50f9f6a471"
+  },
+  {
+    "file": "native-story-safe-saved-image.png",
+    "bytes": 1123150,
+    "sha256": "4492cfd2616c1a31db18a0da63dc4e07f80ac6ce4e764c69d217e54cb1bac336"
+  },
+  {
+    "file": "native-story-safe.metadata.txt",
+    "bytes": 55,
+    "sha256": "bd0581b835d529ab402a9d939c55f2328c38c9ba95df674ae29e263058c76846"
+  },
+  {
+    "file": "native-story-safe.mp4",
+    "bytes": 1562211,
+    "sha256": "b25c92450d1732539cc102b5d55ce2ae6e7e1ea2318607474803079862deacb4"
+  },
+  {
+    "file": "native-story-safe.mp4-1.png",
+    "bytes": 1122027,
+    "sha256": "34ee79a8227bf7f8054d5ff203096b4565e714533ea8ec891092de40fe2056f1"
+  },
+  {
+    "file": "optimized-timing.json",
+    "bytes": 81,
+    "sha256": "f14d9be986a50f525fecdec5545546191546db569b98eead8c886584ffe99a21"
+  },
+  {
+    "file": "story-safe-image-gallery.png",
+    "bytes": 615231,
+    "sha256": "033aab4519f6088b7273064522fd1d4bea3a2cd0bf5f18e801f2bb8dedefce87"
+  },
+  {
+    "file": "story-safe-native-playback.png",
+    "bytes": 597793,
+    "sha256": "b576cef25b41ca8fb8f222506e92a534e66c27097b0dc5d5f4688ccc47cd0d48"
+  },
+  {
+    "file": "story-safe-text-bounds.json",
+    "bytes": 1095,
+    "sha256": "cada4dbc5d4130a202d080a1f8cd26a9c0f77b1bd5c372069549c3f970ee58aa"
+  },
+  {
+    "file": "summary.json",
+    "bytes": 2717,
+    "sha256": "f76a83981973d188a043d99cba22c68aaa0b50c66f355acf6f658e6e5c3c97ae"
+  },
+  {
+    "file": "web-games-saved.png",
+    "bytes": 46414,
+    "sha256": "d40c7c684a10b094d75e6cc1b6c987ae4e670c746a7eeb408a0a4c0246a15259"
+  }
+]

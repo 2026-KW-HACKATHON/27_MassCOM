@@ -1,0 +1,42 @@
+{
+  "source": "Actual Chrome 390x844 UI input and final visible saved studio snapshot; this browser account is separate from the native-video seed customer",
+  "synthetic": true,
+  "records": [
+    {
+      "kind": "stack",
+      "bestScore": 88,
+      "plays": 1
+    },
+    {
+      "kind": "memory",
+      "bestScore": 600,
+      "plays": 1
+    },
+    {
+      "kind": "delivery",
+      "bestScore": 630,
+      "plays": 1
+    },
+    {
+      "kind": "orders",
+      "bestScore": 1125,
+      "plays": 1
+    }
+  ],
+  "achieved": [
+    "match-efficient",
+    "order-streak"
+  ],
+  "deliveryProgress": {
+    "value": 7,
+    "target": 12
+  },
+  "savedStudio": {
+    "theme": "evening",
+    "badgeId": "order-streak",
+    "propId": "memory-card"
+  },
+  "visibleSaveMessage": "내 공간에 저장했어요.",
+  "screenshot": "web-games-saved.png",
+  "notCounted": "memory timeout with score 0"
+}

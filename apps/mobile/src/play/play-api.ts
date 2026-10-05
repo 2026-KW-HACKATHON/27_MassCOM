@@ -1,11 +1,11 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
 import { consentRequiredMessage, needsConsentRecheck } from '@/privacy/consent-flow';
-import type { GameAction, GameKind, PlayRun } from '../../../api/src/play-rules';
+import { gameSkills, type GameAction, type GameKind, type GameSkill, type PlayRun } from '../../../api/src/play-rules';
 
 export type PlayRecord = { kind: GameKind; bestScore: number; plays: number };
-export type PlaySnapshot = { records: PlayRecord[]; unlockedThemes: string[] };
-export type PlayFinish = { kind: GameKind; score: number; bestScore: number; plays: number; completed: boolean; correct: number; total: number; unlockedThemes: string[] };
+export type PlaySnapshot = { records: PlayRecord[]; unlockedThemes: string[]; achievements?: GameSkill[] };
+export type PlayFinish = { kind: GameKind; score: number; bestScore: number; plays: number; completed: boolean; correct: number; total: number; unlockedThemes: string[]; skill?: GameSkill; newlyEarned?: boolean };
 
 export class PlayApiError extends Error {
   constructor(readonly status: number, readonly code: string) {
@@ -27,6 +27,9 @@ const integer = (value: unknown): value is number => typeof value === 'number' &
 const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string');
 const kind = (value: unknown): value is GameKind => kinds.has(value as GameKind);
 const invalid = () => new PlayApiError(0, 'INVALID_RESPONSE');
+const skill = (value: unknown): value is GameSkill => record(value) &&
+  Object.values(gameSkills).some((entry) => entry.id === value.id && entry.target === value.target) &&
+  integer(value.progress) && value.progress <= (value.target as number) && typeof value.achieved === 'boolean';
 
 export function createPlayApiClient({ apiUrl, credential, onSessionInvalid, fetcher = fetch }: Options) {
   const base = apiUrl.replace(/\/+$/, '');
@@ -58,7 +61,9 @@ export function createPlayApiClient({ apiUrl, credential, onSessionInvalid, fetc
         if (!record(entry) || !kind(entry.kind) || !integer(entry.bestScore) || !integer(entry.plays)) throw invalid();
         return { kind: entry.kind, bestScore: entry.bestScore, plays: entry.plays };
       });
-      return { records, unlockedThemes: value.unlockedThemes };
+      if (value.achievements !== undefined && (!Array.isArray(value.achievements) || !value.achievements.every(skill))) throw invalid();
+      return { records, unlockedThemes: value.unlockedThemes,
+        ...(value.achievements ? { achievements: value.achievements } : {}) };
     },
     async start(kind: GameKind, signal?: AbortSignal): Promise<PlayRun> {
       const value = await request('/me/play/runs', post({ kind }, signal));
@@ -73,6 +78,8 @@ export function createPlayApiClient({ apiUrl, credential, onSessionInvalid, fetc
       if (!record(value) || value.kind !== run.kind || !integer(value.score) || !integer(value.bestScore)
         || !integer(value.plays) || typeof value.completed !== 'boolean' || !integer(value.correct)
         || !integer(value.total) || !strings(value.unlockedThemes)) throw invalid();
+      if ((value.skill !== undefined && (!skill(value.skill) || value.skill.id !== gameSkills[run.kind].id)) ||
+        (value.newlyEarned !== undefined && typeof value.newlyEarned !== 'boolean')) throw invalid();
       return value as PlayFinish;
     },
   };

@@ -15,6 +15,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAuthSession } from '@/auth/auth-provider';
+import { HomeCollectionDisplay } from '@/experience/home-collection-display';
+import { useExperience } from '@/experience/use-experience';
 import type { BadgeApiClient, BadgeBook, OpenedReward } from '@/gamification/badge-api';
 import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { couponExpiryNotice } from '@/gamification/coupon-expiry';
@@ -29,6 +31,8 @@ import { TabGlyph } from '@/navigation/tab-glyph';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
 import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
+import { createShopApiClient, type ShopSnapshot } from '@/shop/shop-api';
+import { createStudioApiClient, type StudioGoal } from '@/studio/studio-api';
 import { medalColorsForScheme, tierColors } from '@/theme/medal-colors';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
@@ -36,7 +40,7 @@ import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
 import { heroMascotSize, isLargeText } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
-import { Companion } from '@/ui/companion';
+import { CompanionScene } from '@/studio/studio-scene';
 import { ExperienceEntry } from '@/ui/experience-entry';
 import { HomeExploration } from '@/ui/home-exploration';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
@@ -90,6 +94,28 @@ export function MerchantListScreen({ apiUrl }: Props) {
   // design-298.md: 홈 헤더 아바타가 상점에서 고른 대표 캐릭터를 보여준다(없으면 AppHeader의 기본 마스코트). 탭 포커스가
   // 돌아올 때(useShopAvatarArt 내부)와 이 당겨서 새로고침에도 다시 읽는다(PR #312 리뷰 5번).
   const avatarArt = useShopAvatarArt(apiUrl, auth.credential, badgeRefreshToken);
+  const experience = useExperience(apiUrl, auth.credential, auth.invalidateSession, badgeRefreshToken);
+  const shopApi = useMemo(() => auth.credential ? createShopApiClient({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession }) : undefined,
+    [apiUrl, auth.credential, auth.invalidateSession]);
+  const studioApi = useMemo(() => auth.credential ? createStudioApiClient({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession }) : undefined,
+    [apiUrl, auth.credential, auth.invalidateSession]);
+  const [homeShopState, setHomeShopState] = useState<{ api: NonNullable<typeof shopApi>; value: ShopSnapshot }>();
+  const [visitGoalState, setVisitGoalState] = useState<{ api: NonNullable<typeof studioApi>; value: StudioGoal }>();
+  const homeShop = homeShopState && homeShopState.api === shopApi ? homeShopState.value : undefined;
+  const visitGoal = visitGoalState && visitGoalState.api === studioApi ? visitGoalState.value : undefined;
+  useFocusEffect(useCallback(() => {
+    void badgeRefreshToken;
+    if (!shopApi) { setHomeShopState(undefined); return; }
+    let active = true;
+    void shopApi.getShop().then((result) => { if (active) setHomeShopState({ api: shopApi, value: result }); }).catch(() => { if (active) setHomeShopState(undefined); });
+    return () => { active = false; };
+  }, [shopApi, badgeRefreshToken]));
+  useFocusEffect(useCallback(() => {
+    if (!studioApi) { setVisitGoalState(undefined); return; }
+    let active = true;
+    void studioApi.getMine().then((result) => { if (active) setVisitGoalState({ api: studioApi, value: result.studio.goal }); }).catch(() => { if (active) setVisitGoalState(undefined); });
+    return () => { active = false; };
+  }, [studioApi]));
 
   // Issue #331: 검색어·업종·진행 칩으로 거른다. 진행 칩은 로그인했고 데이터(/collection, /me/badges)를 불러왔을 때만 보인다.
   const signedIn = Boolean(auth.credential && auth.accountId);
@@ -176,6 +202,7 @@ export function MerchantListScreen({ apiUrl }: Props) {
               subtitle="안 가본 가게에 도장을 찍어요"
               showFriendsEntry
               avatarArt={avatarArt}
+              avatarContent={homeShop?.avatar ? <CompanionScene avatar={homeShop.avatar} experienceProfile={experience.snapshot?.profile} size={44} /> : undefined}
             >
               <View style={styles.heroRow}>
                 <View style={styles.heroCopy}>
@@ -189,10 +216,13 @@ export function MerchantListScreen({ apiUrl }: Props) {
                   </View>
                 </View>
                 {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
-                {avatarArt ? <Companion art={avatarArt} interactive size={heroMascotSize(fontScale, 120)} />
+                {avatarArt ? <CompanionScene avatar={homeShop?.avatar ?? null} experienceProfile={experience.snapshot?.profile} interactive size={heroMascotSize(fontScale, 120)} />
                   : <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />}
               </View>
             </AppHeader>
+            {signedIn && experience.snapshot ? <HomeCollectionDisplay experience={experience.snapshot}
+              collection={discovery.collection} shop={homeShop} avatarArt={avatarArt} apiUrl={apiUrl}
+              visitGoal={{ goal: visitGoal ?? null, merchantName: merchants.find((merchant) => merchant.id === visitGoal?.merchantId)?.name }} /> : null}
             {auth.credential && auth.accountId ? (
               <View style={styles.rewardCardWrap}>
                 <SignedInRewardCard book={discovery.book} badgeApi={discovery.badgeApi} refreshQuietly={discovery.refreshQuietly} applyOpened={discovery.applyOpened} companionArt={avatarArt} key={auth.accountId} />

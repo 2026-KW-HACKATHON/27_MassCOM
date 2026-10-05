@@ -112,7 +112,8 @@ test('reroll posts grade, requestId and expectedRemaining', async () => {
     credential: { kind: 'bearer', sessionToken: 'session' },
     fetcher: async (input, init) => {
       calls.push({ url: String(input), method: init?.method, body: JSON.parse(String(init?.body)) });
-      return Response.json({ item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' }, balance: 300, replayed: false }, { status: 201 });
+      return Response.json({ item: { id: 'cafe-bear', grade: 'BRONZE', name: '카페 곰돌이' },
+        bonus: { id: 'cafe-hat', name: '카페 모자', slot: 'hat' }, balance: 300, replayed: false }, { status: 201 });
     },
   });
   const result = await client.reroll({ grade: 'BRONZE', requestId: 'req-1', expectedRemaining: 2 });
@@ -121,6 +122,7 @@ test('reroll posts grade, requestId and expectedRemaining', async () => {
     body: { grade: 'BRONZE', requestId: 'req-1', expectedRemaining: 2 },
   });
   assert.equal(result.item.id, 'cafe-bear');
+  assert.deepEqual(result.bonus, { id: 'cafe-hat', name: '카페 모자', slot: 'hat' });
   assert.equal(result.balance, 300);
   assert.equal(result.replayed, false);
 });

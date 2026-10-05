@@ -1,5 +1,5 @@
 import type { CollectibleArtwork } from './collectible-project.js';
-import type { GameAction, GameKind, PlayRun } from './play-rules.js';
+import type { GameAction, GameKind, GameSkill, PlayRun } from './play-rules.js';
 
 export type StudioGoal =
   | { kind: 'discover' | 'regular' | 'series'; merchantId: string }
@@ -20,7 +20,7 @@ export type StudioItem = {
   displayName: string;
   artwork?: CollectibleArtwork;
 };
-export type PlaySnapshot = { records: PlayRecord[]; unlockedThemes: string[] };
+export type PlaySnapshot = { records: PlayRecord[]; unlockedThemes: string[]; achievements?: GameSkill[] };
 export type StudioSnapshot = PlaySnapshot & { studio: Studio; items: StudioItem[]; avatar: string | null };
 export type FriendStudioSnapshot = {
   nickname: string;
@@ -29,7 +29,8 @@ export type FriendStudioSnapshot = {
   avatar: string | null;
 };
 export type PlayResult = { kind: GameKind; score: number; bestScore: number; plays: number;
-  completed: boolean; correct: number; total: number; unlockedThemes: string[] };
+  completed: boolean; correct: number; total: number; unlockedThemes: string[];
+  skill?: GameSkill; newlyEarned?: boolean };
 
 export const defaultStudio: Studio = {
   theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null,

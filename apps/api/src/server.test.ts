@@ -21,6 +21,7 @@ import { AuthSessionError, type AuthSessionService } from './auth-session.js';
 import { BadgeRewardError, type BadgeRewardErrorCode, type BadgeRewardService } from './badge-rewards.js';
 import { FriendError, type FriendErrorCode, type FriendService } from './friends.js';
 import type { PlayService } from './play.js';
+import { ExperienceError } from './collection-experience.js';
 import { GoogleIdTokenError } from './google-id-token.js';
 import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
 import { WebAuthError, type WebAuthHandler } from './web-auth.js';
@@ -36,6 +37,7 @@ import {
   sessionTtlMs,
   type AccountResolver,
   type ReauthenticationGuard,
+  type ExperienceServices,
 } from './server.js';
 import { ShowcaseAccessRequestError, type ShowcaseAccessRequestService } from './showcase/access-requests.js';
 import { GuestTrialError, type ShowcaseGuestTrialService } from './showcase/guest-trials.js';
@@ -251,6 +253,7 @@ async function startFixture(
   adminFunnel?: AdminFunnelReader,
   play?: PlayService,
   merchantProfile?: MerchantProfileService,
+  experienceServices: ExperienceServices = {},
 ) {
   const service = new WalletChallengeService({
     store: new InMemoryChallengeStore(),
@@ -301,6 +304,7 @@ async function startFixture(
     adminFunnel,
     play,
     merchantProfile,
+    experienceServices,
   );
 
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -323,7 +327,8 @@ async function webRequest(baseUrl: string, path: string, options: {
   return new Promise((resolve, reject) => {
     const request = httpRequest(new URL(path, baseUrl), {
       method: options.method ?? 'GET',
-      headers: { Host: options.host ?? 'masscom.kr', ...options.headers },
+      headers: { Host: options.host ?? 'masscom.kr', ...options.headers,
+        ...(options.body !== undefined ? { 'content-length': String(Buffer.byteLength(options.body)) } : {}) },
     }, (response) => {
       const chunks: Buffer[] = [];
       response.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -3686,9 +3691,9 @@ test('staff coupon lookup and redeem check permission, body shape and map coupon
   assert.deepEqual(await redeem.json(), { couponId: sampleCoupon.couponId, status: 'REDEEMED',
     redeemedAt: '2026-09-29T00:01:00.000Z', replayed: false });
   assert.deepEqual(calls, [
-    ['permission', { accountId: 'staff-1', merchantId: 'm', permission: 'CONFIRM_VISIT' }],
+    ['permission', { accountId: 'staff-1', merchantId: 'm', permission: 'REDEEM_COUPON' }],
     ['lookup', { token, merchantId: 'm', staffAccountId: 'staff-1' }],
-    ['permission', { accountId: 'staff-1', merchantId: 'm', permission: 'CONFIRM_VISIT' }],
+    ['permission', { accountId: 'staff-1', merchantId: 'm', permission: 'REDEEM_COUPON' }],
     ['redeem', { token, merchantId: 'm', staffAccountId: 'staff-1', couponId: sampleCoupon.couponId }],
   ]);
 
@@ -3839,9 +3844,9 @@ test('web merchant coupon routes require origin, JSON, session, permission and m
   assert.deepEqual(await redeem.json(), { couponId, status: 'REDEEMED',
     redeemedAt: '2026-09-29T00:01:00.000Z', replayed: true });
   assert.deepEqual(calls, [
-    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'REDEEM_COUPON' }],
     ['lookup', { token: token.customerIdentityToken, merchantId: 'real-merchant', staffAccountId: 'staff-account' }],
-    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'CONFIRM_VISIT' }],
+    ['permission', { accountId: 'staff-account', merchantId: 'real-merchant', permission: 'REDEEM_COUPON' }],
     ['redeem', { token: token.customerIdentityToken, merchantId: 'real-merchant',
       staffAccountId: 'staff-account', couponId }],
   ]);
@@ -5227,4 +5232,129 @@ test('play and studio routes require identity and reject malformed actions befor
     method: 'POST', headers, body: JSON.stringify({ actions: [{ at: 1, choice: 0 }] }),
   })).status, 200);
   assert.deepEqual(calls, ['play:player', 'start:player:stack', 'finish:player:1']);
+});
+
+test('experience routes enforce current consent and reject privileged fields, while equipment and wishlist persist via service', async (t) => {
+  const calls: unknown[] = [];
+  const snapshot = { catalog: { badges: [], cosmetics: [], packs: [] },
+    profile: { badgeId: null, cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null }, coinEntitlementId: null, wishlist: null },
+    progress: { badges: [], cosmetics: [], packs: [] } };
+  let agreed = false;
+  const args: Parameters<typeof startFixture> = [t];
+  args[26] = consentFixture({ status: async () => ({ required: !agreed, ...consentVersions }) });
+  args[37] = { collectionExperience: {
+    getSnapshot: async (account) => { calls.push(account); return snapshot; },
+    setEquipment: async (input) => { calls.push(input); return snapshot; },
+    setWishlist: async (input) => { calls.push(input); return snapshot; },
+    getFriend: async () => { throw new ExperienceError('EXPERIENCE_FRIEND_NOT_FOUND'); },
+  } };
+  const base = await startFixture(...args);
+  const headers = { 'x-account-id': 'player', 'content-type': 'application/json' };
+  assert.equal((await webRequest(base, '/me/experience', { headers })).status, 403);
+  assert.equal(calls.length, 0);
+  agreed = true;
+  assert.equal((await webRequest(base, '/me/experience', { headers })).status, 200);
+  assert.equal((await webRequest(base, '/me/experience/equipment', { method: 'PATCH', headers,
+    body: JSON.stringify({ accountId: 'another', badgeId: null }) })).status, 400);
+  assert.equal((await webRequest(base, '/me/experience/wishlist', { method: 'PATCH', headers,
+    body: JSON.stringify({ itemId: null, owned: true }) })).status, 400);
+  assert.equal((await webRequest(base, '/me/experience/equipment', { method: 'PATCH', headers,
+    body: JSON.stringify({ badgeId: null }) })).status, 200);
+  assert.equal((await webRequest(base, '/me/experience/wishlist', { method: 'PATCH', headers,
+    body: JSON.stringify({ itemId: 'bronze-hat' }) })).status, 200);
+  assert.deepEqual(calls, ['player', { accountId: 'player', badgeId: null }, { accountId: 'player', itemId: 'bronze-hat' }]);
+  assert.equal((await webRequest(base, '/me/friends/unknown/experience', { headers })).status, 404);
+});
+
+test('notification API binds token to the resolved account and bearer session; revoke works before renewed consent', async (t) => {
+  const calls: unknown[] = [];
+  const preferences = { pushEnabled: false, rewardAvailable: true, couponExpiring: true, campaignExpiring: true };
+  let agreed = false;
+  const args: Parameters<typeof startFixture> = [t];
+  args[26] = consentFixture({ status: async () => ({ required: !agreed, ...consentVersions }) });
+  args[37] = { notifications: {
+    list: async () => [], preferences: async () => preferences,
+    updatePreferences: async (account, patch) => { calls.push([account, patch]); return { ...preferences, ...patch }; },
+    registerDevice: async (...input) => { calls.push(input); },
+    unregisterDevice: async (...input) => { calls.push(input); },
+    markRead: async (...input) => { calls.push(input); },
+    enqueue: async () => true, enqueueDueReminders: async () => 0,
+    pruneExpired: async () => {},
+    deliverDue: async () => ({ sent: 0, failed: 0, skipped: 0 }),
+  } };
+  const base = await startFixture(...args);
+  const headers = { 'x-account-id': 'player', authorization: 'Bearer session-token', 'content-type': 'application/json' };
+  assert.equal((await webRequest(base, '/api/notifications', { headers })).status, 200);
+  assert.equal((await webRequest(base, '/api/notifications/preferences', { method: 'PATCH', headers,
+    body: '{"pushEnabled":true}' })).status, 403);
+  assert.equal((await webRequest(base, '/api/notifications/devices', { method: 'DELETE', headers,
+    body: '{"deviceId":"device"}' })).status, 204);
+  agreed = true;
+  assert.equal((await webRequest(base, '/api/notifications/devices', { method: 'POST', headers,
+    body: '{"deviceId":"device","token":"fcm-token","platform":"android","accountId":"victim"}' })).status, 400);
+  assert.equal((await webRequest(base, '/api/notifications/devices', { method: 'POST', headers,
+    body: '{"deviceId":"device","token":"fcm-token","platform":"android"}' })).status, 204);
+  assert.equal((await webRequest(base, '/api/notifications/preferences', { method: 'PATCH', headers,
+    body: '{"pushEnabled":"true"}' })).status, 400);
+  assert.deepEqual(calls, [['player','device'], ['player','device','fcm-token','android','session-token']]);
+});
+
+test('merchant self-service uses web session and CSRF, forwards campaign CAS, and returns a downloadable UTF-8 CSV', async (t) => {
+  const calls: unknown[] = [];
+  const args: Parameters<typeof startFixture> = [t];
+  args[14] = intakeWebAuth('owner');
+  args[18] = { mine: async () => [], eligible: async () => [], list: async () => [],
+    request: async () => { throw new Error('unused'); }, approve: async () => { throw new Error('unused'); }, revoke: async () => {} };
+  const staff = { accountId: 'staff', grantedAt: '2026-10-05T00:00:00Z', confirmVisit: true, redeemCoupon: false };
+  const campaign = { id: 'campaign', title: '점포 캠페인', status: 'ACTIVE' as const, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-11-01T00:00:00Z', isPublic: true };
+  args[37] = { merchantOperations: {
+    listCampaigns: async (...input) => { calls.push(input); return [campaign]; },
+    extendCampaign: async input => { calls.push(input); return { ...campaign, replayed: false }; },
+    listStaff: async () => [staff], approveStaff: async () => staff,
+    updateStaffPermissions: async input => { calls.push(input); return staff; },
+    revokeStaff: async input => { calls.push(input); },
+    exportVisits: async input => { calls.push(input); return { filename: 'visits.csv', csv: '\uFEFF"날짜","가게"\r\n"2026-10-05","테스트"\r\n', count: 1 }; },
+  } };
+  const base = await startFixture(...args);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const root = '/api/web/merchant/merchants/shop';
+  assert.equal((await webRequest(base, root + '/campaigns', { headers })).status, 200);
+  const body = JSON.stringify({ days: 30, expectedEndsAt: campaign.endsAt, consentAccepted: true, requestId: 'same-request' });
+  assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST',
+    headers: { ...headers, origin: 'https://untrusted.example' }, body })).status, 403);
+  assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 200);
+  assert.equal((await webRequest(base, root + '/staff/staff', { method: 'PATCH', headers,
+    body: '{"confirmVisit":true,"redeemCoupon":false,"role":"OWNER"}' })).status, 400);
+  const csv = await webRequest(base, root + '/visits.csv?from=2026-10-01&to=2026-10-05', { headers });
+  assert.equal(csv.status, 200);
+  assert.equal(csv.headers.get('content-type'), 'text/csv; charset=utf-8');
+  assert.match(csv.headers.get('content-disposition')!, /attachment; filename="visits.csv"/);
+  assert.equal(csv.headers.get('x-visit-count'), '1');
+  assert.deepEqual(new Uint8Array(await csv.arrayBuffer()).slice(0,3), new Uint8Array([239,187,191]));
+  assert.equal((await webRequest(base, root + '/visits.csv?from=x&from=y&to=z', { headers })).status, 400);
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[1], { accountId: 'owner', merchantId: 'shop', campaignId: 'campaign', days: 30,
+    expectedEndsAt: campaign.endsAt, consentAccepted: true, requestId: 'same-request' });
+});
+
+test('coupon-only staff can scan customer QR while visit issuance remains forbidden', async (t) => {
+  const args: Parameters<typeof startFixture> = [t];
+  const checks: string[] = [];
+  args[3] = { requirePermission: async input => {
+    checks.push(input.permission);
+    if (input.permission === 'CONFIRM_VISIT') throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'STAFF', permissions: ['VIEW_MERCHANT'] };
+  } };
+  args[19] = { create: async () => { throw new Error('unused'); }, revoke: async () => {},
+    resolve: async () => ({ expiresAt: '2026-10-05T12:00:00.000Z' }) };
+  args[4] = claimSlotFixture({ issue: async () => { throw new Error('visit issuance must not run'); } });
+  const base = await startFixture(...args);
+  const headers = { 'x-account-id': 'coupon-staff', 'content-type': 'application/json' };
+  const scanned = await webRequest(base, '/merchant/merchants/shop/customer-identities/resolve', {
+    method: 'POST', headers, body: JSON.stringify({ customerIdentityToken: 'test-identity' }) });
+  assert.equal(scanned.status,200);
+  assert.deepEqual(checks,['CONFIRM_VISIT','REDEEM_COUPON']);
+  const issued = await webRequest(base, '/merchant/merchants/shop/claim-slots', {
+    method: 'POST', headers, body: JSON.stringify({ customerIdentityToken: 'test-identity', merchantReference: 'order' }) });
+  assert.equal(issued.status,403);
 });

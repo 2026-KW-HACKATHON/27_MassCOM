@@ -8,6 +8,8 @@ import { findShowcaseStaffMerchant } from '@/merchant/showcase-staff';
 import { useAppForeground } from '@/merchant-art/use-merchant-art';
 import { MerchantArtScreen } from '@/screens/merchant-art';
 import { MerchantHomeScreen } from '@/screens/merchant-home';
+import { NotificationCenter } from '@/notifications/center';
+import { queueNotificationTarget } from '@/notifications/pending-target';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseAccessAdminScreen } from '@/screens/showcase-access-admin';
 import { ACCESS_CONTACT_ADDRESSES, accessMailtoUrl, accessUiState, requestAccessFailureMessage } from '@/showcase/access-copy';
@@ -29,6 +31,7 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   const [tour, setTour] = useState(false);
   const [artOpen, setArtOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [state, setState] = useState<
     { status: 'loading' } | { status: 'denied' } | { status: 'error' } |
     { status: 'allowed'; merchantId: string; merchantName: string; role: 'OWNER' | 'STAFF'; artUrl: string | null }
@@ -54,18 +57,19 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   );
 
   useEffect(() => {
-    if (!shouldHandleHardwareBack({ tour, adminOpen, screenStatus: state.status })) return;
+    if (!notificationsOpen && !shouldHandleHardwareBack({ tour, adminOpen, screenStatus: state.status })) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       // 관리자 화면이 이 화면을 대체하고 있는 동안은 점주 화면으로 돌아가는 것이 먼저다(리뷰 #6):
       // 그렇지 않으면 상위 BackHandler가 걸려 고객 탐색으로 건너뛰어 버린다. 직원 권한 없는 승인자가 관리자 화면만 연
       // 경우에도(리뷰 #3) adminOpen이 true면 여기서 받는다.
-      if (adminOpen) setAdminOpen(false);
+      if (notificationsOpen) setNotificationsOpen(false);
+      else if (adminOpen) setAdminOpen(false);
       else if (artOpen) setArtOpen(false);
       else onBrowse();
       return true;
     });
     return () => subscription.remove();
-  }, [adminOpen, artOpen, onBrowse, state.status, tour]);
+  }, [adminOpen, artOpen, notificationsOpen, onBrowse, state.status, tour]);
 
   // 리뷰 #1: 승인된 요청에 자동 재확인을 한 번만 걸고, 그래도 거부면 멈춰서 수동 "다시 확인"으로 넘긴다.
   const evaluateRecheck = useCallback((request: ShowcaseAccessRequest | null | undefined, screenStatus: 'allowed' | 'denied') => {
@@ -181,6 +185,15 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
 
   if (tour) return <FoundationScreen initialRole="merchant" showcaseTour onExit={() => setTour(false)} />;
 
+  if (notificationsOpen && apiUrl) return <View style={{ flex: 1, backgroundColor: colors.background }}>
+    <Pressable accessibilityRole="button" onPress={() => setNotificationsOpen(false)} style={{ padding: 20 }}>
+      <Text style={{ color: colors.primary, fontWeight: '700' }}>← 점주 화면</Text>
+    </Pressable>
+    <NotificationCenter apiUrl={apiUrl} credential={credential}
+      onMerchantTarget={() => setNotificationsOpen(false)}
+      onCustomerTarget={target => { queueNotificationTarget(accountId, target); onBrowse(); }} />
+  </View>;
+
   // The admin page replaces this page the same way: it takes over the navigator, so back returns here through onBack.
   if (adminOpen && apiUrl) {
     return <ShowcaseAccessAdminScreen
@@ -216,6 +229,7 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
       onTour={() => setTour(true)}
       onArt={() => setArtOpen(true)}
       onAdmin={showAdminEntry ? () => setAdminOpen(true) : undefined}
+      onNotifications={() => setNotificationsOpen(true)}
       onLogout={onLogout}
     />;
   }

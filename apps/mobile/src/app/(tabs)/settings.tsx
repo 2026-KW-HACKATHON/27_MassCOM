@@ -30,6 +30,7 @@ export default function SettingsRoute() {
             apiUrl={publicApiConfig.apiUrl}
             accountId={auth.accountId}
             credential={auth.credential}
+            onSessionInvalid={auth.invalidateSession}
             destructiveReauthentication={auth.destructiveReauthentication}
             canSwitchAccount={auth.canSignIn}
             onLogout={auth.logout}

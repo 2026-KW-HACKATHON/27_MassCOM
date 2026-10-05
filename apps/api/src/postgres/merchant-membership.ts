@@ -13,13 +13,18 @@ export type ActiveMerchantMember = { role: MerchantRole; merchantStatus: string 
 // 호출자가 그보다 먼저 accountLifecycle.assertActive(계정 advisory 잠금)를 잡아야 삭제와 엇갈리지 않는다(그림 변경·되돌리기·발급이 그렇게 한다).
 export async function requireActiveMerchantMember(
   client: PoolClient, merchantId: string, accountId: string,
+  permission?: 'CONFIRM_VISIT' | 'REDEEM_COUPON' | 'SCAN_CUSTOMER',
 ): Promise<ActiveMerchantMember> {
   const merchant = await client.query<{ status: string }>(
     'SELECT status FROM merchants WHERE id = $1 FOR SHARE', [merchantId],
   );
   const member = await client.query<{ role: MerchantRole }>(
-    `SELECT role FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'`,
-    [merchantId, accountId],
+    `SELECT role FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'
+       AND ($3::text IS NULL OR role = 'OWNER'
+         OR ($3 = 'CONFIRM_VISIT' AND staff_can_confirm_visit)
+         OR ($3 = 'SCAN_CUSTOMER' AND (staff_can_confirm_visit OR staff_can_redeem_coupon))
+         OR ($3 = 'REDEEM_COUPON' AND staff_can_redeem_coupon))`,
+    [merchantId, accountId, permission ?? null],
   );
   if (!merchant.rows[0] || !member.rows[0]) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
   return { role: member.rows[0].role, merchantStatus: merchant.rows[0].status };

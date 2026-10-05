@@ -1,0 +1,80 @@
+검증 대상: Issue371 전체 구현, 2026-10-05 로컬 브랜치 feat/collection-merchant-completion
+공개 배포·실폰·FCM 실수신 증거가 아니다.
+
+npm test --prefix apps/api
+ℹ tests 473
+ℹ suites 0
+ℹ pass 473
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8789.953958
+
+npm test --prefix apps/mobile
+ℹ tests 1513
+ℹ suites 0
+ℹ pass 1513
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13518.219958
+
+npm run test:postgres --prefix apps/api (isolated PostgreSQL16 masscom_371_full_test)
+ℹ tests 444
+ℹ suites 0
+ℹ pass 441
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 3
+ℹ todo 0
+ℹ duration_ms 159264.46475
+
+node --test 'tests/site/*.test.mjs'
+ℹ tests 340
+ℹ suites 0
+ℹ pass 340
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 47413.306459
+
+bash tools/gate.sh (clean staged source with original Git history)
+secret scan passed
+병합 충돌 표시 없음
+conflict marker check tests passed
+bootstrap contract verified: required docs present, 36 test IDs and statuses synchronized
+bootstrap verification regression tests passed
+operations documentation verified
+operations docs regression tests passed
+evidence consistency verified: 31 PASS · 2 BLOCKED · 3 NOT_RUN
+evidence consistency regression tests passed
+로컬 빠른 검사 PASS. PR 제목·본문은 scripts/check-pr-korean.sh로, 나머지는 CI로 확인한다.
+
+bash scripts/check-privacy.sh (clean staged source)
+privacy scan passed
+
+bash tests/mobile/check_accessibility_semantics_test.sh
+mobile accessibility semantics verified
+mobile accessibility semantics tests passed
+
+bash tests/release/check_release_wallet_surface_test.sh
+release wallet surface tests passed
+
+npm run audit:ci --prefix apps/api
+
+> @masscom/api@0.1.0 audit:ci
+> npm audit --omit=dev --audit-level=high
+
+found 0 vulnerabilities
+
+npm run audit:ci --prefix apps/mobile
+
+> @masscom/mobile@0.1.0-test.2 audit:ci
+> node ../../scripts/audit-ci.mjs
+
+audit 예외: GHSA-vfj7-8cjw-p6xm (braces, high): 2026-10-31까지 예외
+audit 예외: GHSA-86w9-cpqp-85rv (node-forge, high): 2026-10-31까지 예외
+audit: high·critical 권고 없음(예외 제외)

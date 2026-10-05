@@ -161,7 +161,7 @@ export class PostgresReversalService implements ReversalService {
         peek ? [input.staffAccountId, peek.customer_account_id] : [input.staffAccountId],
       );
       // 숨긴 점포여도 되돌리기는 허용한다(점포 상태는 보지 않는다).
-      await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId);
+      await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId, 'CONFIRM_VISIT');
       if (!peek) throw new ReversalError('VISIT_NOT_FOUND');
       await advisoryLock(client, JSON.stringify([peek.customer_account_id, peek.campaign_id]));
       await advisoryLock(client, `badge-reward:${peek.customer_account_id}`);
@@ -371,7 +371,7 @@ export class PostgresReversalService implements ReversalService {
       await client.query('BEGIN');
       await this.accountLifecycle.assertActive(client, input.staffAccountId);
       // 숨긴 점포여도 되돌리기는 허용한다(점포 상태는 보지 않는다).
-      await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId);
+      await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId, 'REDEEM_COUPON');
       if (!uuidPattern.test(input.couponId)) throw new ReversalError('COUPON_NOT_FOUND');
       // 다른 점포·없는 쿠폰은 조건에 맞는 행이 없어 구분 없이 같은 404가 된다.
       const peek = (

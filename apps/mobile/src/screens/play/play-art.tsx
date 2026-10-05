@@ -1,5 +1,6 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { friendArt } from '@/shop/shop-art';
+import { CompanionScene } from '@/studio/studio-scene';
+import type { DisplayExperienceProfile } from '@/experience/experience-api';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 
 export type OwnedArt = { name: string; uri: string };
@@ -34,9 +35,8 @@ export function GameToken({ value, art, size = 48 }: { value: number; art: reado
       : <View style={[styles.neutral, { width: size, height: size, borderRadius: Math.min(size / 2, 24) }]}><Text style={[styles.glyph, { fontSize: size * 0.5 }]}>{neutral[value % neutral.length]}</Text></View>;
 }
 
-export function Companion({ avatar }: { avatar: string | null }) {
-  const source = avatar ? friendArt[avatar] : undefined;
-  return source ? <Image source={source} resizeMode="contain" style={styles.companion} accessibilityLabel="선택한 동행" /> : null;
+export function Companion({ avatar, equipment }: { avatar: string | null; equipment?: DisplayExperienceProfile }) {
+  return avatar ? <CompanionScene avatar={avatar} experienceProfile={equipment} size={66} /> : null;
 }
 
 const styles = StyleSheet.create({

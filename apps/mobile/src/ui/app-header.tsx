@@ -18,6 +18,7 @@ type Props = {
   children?: ReactNode;
   /** The avatar picture; defaults to the mascot badge. Only the home tab passes the chosen 상점 캐릭터 (design-298.md). */
   avatarArt?: ImageSourcePropType;
+  avatarContent?: ReactNode;
   /** Adds a second pill linking to `/friends` (design-298.md: 친구 moved out of the tab bar into the home header). */
   showFriendsEntry?: boolean;
 };
@@ -26,7 +27,7 @@ type Props = {
  * Top of a tab screen's scroll content: the sky art, the title on a frosted panel, and the account avatar with its "내 정보" label (outside the panel).
  * `/settings` (계정 삭제·로그아웃) stays one tap away. Put it first inside the ScrollView / list so it scrolls away with the page.
  */
-export function AppHeader({ title, subtitle, children, avatarArt, showFriendsEntry }: Props) {
+export function AppHeader({ title, subtitle, children, avatarArt, avatarContent, showFriendsEntry }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -60,7 +61,7 @@ export function AppHeader({ title, subtitle, children, avatarArt, showFriendsEnt
         ) : null}
         <Link href="/settings" asChild>
           <Pressable accessibilityRole="button" accessibilityLabel="내 정보" hitSlop={{ left: 8, right: 8 }} style={styles.avatarButton}>
-            <Image source={avatarArt ?? mascotArt['logo-badge']} style={{ width: 44, height: 44 }} />
+            {avatarContent ?? <Image source={avatarArt ?? mascotArt['logo-badge']} style={{ width: 44, height: 44 }} />}
             {/* The avatar alone does not say "your account"; the label sits on its own frosted pill so it reads over the art. */}
             <View accessible={false} style={styles.avatarLabelPill}>
               <Text maxFontSizeMultiplier={1.3} style={styles.avatarLabel}>내 정보</Text>

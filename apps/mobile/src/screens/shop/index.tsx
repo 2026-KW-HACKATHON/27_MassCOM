@@ -4,6 +4,8 @@ import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, us
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { ThemePackBoard } from '@/experience/theme-pack-board';
+import { useExperience } from '@/experience/use-experience';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { AppHeader } from '@/ui/app-header';
@@ -25,6 +27,7 @@ import {
 import { shopDrawHeading, shopDrawIntro } from '@/shop/shop-copy';
 import { useShop } from '@/shop/use-shop';
 
+import { themePackName, cosmeticSequenceDisclosure } from './gacha-rules';
 import { GachaMachine } from './gacha-machine';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { HistorySection } from './history-section';
@@ -53,6 +56,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
 
   const api = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shop = useShop(api);
+  const experience = useExperience(apiUrl, credential, onSessionInvalid);
   // 방문 진입을 다시 열 때 최신 적립분을 읽되, 응답을 놓친 구매의 requestId/소유 스냅샷은 유지한다.
   const refreshGachaSnapshot = shop.refreshQuietly;
   useEffect(() => {
@@ -143,6 +147,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
       setPending(undefined);
       shop.applyReroll(result);
       setReveal(result);
+      void experience.refresh();
       setHistoryRefreshToken((value) => value + 1);
       return true;
     } catch (error) {
@@ -258,6 +263,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
     snapshot={snapshot} result={reveal} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
     busy={Boolean(busyGrade) || avatarBusy} error={notice?.tone === 'error' ? notice.text : undefined}
     avatarBusy={avatarBusy} avatarError={avatarError}
+    wishId={experience.snapshot?.profile.wishlist} onWish={(itemId) => { void experience.wish(itemId); }}
     refreshing={refreshing} onRefresh={() => { void refresh(); }}
     onDraw={buy}
     onSetAvatar={() => { if (reveal) void chooseAvatar(reveal.item.id, reveal); }}
@@ -310,6 +316,8 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
         </View>
       </Stagger>
 
+      {experience.snapshot ? <ThemePackBoard snapshot={experience.snapshot} /> : null}
+
       <Stagger index={3}>
         <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>가게 친구</Text>
@@ -336,11 +344,12 @@ function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
       <View style={styles.gradeHeader}>
         <Image source={ticketArt[grade.grade]} style={styles.ticket} accessible={false} accessibilityIgnoresInvertColors />
         <View style={styles.gradeCopy}>
-          <Text style={styles.gradeName}>{gradeLabel(grade.grade)} 재뽑기권</Text>
+          <Text style={styles.gradeName}>{themePackName(grade.grade)} · {gradeLabel(grade.grade)} 캐릭터</Text>
           <Text style={styles.gradePrice}>{formatMileage(grade.price)} · 가진 친구 {grade.owned}/{grade.total}</Text>
         </View>
       </View>
       <Text style={styles.disclosure}>{rerollDisclosure(grade)}</Text>
+      <Text style={styles.disclosure}>{cosmeticSequenceDisclosure}</Text>
       {button.reason ? <Text style={styles.disabledReason}>{button.reason}</Text> : null}
       <BounceButton
         label={busy ? '뽑는 중…' : '뽑기'}

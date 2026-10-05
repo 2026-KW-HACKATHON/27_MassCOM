@@ -48,6 +48,7 @@ export type MileageShopHistory = {
 
 export type MileageRerollResult = {
   item: { id: string; grade: MileageGrade; name: string };
+  bonus: { id: string; name: string; slot: 'hat' | 'bag' | 'prop' | 'pose' | 'decor' };
   balance: number;
   replayed: boolean;
 };

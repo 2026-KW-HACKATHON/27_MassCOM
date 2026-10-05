@@ -58,6 +58,22 @@ test('retrying a lost finish response resends the same run and actions', async (
   assert.deepEqual(requests[0], requests[1]);
 });
 
+test('play client accepts saved skill progress and rejects invented badge claims in responses', async () => {
+  const skill = { id: 'stack-precision', progress: 3, target: 3, achieved: true };
+  const api = createPlayApiClient({ apiUrl: 'https://api.test', credential,
+    fetcher: async (url) => Response.json(String(url).endsWith('/me/play') ?
+      { records: [], unlockedThemes: [], achievements: [skill] } :
+      { kind: 'stack', score: 600, bestScore: 600, plays: 1, completed: true, correct: 6, total: 6,
+        unlockedThemes: [], skill, newlyEarned: true }) });
+  assert.deepEqual((await api.getPlay()).achievements, [skill]);
+  assert.deepEqual((await api.finish(run, [])).skill, skill);
+  const invalid = createPlayApiClient({ apiUrl: 'https://api.test', credential,
+    fetcher: async () => Response.json({ kind: 'stack', score: 600, bestScore: 600, plays: 1,
+      completed: true, correct: 6, total: 6, unlockedThemes: [],
+      skill: { id: 'made-up-badge', progress: 3, target: 3, achieved: true } }) });
+  await assert.rejects(() => invalid.finish(run, []), (error) => error instanceof PlayApiError && error.code === 'INVALID_RESPONSE');
+});
+
 
 test('배달 종료 응답이 유실돼도 확정한 종료 시각과 lane을 그대로 다시 전송한다', async () => {
   const bodies: string[] = [];

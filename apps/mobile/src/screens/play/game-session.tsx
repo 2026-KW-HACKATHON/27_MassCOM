@@ -12,12 +12,14 @@ import { playUiSound } from '@/sound/ui-sounds';
 import { colorsForScheme } from '@/theme/palette';
 import { BounceButton } from '@/ui/bounce-button';
 import { Companion, FoodToken, GameToken, type OwnedArt } from './play-art';
-import { gameCopy, themeNames } from './play-copy';
+import type { DisplayExperienceProfile } from '@/experience/experience-api';
+import { gameCopy, skillCopy, themeNames } from './play-copy';
 
 type Props = {
   run: PlayRun;
   art: readonly OwnedArt[];
   avatar: string | null;
+  equipment?: DisplayExperienceProfile;
   previousBest: number | undefined;
   onFinish: (run: PlayRun, actions: readonly GameAction[], signal: AbortSignal) => Promise<PlayFinish>;
   onResult: (result: PlayFinish) => void;
@@ -39,7 +41,7 @@ function laneAtTick(actions: readonly GameAction[], at: number): number {
   return lane;
 }
 
-export function GameSession({ run, art, avatar, previousBest, onFinish, onResult, onRetry, onExit }: Props) {
+export function GameSession({ run, art, avatar, equipment, previousBest, onFinish, onResult, onRetry, onExit }: Props) {
   const router = useRouter();
   const recheckConsent = useConsentRecheck();
   const board = useMemo(() => getGameBoard(run.kind, run.seed), [run.kind, run.seed]);
@@ -227,13 +229,20 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
     <View style={styles.progressRow}><Text style={[styles.progressText, { color: palette.secondaryLabel }]}>{progress.label}</Text><View style={[styles.progressTrack, { backgroundColor: palette.separator }]}><View style={[styles.progressFill, { width: progress.width, backgroundColor: copy.color }]} /></View></View>
     {feedback ? <Text accessibilityLiveRegion="polite" style={[styles.feedback, { color: feedback.good ? palette.success : palette.error }]}>{feedback.text}</Text> : null}
     {phase === 'result' && result ? <View style={styles.result}>
+      <Companion avatar={avatar} equipment={equipment} />
+      <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{result.skill?.achieved ? '동행이 성취를 축하해요!' : result.completed ? '동행이 다음 도전을 응원해요!' : '동행과 다시 도전해 봐요!'}</Text>
       <Text style={[styles.resultLabel, { color: palette.secondaryLabel }]}>{result.completed ? '완주 기록' : '이번 도전'}</Text>
       <Text style={[styles.score, { color: palette.label }]}>{result.score.toLocaleString()}점</Text>
       <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{result.correct} / {result.total} 성공 · {completedRecordLabel(result.plays, result.bestScore)} · {result.plays}회 완주</Text>
       {result.completed && result.bestScore > (startingBest ?? 0) ? <Text style={[styles.newBest, { color: palette.success }]}>새 최고 기록!</Text> : null}
+      {result.skill ? <View style={[styles.skillResult, { borderColor: copy.color, backgroundColor: palette.surface }]}>
+        <Text style={[styles.skillTitle, { color: palette.label }]}>{result.newlyEarned ? '새 실력 배지 획득!' : result.skill.achieved ? '실력 배지 달성' : '다음 실력 목표'} · {skillCopy[run.kind].badge}</Text>
+        <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{skillCopy[run.kind].metric} {result.skill.progress}/{result.skill.target} · {skillCopy[run.kind].goal}</Text>
+        <Text style={[styles.resultText, { color: palette.label }]}>{result.skill.achieved ? `해금: ${skillCopy[run.kind].reward}` : `다음 도전으로 ${skillCopy[run.kind].reward} 해금`}</Text>
+      </View> : null}
       {newUnlocks.length ? <Text style={[styles.unlock, { color: palette.label }]}>내 공간 장식: {newUnlocks.map((theme) => themeNames[theme] ?? theme).join(' · ')}</Text> : null}
       <View style={styles.actions}>
-        {newUnlocks.length ? <BounceButton label="내 공간 꾸미기" onPress={() => router.push('/studio')} /> : null}
+        {newUnlocks.length || result.skill?.achieved ? <BounceButton label="해금한 꾸미기 보기" onPress={() => router.push('/studio')} /> : null}
         <BounceButton label="다시 하기" onPress={onRetry} /><BounceButton label="다른 게임" variant="secondary" onPress={onExit} />
       </View>
     </View> : phase === 'finishing' || phase === 'finishError' ? <View style={styles.result}>
@@ -250,7 +259,7 @@ export function GameSession({ run, art, avatar, previousBest, onFinish, onResult
           {shown ? <GameToken value={value} art={art} size={Math.min(58, (width - 100) / 4)} /> : <Text style={styles.cardBack}>✦</Text>}
         </Pressable>;
       })}</View> : null}
-      {board.kind === 'delivery' ? <DeliveryBoard board={board} elapsed={elapsed} crossed={crossed} points={deliveryPoints} lane={lane} avatar={avatar} motionEnabled={motionEnabled} compact={compactControls} roadHeight={roadHeight} onLane={changeLane} /> : null}
+      {board.kind === 'delivery' ? <DeliveryBoard board={board} elapsed={elapsed} crossed={crossed} points={deliveryPoints} lane={lane} avatar={avatar} equipment={equipment} motionEnabled={motionEnabled} compact={compactControls} roadHeight={roadHeight} onLane={changeLane} /> : null}
       {board.kind === 'orders' ? <OrdersBoard board={board} actions={actions} compact={compactControls} onChoose={(choice) => { const next = add(choice); if (next && next.length === 12) void finishCurrent(next); }} /> : null}
       <Pressable accessibilityRole="button" onPress={() => board.kind === 'delivery' ? finishDelivery(getElapsed()) : void finishCurrent(actionsRef.current)} style={styles.giveUp}><Text style={[styles.giveUpText, { color: palette.secondaryLabel }]}>여기서 끝내기</Text></Pressable>
     </>}
@@ -278,7 +287,7 @@ function StackBoard({ board, actions, elapsed, motionEnabled, onDrop }: { board:
   </View>;
 }
 
-function DeliveryBoard({ board, elapsed, crossed, points, lane, avatar, motionEnabled, compact, roadHeight, onLane }: { board: Extract<ReturnType<typeof getGameBoard>, { kind: 'delivery' }>; elapsed: number; crossed: number; points: number; lane: number; avatar: string | null; motionEnabled: boolean; compact: boolean; roadHeight: number; onLane: (lane: number) => void }) {
+function DeliveryBoard({ board, elapsed, crossed, points, lane, avatar, equipment, motionEnabled, compact, roadHeight, onLane }: { board: Extract<ReturnType<typeof getGameBoard>, { kind: 'delivery' }>; elapsed: number; crossed: number; points: number; lane: number; avatar: string | null; equipment?: DisplayExperienceProfile; motionEnabled: boolean; compact: boolean; roadHeight: number; onLane: (lane: number) => void }) {
   const muted = colorsForScheme(useColorScheme()).secondaryLabel;
   const upcoming = board.ticks.filter((tick) => tick.at > elapsed).slice(0, 2);
   const travel = roadHeight - 60;
@@ -294,7 +303,7 @@ function DeliveryBoard({ board, elapsed, crossed, points, lane, avatar, motionEn
           </View>)}
         </View>;
       })}
-      <View style={styles.runnerRow}>{[0, 1, 2].map((index) => <View key={index} style={styles.roadCell}>{index === lane ? <Companion avatar={avatar} /> : null}{index === lane && !avatar ? <Text style={[styles.runnerFallback, compact && styles.runnerFallbackCompact]}>●</Text> : null}</View>)}</View>
+      <View style={styles.runnerRow}>{[0, 1, 2].map((index) => <View key={index} style={styles.roadCell}>{index === lane ? <Companion avatar={avatar} equipment={equipment} /> : null}{index === lane && !avatar ? <Text style={[styles.runnerFallback, compact && styles.runnerFallbackCompact]}>●</Text> : null}</View>)}</View>
     </View>
     {!motionEnabled && upcoming[0] ? <Text style={[styles.boardHint, { color: muted }]}>다음 장애물: {laneNames[upcoming[0].blockedLane]} · 선물: {laneNames[upcoming[0].bonusLane]}</Text> : null}
     <View style={styles.laneButtons}>{[0, 1, 2].map((index) => <Pressable key={index} accessibilityRole="button" accessibilityLabel={`${laneNames[index]} 길로 이동`} accessibilityState={{ selected: index === lane }} onPress={() => onLane(index)} style={[styles.laneButton, index === lane && styles.laneSelected]}><Text style={[styles.laneText, index === lane && styles.laneSelectedText]}>{laneNames[index]}</Text></Pressable>)}</View>
@@ -334,6 +343,8 @@ const styles = StyleSheet.create({
   result: { gap: 12, alignItems: 'center', paddingVertical: 42 }, resultLabel: { fontSize: 18, fontWeight: '800', textAlign: 'center' },
   score: { fontSize: 48, fontWeight: '900' }, resultText: { fontSize: 15, textAlign: 'center', lineHeight: 22 },
   newBest: { fontSize: 18, fontWeight: '800' }, unlock: { fontSize: 15, textAlign: 'center' },
+  skillResult: { width: '100%', gap: 6, padding: 14, borderWidth: 2, borderRadius: 8 },
+  skillTitle: { fontSize: 18, fontWeight: '900', textAlign: 'center' },
   feedback: { minHeight: 24, fontSize: 16, fontWeight: '800', textAlign: 'center' },
   actions: { width: '100%', gap: 10, marginTop: 16 },
   stackArea: { gap: 10 }, stackTower: { height: 130, alignItems: 'center', justifyContent: 'flex-end', gap: 2 },

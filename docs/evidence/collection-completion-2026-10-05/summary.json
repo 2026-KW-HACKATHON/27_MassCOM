@@ -1,0 +1,95 @@
+{
+  "issue": 371,
+  "branch": "feat/collection-merchant-completion",
+  "baselineCommit": "aae64d88973caea2f5ee1b1f13a44173e96e55bb",
+  "date": "2026-10-05",
+  "environment": "macOS, Node 25, PostgreSQL 16, Chrome, Android API 36 arm64 development emulator",
+  "syntheticData": true,
+  "checks": {
+    "api": {
+      "total": 473,
+      "passed": 473,
+      "failed": 0
+    },
+    "mobile": {
+      "total": 1513,
+      "passed": 1513,
+      "failed": 0
+    },
+    "postgres": {
+      "total": 444,
+      "passed": 441,
+      "failed": 0,
+      "skipped": 3,
+      "skipReason": "unchanged hosted-seed tests require a newly created disposable container on localhost:55435"
+    },
+    "site": {
+      "total": 340,
+      "passed": 340,
+      "failed": 0
+    },
+    "apiTypecheck": "PASS",
+    "apiBuild": "PASS",
+    "mobileTypecheck": "PASS",
+    "mobileLint": "PASS",
+    "mobileAccessibility": "PASS",
+    "apiAudit": "PASS",
+    "mobileAudit": "PASS_WITH_EXISTING_NARROW_EXCEPTIONS",
+    "independentSourceReviewRemainingFindings": 0,
+    "releaseWalletSurface": "PASS",
+    "privacyLogs": "PASS_CLEAN_STAGED_SOURCE",
+    "sourceGate": "PASS_CLEAN_STAGED_SOURCE"
+  },
+  "android": {
+    "apiLevel": 36,
+    "variant": "development",
+    "physicalDevice": "NOT_RUN",
+    "buildInstall": "PASS",
+    "fontScaleRestored": 2,
+    "metroStopped": true
+  },
+  "media": {
+    "feed": {
+      "image": "native-feed-final.png",
+      "video": "native-feed-final.mp4",
+      "width": 1080,
+      "height": 1350,
+      "fps": 20,
+      "durationSeconds": 4,
+      "videoCodec": "H.264/avc1",
+      "tapToSaveSeconds": 5.54
+    },
+    "story": {
+      "image": "native-story-safe-saved-image.png",
+      "video": "native-story-safe.mp4",
+      "width": 1080,
+      "height": 1920,
+      "fps": 20,
+      "durationSeconds": 4,
+      "videoCodec": "H.264/avc1",
+      "designedContentY": [
+        270,
+        1536
+      ],
+      "observedTextY": [
+        320.93,
+        1487.44
+      ],
+      "detectedTextCount": 7,
+      "officialPlatformValidation": "NOT_RUN"
+    },
+    "photosSaveAndPlayback": "PASS",
+    "navigationCancel": "PASS_NO_NEW_MEDIASTORE_VIDEO",
+    "shareSheetDismissal": "PASS_ALREADY_SAVED_FILE_REMAINS_SAVED",
+    "webMp4AndWebm": "PASS_ACTUAL_ENCODING_AND_DECODING",
+    "externalPosting": "NOT_RUN"
+  },
+  "notRun": [
+    "actual FCM delivery and notification tap without matching Firebase configuration",
+    "physical tilt, sound, vibration, TalkBack",
+    "real merchant Google session and real-store QR",
+    "production/showcase migrations and deployment",
+    "public Android release, Google Play",
+    "CSV opening in installed Excel/Numbers; UTF-8 BOM bytes and parsing covered by tests"
+  ]
+}
