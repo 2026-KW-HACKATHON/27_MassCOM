@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-06",
+  "device": {"model": "SM-S928N", "android": 16, "api": 36, "width": 720, "height": 1560, "density": 300, "fontScale": 1},
+  "package": "kr.masscom.wolgye.dev",
+  "apkSha256": "7d64c700227dd99eb32af021f22d4b779f439d84c3461fb758c7d398ad76f339",
+  "screenSourceCommit": "3606183826d4b95944c4436a57143bafdcb29f09",
+  "sourceDelivery": "Metro development client",
+  "dataScope": "isolated local synthetic QA account",
+  "firstDraw": {"grade": "BRONZE", "before": 950, "price": 100, "bonusMileage": 48, "after": 898, "item": "cafe-bear", "clothing": "green-apron"},
+  "nativeModuleRegistration": {"audio": true, "haptics": true},
+  "observedRingerMode": "VIBRATE",
+  "audioHumanObservation": "FAIL",
+  "hapticsHumanObservation": "FAIL",
+  "postFixPhysicalVerification": "BLOCKED_USB_DISCONNECTED",
+  "screens": ["gacha-result.png", "home-avatar.png"],
+  "notVerified": ["real Google login", "FCM receipt", "production or showcase physical install", "post-fix audible playback", "haptic request handling", "last-item explicit purchase recovery", "saved clothing in friend space", "four native games", "native PNG/MP4 with new clothing", "physical tilt", "TalkBack", "large font"]
+}
