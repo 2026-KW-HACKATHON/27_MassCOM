@@ -5,6 +5,7 @@ import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat
 
 import { lightHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
+import { AvatarWardrobe, type EquippedClothingArt } from '@/shop/wardrobe';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Mascot } from './mascot';
 import { friendArt } from '@/shop/shop-art';
@@ -12,6 +13,7 @@ import { AvatarPortrait } from '@/illustration/avatar-portrait';
 
 type Props = {
   art?: ImageSourcePropType;
+  clothing?: EquippedClothingArt | null;
   size?: number;
   celebrate?: boolean;
   interactive?: boolean;
@@ -23,12 +25,12 @@ type Props = {
 export function Companion(props: Props) {
   const avatar = props.characterId ?? Object.keys(friendArt).find(id => friendArt[id] === props.art);
   const size = props.size ?? 120;
-  return avatar ? <View style={{ width: size, height: size }}><AvatarPortrait avatar={avatar} size={size}
+  return avatar ? <View style={{ width: size, height: size }}><AvatarPortrait avatar={avatar} clothing={props.clothing} size={size}
     reaction={props.celebrate || props.poseId === 'stack-cheer' ? 'cheer' : 'idle'} interactive={props.interactive} />{props.children}</View>
     : <LegacyCompanion {...props} />;
 }
 
-function LegacyCompanion({ art, size = 120, celebrate = false, interactive = false, characterId, poseId, children }: Props) {
+function LegacyCompanion({ art, clothing, size = 120, celebrate = false, interactive = false, characterId, poseId, children }: Props) {
   const motion = useMotionEnabled();
   const lift = useSharedValue(0);
   const scale = useSharedValue(1);
@@ -49,9 +51,12 @@ function LegacyCompanion({ art, size = 120, celebrate = false, interactive = fal
   const character = <Animated.View style={[{ width: size, height: size }, style]}>
     <Image source={art} style={{ width: size, height: size }} resizeMode="contain" accessible={false} />
     {children}
+    <View pointerEvents="none" style={{ position: 'absolute', left: Math.round(size * 0.19), top: Math.round(size * 0.43) }}>
+      <AvatarWardrobe clothing={clothing ?? null} size={Math.round(size * 0.56)} />
+    </View>
   </Animated.View>;
   if (!interactive) return character;
-  return <Pressable accessibilityRole="button" accessibilityLabel="내 동행과 인사하기" onPress={() => {
+  return <Pressable accessibilityRole="button" accessibilityLabel={clothing ? `내 동행과 인사하기, ${clothing.name} 착용` : '내 동행과 인사하기'} onPress={() => {
     if (motion) scale.set(withSequence(withSpring(1.13), withSpring(1)));
     void lightHaptic();
     playUiSound('tap');

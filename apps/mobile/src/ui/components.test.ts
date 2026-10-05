@@ -47,10 +47,14 @@ test('a pressable card lays out like a static one: layout props on the Pressable
 
 test('screen copy fits its space and does not repeat the heading below it', () => {
   const list = readSource('screens/merchant-list/index.tsx');
-  // The longer chip text wrapped to two lines at 360dp.
-  assert.match(list, /copy="내 탐험 여권 보기"/);
-  assert.match(list, /copy="로그인하면 여권이 열려요"/);
-  assert.doesNotMatch(list, /도감에서 내 도장 보기/);
+  // The search tab is now a compact search-only route; home/collection own the reward and passport copy.
+  assert.match(list, /title="가게 검색"/);
+  assert.match(list, /subtitle="이름·메뉴·주소로 찾고 지도로도 볼 수 있어요"/);
+  assert.match(list, /placeholder="이름·메뉴·주소로 찾기"/);
+  assert.doesNotMatch(list, /어디로 탐험할까요|내 탐험 여권 보기|도감에서 내 도장 보기/);
+  const home = readSource('screens/home/index.tsx');
+  assert.match(home, /title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요"/);
+  assert.equal((home.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
   const collection = readSource('screens/collection/index.tsx');
   // #296 Option A: a compact passport strip now sits in the header as a child (replacing the self-closing tag).
   assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" avatarArt=\{companionArt\}>/);
@@ -61,21 +65,24 @@ test('screen copy fits its space and does not repeat the heading below it', () =
 test('the header keeps account tools one tap away, and says so under the avatar', () => {
   const header = read('app-header.tsx');
   assert.match(header, /href="\/settings"/);
-  assert.match(header, /accessibilityLabel="내 정보"/);
+  assert.match(header, /accessibilityLabel=\{avatarClothing \? `내 정보, \$\{avatarClothing\.name\} 착용` : '내 정보'\}/);
   // A visible "내 정보" label on its own frosted pill sits under the avatar; the 48dp target is the Pressable around both.
   assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
+  const home = readSource('screens/home/index.tsx');
+  assert.match(home, /<AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요"/);
+  assert.match(home, /showFriendsEntry showMailEntry/);
 });
 
 test('large text grows freely with reflow while home keeps one exhibit and claim decoration shrinks', () => {
   const header = read('app-header.tsx');
-  assert.doesNotMatch(header, /maxFontSizeMultiplier|numberOfLines/);
+  assert.doesNotMatch(header, /styles\.headerTitle[^>]*maxFontSizeMultiplier|styles\.headerSubtitle[^>]*numberOfLines/);
   assert.match(header, /\{subtitle \? <Text style=\{styles\.headerSubtitle\}>\{subtitle\}<\/Text> : null\}/);
   assert.match(header, /stackedHeader && \{ flexBasis: '100%' \}/);
   assert.match(header, /flexWrap: 'wrap'/);
   assert.doesNotMatch(read('bounce-button.tsx'), /maxFontSizeMultiplier|numberOfLines/);
-  const home = readSource('screens/merchant-list/index.tsx');
+  const home = readSource('screens/home/index.tsx');
   const exhibit = readSource('experience/home-collection-display.tsx');
-  assert.doesNotMatch(home, /heroMascotSize|<Mascot|<CompanionScene|<AvatarPortrait/);
+  assert.doesNotMatch(home, /heroMascotSize|<Mascot|<CompanionScene/);
   assert.equal((home.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
   assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
   assert.match(exhibit, /showcase: \{[^}]*flexWrap: 'wrap'/);
@@ -137,7 +144,7 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 12, 'explore, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status, merchant claim, studio, friend studio');
+  assert.equal(controls, 14, 'search, home, mail, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status, merchant claim, studio, friend studio');
   assert.equal((readSource('screens/merchant-home/status.tsx').match(/<RefreshControl/g) ?? []).length, 1, '점주 현황에 하나의 당겨서 새로 고침을 둔다');
   assert.equal((readSource('screens/merchant-claim/staff.tsx').match(/<RefreshControl/g) ?? []).length, 1, '방문 확인에 발급 상태 새로 고침을 둔다');
   // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
@@ -220,7 +227,7 @@ test('stack pages use the sky header with a back button instead of the plain nat
 
 test('signed-out and set-up states of the tab routes sit on the sky under their own header, not on a white sheet', () => {
   for (const [file, title] of [
-    ['app/(tabs)/claim.tsx', '방문 인증'], ['app/(tabs)/collection.tsx', '도감'], ['app/(tabs)/index.tsx', '어디로 탐험할까요?'],
+    ['app/(tabs)/claim.tsx', '방문 인증'], ['app/(tabs)/collection.tsx', '도감'], ['app/(tabs)/index.tsx', '홈'],
   ] as const) {
     const source = readSource(file);
     assert.ok(source.includes(`<AppHeader title="${title}"`), `${file} header`);
@@ -237,9 +244,10 @@ test('every state of the collection measures its header and clears the tab bar',
   assert.match(sky, /paddingBottom: clearance/);
 });
 
-test('the explore header asks one short question that fits on one line', () => {
+test('the search header keeps one short task instead of home exploration copy', () => {
   const list = readSource('screens/merchant-list/index.tsx');
-  assert.match(list, /title="어디로 탐험할까요\?"\s*\n\s*subtitle="안 가본 가게에 도장을 찍어요"/);
+  assert.match(list, /title="가게 검색"\s*\n\s*subtitle="이름·메뉴·주소로 찾고 지도로도 볼 수 있어요"/);
+  assert.doesNotMatch(list, /어디로 탐험할까요/);
   assert.doesNotMatch(list, /오늘은 어디를 탐험할까요/);
 });
 
@@ -269,7 +277,7 @@ test('mascots are plain images unless asked to be interactive, and home has one 
   assert.match(mascot, /if \(!interactive\) return <Animated\.Image \{\.\.\.picture\} \{\.\.\.a11y\} \/>;/);
   assert.match(mascot, /<Pressable onPress=\{wiggle\} \{\.\.\.a11y\}>/);
   // Home has one equipped greeting target in its exhibit; the header no longer repeats it.
-  const home = readSource('screens/merchant-list/index.tsx');
+  const home = readSource('screens/home/index.tsx');
   const exhibit = readSource('experience/home-collection-display.tsx');
   assert.doesNotMatch(home, /<Mascot|<CompanionScene|<AvatarPortrait/);
   assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
@@ -328,15 +336,15 @@ test('the collection says 도장 for the passport page, not 스탬프', () => {
   assert.match(collection, /note=\{`도장 \$\{stampSlots\.filter/);
 });
 
-test('the explore passport chip shows earned badges from the badge book when signed in, and no dot otherwise', () => {
+test('the search tab no longer owns the badge book; home owns the mission reward box', () => {
   const list = readSource('screens/merchant-list/index.tsx');
   const progress = readSource('screens/merchant-list/use-discovery-progress.ts');
+  const home = readSource('screens/home/index.tsx');
   assert.match(progress, /useBadgeBook\(badgeApi\)/);
-  assert.match(list, /passportChipData\(/);
   assert.match(progress, /createBadgeApiClient\(/);
-  // #354: 필터와 여권 칩·보상 카드가 하나의 계정 배지 조회를 공유한다.
-  assert.match(list, /auth\.credential && auth\.accountId \? \(\s*<PassportChip/);
-  assert.match(list, /passportChipData\(discovery\.book\)/);
+  assert.doesNotMatch(list, /passportChipData\(|<PassportChip|HomeRewardCard|RewardReveal/);
+  assert.match(home, /<HomeRewardCard book=\{book\} onOpen=\{badgeApi\.openReward\}/);
+  assert.match(home, /\[1, 3, 5\]\.map/);
   assert.doesNotMatch(list, /useBadgeBook\(/);
   assert.doesNotMatch(list, /stampOrange/);
 });

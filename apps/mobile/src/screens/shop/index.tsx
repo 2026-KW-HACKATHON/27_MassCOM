@@ -4,6 +4,7 @@ import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, us
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { getAppPackageId } from '@/config/app-identity';
 import { CharacterArt } from '@/illustration/character-art';
 import { PackArt } from '@/illustration/artwork';
 import { ThemePackBoard } from '@/experience/theme-pack-board';
@@ -27,6 +28,9 @@ import {
   type FriendGridCell, type PendingPurchase,
 } from '@/shop/shop-rules';
 import { shopDrawHeading, shopDrawIntro } from '@/shop/shop-copy';
+import { clearPendingPurchase, pendingPurchaseScope, readPendingPurchase, writePendingPurchase, type PendingPurchaseScope } from '@/shop/pending-purchase-storage';
+import { enterShopPurchaseScope, leaveShopPurchaseScope, subscribeShopPurchaseScope } from '@/shop/purchase-coordinator';
+import { recoverPendingPurchase } from '@/shop/pending-purchase-recovery';
 import { useShop } from '@/shop/use-shop';
 
 import { themePackName, cosmeticSequenceDisclosure } from './gacha-rules';
@@ -40,8 +44,9 @@ export const SHOP_SUBTITLE = '마일리지를 모아 가게 친구를 뽑아요'
 
 type Notice = { tone: 'success' | 'error'; text: string };
 
-export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = false, gachaVisible = true, onGachaClose }: {
+export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, gachaOnly = false, gachaVisible = true, onGachaClose }: {
   apiUrl: string;
+  accountId: string;
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
   gachaOnly?: boolean;
@@ -58,7 +63,17 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
 
   const api = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shop = useShop(api);
+  const pendingScope = useMemo<PendingPurchaseScope>(
+    () => pendingPurchaseScope({ accountId, apiUrl, appVariant: getAppPackageId() ?? 'app' }),
+    [accountId, apiUrl],
+  );
+  const pendingScopeKey = useMemo(() => `${pendingScope.appVariant}:${pendingScope.apiUrl}:${pendingScope.accountId}`, [pendingScope]);
+  const shopRef = useRef(shop);
+  useEffect(() => { shopRef.current = shop; }, [shop]);
+  const apiRef = useRef(api);
+  useEffect(() => { apiRef.current = api; }, [api]);
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
+  const refreshExperience = experience.refresh;
   // 방문 진입을 다시 열 때 최신 적립분을 읽되, 응답을 놓친 구매의 requestId/소유 스냅샷은 유지한다.
   const refreshGachaSnapshot = shop.refreshQuietly;
   useEffect(() => {
@@ -69,64 +84,90 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   const [busyGrade, setBusyGrade] = useState<MileageGrade>();
   const [notice, setNotice] = useState<Notice>();
   const [machineOpen, setMachineOpen] = useState(gachaOnly);
+  const [selectedGrade, setSelectedGrade] = useState<MileageGrade>('BRONZE');
   const [ownedBefore, setOwnedBefore] = useState<readonly string[]>([]);
   const purchaseOwnership = useRef<readonly string[]>([]);
   const [reveal, setReveal] = useState<ShopRerollResult>();
-  // chooseAvatar()는 요청이 날아가 있는 동안 모달이 닫혀도(onClose) 실패를 어디에 보여줄지 그 순간의 실제 모달
-  // 상태로 판단해야 한다 — state를 그대로 읽으면 요청을 시작할 때의 render가 캡처한 낡은 값을 쓰게 된다
-  // (cross-review 3번). friends/index.tsx의 myCodeRef와 같은 모양으로 ref를 최신 값으로 맞춰 둔다.
+  // chooseAvatar() 응답은 요청이 시작된 결과 모달이 여전히 열려 있을 때만 그 모달에 반영한다.
   const revealRef = useRef(reveal);
   useEffect(() => { revealRef.current = reveal; }, [reveal]);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [avatarError, setAvatarError] = useState<string>();
-  // 구매가 성공할 때마다, 그리고 화면을 당겨서 새로고침할 때마다 올려 펼쳐 둔 "사용 내역"이 첫 페이지부터
-  // 다시 불러오게 한다(PR #312 리뷰 6번).
+  // 구매 성공과 새로고침 뒤에는 펼쳐 둔 사용 내역을 첫 페이지부터 다시 불러온다.
   const [historyRefreshToken, setHistoryRefreshToken] = useState(0);
-  // #314가 도감의 같은 sky()에서 찾은 원인: 이 뷰는 짧은 "불러오는 중" 내용으로 먼저 마운트되고, 더 큰
-  // "오류" 내용으로 바뀔 때는 다시 마운트되지 않는다(같은 모양의 JSX라 리액트가 인스턴스를 그대로 쓴다).
-  // `contentOffset`은 첫 마운트에만 적용되니 재시도 버튼이 하단 탭 바 밑에 가려도 스크롤해 보여줄 길이
-  // 없다 — 아래 sky()에서 로딩/오류 두 갈래에만 이 ref를 건네 내용 크기가 바뀔 때마다 다시 스크롤한다.
+  const recoveryStarted = useRef(false);
+  // 로딩에서 오류로 내용이 커져도 같은 ScrollView가 유지되므로, retry 화면에서 새 높이를 보고 스크롤을 보정한다.
   const skyScrollView = useRef<ScrollView>(null);
-  // #320 리뷰(도감에서 같은 수정): onContentSizeChange는 재시도 재렌더처럼 높이가 그대로여도 다시 불릴 수
-  // 있어, 매번 스크롤하면 오류를 다시 읽으려고 위로 스크롤한 사용자를 끌어내린다. 이전 높이를 여기 쥐고
-  // 실제로 늘었을 때만 스크롤한다.
+  // 높이가 실제로 늘었을 때만 스크롤해, 오류를 다시 읽으려는 사용자를 끌어내리지 않는다.
   const skyContentHeight = useRef(0);
-  // #320 리뷰: JSX 안 인라인 화살표로 쓰면 eslint-plugin-react-hooks의 refs 규칙이 "prop으로 바로 넘긴 함수
-  // 리터럴 안의 ref 읽기"를 렌더 중 접근 가능성으로 보고 막는다 — useCallback으로 뺀다(도감과 같은 조치).
   const onSkyContentSizeChange = useCallback((_width: number, height: number) => {
     if (height <= skyContentHeight.current) return;
     skyContentHeight.current = height;
-    // 이 자리에서 바로 scrollTo를 부르면 아무 효과가 없다 — 네이티브 쪽이 새 크기를 아직 반영하기 전,
-    // 짧았던 예전 범위로 요청이 그대로 잘려 나간다. 한 프레임 미뤄 네이티브가 크기를 반영한 뒤에
-    // 스크롤한다(#314 PR #320과 같은 방식).
+    // 네이티브가 새 content size를 반영한 다음 스크롤하도록 한 프레임 늦춘다.
     requestAnimationFrame(() => skyScrollView.current?.scrollTo({ y: height, animated: false }));
   }, []);
 
-  // 새로고침이 서버의 최신 결과를 보여줬으면 그 전 구매 시도는 이미 끝난 일로 본다 — 다음 구매는 새 requestId로
-  // 시작해, 그 사이 응답을 놓친 옛 시도를 재생(replay)하지 않는다(PR #312 리뷰 2번). 당겨서 새로고침·탭 포커스
-  // 재진입 둘 다 같은 규칙이라 공유한다.
-  const quietRefresh = useCallback(async () => {
-    const refreshed = await shop.refreshQuietly();
-    if (refreshed) setPending(undefined);
-    return refreshed;
-    // use-shop.ts의 shop은 매 렌더 새 객체지만 shop.refreshQuietly 자체는 useCallback으로 고정돼 있다(loader가
-    // 바뀔 때만 바뀜) — shop 전체를 의존성에 넣으면 구매 중 상태가 바뀔 때마다 이 콜백이 재생성돼 아래
-    // useFocusEffect가 다시 실행되며 쓸데없는 GET /shop을 또 보낸다.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shop.refreshQuietly]);
+  // GET /shop 성공만으로 unresolved POST pending을 지우지 않는다. pending은 replay 성공/상태 변경 확정 뒤에만 정리한다.
+  const quietRefresh = useCallback(async () => refreshGachaSnapshot(), [refreshGachaSnapshot]);
 
-  // 홈 탭과 같은 이유(use-shop-avatar-art.ts): 상점 탭도 다른 탭으로 옮겨도 마운트된 채로 남는다(언마운트 아님).
-  // 방문으로 마일리지를 번 뒤 상점으로 돌아와도 다시 포커스를 받을 때까지는 처음 불러온 잔액이 그대로 보인다
-  // (기기 QA). 탭이 다시 포커스를 받을 때마다 조용히 새로고침한다 — refreshQuietly()는 shop-loader.ts의 기존
-  // latest-gate를 그대로 타므로, 그사이 확정된 구매·대표 설정을 뒤늦게 덮어쓰지 않는다.
+  // 상점 탭은 마운트된 채로 남으므로 포커스를 다시 받을 때 최신 잔액을 조용히 읽는다.
   useFocusEffect(useCallback(() => { void quietRefresh(); }, [quietRefresh]));
+
+  const snapshotReady = Boolean(shop.snapshot);
+  const [recoveryWake, setRecoveryWake] = useState(0);
+  const recoveryGeneration = useRef(0);
+  const requestRecovery = useCallback(() => { recoveryStarted.current = false; setRecoveryWake((value) => value + 1); }, []);
+  useEffect(() => {
+    recoveryStarted.current = false;
+    recoveryGeneration.current += 1;
+  }, [pendingScopeKey]);
+
+  useEffect(() => {
+    if (!snapshotReady || recoveryStarted.current || revealRef.current) return;
+    const lease = enterShopPurchaseScope(pendingScope);
+    if (!lease) {
+      return subscribeShopPurchaseScope(pendingScope, () => {
+        recoveryStarted.current = false;
+        setRecoveryWake((value) => value + 1);
+      });
+    }
+    recoveryStarted.current = true;
+    const generation = recoveryGeneration.current + 1;
+    recoveryGeneration.current = generation;
+    let mounted = true;
+    void recoverPendingPurchase({
+      scope: pendingScope,
+      readPending: readPendingPurchase,
+      clearPending: clearPendingPurchase,
+      reroll: (input) => apiRef.current.reroll(input),
+      isCurrent: () => mounted && recoveryGeneration.current === generation && pendingScopeKey === `${pendingScope.appVariant}:${pendingScope.apiUrl}:${pendingScope.accountId}`,
+      onStart: (stored) => {
+        setSelectedGrade(stored.grade);
+        setMachineOpen(true);
+        setPending({ grade: stored.grade, requestId: stored.requestId });
+        setBusyGrade(stored.grade);
+        setNotice(undefined);
+      },
+      onSuccess: (result) => {
+        setPending(undefined);
+        shopRef.current.applyReroll(result);
+        setReveal(result);
+        setHistoryRefreshToken((value) => value + 1);
+        void refreshExperience();
+      },
+      onError: (error) => { setNotice({ tone: 'error', text: shopErrorMessage(error) }); },
+      onFinish: () => { setBusyGrade(undefined); },
+    }).finally(() => { leaveShopPurchaseScope(lease); });
+    return () => { mounted = false; recoveryGeneration.current += 1; };
+  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience]);
+
 
   async function refresh() {
     setRefreshing(true);
     setHistoryRefreshToken((value) => value + 1);
     try {
       const refreshed = await quietRefresh();
-      if (refreshed) setNotice(undefined);
+      if (refreshed) { setNotice(undefined); requestRecovery(); }
     } finally {
       setRefreshing(false);
     }
@@ -137,28 +178,46 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
     // 실패했을 때 그 알림이 방금 연 새 뽑기 모달 뒤에 깔려 아무도 못 본다(PR #312 리뷰 라운드 4).
     if (busyGrade || avatarBusy || experience.saving) return false;
     if (refreshing) return false;
-    const attempt = resumeOrStartPurchase(pending, grade.grade);
-    if (attempt !== pending) purchaseOwnership.current = shop.snapshot?.items.filter((item) => item.owned).map((item) => item.id) ?? [];
-    setOwnedBefore(purchaseOwnership.current);
-    setReveal(undefined);
-    setPending(attempt);
-    setBusyGrade(grade.grade);
-    setNotice(undefined);
+    const generation = recoveryGeneration.current;
+    const isCurrent = () => recoveryGeneration.current === generation && apiRef.current === api;
+    const lease = enterShopPurchaseScope(pendingScope);
+    if (!lease) {
+      setNotice({ tone: 'error', text: '이전 구매 확인 중이에요. 결과를 받은 뒤 다시 시도해 주세요.' });
+      return false;
+    }
     try {
-      const result = await api.reroll({ grade: grade.grade, requestId: attempt.requestId, expectedRemaining: grade.remaining });
+      const storedAttempt = await readPendingPurchase(pendingScope);
+      if (!isCurrent()) return false;
+      const attempt = storedAttempt ?? resumeOrStartPurchase(pending, grade.grade);
+      if (!storedAttempt && attempt !== pending) purchaseOwnership.current = shop.snapshot?.items.filter((item) => item.owned).map((item) => item.id) ?? [];
+      if (storedAttempt) setSelectedGrade(storedAttempt.grade);
+      setOwnedBefore(purchaseOwnership.current);
+      setReveal(undefined);
+      setPending(attempt);
+      setBusyGrade(attempt.grade);
+      setNotice(undefined);
+      if (!storedAttempt) await writePendingPurchase(pendingScope, { grade: attempt.grade, requestId: attempt.requestId, expectedRemaining: grade.remaining });
+      if (!isCurrent()) return false;
+      const expectedRemaining = storedAttempt?.expectedRemaining ?? grade.remaining;
+      const result = await api.reroll({ grade: attempt.grade, requestId: attempt.requestId, expectedRemaining });
+      if (!isCurrent()) return false;
+      await clearPendingPurchase(pendingScope).catch(() => undefined);
+      if (!isCurrent()) return false;
       setPending(undefined);
       shop.applyReroll(result);
       setReveal(result);
-      void experience.refresh();
+      void refreshExperience();
       setHistoryRefreshToken((value) => value + 1);
       return true;
     } catch (error) {
+      if (!isCurrent()) return false;
       if (error instanceof ShopApiError && error.code === 'SHOP_STATE_CHANGED') {
-        // 요금은 빠지지 않았으니(design-298.md 리뷰 6번) 이 requestId는 더 쓸 일이 없다. 새 공개 문구를 실제로
-        // 보여줄 때까지는 구매를 막는다(finally의 setBusyGrade는 이 await 뒤에야 실행된다) — 낡은 확률 위에
-        // "새로 보여드려요" 안내만 얹으면 안 된다(PR #312 리뷰 4번).
+        // 요금은 빠지지 않았으므로 이 requestId는 버리고, 새 공개 문구를 실제로 불러온 뒤에만 다시 구매하게 한다.
         setPending(undefined);
+        await clearPendingPurchase(pendingScope).catch(() => undefined);
+        if (!isCurrent()) return false;
         const refreshed = await shop.refreshQuietly();
+        if (!isCurrent()) return false;
         setNotice({
           tone: 'error',
           text: refreshed ? shopErrorMessage(error) : '상품 정보를 다시 불러오지 못했어요. 상점 다시 불러오기를 누른 뒤 다시 시도해 주세요.',
@@ -168,15 +227,15 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
       }
       return false;
     } finally {
-      setBusyGrade(undefined);
+      if (isCurrent()) setBusyGrade(undefined);
+      leaveShopPurchaseScope(lease);
     }
   }
 
   /**
    * `targetReveal`는 이 호출이 어느 뽑기 결과 모달에서 시작됐는지(그리드에서 바로 불렀으면 undefined)를 들고
-   * 있다가, 응답이 왔을 때 그 모달이 **여전히** 떠 있을 때만 건드린다. 요청이 날아간 뒤 사용자가 모달을 닫거나
-   * (cross-review 3번) 그사이 다른 뽑기로 전혀 다른 결과 모달이 열렸으면(2차 확인 리뷰) 이 응답으로 그 엉뚱한
-   * 모달을 닫거나 그 안에 실패를 적지 않는다 — revealRef(최신 모달 참조)와 참조 비교로 판단한다.
+   * 있다가, 응답이 왔을 때 그 모달이 **여전히** 떠 있을 때만 건드린다. 요청 뒤 모달이 닫히거나 다른 결과
+   * 모달이 열렸으면, 이 응답으로 엉뚱한 모달을 닫거나 그 안에 실패를 적지 않는다.
    */
   async function chooseAvatar(itemId: string | null, targetReveal?: ShopRerollResult) {
     if (avatarBusy) return;
@@ -221,12 +280,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
       </View>
     </AppHeader>
   );
-  // extra는 뽑기 연출(GachaMachine)을 위한 자리: 다른 화면의 모달들(collection/index.tsx의 CollectibleReveal 등)과
-  // 같게 SkyScrollView 다음, 여전히 SkyBackdrop 안에 둔다(PR #312 QA) — 둘을 따로 반환하면 RefreshControl 등
-  // 머리글 배선을 통째로 또 써야 한다.
-  // retryScroll은 로딩/오류 두 갈래에서만 true다 — skyScrollView를 매개변수로 건네면(ref를 함수에 전달) lint의
-  // react-hooks/refs가 "렌더 중 ref를 읽을 수 있다"고 막는다. 대신 이 컴포넌트 스코프의 ref를 클로저로 직접
-  // 읽어, 실제로 ref.current를 건드리는 곳은 onContentSizeChange·rAF 콜백(렌더 중이 아님) 뿐으로 유지한다.
+  // extra는 뽑기 연출 모달 자리다. retryScroll은 로딩/오류 화면에서만 ref와 content-size 보정을 연결한다.
   const sky = (body: ReactNode, extra?: ReactNode, retryScroll?: boolean) => (
     <SkyBackdrop>
       <SkyScrollView
@@ -264,10 +318,11 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
   const machine = (gachaOnly ? gachaVisible : machineOpen) ? <GachaMachine
     snapshot={snapshot} profile={experience.snapshot?.profile} bonusSaving={experience.saving} bonusError={experience.error}
     onEquipBonus={reveal?.bonus ? () => { if (reveal.bonus) void experience.save({ cosmetics: { [reveal.bonus.slot]: reveal.bonus.id } }); } : undefined}
-    result={reveal} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
+    result={reveal} selectedGrade={selectedGrade} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
     busy={Boolean(busyGrade) || avatarBusy || experience.saving} error={notice?.tone === 'error' ? notice.text : undefined}
     avatarBusy={avatarBusy} avatarError={avatarError}
     wishId={experience.snapshot?.profile.wishlist} onWish={(itemId) => { void experience.wish(itemId); }}
+    onRecoverPending={pending ? requestRecovery : undefined}
     refreshing={refreshing} onRefresh={() => { void refresh(); }}
     onDraw={buy}
     onSetAvatar={() => { if (reveal) void chooseAvatar(reveal.item.id, reveal); }}
@@ -290,6 +345,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
             <Image source={mileageCoinArt} style={styles.coin} accessible={false} accessibilityIgnoresInvertColors />
             <Text accessibilityLabel={`마일리지 ${snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(snapshot.mileage.balance)}</Text>
           </View>
+          {pending ? <BounceButton label="이전 구매 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
           <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
           <View accessibilityLiveRegion="polite">
@@ -315,7 +371,7 @@ export function ShopScreen({ apiUrl, credential, onSessionInvalid, gachaOnly = f
               friends={snapshot.items.filter((item) => item.grade === grade.grade && !item.owned)}
               busy={busyGrade === grade.grade}
               purchaseBusy={Boolean(busyGrade) || avatarBusy || experience.saving}
-              onBuy={() => { setReveal(undefined); setNotice(undefined); setMachineOpen(true); }}
+              onBuy={() => { setSelectedGrade(grade.grade); setReveal(undefined); setNotice(undefined); setMachineOpen(true); }}
               styles={styles}
             />
           ))}
@@ -343,8 +399,7 @@ function GradeRow({ grade, balance, friends, busy, purchaseBusy, onBuy, styles }
   styles: ReturnType<typeof useShopStyles>;
 }) {
   const button = rerollButtonState(grade, balance);
-  // 다른 등급을 구매하는 동안에도 전부 비활성화한다 — 이 등급만 멀쩡해 보이면 눌러도 조용히 무시돼
-  // 눌리지 않는 것처럼 보인다(PR #312 리뷰 8번). BounceButton이 disabled를 accessibilityState로도 알린다.
+  // 다른 등급을 구매하는 동안에도 전부 비활성화해 눌러도 조용히 무시되는 상태를 피한다.
   const disabled = button.disabled || purchaseBusy;
   return (
     <FloatingCard style={styles.card}>
@@ -396,5 +451,12 @@ function FriendCell({ cell, onPress, styles }: {
 }
 
 function gradeLabel(grade: MileageGrade): string {
-  return grade === 'BRONZE' ? '브론즈' : grade === 'SILVER' ? '실버' : '골드';
+  switch (grade) {
+    case 'BRONZE':
+      return '브론즈';
+    case 'SILVER':
+      return '실버';
+    case 'GOLD':
+      return '골드';
+  }
 }

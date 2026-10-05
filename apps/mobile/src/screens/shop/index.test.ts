@@ -10,14 +10,66 @@ import { fileURLToPath } from 'node:url';
 const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
 const machine = readFileSync(fileURLToPath(new URL('./gacha-machine.tsx', import.meta.url)), 'utf8');
 
-test('PR #312 리뷰 2번: 새로고침이 서버 결과를 보여줬을 때만 대기 중인 구매 시도를 지운다 — 다음 탭은 새 requestId로 시작한다', () => {
-  // 리뷰 라운드 6에서 당겨서 새로고침·탭 포커스 재진입이 같은 규칙을 공유하도록 quietRefresh()로 뽑았다
-  // (refresh()는 이제 그 결과만 기다린다).
+test('GET refresh does not clear unresolved POST pending; only replay success/state-change handling clears storage', () => {
   const quietRefreshFn = screen.slice(screen.indexOf('const quietRefresh ='), screen.indexOf('useFocusEffect('));
-  assert.match(quietRefreshFn, /const refreshed = await shop\.refreshQuietly\(\);/);
-  assert.match(quietRefreshFn, /if \(refreshed\) setPending\(undefined\);/);
+  assert.match(screen, /const refreshGachaSnapshot = shop\.refreshQuietly;/);
+  assert.match(quietRefreshFn, /refreshGachaSnapshot\(\)/);
+  assert.match(quietRefreshFn, /\[refreshGachaSnapshot\]/);
+  assert.doesNotMatch(quietRefreshFn, /shop\.refreshQuietly\(\)|\[shop\]/);
+  assert.doesNotMatch(quietRefreshFn, /setPending\(undefined\)|clearPendingPurchase/);
   const refreshFn = screen.slice(screen.indexOf('async function refresh()'), screen.indexOf('async function buy('));
   assert.match(refreshFn, /await quietRefresh\(\);/);
+});
+test('focused quiet refresh executes the actual source callback wiring and settles with fresh shop aggregates', () => {
+  const refreshSource = screen.match(/const refreshGachaSnapshot = shop\.refreshQuietly;/)?.[0];
+  const quietSource = screen.match(/const quietRefresh = useCallback\(async \(\) => refreshGachaSnapshot\(\), \[refreshGachaSnapshot\]\);/)?.[0];
+  const focusSource = screen.match(/useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); \}, \[quietRefresh\]\)\);/)?.[0];
+  assert.ok(refreshSource);
+  assert.ok(quietSource);
+  assert.ok(focusSource);
+
+  let aggregateGetCount = 0;
+  const stableRefreshQuietly = () => { aggregateGetCount += 1; return Promise.resolve(true); };
+  let hookIndex = 0;
+  let focusCallback: (() => void) | undefined;
+  const hookSlots: { deps: readonly unknown[]; value: unknown }[] = [];
+  const useCallback = <T extends (...args: never[]) => unknown>(callback: T, deps: readonly unknown[]): T => {
+    const index = hookIndex;
+    hookIndex += 1;
+    const previous = hookSlots[index];
+    if (previous && deps.length === previous.deps.length && deps.every((dep, depIndex) => Object.is(dep, previous.deps[depIndex]))) return previous.value as T;
+    hookSlots[index] = { deps, value: callback };
+    return callback;
+  };
+  const useFocusEffect = (callback: () => void) => { focusCallback = callback; };
+  let previousFocusedCallback: (() => void) | undefined;
+  const renderWhileFocused = () => {
+    hookIndex = 0;
+    const shop = { refreshQuietly: stableRefreshQuietly };
+    let refreshGachaSnapshot!: typeof stableRefreshQuietly;
+    let quietRefresh!: () => Promise<boolean>;
+    eval(refreshSource.replace('const refreshGachaSnapshot =', 'refreshGachaSnapshot ='));
+    eval(quietSource.replace('const quietRefresh =', 'quietRefresh ='));
+    eval(focusSource);
+    void useCallback;
+    void useFocusEffect;
+    void shop;
+    void refreshGachaSnapshot;
+    void quietRefresh;
+    if (focusCallback && previousFocusedCallback !== focusCallback) {
+      previousFocusedCallback = focusCallback;
+      focusCallback();
+    }
+  };
+
+  renderWhileFocused();
+  renderWhileFocused();
+  renderWhileFocused();
+  assert.equal(aggregateGetCount, 1, 'actual source callback identity must settle after one focused GET despite fresh shop objects');
+
+  previousFocusedCallback = undefined;
+  renderWhileFocused();
+  assert.equal(aggregateGetCount, 2, 'a later focus entry refreshes exactly once');
 });
 
 test('PR #312 리뷰 라운드 6: 상점 탭이 다시 포커스를 받을 때마다 조용히 새로고침한다 — 다른 화면에서 번 마일리지가 돌아왔을 때 옛 잔액으로 남지 않는다', () => {
@@ -25,6 +77,46 @@ test('PR #312 리뷰 라운드 6: 상점 탭이 다시 포커스를 받을 때�
   // 때까지는 처음 불러온 잔액이 그대로 보였다. use-shop-avatar-art.ts의 useFocusEffect와 같은 모양.
   assert.match(screen, /import \{ useFocusEffect, useRouter \} from 'expo-router';/);
   assert.match(screen, /useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); \}, \[quietRefresh\]\)\);/);
+});
+test('buy source body fails closed when pending read is unavailable before any write or POST', async () => {
+  const buyFn = screen.slice(screen.indexOf('async function buy('), screen.indexOf('async function chooseAvatar('));
+  const readLine = buyFn.match(/const storedAttempt = await readPendingPurchase\(pendingScope\);/)?.[0];
+  const attemptLine = buyFn.match(/const attempt = storedAttempt \?\? resumeOrStartPurchase\(pending, grade\.grade\);/)?.[0];
+  const writeLine = buyFn.match(/if \(!storedAttempt\) await writePendingPurchase\(pendingScope, \{ grade: attempt\.grade, requestId: attempt\.requestId, expectedRemaining: grade\.remaining \}\);/)?.[0];
+  const rerollLine = buyFn.match(/const result = await api\.reroll\(\{ grade: attempt\.grade, requestId: attempt\.requestId, expectedRemaining \}\);/)?.[0];
+  assert.ok(readLine);
+  assert.ok(attemptLine);
+  assert.ok(writeLine);
+  assert.ok(rerollLine);
+
+  const executeBuyCore = new Function(
+    'readPendingPurchase', 'writePendingPurchase', 'resumeOrStartPurchase', 'api', 'pendingScope', 'pending', 'grade',
+    `return (async () => { ${readLine} ${attemptLine} ${writeLine} const expectedRemaining = storedAttempt?.expectedRemaining ?? grade.remaining; ${rerollLine} return result; })();`,
+  ) as (
+    readPendingPurchase: () => Promise<unknown>,
+    writePendingPurchase: () => Promise<void>,
+    resumeOrStartPurchase: () => unknown,
+    api: { reroll: () => Promise<unknown> },
+    pendingScope: unknown,
+    pending: unknown,
+    grade: { grade: string; remaining: number },
+  ) => Promise<unknown>;
+  let writes = 0;
+  let posts = 0;
+  await assert.rejects(
+    () => executeBuyCore(
+      async () => { throw new Error('storage unavailable'); },
+      async () => { writes += 1; },
+      () => ({ grade: 'GOLD', requestId: 'new-request' }),
+      { reroll: async () => { posts += 1; return {}; } },
+      {},
+      undefined,
+      { grade: 'GOLD', remaining: 3 },
+    ),
+    /storage unavailable/,
+  );
+  assert.equal(writes, 0, 'buy must not overwrite unresolved pending when storage state is unknown');
+  assert.equal(posts, 0, 'buy must not POST a fresh request when storage state is unknown');
 });
 
 test('PR #312 리뷰 4번: SHOP_STATE_CHANGED는 새로고침이 끝날 때까지 구매를 막고(실패하면 안내만 다르게), 성공 문구를 재사용한다', () => {
@@ -160,4 +252,39 @@ test('#333: 서버가 시연 보너스를 보낸 때만 잔액 아래에 "시연
   assert.match(card, /\{bonusLabel \? <Text style=\{styles\.rulesText\}>\{bonusLabel\}<\/Text> : null\}/);
   // 화면은 잔액을 다시 계산하지 않는다: 표시도 구매 가능 판정도 snapshot.mileage.balance 하나만 쓴다.
   assert.doesNotMatch(card, /showcaseBonus\s*[-+]|[-+]\s*snapshot\.mileage\.showcaseBonus/);
+});
+
+
+test('shop recovery is scoped by stable account/API/app variant and does not depend on per-render shop objects or busy state', () => {
+  assert.match(screen, /accountId: string;/);
+  assert.match(screen, /pendingPurchaseScope\(\{ accountId, apiUrl, appVariant: getAppPackageId\(\) \?\? 'app' \}\)/);
+  const recoveryEffect = screen.slice(screen.indexOf('const lease = enterShopPurchaseScope(pendingScope)'), screen.indexOf('async function refresh()'));
+  assert.match(recoveryEffect, /scope: pendingScope/);
+  assert.match(recoveryEffect, /reroll: \(input\) => apiRef\.current\.reroll\(input\)/);
+  assert.doesNotMatch(recoveryEffect, /findGrade|rerollButtonState|gachaAffordability/);
+  assert.match(recoveryEffect, /\.finally\(\(\) => \{ leaveShopPurchaseScope\(lease\); \}\)/);
+  assert.match(recoveryEffect, /subscribeShopPurchaseScope\(pendingScope/);
+  assert.match(recoveryEffect, /return \(\) => \{ mounted = false; recoveryGeneration\.current \+= 1; \};/);
+  assert.doesNotMatch(recoveryEffect, /busyGrade|shop,|reveal,|return \(\) =>[\s\S]*leaveShopPurchaseScope/);
+  const buyFn = screen.slice(screen.indexOf('async function buy('), screen.indexOf('async function chooseAvatar('));
+  assert.match(buyFn, /const lease = enterShopPurchaseScope\(pendingScope\)/);
+  assert.match(buyFn, /try \{[\s\S]*const storedAttempt = await readPendingPurchase\(pendingScope\)/);
+  assert.match(buyFn, /if \(!storedAttempt\) await writePendingPurchase\(pendingScope/);
+  assert.match(buyFn, /finally \{[\s\S]*leaveShopPurchaseScope\(lease\)/);
+});
+
+
+test('failed purchase exposes a recovery action independently of the disabled new-purchase control', () => {
+  assert.match(screen, /onRecoverPending=\{pending \? requestRecovery : undefined\}/);
+  assert.match(machine, /onRecoverPending && displayPhase === 'detail' \? <Control[^>]*disabled=\{busy \|\| refreshing\}[^>]*onPress=\{onRecoverPending\}/);
+  const definition = screen.match(/const requestRecovery = useCallback\((\(\) => \{[^}]*\}), \[\]\);/)?.[1];
+  assert.ok(definition);
+  const recoveryStarted = { current: true };
+  let wake = 7;
+  const retry = new Function('recoveryStarted', 'setRecoveryWake', `return (${definition});`)(
+    recoveryStarted, (update: (value: number) => number) => { wake = update(wake); },
+  ) as () => void;
+  retry();
+  assert.equal(recoveryStarted.current, false, 'the old one-shot mount latch must reopen');
+  assert.equal(wake, 8, 'the mounted recovery effect is scheduled without a new purchase');
 });

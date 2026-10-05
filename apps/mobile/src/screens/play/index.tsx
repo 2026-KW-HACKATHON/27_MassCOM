@@ -10,6 +10,7 @@ import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createPlayApiClient, playErrorMessage, type PlayFinish, type PlaySnapshot } from '@/play/play-api';
 import { createPlayRequests } from '@/play/play-requests';
 import { createShopApiClient } from '@/shop/shop-api';
+import { equippedClothingArt, type EquippedClothingArt } from '@/shop/wardrobe';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { BounceButton } from '@/ui/bounce-button';
@@ -58,6 +59,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
   const [snapshot, setSnapshot] = useState<PlaySnapshot>();
   const [art, setArt] = useState<OwnedArt[]>([]);
   const [avatar, setAvatar] = useState<string | null>(null);
+  const [clothing, setClothing] = useState<EquippedClothingArt | null>(null);
   const [artLoaded, setArtLoaded] = useState(false);
   const [avatarLoaded, setAvatarLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -83,7 +85,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     if (signal.aborted) return;
     if (play.status === 'fulfilled') setSnapshot(play.value);
     else { setLoadError(playErrorMessage(play.reason)); setLoadNeedsConsent(needsConsentRecheck(play.reason)); }
-    if (shop.status === 'fulfilled') { setAvatar(shop.value.avatar); setAvatarLoaded(true); }
+    if (shop.status === 'fulfilled') { setAvatar(shop.value.avatar); setClothing(equippedClothingArt(shop.value)); setAvatarLoaded(true); }
     if (collection.status === 'fulfilled') { setArt(ownedGameArt(collection.value)); setArtLoaded(true); }
     setLoading(false);
   }, [playApi, shopApi, commerceApi]);
@@ -148,7 +150,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     <Text style={[styles.activeHeaderTitle, { color: palette.label }]}>놀이 마당</Text>
   </View> : <BackHeader title="놀이 마당" />;
   return <SkyBackdrop><SkyScrollView ref={scrollRef} header={header} contentContainerStyle={[styles.content, { paddingBottom: 44 + insets.bottom }]}>
-    {run ? <ActiveSession key={run.id} run={run} art={art} avatar={avatar} equipment={experience.snapshot?.profile} previouslyEarned={snapshot?.achievements?.some(entry => entry.id === gameSkills[run.kind].id && entry.achieved)} previousBest={run.rulesVersion === 2 ? record?.version2BestScore : record?.bestScore}
+    {run ? <ActiveSession key={run.id} run={run} art={art} avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} previouslyEarned={snapshot?.achievements?.some(entry => entry.id === gameSkills[run.kind].id && entry.achieved)} previousBest={run.rulesVersion === 2 ? record?.version2BestScore : record?.bestScore}
       onFinish={(issued, actions: readonly GameAction[], signal) => playApi.finish(issued, actions, signal)}
       onResult={applyResult} onRetry={() => { setRun(undefined); void start(run.kind); }}
       onExit={exitToHub} /> : selection ? <>
@@ -157,7 +159,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
         <Text style={[styles.prepTitle, { color: palette.label }]}>{gameCopy[selection].title}</Text>
         <Text style={[styles.rule, { color: palette.secondaryLabel }]}>{gameCopy[selection].rule}</Text>
       </View>
-      <View style={styles.prepCompanion}><Companion avatar={avatar} equipment={experience.snapshot?.profile} /><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>{avatar ? '선택한 동행과 함께' : avatarLoaded ? '동행은 상점에서 고를 수 있어요' : '동행 정보를 확인하지 못했어요'}{record ? ` · ${playRecordLabel(record)}` : ''}</Text></View>
+      <View style={styles.prepCompanion}><Companion avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} /><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>{avatar ? '선택한 동행과 함께' : avatarLoaded ? '동행은 상점에서 고를 수 있어요' : '동행 정보를 확인하지 못했어요'}{record ? ` · ${playRecordLabel(record)}` : ''}</Text></View>
       <View style={[styles.skillPreview, { backgroundColor: palette.surface, borderColor: gameCopy[selection].color }]}>
         <View style={styles.rewardArt}><BadgeArt id={gameSkills[selection].id} size={72} /><CosmeticArt id={skillRewardArt[selection]} size={88} /></View><Text style={[styles.unlockTitle, { color: palette.label }]}>{skillCopy[selection].badge} 배지</Text>
         <Text style={[styles.rule, { color: palette.secondaryLabel }]}>{skillCopy[selection].goal}</Text>
@@ -172,7 +174,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
       <BounceButton label="다른 게임" variant="secondary" onPress={() => setSelection(undefined)} />
     </> : <>
       <ImageBackground source={require('../../../assets/images/play/room-daylight.png')} resizeMode="cover" style={styles.hero} imageStyle={styles.heroImage}>
-        <View style={styles.heroShade}><Companion avatar={avatar} equipment={experience.snapshot?.profile} /><Text style={styles.heroTitle}>오늘은 뭘 해볼까요?</Text></View>
+        <View style={styles.heroShade}><Companion avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} /><Text style={styles.heroTitle}>오늘은 뭘 해볼까요?</Text></View>
       </ImageBackground>
       {loading && !snapshot ? <StateScene kind="loading" title="놀이 기록을 불러오는 중" /> : null}
       {loadError ? <View style={styles.loadIssue}><Text style={[styles.error, { color: palette.error }]}>{loadError}</Text><BounceButton label={loadNeedsConsent ? consentRecheckLabel : '기록 다시 불러오기'} variant="secondary" onPress={loadNeedsConsent ? recheckConsent : () => void load()} /></View> : null}

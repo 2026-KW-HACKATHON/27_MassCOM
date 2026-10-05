@@ -2,7 +2,7 @@ import { getAppPackageId } from '@/config/app-identity';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import {
@@ -142,6 +142,14 @@ export function ClaimRedeemScreen({
     { claimSlotId: string; status: 'ready'; goals: readonly VisitGoal[] } | { claimSlotId: string; status: 'error' }
   >();
   const [campaignGoalsRetry, setCampaignGoalsRetry] = useState(0);
+
+  useFocusEffect(useCallback(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      router.replace('/');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [router]));
 
   // 도감에서 상자를 열고 돌아오면 현재 READY 상태를 다시 읽어 다음 행동을 갱신한다.
   useFocusEffect(useCallback(() => {
@@ -508,6 +516,14 @@ export function ClaimRedeemScreen({
         keyboardShouldPersistTaps="handled"
         header={
           <AppHeader title="방문 인증" subtitle="가게에서 도장을 받아요">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="홈으로"
+              onPress={() => router.replace('/')}
+              style={[styles.button, { alignSelf: 'flex-start', backgroundColor: palette.primaryContainer }]}
+            >
+              <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>홈으로</Text>
+            </Pressable>
             <View style={styles.hero}>
               {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
               <Mascot interactive pose="stamp" size={heroMascotSize(fontScale, 112)} />
@@ -678,6 +694,10 @@ export function ClaimRedeemScreen({
               {primaryAction.kind === 'recommendation' ? <Text style={styles.successBody}>{primaryAction.detail}</Text> : null}
             </View>
             <View style={styles.secondaryLinks}>
+              <Pressable accessibilityRole="button" accessibilityLabel="홈으로" onPress={() => router.replace('/')} style={styles.textLink}>
+                <Text style={styles.textLinkText}>홈으로</Text>
+              </Pressable>
+              <Text style={styles.linkSeparator}>·</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="도감 보기" onPress={() => router.navigate('/collection')} style={styles.textLink}>
                 <Text style={styles.textLinkText}>도감</Text>
               </Pressable>
@@ -732,7 +752,7 @@ export function ClaimRedeemScreen({
           router.navigate(focusRewards ? { pathname: '/collection', params: { focus: 'rewards' } } : '/collection');
         }}
       />
-      {gachaStarted ? <ShopScreen apiUrl={apiUrl} credential={credential} onSessionInvalid={onSessionInvalid} gachaOnly gachaVisible={gachaOpen} onGachaClose={() => setGachaOpen(false)} /> : null}
+      {gachaStarted ? <ShopScreen apiUrl={apiUrl} accountId={accountId} credential={credential} onSessionInvalid={onSessionInvalid} gachaOnly gachaVisible={gachaOpen} onGachaClose={() => setGachaOpen(false)} /> : null}
     </>
   );
 }

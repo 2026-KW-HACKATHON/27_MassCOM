@@ -29,11 +29,23 @@ function callBodies(source: string, name: string): string[] {
 }
 
 test('the map route wears the standard sky header with the illustration disclosure, once', () => {
-  assert.match(route, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\} \/>/);
-  assert.match(screen, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\} \/>/);
-  // AppHeader wraps its subtitle at large text, so an extra disclosure below duplicates it.
-  assert.equal((screen.match(/TOWN_MAP_DISCLOSURE/g) ?? []).length, 2, 'import and one rendered occurrence');
+  assert.match(route, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\}>/);
+  assert.match(screen, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\}>/);
+  // AppHeader owns large-text wrapping; the map does not render a duplicate disclosure below it.
+  assert.equal((screen.match(/TOWN_MAP_DISCLOSURE/g) ?? []).length, 3, 'import and two header occurrences');
   assert.doesNotMatch(screen, /styles\.disclosure/);
+
+});
+
+test('the standalone hidden map tab has a visible home escape, while meal selection has a visible back escape', () => {
+  assert.match(route, /accessibilityLabel="홈으로"[\s\S]*?onPress=\{\(\) => router\.replace\('\/'\)\}[\s\S]*?>홈으로</);
+  assert.match(screen, /<AppHeader title=\{TOWN_MAP_TITLE\} subtitle=\{TOWN_MAP_DISCLOSURE\}>[\s\S]*?accessibilityLabel="홈으로"[\s\S]*?onPress=\{\(\) => router\.replace\('\/'\)\}[\s\S]*?>홈으로</);
+  const selectionHeader = screen.slice(screen.indexOf('? ('), screen.indexOf(': (', screen.indexOf('? (')));
+  assert.match(selectionHeader, /<AppHeader title=\{selectionMode\.title\} subtitle=\{TOWN_MAP_DISCLOSURE\}>/);
+  assert.match(selectionHeader, /accessibilityLabel="뒤로"/);
+  assert.match(selectionHeader, /onPress=\{leaveRoute\}/);
+  assert.match(selectionHeader, />뒤로</);
+  assert.doesNotMatch(selectionHeader, /홈으로/);
 });
 
 test('the map screen sits on the sky like the other tabs: scrim, header in the scroll content, tab bar clearance', () => {
@@ -101,7 +113,7 @@ test('tapping a pin opens the sheet and the pin is scrolled clear of it', () => 
   assert.match(reveal, /coverHeight: sheetBottom \+ sheetMeasure\.height/);
   // The native ScrollView clamps scrollTo against its live content size; a JS copy of that size can lag one layout behind.
   assert.doesNotMatch(reveal, /contentHeight:/);
-  assert.match(screen, /setSheetMeasure\(undefined\);\n  \}, \[selectedId, setSheetMeasure\]\);/);
+  assert.match(screen, /setSheetMeasure\(undefined\);\r?\n  \}, \[selectedId, setSheetMeasure\]\);/);
   assert.match(reveal, /requestAnimationFrame\(/);
   assert.doesNotMatch(screen, /onContentSizeChange=/);
   assert.match(screen, /onMeasure=\{\(height\) => setSheetMeasure\(\{ id: selected\.merchantId, height \}\)\}/);
@@ -110,13 +122,14 @@ test('tapping a pin opens the sheet and the pin is scrolled clear of it', () => 
   assert.doesNotMatch(screen, /SHEET_ESTIMATE/);
 });
 
-test('Android back closes the sheet only while the map is the focused screen, and never from a plain effect', () => {
-  assert.match(screen, /import \{ useFocusEffect \} from 'expo-router'/);
+test('Android back closes the sheet first, then exits the standalone or meal-picker route, and never from a plain effect', () => {
+  assert.match(screen, /import \{ useFocusEffect, useRouter \} from 'expo-router'/);
+  assert.match(screen, /const leaveRoute = useCallback\(\(\) => \{\s*if \(router\.canGoBack\(\)\) router\.back\(\);\s*else router\.replace\('\/'\);\s*\}, \[router\]\);/);
   const focusEffects = callBodies(screen, 'useFocusEffect');
   const back = focusEffects.filter((effect) => effect.includes("BackHandler.addEventListener('hardwareBackPress'"));
   assert.equal(back.length, 1, 'exactly one registration, inside useFocusEffect');
   assert.match(back[0]!, /subscription\.remove\(\)/);
-  assert.match(back[0]!, /if \(!sheetOpen\) return;/);
+  assert.match(back[0]!, /if \(sheetOpen\) closeSheet\(\);\s*else if \(standaloneRoute\) router\.replace\('\/'\);\s*else leaveRoute\(\);\s*return true;/);
   assert.equal((screen.match(/BackHandler\.addEventListener/g) ?? []).length, 1);
   for (const effect of callBodies(screen, 'useEffect')) assert.doesNotMatch(effect, /BackHandler/, 'a plain effect stays registered on other tabs');
 });

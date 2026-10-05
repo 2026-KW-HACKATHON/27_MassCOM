@@ -36,6 +36,7 @@ export type AuthControllerDependencies = {
   authApi: Pick<AuthApiClient, 'signIn' | 'logout' | 'startGuestTrial'>;
   google: Pick<GoogleSignInAdapter, 'signIn' | 'signOut'>;
   clearWalletSession: () => Promise<void>;
+  beforeGuestTrialRestart?: (session: StoredAuthSessionV1) => Promise<void>;
   publish: (state: AuthState) => void;
 };
 
@@ -175,6 +176,9 @@ export function createAuthController(dependencies: AuthControllerDependencies) {
       const sessionToken = state.status === 'signedIn' ? state.session.sessionToken : undefined;
       return serialize(async () => {
         if (state.status !== 'signedIn' || !state.session.guest || state.session.sessionToken !== sessionToken) return;
+        const restartingSession = state.session;
+        await dependencies.beforeGuestTrialRestart?.(restartingSession);
+        if (state.status !== 'signedIn' || state.session.sessionToken !== restartingSession.sessionToken) return;
         await performLogout();
         setState({ status: 'restoring' });
         await performGuestSignIn();

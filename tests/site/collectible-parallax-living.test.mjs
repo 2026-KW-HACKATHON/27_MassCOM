@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { installMiniDom, settle } from '../fixtures/mini-dom.mjs';
 import {
   strokeAlpha, parallaxOffset, livingPhaseAt, livingFrameAt, livingSpriteCount, livingSpriteGrid, livingBoundingBox,
@@ -288,7 +289,7 @@ test('(PR #293 P2 c) applyDraftEdits는 v1 시절 스티커(align·layouts 없�
 // 소스 파일은 건드리지 않는다).
 import { execFileSync } from 'node:child_process';
 function runRealServerValidation(project, publish = false) {
-  const out = execFileSync('node', ['--experimental-transform-types', new URL('../fixtures/run-collectible-rules.mjs', import.meta.url).pathname], {
+  const out = execFileSync(process.execPath, ['--experimental-transform-types', fileURLToPath(new URL('../fixtures/run-collectible-rules.mjs', import.meta.url))], {
     input: JSON.stringify({ project, publish }), encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
   });
   return JSON.parse(out);

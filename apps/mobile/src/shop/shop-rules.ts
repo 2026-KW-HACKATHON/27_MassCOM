@@ -1,4 +1,4 @@
-import type { MileageGrade, ShopGradeView } from './shop-api';
+import type { MileageGrade, ShopGradeView, ShopSnapshot } from './shop-api';
 
 // 화면이 쓰는 순수 표시 규칙. 가격·카탈로그·확률은 서버 응답(GET /shop)을 그대로 읽고 여기서 다시 적지 않는다
 // (design-298.md: "앱이 하드코딩하지 않도록"). 이 파일은 그 응답을 사람이 읽을 문구·버튼 상태로만 바꾼다.
@@ -12,6 +12,19 @@ export function rerollDisclosure(grade: ShopGradeView): string {
   return grade.remaining > 0
     ? `남은 ${grade.remaining}종 중 하나를 같은 확률(1/${grade.remaining})로 받아요.`
     : '이 등급의 친구를 모두 모았어요.';
+}
+
+export function drawRewardDisclosure(snapshot: Pick<ShopSnapshot, 'drawRewards' | 'clothing'>): string {
+  const bonus = snapshot.drawRewards.bonusMileage;
+  const clothingOverall = percent(snapshot.clothing.draw.probability, 0);
+  const clothingEach = snapshot.clothing.items.length > 0
+    ? `카탈로그 ${snapshot.clothing.items.length}종 각 약 ${percent(snapshot.clothing.draw.probability / snapshot.clothing.items.length, 2)}`
+    : '카탈로그가 준비되면 종류별 확률도 보여드릴게요';
+  return `추가 마일리지 ${bonus.min}-${bonus.max}P는 각 약 ${percent(bonus.probabilityPerAmount, 2)} 확률, 옷은 전체 ${clothingOverall} 확률(${clothingEach})이에요.`;
+}
+
+function percent(probability: number, digits: number): string {
+  return `${(probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: digits, minimumFractionDigits: digits })}%`;
 }
 
 export type RerollButtonState = { disabled: boolean; reason?: string };

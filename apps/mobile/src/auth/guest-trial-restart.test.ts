@@ -128,6 +128,84 @@ test('concurrent sign-in waits for the serialized trial restart and cannot repla
   assert.deepEqual(f.stored(), fresh);
 });
 
+
+test('overlapping trial restarts run the pre-restart push cleanup only for the captured old session', async () => {
+  const calls: string[] = [];
+  let stored: StoredAuthSessionV1 | undefined = previous;
+  let releaseCleanup!: () => void;
+  const cleanupGate = new Promise<void>((resolve) => { releaseCleanup = resolve; });
+  const controller = createAuthController({
+    sessionStore: {
+      async load() { return stored; },
+      async clear() { calls.push('clear'); stored = undefined; },
+      async save(value) { calls.push(`save:${value.sessionToken}`); stored = value; },
+    },
+    authApi: {
+      async signIn() { throw new Error('Google sign-in must not run'); },
+      async logout(token) { calls.push(`logout:${token}`); },
+      async startGuestTrial() { calls.push('start'); return fresh; },
+    },
+    google: {
+      async signIn() { throw new Error('Google sign-in must not run'); },
+      async signOut() { calls.push('google.signOut'); },
+    },
+    async clearWalletSession() { calls.push('wallet.clear'); },
+    async beforeGuestTrialRestart(session) {
+      calls.push(`push:${session.sessionToken}:${session.accountId}`);
+      await cleanupGate;
+    },
+    publish() {},
+  });
+
+  await controller.restore();
+  calls.length = 0;
+  const first = controller.restartGuestTrial();
+  const second = controller.restartGuestTrial();
+  await Promise.resolve();
+  assert.deepEqual(calls, ['push:old-trial:old-account']);
+  releaseCleanup();
+  await Promise.all([first, second]);
+
+  assert.equal(calls.filter((call) => call === 'start').length, 1);
+  assert.equal(calls.some((call) => call.startsWith('push:new-trial')), false);
+  assert.deepEqual(stored, fresh);
+});
+
+test('trial restart stops before logout or replacement when pre-restart push cleanup fails', async () => {
+  const calls: string[] = [];
+  let stored: StoredAuthSessionV1 | undefined = previous;
+  const controller = createAuthController({
+    sessionStore: {
+      async load() { return stored; },
+      async clear() { calls.push('clear'); stored = undefined; },
+      async save(value) { calls.push(`save:${value.sessionToken}`); stored = value; },
+    },
+    authApi: {
+      async signIn() { throw new Error('Google sign-in must not run'); },
+      async logout(token) { calls.push(`logout:${token}`); },
+      async startGuestTrial() { calls.push('start'); return fresh; },
+    },
+    google: {
+      async signIn() { throw new Error('Google sign-in must not run'); },
+      async signOut() { calls.push('google.signOut'); },
+    },
+    async clearWalletSession() { calls.push('wallet.clear'); },
+    async beforeGuestTrialRestart(session) {
+      calls.push(`push:${session.sessionToken}:${session.accountId}`);
+      throw new Error('push cleanup unavailable');
+    },
+    publish() {},
+  });
+
+  await controller.restore();
+  calls.length = 0;
+  await assert.rejects(controller.restartGuestTrial(), /push cleanup unavailable/);
+
+  assert.deepEqual(calls, ['push:old-trial:old-account']);
+  assert.deepEqual(stored, previous);
+  assert.deepEqual(controller.getState(), { status: 'signedIn', session: previous, credential: { kind: 'bearer', sessionToken: 'old-trial' } });
+});
+
 test('overlapping restart requests cannot discard the newly issued trial', async () => {
   const f = fixture();
   await f.controller.restore();

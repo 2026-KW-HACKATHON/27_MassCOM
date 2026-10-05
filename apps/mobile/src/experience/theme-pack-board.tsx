@@ -2,6 +2,7 @@ import { Image, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import { CosmeticArt, PackArt } from '@/illustration/artwork';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
+import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { StudioDecor } from '@/studio/studio-scene';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
@@ -26,14 +27,14 @@ export function ThemePackBoard({ snapshot }: { snapshot: ExperienceSnapshot }) {
 }
 
 /** A local reference room: no visits, collectible records or equipment are created. */
-export function ThemeOutfitPreview({ avatar, profile }: { avatar: string | null; profile?: DisplayExperienceProfile }) {
+export function ThemeOutfitPreview({ avatar, profile, clothing }: { avatar: string | null; profile?: DisplayExperienceProfile; clothing?: EquippedClothingArt | null }) {
   return <View style={{ width: 264, maxWidth: '100%', height: 200, overflow: 'hidden', borderRadius: 14 }}>
     <Image source={require('../../assets/images/play/room-daylight.png')} resizeMode="cover" accessible={false}
       style={{ position: 'absolute', width: '100%', height: '100%' }} />
     {profile?.cosmetics.decor ? <StudioDecor id={profile.cosmetics.decor} width={264} height={200} /> : null}
     <View pointerEvents="none" style={{ position: 'absolute', left: 124, bottom: 30, width: 72, height: 10, borderRadius: 36, backgroundColor: '#584B3D24' }} />
     <View style={{ position: 'absolute', left: 96, bottom: 34, width: 128, height: 128 }}>
-      <AvatarPortrait avatar={avatar} profile={profile} size={128} reaction="idle" animated={false} />
+      <AvatarPortrait avatar={avatar} profile={profile} clothing={clothing} size={128} reaction="idle" animated={false} />
     </View>
   </View>;
 }

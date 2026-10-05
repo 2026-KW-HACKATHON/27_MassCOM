@@ -397,6 +397,15 @@ async function pseudonymizeAccount(
   );
   // 친구 데이터는 가명으로 남기지 않고 지운다: 이 계정의 코드·별명·코드 입력 실패 기록과 양쪽 친구 관계·차단.
   // 친구 추가는 같은 계정 잠금을 잡으므로(assertAllActive) 이 거래와 직렬화되어 삭제 뒤에 관계가 생기지 않는다.
+  // 우편 상대방의 복사본과 발송 대기도 함께 지운다. 본문·정확한 식사 시각·토큰을 삭제 계정에 남기지 않는다.
+  await client.query('DELETE FROM social_notification_deliveries WHERE account_id = $1', [accountId]);
+  await client.query(`DELETE FROM notification_outbox WHERE account_id = $1 OR mail_id IN
+    (SELECT id FROM social_mail WHERE sender_account_id = $1 OR receiver_account_id = $1)`, [accountId]);
+  await client.query('DELETE FROM social_mail WHERE sender_account_id = $1 OR receiver_account_id = $1', [accountId]);
+  await client.query('DELETE FROM meal_invitations WHERE sender_account_id = $1 OR receiver_account_id = $1', [accountId]);
+  await client.query('DELETE FROM friendship_gifts WHERE sender_account_id = $1 OR receiver_account_id = $1', [accountId]);
+  await client.query('DELETE FROM push_tokens WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM mileage_credits WHERE account_id = $1', [accountId]);
   await client.query(
     'DELETE FROM friendships WHERE account_low = $1 OR account_high = $1',
     [accountId],
@@ -417,8 +426,10 @@ async function pseudonymizeAccount(
   // account_profile은 FK ON DELETE SET NULL로 account_characters보다 먼저 지워도 대표만 비워지지만,
   // 어차피 계정 자체를 지우는 거래라 순서를 가릴 필요 없이 둘 다 지운다.
   await client.query('DELETE FROM account_profile WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM account_clothing WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM account_characters WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM mileage_spends WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM store_ticket_openings WHERE account_id = $1', [accountId]);
   // 방문 후 가게 특징·바라는 점·의견(Issue #334)도 가명으로 남기지 않고 지운다: 보존 기간이 없고 계정 수명만큼만 둔다.
   // 저장은 같은 계정 잠금(assertActive, postgres/visitor-feedback.ts)을 잡으므로 이 거래와 직렬화되어 삭제 뒤에 행이 생기지 않는다.
   await client.query('DELETE FROM merchant_visitor_feedback WHERE customer_account_id = $1', [accountId]);

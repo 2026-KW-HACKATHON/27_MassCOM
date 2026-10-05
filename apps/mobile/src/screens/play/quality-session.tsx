@@ -21,7 +21,7 @@ type State = ReturnType<typeof getQualityGameState>;
 const currentTime = () => performance.now();
 const background = require('../../../assets/images/play/room-daylight.png');
 
-export function QualityGameSession({ run, art, avatar, equipment, previousBest, previouslyEarned = false, onFinish, onResult, onRetry, onExit }: GameSessionProps) {
+export function QualityGameSession({ run, art, avatar, equipment, clothing, previousBest, previouslyEarned = false, onFinish, onResult, onRetry, onExit }: GameSessionProps) {
   const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
   const motion = useMotionEnabled();
@@ -145,7 +145,7 @@ export function QualityGameSession({ run, art, avatar, equipment, previousBest, 
     <View style={styles.header}><View style={{ flex: 1 }}><Text style={[styles.title, { color: palette.label }]}>{gameCopy[run.kind].title}</Text><Text style={{ color: palette.secondaryLabel }}>{count}/{total} {run.kind === 'stack' ? '층' : run.kind === 'memory' ? '쌍 발견' : run.kind === 'delivery' ? '구간' : '주문 전달'}</Text></View><Text style={[styles.clock, { color: palette.label }]}>{status === 'playing' ? `${Math.ceil((run.durationMs - elapsed) / 1000)}초` : status === 'saving' ? '저장 중' : status === 'error' ? '재전송' : '결과'}</Text></View>
     <View style={[styles.context, { backgroundColor: palette.surface }]}><GameToken value={0} art={sourceArt} size={44} /><View style={{ flex: 1 }}><Text style={[styles.source, { color: palette.label }]}>{source?.merchantName ?? '놀이 마당 · 연습 장면'}</Text><Text style={{ color: palette.secondaryLabel }}>{source ? `${source.name} 그림으로 만든 ${run.kind === 'delivery' ? '배달 꾸러미' : run.kind === 'memory' ? '방문 도감' : '포장 작업대'}` : '가게 메뉴가 아닌 연습용 그림 꾸러미예요'}</Text></View></View>
     {status === 'result' && result ? <View style={styles.result}>
-      <Companion avatar={avatar} equipment={equipment} reaction={result.completed ? 'cheer' : 'concerned'} />
+      <Companion avatar={avatar} equipment={equipment} clothing={clothing} reaction={result.completed ? 'cheer' : 'concerned'} />
       <Text style={[styles.title, { color: palette.label }]}>{result.completed ? run.kind === 'delivery' ? '꾸러미 도착!' : '완성했어요!' : state.failed ? '이번 도전은 여기까지' : '다음에 이어 도전해요'}</Text>
       <Text style={[styles.score, { color: palette.label }]}>{result.score}점</Text>
       <Text style={[styles.summary, { color: palette.secondaryLabel }]}>{endReason}</Text>
@@ -159,7 +159,7 @@ export function QualityGameSession({ run, art, avatar, equipment, previousBest, 
       {reward.owned ? <BounceButton label="획득한 꾸미기 보기" onPress={() => router.push('/studio')} /> : null}
       <BounceButton label="바로 다시 도전" onPress={onRetry} /><BounceButton label="다른 놀이 고르기" variant="secondary" onPress={onExit} />
     </View> : status === 'saving' || status === 'error' ? <View style={styles.result}><Text style={[styles.source, { color: palette.label }]}>{status === 'saving' ? '이번 조작 기록을 저장해요' : playErrorMessage(error)}</Text>{status === 'error' ? <><BounceButton label={needsConsentRecheck(error) ? consentRecheckLabel : '같은 기록 다시 보내기'} onPress={needsConsentRecheck(error) ? recheck : () => void save(log.current)} /><BounceButton label="놀이 마당으로" variant="secondary" onPress={onExit} /></> : null}</View> : <>
-      <View style={styles.feedback}><Companion avatar={avatar} equipment={equipment} reaction={!actions.length ? 'idle' : notice.good ? 'cheer' : 'concerned'} /><Text accessibilityLiveRegion="polite" style={[styles.notice, { color: notice.good ? palette.success : palette.error }]}>{notice.text}</Text></View>
+      <View style={styles.feedback}><Companion avatar={avatar} equipment={equipment} clothing={clothing} reaction={!actions.length ? 'idle' : notice.good ? 'cheer' : 'concerned'} /><Text accessibilityLiveRegion="polite" style={[styles.notice, { color: notice.good ? palette.success : palette.error }]}>{notice.text}</Text></View>
       {state.kind === 'stack' ? <ImageBackground source={background} style={styles.stackScene} imageStyle={styles.backdrop}>
         <View style={styles.tower}>
           <View style={[styles.base, { left: '20%', width: '60%' }]} />
@@ -175,7 +175,7 @@ export function QualityGameSession({ run, art, avatar, equipment, previousBest, 
       {state.kind === 'delivery' && board.kind === 'delivery' ? <View style={{ gap: 10 }}><Text style={{ color: palette.label }}>출발 {source?.merchantName ?? '연습 작업대'} → 동네 수집품 전시대</Text><Text style={{ color: palette.secondaryLabel }}>상자 상태 {state.cargoHealth}/3 · 충돌 {state.collisions}회 · {state.arrived ? '도착' : '운반 중'}</Text><ImageBackground source={require('../../../assets/images/mascot/v2/town-map.png')} style={styles.road} imageStyle={styles.backdrop}>
         <Text style={styles.destination}>동네 전시대 · 도착 지점</Text><View style={styles.lanes}>{[0, 1, 2].map((lane) => <View key={lane} style={styles.lane} />)}</View>
         {board.ticks.filter(tick => tick.at > elapsed).slice(0, 2).map(tick => <View key={tick.at} style={[styles.obstacleRow, { top: Math.max(42, 185 - (tick.at - elapsed) / 2000 * 135) }]}>{[0, 1, 2].map(lane => <View key={lane} style={styles.cell}>{lane === tick.blockedLane ? <View style={styles.crate}><Text style={styles.crateText}>공사</Text></View> : lane === tick.bonusLane ? <GameToken value={0} art={sourceArt} size={30} /> : null}</View>)}</View>)}
-        <View style={[styles.runner, { left: `${state.lane * 33.333}%` }]}><Companion avatar={avatar} equipment={equipment} reaction={notice.good ? 'idle' : 'concerned'} /><View style={styles.cargo}><GameToken value={0} art={sourceArt} size={30} /></View></View>
+        <View style={[styles.runner, { left: `${state.lane * 33.333}%` }]}><Companion avatar={avatar} equipment={equipment} clothing={clothing} reaction={notice.good ? 'idle' : 'concerned'} /><View style={styles.cargo}><GameToken value={0} art={sourceArt} size={30} /></View></View>
       </ImageBackground>{!motion && board.ticks[state.tick] ? <Text style={{ color: palette.label }}>다음 공사: {['왼길', '가운뎃길', '오른길'][board.ticks[state.tick]!.blockedLane]} · 통과까지 {Math.ceil((board.ticks[state.tick]!.at - elapsed) / 1000)}초</Text> : null}<View style={styles.controls}>{['왼길', '가운뎃길', '오른길'].map((label, lane) => <Pressable key={lane} accessibilityRole="button" accessibilityLabel={`${label}로 이동`} accessibilityState={{ selected: state.lane === lane }} onPress={() => { if (lane !== state.lane && log.current.length < 19) accept(lane); }} style={[styles.laneControl, state.lane === lane && styles.selectedLane]}><Text style={{ color: state.lane === lane ? '#FFF' : '#315B50', textAlign: 'center', fontWeight: '800' }}>{label}</Text></Pressable>)}</View></View> : null}
       {state.kind === 'orders' ? <Orders state={state} art={art} onChoose={accept} /> : null}
       <Pressable accessibilityRole="button" onPress={() => { const input = state.kind === 'delivery' ? finalizeDeliveryActions(log.current, state.lane, now(), run.durationMs) : log.current; log.current = input; void save(input); }} style={styles.exit}><Text style={{ color: palette.secondaryLabel }}>이번 도전 마치기</Text></Pressable>

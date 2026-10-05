@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Image, Pressable, RefreshControl, ScrollView, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -33,17 +33,23 @@ type Props = {
   /** Without a credential the map still shows every shop, only without stamps. */
   credential?: AccountCredential;
   onSessionInvalid: () => Promise<void>;
+  selectionMode?: {
+    title: string;
+    actionLabel: string;
+    onSelectMerchant: (merchantId: string) => void;
+  };
 };
 
 // The sheet floats this far above the tab bar's footprint (which includes the raised claim stamp).
 const SHEET_GAP = 8;
 
-export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
+export function TownMapScreen({ apiUrl, credential, onSessionInvalid, selectionMode }: Props) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
   const styles = useTownMapStyles();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { width, height: windowHeight } = useWindowDimensions();
   const clearance = useTabBarClearance();
   const enabled = useMotionEnabled();
@@ -63,6 +69,10 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   // A pin waiting to be scrolled clear of its sheet: `pinY` is its centre inside the scroll content.
   const [reveal, setReveal] = useState<{ id: string; pinY: number }>();
   const [refreshing, setRefreshing] = useState(false);
+  const leaveRoute = useCallback(() => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  }, [router]);
 
   const signedOut = stamps.status === 'signedOut';
   const mapWidth = Math.round(width - uiMetrics.pageInset * 2);
@@ -77,6 +87,7 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   );
   const sheetBottom = clearance - 16 + SHEET_GAP;
   const sheetOpen = selected !== undefined;
+  const standaloneRoute = selectionMode === undefined;
 
   const closeSheet = useCallback(() => {
     returnFocusTo.current = selectedId;
@@ -87,13 +98,17 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
     setSheetMeasure(undefined);
   }, [selectedId, setSheetMeasure]);
 
-  // Android back closes the open sheet before it leaves the tab. Only while the map is the focused screen: on another tab, or
-  // under the shop page that 자세히 보기 opened, the sheet must not swallow the first back press.
+  // Android back closes the open sheet before leaving the hidden tab or meal picker. Only while the map is focused: on another
+  // tab, or under the shop page that 자세히 보기 opened, the sheet must not swallow the first back press.
   useFocusEffect(useCallback(() => {
-    if (!sheetOpen) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { closeSheet(); return true; });
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sheetOpen) closeSheet();
+      else if (standaloneRoute) router.replace('/');
+      else leaveRoute();
+      return true;
+    });
     return () => subscription.remove();
-  }, [sheetOpen, closeSheet]));
+  }, [sheetOpen, standaloneRoute, closeSheet, leaveRoute, router]));
 
   // Closing a card drops screen reader focus with it; it goes back to the pin (or list row) that opened the card.
   useEffect(() => {
@@ -151,7 +166,21 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
     <SkyBackdrop>
       <SkyScrollView
         ref={scroll}
-        header={<AppHeader title={TOWN_MAP_TITLE} subtitle={TOWN_MAP_DISCLOSURE} />}
+        header={selectionMode
+          ? (
+            <AppHeader title={selectionMode.title} subtitle={TOWN_MAP_DISCLOSURE}>
+              <Pressable accessibilityRole="button" accessibilityLabel="뒤로" onPress={leaveRoute} style={styles.retry}>
+                <Text style={styles.retryText}>뒤로</Text>
+              </Pressable>
+            </AppHeader>
+          )
+          : (
+            <AppHeader title={TOWN_MAP_TITLE} subtitle={TOWN_MAP_DISCLOSURE}>
+              <Pressable accessibilityRole="button" accessibilityLabel="홈으로" onPress={() => router.replace('/')} style={styles.retry}>
+                <Text style={styles.retryText}>홈으로</Text>
+              </Pressable>
+            </AppHeader>
+          )}
         onHeaderLayout={(height) => { headerHeight.current = height; }}
         onScroll={(event) => { scrollY.current = event.nativeEvent.contentOffset.y; }}
         contentContainerStyle={[styles.content, { paddingBottom: clearance + (selected ? (sheetMeasure?.height ?? 0) + SHEET_GAP : 0) }]}
@@ -257,6 +286,9 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           bottom={sheetBottom}
           onClose={closeSheet}
           onMeasure={(height) => setSheetMeasure({ id: selected.merchantId, height })}
+          selectionAction={selectionMode
+            ? { label: selectionMode.actionLabel, onSelect: () => selectionMode.onSelectMerchant(selected.merchantId) }
+            : undefined}
         />
       ) : null}
     </SkyBackdrop>

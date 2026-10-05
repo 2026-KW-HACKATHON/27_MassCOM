@@ -14,6 +14,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { BounceButton } from '@/ui/bounce-button';
 import { Companion, FoodToken, GameToken, type OwnedArt } from './play-art';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
+import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { gameCopy, skillCopy, skillRewardArt, rewardState, themeNames, tokenName } from './play-copy';
 
 export type GameSessionProps = {
@@ -21,6 +22,7 @@ export type GameSessionProps = {
   art: readonly OwnedArt[];
   avatar: string | null;
   equipment?: DisplayExperienceProfile;
+  clothing?: EquippedClothingArt | null;
   previousBest: number | undefined;
   previouslyEarned?: boolean;
   onFinish: (run: PlayRun, actions: readonly GameAction[], signal: AbortSignal) => Promise<PlayFinish>;
@@ -43,7 +45,7 @@ function laneAtTick(actions: readonly GameAction[], at: number): number {
   return lane;
 }
 
-export function GameSession({ run, art, avatar, equipment, previousBest, previouslyEarned = false, onFinish, onResult, onRetry, onExit }: GameSessionProps) {
+export function GameSession({ run, art, avatar, equipment, clothing, previousBest, previouslyEarned = false, onFinish, onResult, onRetry, onExit }: GameSessionProps) {
   const router = useRouter();
   const recheckConsent = useConsentRecheck();
   const board = useMemo(() => getGameBoard(run.kind, run.seed), [run.kind, run.seed]);
@@ -232,7 +234,7 @@ export function GameSession({ run, art, avatar, equipment, previousBest, previou
     <View style={styles.progressRow}><Text style={[styles.progressText, { color: palette.secondaryLabel }]}>{progress.label}</Text><View style={[styles.progressTrack, { backgroundColor: palette.separator }]}><View style={[styles.progressFill, { width: progress.width, backgroundColor: copy.color }]} /></View></View>
     {feedback ? <Text accessibilityLiveRegion="polite" style={[styles.feedback, { color: feedback.good ? palette.success : palette.error }]}>{feedback.text}</Text> : null}
     {phase === 'result' && result ? <View style={styles.result}>
-      <Companion avatar={avatar} equipment={equipment} />
+      <Companion avatar={avatar} equipment={equipment} clothing={clothing} />
       <Text style={[styles.resultText, { color: palette.secondaryLabel }]}>{result.skill?.achieved ? '동행이 성취를 축하해요!' : result.completed ? '동행이 다음 도전을 응원해요!' : '동행과 다시 도전해 봐요!'}</Text>
       <Text style={[styles.resultLabel, { color: palette.secondaryLabel }]}>{result.completed ? '완주 기록' : '이번 도전'}</Text>
       <Text style={[styles.score, { color: palette.label }]}>{result.score.toLocaleString()}점</Text>
@@ -262,7 +264,7 @@ export function GameSession({ run, art, avatar, equipment, previousBest, previou
           {shown ? <GameToken value={value} art={art} size={Math.min(58, (width - 100) / 4)} /> : <Text style={styles.cardBack}>✦</Text>}
         </Pressable>;
       })}</View> : null}
-      {board.kind === 'delivery' ? <DeliveryBoard board={board} elapsed={elapsed} crossed={crossed} points={deliveryPoints} lane={lane} avatar={avatar} equipment={equipment} motionEnabled={motionEnabled} compact={compactControls} roadHeight={roadHeight} onLane={changeLane} /> : null}
+      {board.kind === 'delivery' ? <DeliveryBoard board={board} elapsed={elapsed} crossed={crossed} points={deliveryPoints} lane={lane} avatar={avatar} equipment={equipment} clothing={clothing} motionEnabled={motionEnabled} compact={compactControls} roadHeight={roadHeight} onLane={changeLane} /> : null}
       {board.kind === 'orders' ? <OrdersBoard board={board} actions={actions} compact={compactControls} onChoose={(choice) => { const next = add(choice); if (next && next.length === 12) void finishCurrent(next); }} /> : null}
       <Pressable accessibilityRole="button" onPress={() => board.kind === 'delivery' ? finishDelivery(getElapsed()) : void finishCurrent(actionsRef.current)} style={styles.giveUp}><Text style={[styles.giveUpText, { color: palette.secondaryLabel }]}>여기서 끝내기</Text></Pressable>
     </>}
@@ -290,7 +292,7 @@ function StackBoard({ board, actions, elapsed, motionEnabled, onDrop }: { board:
   </View>;
 }
 
-function DeliveryBoard({ board, elapsed, crossed, points, lane, avatar, equipment, motionEnabled, compact, roadHeight, onLane }: { board: Extract<ReturnType<typeof getGameBoard>, { kind: 'delivery' }>; elapsed: number; crossed: number; points: number; lane: number; avatar: string | null; equipment?: DisplayExperienceProfile; motionEnabled: boolean; compact: boolean; roadHeight: number; onLane: (lane: number) => void }) {
+function DeliveryBoard({ board, elapsed, crossed, points, lane, avatar, equipment, clothing, motionEnabled, compact, roadHeight, onLane }: { board: Extract<ReturnType<typeof getGameBoard>, { kind: 'delivery' }>; elapsed: number; crossed: number; points: number; lane: number; avatar: string | null; equipment?: DisplayExperienceProfile; clothing?: EquippedClothingArt | null; motionEnabled: boolean; compact: boolean; roadHeight: number; onLane: (lane: number) => void }) {
   const muted = colorsForScheme(useColorScheme()).secondaryLabel;
   const upcoming = board.ticks.filter((tick) => tick.at > elapsed).slice(0, 2);
   const travel = roadHeight - 60;
@@ -306,7 +308,7 @@ function DeliveryBoard({ board, elapsed, crossed, points, lane, avatar, equipmen
           </View>)}
         </View>;
       })}
-      <View style={styles.runnerRow}>{[0, 1, 2].map((index) => <View key={index} style={styles.roadCell}>{index === lane ? <Companion avatar={avatar} equipment={equipment} /> : null}{index === lane && !avatar ? <Text style={[styles.runnerFallback, compact && styles.runnerFallbackCompact]}>●</Text> : null}</View>)}</View>
+      <View style={styles.runnerRow}>{[0, 1, 2].map((index) => <View key={index} style={styles.roadCell}>{index === lane ? <Companion avatar={avatar} equipment={equipment} clothing={clothing} /> : null}{index === lane && !avatar ? <Text style={[styles.runnerFallback, compact && styles.runnerFallbackCompact]}>●</Text> : null}</View>)}</View>
     </View>
     {!motionEnabled && upcoming[0] ? <Text style={[styles.boardHint, { color: muted }]}>다음 장애물: {laneNames[upcoming[0].blockedLane]} · 선물: {laneNames[upcoming[0].bonusLane]}</Text> : null}
     <View style={styles.laneButtons}>{[0, 1, 2].map((index) => <Pressable key={index} accessibilityRole="button" accessibilityLabel={`${laneNames[index]} 길로 이동`} accessibilityState={{ selected: index === lane }} onPress={() => onLane(index)} style={[styles.laneButton, index === lane && styles.laneSelected]}><Text style={[styles.laneText, index === lane && styles.laneSelectedText]}>{laneNames[index]}</Text></Pressable>)}</View>

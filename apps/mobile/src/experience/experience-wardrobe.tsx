@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native'
 
 import { BadgeArt, CosmeticArt, PackArt } from '@/illustration/artwork';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
+import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { ThemeOutfitPreview } from './theme-pack-board';
@@ -12,10 +13,11 @@ import type { CosmeticSlot, EquipmentPatch, ExperienceProfile, ExperienceSnapsho
 
 const slotNames: Record<CosmeticSlot, string> = { hat: '모자', bag: '가방', prop: '소품', pose: '포즈', decor: '공간 장식' };
 
-export function ExperienceWardrobe({ snapshot, saving, onEquip, onWish, avatar, onPreview }: {
+export function ExperienceWardrobe({ snapshot, saving, onEquip, onWish, avatar, clothing, onPreview }: {
   snapshot: ExperienceSnapshot;
   saving: boolean;
   avatar?: string | null;
+  clothing?: EquippedClothingArt | null;
   onPreview?: (profile: ExperienceProfile | null) => void;
   onEquip: (equipment: EquipmentPatch) => void;
   onWish: (itemId: string | null) => void;
@@ -40,8 +42,8 @@ export function ExperienceWardrobe({ snapshot, saving, onEquip, onWish, avatar, 
   const clear = () => { setPreview(undefined); onPreview?.(null); };
   return <View style={styles.section}>
     <View style={styles.preview}>
-      {previewPack || previewItem?.slot === 'decor' ? <ThemeOutfitPreview avatar={avatar ?? null} profile={previewProfile} />
-        : <AvatarPortrait avatar={avatar ?? null} profile={previewProfile} size={156} reaction="idle" />}
+      {previewPack || previewItem?.slot === 'decor' ? <ThemeOutfitPreview avatar={avatar ?? null} profile={previewProfile} clothing={clothing} />
+        : <AvatarPortrait avatar={avatar ?? null} profile={previewProfile} clothing={clothing} size={156} reaction="idle" />}
       <Text accessibilityLiveRegion="polite" style={styles.optionName}>{previewPack ? `${previewPack.theme} 전체 조합` : previewItem?.name ?? previewBadge?.name ?? '지금 함께하는 동행'}</Text>
       <Text style={styles.intro}>{previewId ? previewPack ? '참고용 미리보기 · 모자·소품·장식을 함께 입혀 봐요' : '미리보기 · 아직 장착을 바꾸지 않았어요' : '그림을 눌러 동행에게 먼저 입혀 보세요'}</Text>
       {previewId ? <View style={styles.options}>

@@ -1,9 +1,12 @@
 import type { View } from 'react-native';
 
+import { getGlobalHapticMode } from '@/sound/ui-sound-state';
+
 // Native extras are imported lazily: an older development client without these modules
 // must still open the collection and claim screens (it just skips haptics / image sharing).
 
 export async function successHaptic(): Promise<void> {
+  if (getGlobalHapticMode() !== 'ALL') return;
   try {
     const Haptics = await import('expo-haptics');
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -13,6 +16,17 @@ export async function successHaptic(): Promise<void> {
 }
 
 export async function lightHaptic(): Promise<void> {
+  if (getGlobalHapticMode() !== 'ALL') return;
+  await impactLight();
+}
+
+export async function drawHaptic(): Promise<void> {
+  const mode = getGlobalHapticMode();
+  if (mode !== 'DRAW_ONLY' && mode !== 'ALL') return;
+  await impactLight();
+}
+
+async function impactLight(): Promise<void> {
   try {
     const Haptics = await import('expo-haptics');
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

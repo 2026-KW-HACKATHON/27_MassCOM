@@ -8,6 +8,21 @@ import { NotificationApiClient } from './api';
 import { getNativeFcmToken, getNotificationDeviceId } from './native';
 import { notificationTarget } from './navigation';
 import { queueMerchantNotificationRole, queueNotificationTarget } from './pending-target';
+import { clearLastNotificationResponseIfCurrent, notificationResponseIdentity } from './response-identity';
+
+type ExpoNotificationsModule = {
+  setNotificationHandler(handler: Record<string, unknown>): void;
+  addPushTokenListener(listener: (token: { data?: unknown }) => void): { remove(): void };
+  addNotificationResponseReceivedListener(listener: (response: { notification: { request: { content: { data?: Record<string, unknown> } } } }) => void): { remove(): void };
+  getLastNotificationResponse?: () => { notification: { request: { content: { data?: Record<string, unknown> } } } } | null;
+  clearLastNotificationResponse?: () => void;
+};
+
+async function loadNotifications(): Promise<ExpoNotificationsModule> {
+  const shared = (globalThis as typeof globalThis & { __masscomSocialPushNotifications?: ExpoNotificationsModule }).__masscomSocialPushNotifications;
+  if (shared) return shared;
+  return import('expo-notifications') as unknown as Promise<ExpoNotificationsModule>;
+}
 
 export function NotificationSessionBridge() {
   const auth = useAuthSession();
@@ -31,7 +46,7 @@ export function NotificationSessionBridge() {
     void register().catch(() => undefined); // Foreground/restart retries a transient registration failure.
     let tokenSubscription: { remove(): void } | undefined;
     let responseSubscription: { remove(): void } | undefined;
-    void import('expo-notifications').then(async Notifications => {
+    void loadNotifications().then(async Notifications => {
       if (!active) return;
       Notifications.setNotificationHandler({ handleNotification: async () => ({
         shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false,
@@ -39,29 +54,31 @@ export function NotificationSessionBridge() {
       tokenSubscription = Notifications.addPushTokenListener(token => {
         if (typeof token.data === 'string') void register(token.data).catch(() => undefined);
       });
-      async function openNotification(data: Record<string, unknown> | undefined) {
-        if (!data) return;
+      async function openNotification(data: Record<string, unknown> | undefined): Promise<boolean> {
+        if (!data) return false;
         const notificationId = data.notificationId;
-        if (typeof notificationId !== 'string' || !active) return;
+        if (typeof notificationId !== 'string' || !active) return false;
         const items = await client.list();
         const item = items.find(candidate => candidate.id === notificationId);
         const target = notificationTarget(item?.targetPath);
-        if (!target || !active) return;
+        if (!target || !active) return false;
         await client.markRead(notificationId);
-        if (!active) return;
+        if (!active) return false;
         if (target === '/merchant') {
           if (getAppPackageId() === 'kr.masscom.wolgye.demo') queueMerchantNotificationRole(currentAccountId);
           else await Linking.openURL('https://www.masscom.kr/merchant/');
         }
         else queueNotificationTarget(currentAccountId, target);
+        return true;
       }
       responseSubscription = Notifications.addNotificationResponseReceivedListener(response => {
         void openNotification(response.notification.request.content.data).catch(() => undefined);
       });
-      const last = await Notifications.getLastNotificationResponseAsync();
-      if (last && active) {
-        await Notifications.clearLastNotificationResponseAsync();
-        void openNotification(last.notification.request.content.data).catch(() => undefined);
+      const last = typeof Notifications.getLastNotificationResponse === 'function' ? Notifications.getLastNotificationResponse() : null;
+      const lastIdentity = notificationResponseIdentity(last, 'notification');
+      if (last && lastIdentity && active) {
+        const handled = await openNotification(last.notification.request.content.data).catch(() => false);
+        if (handled && active) clearLastNotificationResponseIfCurrent(Notifications, lastIdentity);
       }
     }).catch(() => undefined);
     return () => { active = false; tokenSubscription?.remove(); responseSubscription?.remove(); };

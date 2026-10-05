@@ -5,6 +5,7 @@ import { captureViewAsPng, exportImageFile } from '@/gamification/native-effects
 import { useMotionEnabled } from '@/motion/use-motion';
 import { studioComposition } from './studio-composition';
 import type { ExperienceProfile } from '@/experience/experience-api';
+import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
 import { gradeMaterialFor, gradeMaterialPresets } from '@/screens/collection/grade-material';
 
@@ -22,9 +23,9 @@ const copyHeights = { feed: 130, story: 125 } as const;
 const sceneTops = { feed: 0, story: 90 } as const;
 const brand = require('../../assets/images/mascot/v2/logo-badge.png');
 
-export function StudioShareCard({ studio, items, avatar, apiUrl, format, media = 'image', experienceProfile, badgeName,
+export function StudioShareCard({ studio, items, avatar, clothing, apiUrl, format, media = 'image', experienceProfile, badgeName,
   demoNote, onReady, onAssetError, ref }: {
-  studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; apiUrl: string;
+  studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; clothing?: EquippedClothingArt | null; apiUrl: string;
   format: Format; media?: Media; experienceProfile?: ExperienceProfile; badgeName?: string;
   demoNote?: boolean; onReady?: () => void; onAssetError?: () => void; ref?: Ref<View>;
 }) {
@@ -36,7 +37,7 @@ export function StudioShareCard({ studio, items, avatar, apiUrl, format, media =
     <View ref={ref} collapsable={false} style={[styles.card, cardSizes[format],
       { paddingTop: sceneTops[format], backgroundColor: format === 'story' ? '#EDF5F8' : '#FFFFFF' }]}>
       <View style={{ width: 360, height: sceneHeights[format] }}>
-        <StudioScene studio={studio} items={items} avatar={avatar} apiUrl={apiUrl}
+        <StudioScene studio={studio} items={items} avatar={avatar} clothing={clothing} apiUrl={apiUrl}
           experienceProfile={experienceProfile} badgeName={badgeName}
           videoBackground={media === 'video'}
           width={360} height={sceneHeights[format]}
@@ -61,7 +62,7 @@ export function StudioShareCard({ studio, items, avatar, apiUrl, format, media =
   );
 }
 
-type ShareTarget = { id: number; studio: PublicStudio; items: StudioItem[]; avatar: string | null; format: Format;
+type ShareTarget = { id: number; studio: PublicStudio; items: StudioItem[]; avatar: string | null; clothing?: EquippedClothingArt | null; format: Format;
   media: Media; experienceProfile?: ExperienceProfile; badgeName?: string; demoNote: boolean };
 export type StudioShareOutcome = 'shared' | 'saved' | 'cancelled' | 'unavailable';
 
@@ -85,7 +86,7 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
 
   const share = useCallback(async (studio: PublicStudio, items: readonly StudioItem[], avatar: string | null,
     format: Format, media: Media = 'image', experienceProfile?: ExperienceProfile, badgeName?: string,
-    representativeCoin?: StudioItem): Promise<StudioShareOutcome> => {
+    representativeCoin?: StudioItem, clothing?: EquippedClothingArt | null): Promise<StudioShareOutcome> => {
     const alive = studioShareLifetime(isAlive, generation);
     if (busy.current || !alive()) return 'cancelled';
     busy.current = true;
@@ -102,7 +103,7 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
     const cancellation = setInterval(() => {
       if (!alive()) { pending.current?.reject(new Error('SHARE_CANCELLED')); void cancelStudioVideo(); }
     }, 100);
-    setTarget({ id, studio, items: ordered, avatar, format, media, experienceProfile, badgeName, demoNote });
+    setTarget({ id, studio, items: ordered, avatar, clothing, format, media, experienceProfile, badgeName, demoNote });
     try {
       await ready;
       clearTimeout(timeout);
@@ -154,7 +155,7 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
         onAssetError={() => { if (pending.current?.id === target.id) pending.current.reject(new Error('SHARE_ASSET_FAILED')); }} />
       {target.media === 'video' ? <>
         <View ref={avatarView} collapsable={false} style={styles.layer}>
-          <CompanionScene avatar={target.avatar} experienceProfile={target.experienceProfile} size={170} onLoad={() => markReady('avatar', target.id)}
+          <CompanionScene avatar={target.avatar} clothing={target.clothing} experienceProfile={target.experienceProfile} size={170} onLoad={() => markReady('avatar', target.id)}
             onError={() => { if (pending.current?.id === target.id) pending.current.reject(new Error('SHARE_ASSET_FAILED')); }} />
         </View>
         {coinSource ? <View ref={coinView} collapsable={false} style={styles.layer}>

@@ -11,6 +11,8 @@
 | `open.wav` | Interface Sounds / `open_001.ogg` | 봉투·보상 상자 열기 |
 | `flip.wav` | Interface Sounds / `select_001.ogg` | 수집품 카드 넘기기 |
 | `close.wav` | Interface Sounds / `close_001.ogg` | 뒤로 이동·획득 연출 닫기 |
+| `draw-intro.mp3` | 사용자 제공 `뽑기 시작 브금.mp3` | 뽑기 화면 진입 인트로 BGM |
+| `draw-loop.mp3` | 사용자 제공 `브금.mp3` | 인트로 종료·화면 이탈 뒤 반복 BGM |
 
 Android·iOS·웹에서 같은 자산을 사용하도록 원본 OGG를 mono / 44,100 Hz / PCM 16-bit WAV로 변환했다. 변환 시 메타데이터를 제거했으며 7개 WAV의 합계는 128,026바이트다. 새 npm 의존성은 없다.
 

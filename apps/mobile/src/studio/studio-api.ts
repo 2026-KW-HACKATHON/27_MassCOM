@@ -12,7 +12,7 @@ export type PublicStudio = Omit<Studio, 'slots'>;
 export type StudioItem = { entitlementId?: string; merchantId: string; merchantName: string; campaignTitle: string; displayName: string; artwork?: CollectibleArtwork };
 export type StudioRecord = { kind: string; bestScore: number; plays: number; version2BestScore?: number; version2Plays?: number };
 export type StudioSnapshot = { studio: Studio; items: StudioItem[]; avatar: string | null; records: StudioRecord[]; unlockedThemes: StudioTheme[] };
-export type FriendStudioSnapshot = { nickname: string; studio: PublicStudio; items: StudioItem[]; avatar: string | null };
+export type FriendStudioSnapshot = { nickname: string; studio: PublicStudio; items: StudioItem[]; avatar: string | null; avatarClothingId?: string | null };
 
 export const defaultStudio: Studio = { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null };
 const themes: readonly string[] = ['daylight', 'evening', 'garden'];
@@ -81,9 +81,12 @@ export function parseStudioSnapshot(value: unknown): StudioSnapshot {
 
 export function parseFriendStudioSnapshot(value: unknown): FriendStudioSnapshot {
   if (!record(value) || !string(value.nickname)) throw new Error('INVALID_FRIEND_STUDIO');
+  if (value.avatarClothingId !== undefined && value.avatarClothingId !== null
+    && (!string(value.avatarClothingId) || value.avatarClothingId.length > 80)) throw new Error('INVALID_FRIEND_STUDIO');
   return {
     nickname: value.nickname, studio: parseStudio(value.studio, true),
     items: parseItems(value.items, true), avatar: parseAvatar(value.avatar),
+    ...(value.avatarClothingId !== undefined ? { avatarClothingId: value.avatarClothingId as string | null } : {}),
   };
 }
 

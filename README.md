@@ -75,6 +75,13 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 점주 제작기는 권한 있는 점포의 메뉴·그림으로 시작하고 방문 단계별 문양·재질·동작을 제안합니다. 운영자는 실제 놀이·공간 처리와 앱이 보낸 공유 완료 알림을 기존 방문·쿠폰 집계와 구분해서 봅니다. **새 소스는 2026-10-05 `db28003` 서버와 운영 test.10·시연 Preview 19에 반영했습니다.** [배포 근거](docs/evidence/deployment-db28003-2026-10-05.json). 이번 공개 설치본의 동의 이후 놀이·공간 실기 확인은 `NOT_RUN`입니다. [구현·검증과 화면](docs/evidence/connected-play-2026-10-04/README.md), [피드·스토리 홍보 원본](docs/instagram/connected-play.html)을 참고하세요.
 
+
+## 다음 앱 개편: 상점·홈·우정/우편
+
+[Issue #367](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/367)의 로컬 작업은 앱 안 상점과 홈을 새 흐름으로 정리합니다. 상점은 등급을 누르면 재뽑기권 상세로 바로 들어가고, 초록 구매 버튼 뒤에 마일리지 → 옷 → 캐릭터 순서로 결과를 보여 줍니다. Fresh cycle8 브라우저 확인에서는 새 게스트 동의→홈 빈 상태 0개→가상 점포 A 테스트 방문→홈 1/9 배지와 가게권 1장, QR 화면의 숨겨진 하단 탭과 홈 복귀, 실버 1탭 직접 모달의 200P 버튼·10~50P/옷 0~1개 확률, 실제 구매 잔액 100,150→99,973·+23P·하늘 후드·빵집 다람쥐·upstream 빵집 골목 모자 보너스, BGM/SE OFF와 비활성 슬라이더→reset ON 30%, 진동 3선택을 확인했습니다. Historical cycle6 브라우저 확인은 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, A 가게 2026-10-06 12~14시 식사 초대에 B가 12:40을 골랐고 보낸 사람 우편 상세에 확정 시간이 표시되는 흐름을 보존합니다. 하단 탭은 사용자 확정대로 `상점 · 도감 · 홈 · 검색 · 상점` 중복 구성을 유지하고, 두 상점 진입은 같은 화면을 씁니다. 홈은 우편·설정·방문 인증·친구 진입을 둡니다. 친구끼리 우정을 보내거나 받고, 우편으로 쪽지와 같이 밥 먹기 초대를 주고받는 흐름도 들어갑니다.
+
+이 개편은 아직 공개 운영 test.10·시연 Preview 19 APK, 운영/시연 서버, `/open`에 반영하지 않았습니다. Cycle8 source repair는 알림 응답 교체 중 오래된 처리기가 최신 다른 영역 응답을 지울 수 있던 문제를 고쳤고 source frozen 상태입니다. Final 검증은 API 502/502, mobile 1633/1633, PostgreSQL 190/190, site 340/340으로 총 2665개 distinct full-suite PASS이며 typecheck·lint·build, 55개 migration 두 DB idempotent, production Android·showcase Android·development web exports, variant asset/API origin/accessibility/privacy guard가 PASS입니다. CodeReviewer는 APPROVE 0 issues, Architect는 CLEAR 0 blockers이고, live QA는 baseline 14 PASS·0 findings·cleanup remainingTotal 0, UltraQA 15 PASS·1 NOT_RUN·0 findings·cleanup 0입니다. `tools/gate.sh` final cycle8은 exit 0 PASS이고 legacy public status rows는 31 PASS / 2 BLOCKED / 3 NOT_RUN 그대로입니다. Issue #367 migration은 upstream `0043_campaign_extended_audit.sql`과 새 main `0044`~`0049`를 보존한 뒤 `0050`~`0055`로 적용합니다. Social push delivery는 upstream `notification_deliveries`와 분리한 `social_notification_deliveries`를 씁니다. Native audio/haptics/hardwareBack/remote push, media-less seed의 실제 display ACK, unsupported runtime cancel/resume/hung CLI class, 공개 배포와 merge는 계속 `NOT_RUN`입니다. Fresh search/filter/map/friends browser smoke도 PASS이고 최신 vision PASS88은 blocker 없이 통과했습니다. Draft PR [#374](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/374)는 생성됐고, 현재 PR body와 SHA-linked body 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS입니다. 현재 검증 상태는 [TEST_STATUS](docs/TEST_STATUS.md)의 Issue #367 항목과 [검증 출처](docs/evidence/shop-home-social-2026-10-05/validation.md)를 따릅니다.
+
 ## 왜 만드는가
 
 | 대상 | 다루는 문제 | MassCOM의 접근 | 현재 근거 |
@@ -186,6 +193,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 - [제출 증거 manifest](docs/SUBMISSION_EVIDENCE.json): 2026-09-23 main 기준선(PR #130까지)의 CI·PR·스크린샷·BLOCKED/NOT_RUN 기계 판독 기록. 이후 상태는 [현재 상태](docs/PROJECT_STATE.md)가 우선
 - [포털 시각 검증](docs/evidence/project-portal-visual-verdict.json): 데스크톱·모바일 뷰포트와 접근성 결과
 - [현재 상태](docs/PROJECT_STATE.md): 실제 완료·미완료·BLOCKER
+- [PR #374 병합 복구](docs/PR374_REPAIR.md): 다섯 리뷰 결함 수정, 11개 충돌 통합, 로컬 검사·구매 복구 증거; PR CI/merge 기록과 공개 배포는 별도
 - [전체 경험 품질 개선 보고서 (Issue #373)](docs/EXPERIENCE_QUALITY.md): 네 게임·첫 방문→뽑기·장착·친구 공간·공유의 로컬 검증; PR 통합 기록을 따르며 공개 배포는 별도
 - 이슈 [#136](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/136)·[#137](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/137)은 미완료 상태로 다시 열었습니다. [시연 앱 진입 계획](docs/superpowers/plans/2026-09-24-issue136-showcase-entry.md), [외부 시연 전달 계획](docs/superpowers/plans/2026-09-24-issue137-showcase-delivery.md), [운영 웹 본인 도감 계획](docs/superpowers/plans/2026-09-24-issue137-production-collection.md)은 실행 계획이지 구현·실기 검증 완료 증거가 아닙니다.
 - [제품 요구사항](docs/PRD.md): RQ-001~RQ-021

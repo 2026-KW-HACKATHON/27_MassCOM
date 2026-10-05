@@ -1,5 +1,24 @@
 # HANDOFF
 
+## 2026-10-06 PR #374 병합 복구 (Issue #367)
+
+- `fix/pr374-review`에서 PR #374 SHA `dbe8f09e0ac347d0aa08fde80817078648674cd2`와 `origin/main` `57e7746ff8586c60bc5555f731b93ddc789dcbc6`을 통합했다. 다섯 리뷰 결함이 수정됐고 PR #375와 발견된 11개 충돌을 해결해 양쪽 기능·문서 기록을 보존했다. 최신 PR 검사/병합 상태는 PR 자체 기록에 따른다. 공개 배포·Play는 별도다.
+- 수용 기준은 [복구 보고서](PR374_REPAIR.md)에 있다. pending gift는 수신함 우선, 수령 후 발신 선물 접근이며 양쪽을 동시에 요구하지 않는다. 친구 해제는 authorization transaction commit 전에 대기 push를 막는다. 이미 authorization을 통과한 일반 push는 회수할 수 없다.
+- 검증 PASS: API 513개·typecheck·build; 모바일 1,673개·typecheck·lint; PostgreSQL 497개 중 494 PASS/3 SKIP/0 FAIL(183초); site 508개. Focused social 46개와 friend/play 6개도 별도 RED→GREEN. 독립 code review 필수 수정 0, TypeScript Language Service 75개 파일 진단 0, Architect 집중 29개 blocker 0.
+- 390px synthetic QA에서 여섯 구매(브론즈 3·실버 3) 총 900P, 잔액 246·획득 1,146·원장 6건을 확인했다. 마지막 실버 책방 부엉이의 서버 commit 뒤 TCP 응답을 끊은 뒤 `afterServerCommit=true`인 증거에서 캐시된 기존 결과를 자동 복구했고 중복 차감이 없었다. 첫 fault 경로는 활성화되지 않아 증거로 세지 않았고, 별도 수동 재시도 버튼은 주장하지 않는다.
+- 합성 내 공간/친구 공간의 책방 부엉이·후드·금화 외형과 웹 공유 PNG를 확인했다. CUA 브라우저는 로컬 private fixture(mode 0600)를 써 실제 Google 로그인은 없었다. 실기기, Expo FCM receipt, 오디오/진동 체감, production APK 및 운영·Play 공개는 `NOT_RUN`이다. 공통 36개 회귀 원장 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 그대로다.
+
+## 2026-10-05 앱 내 상점·홈·우정/우편 개편 (Issue #367)
+
+- 브랜치 `feat/shop-home-social`. Cycle8 source repair는 source frozen 상태이고 최종 자동·리뷰·QA·gate 검증은 완료됐다. 기존 운영 test.10·시연 Preview 19 공개 증거와 링크는 이번 항목으로 바꾸지 않는다. Draft PR [#374](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/374)는 생성됐고, 현재 PR body와 SHA-linked body 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다.
+- Cycle8 현재 증거: API 502/502, mobile 1633/1633, PostgreSQL 190/190, site 340/340으로 총 2665개 distinct full-suite PASS. Typecheck·lint·build, 55개 migration 두 DB idempotent, production Android·showcase Android·development web exports와 variant/accessibility/privacy guard PASS. CodeReviewer APPROVE 0 issues(`.omx/reviews/code-review-final-cycle8.md`), Architect CLEAR 0 blockers(`.omx/reviews/architect-final-cycle8.md`), final review gate clean(`.omx/reviews/code-review-final-gate-cycle8.json`), final `tools/gate.sh` exit 0(`.omx/gate-final-cycle8.log`). Live QA는 baseline 14 PASS·0 findings·cleanup 0, UltraQA 15 PASS·1 NOT_RUN·0 findings·cleanup 0(`.omx/qa-ultraqa-report-cycle8.md`). Cycle7 final review의 Code REQUEST CHANGES와 Architect BLOCK/HIGH는 cold-response fence repair로 해결된 역사로 보존한다.
+- Cycle7 통합 계획 `.omx/plans/main-0ce-integration-cycle7.md`는 Architect APPROVE와 Critic APPROVE를 받았다. 새 main의 collection/merchant/video/FCM 기능과 Issue #367의 상점·홈·소셜·오디오 동작을 모두 보존해야 한다.
+- Migration 번호는 최신 main 보존 때문에 바뀌었다. upstream `0043_campaign_extended_audit.sql`과 `0044_collection_experience.sql`~`0049_notification_sources.sql`을 그대로 두고, Issue #367은 `0050_social_mail.sql`, `0051_shop_draw_rewards.sql`, `0052_store_ticket_openings.sql`, `0053_social_notification_deliveries.sql`, `0054_push_token_binding_revision.sql`, `0055_notification_delivery_token_version.sql`로 적용한다. upstream `notification_deliveries`는 collection/FCM 알림용이고, Issue #367 social push delivery는 `social_notification_deliveries` namespace를 쓴다.
+- 사용자 요구는 유지한다: 하단 탭 `상점 · 도감 · 홈 · 검색 · 상점`, 홈 친구 빠른 버튼, 재뽑기권 직접 상세와 200P 구매, 결과 순서 마일리지→옷→캐릭터, 우정 보내기 5회/받기 무제한/일일 합산 25P(KST), pending gift 재전송 차단, 식사 초대 선택 시간 답장 우편.
+- fresh8 브라우저 증거는 새 게스트 동의, 홈 빈 상태 0개, 테스트 방문 A 뒤 홈 가게권 1개와 1/9 배지, QR 화면의 숨겨진 하단 탭과 홈 복귀, 실버 직접 상세 모달, 실제 구매 잔액 100,150→99,973·+23P·하늘 후드·빵집 다람쥐·upstream 빵집 골목 모자 bonus, BGM/SE OFF와 비활성 슬라이더→reset ON 30%, 진동 3선택, 검색/필터/지도(A visited, B/C unvisited)→홈, 친구 빈 목록·코드·추가 UI와 remaining 5/reward 25 표시, media-less ticket skip 뒤 미개봉 1장 유지, 설정→홈 복귀를 확인했다. Historical cycle6 증거는 실제 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, 식사 초대 12:40 응답을 보존한다.
+- 실제 remote push/device BGM/SE/진동/hardware back, media-less seed의 실제 표시 ACK, unsupported runtime cancel/resume/hung CLI class, 공개 배포, merge는 계속 `NOT_RUN`이다. Draft PR #374 생성과 현재 PR body 기준 한국어 checker PASS는 문서화했다.
+- 현재 PR body와 SHA-linked body의 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다. Draft PR #374 head는 `e4138fc7a2f2c0e93360e3377488bda586441eda`, base는 `0ce3114c`다. main merge와 deploy는 하지 않았다.
+
 ## 2026-10-05 전체 경험 품질 개선 (Issue #373)
 
 - 기준 커밋 `0ce3114c`, 브랜치 `feat/experience-quality`. 통합 상태는 이 브랜치의 PR 검사·병합 기록에 따른다. 공개 서버·공개 설치본은 변경하지 않았다. 상세 품질 보고는 [EXPERIENCE_QUALITY](EXPERIENCE_QUALITY.md), 캡처·영상은 [증거 폴더](evidence/experience-quality-2026-10-05/)를 참조한다.
@@ -17,10 +36,7 @@
 ## 2026-10-05 수집·게임·점주 운영 전체 연결 (Issue #371)
 
 - 브랜치 `feat/collection-merchant-completion`, 기준 `origin/main aae64d88`. 요청 1–14절을 기존 #364/#365 구현과 연결했다. 신규 내용은 [구현 안내](COLLECTION_MERCHANT_COMPLETION.md)·[전용 증거](evidence/collection-completion-2026-10-05/README.md)를 따른다.
-- migration0044–0049: 장착/목표, 알림/기기/소스 상태, 점주 직접 운영 감사·직원 업무 플래그, 영구 게임 성취, 원장에 고정한 미보유 꾸미기 보너스. 같은 등급 세 번 개봉으로 세 친구·세 꾸미기 완성, 기존 가격/방문 보상/쿠폰 권리 유지.
-- 점주 연장은 현재 종료일 비교·요청 ID·동의·감사로 보호한다. 직원 등록 코드 승인·방문/쿠폰 권한·회수는 계정 잠금 뒤 실제 작업에서 검사한다. 방문 CSV는 인정 방문 SQL·KST·BOM·수식 방어·소유권을 공유한다.
-- 네 게임을 실제 Chrome 입력으로 각각 완주했다. 기억/주문 배지와 노을 방 해금→실제 배지/소품 장착→공간 저장을 확인했다. Native MP4/PNG의 저장·Photos 재생·영상 중단·공유 창 취소, 등급 색·중앙 문구를 별도로 검증했다.
-- 로컬 미리보기 8096→API4312→별도 `masscom-connected-play-qa`의 `masscom_showcase_test`(55542); 영상 QA API4311→별도 `masscom-video-qa`(55543). 운영 DB·사용자 역할·공개 서버를 바꾸지 않았다. `.env.local` 내용·권한·mtime와 에뮬레이터 font_scale2.0 복구, QA Metro 종료. 이전 ignored/untracked export는 보존했다.
+- 홈·프로필·컬렉션·게임·점주 웹·네이티브 비디오·알림/FCM 범위를 함께 바꿨다. 대표 검증은 TEST_STATUS 최신 항목과 증거 README의 명령 수치가 기준이다.
 - FCM 실수신은 프로젝트/서비스 계정/패키지 일치 google-services.json이 없어 NOT_RUN. 알림함·토큰 수명·잘못된 대상·재시도·모의 발송은 검증했다. 외부 게시, 실제 점포 QR, 물리 기울임·소리/진동 체감·TalkBack·일반 공개/Play 제출은 NOT_RUN.
 - 공개 반영 전에 최신 API/앱/처리방침 `privacy-2026-10-05`와 migration0044–0049를 함께 적용한다. 코드 롤백 때 새 원장/사용자 표를 DROP하지 않고 최신 삭제·알림 정리를 유지한다. 실제 설정 절차는 구현 안내의 알림 절을 따른다.
 - 구현 커밋 `e70699a8`을 [PR #372](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372)로 push했다. 필수 CI와 최종 통합 상태는 PR의 최신 검사·병합 기록을 따른다. CI 실행 요청과 완료를 구분하며 공개 서버·APK 배포를 뜻하지 않는다.
@@ -45,6 +61,7 @@
 - 당시 다음 작업: 병합 → 운영·시연 새 APK 빌드·게시를 서버 배포와 함께 진행한다. 처리방침 `privacy-2026-10-04`가 이전 설치본을 업데이트 안내로 막으므로 서버만 먼저 반영하지 않는다. 시연 배포에는 migration 0042·0043 적용 → 재시드 → 새 일일 host seed 작업 설치·실행 확인 → 시연 웹 체험 번들 재빌드가 필요했다. 당시 이 브랜치의 공개 서버 배포·새 공개 APK·시연 웹 체험 번들 재빌드·시연 호스트 작업 설치는 모두 `NOT_RUN`이었고 이후 `db28003` 배포로 완료했다(위 Issue #369 기록). 두 설치본의 실폰 확인과 실제 점주/운영자 Google 세션 확인은 남았다.
 - 위험·남은 확인: 점포 C를 이미 완료한 계정의 기존 골드는 프리즘으로 교체되지 않는다. 프리즘 확인은 C를 아직 완료하지 않은 계정으로 한다. 가상 점포 fixture 문구를 바꾸면 일일 seed는 오류로 실패하므로 실행 로그를 확인한다. `NOT_RUN`: Samsung·TalkBack·물리 기울임, 실제 시연 서버의 체험 다시 시작 성공, 기기의 점주 현황 안내·점주 홈, 운영 로그인·실제 QR·지갑, 실제 웹 로그인 세션·종이 인쇄·DB 복원 훈련. 로컬 재시작은 세션 회수 불가 사유와 로그아웃·새 체험 안내까지 확인했고, 로그아웃→새 체험 순서는 단위 시험만 검증했다.
 - `tools/gate.sh`는 PASS다. README와 PROJECT_STATE의 “현재 자동 시험 합계” 한 줄은 운영 문서 검사가 서로 같은지 보는 고정 문구라 그대로 두고, 이번 수치는 그 뒤에 따로 적었다. 후속 배포·실기 결과는 해당 작업의 새 기록으로 갱신한다.
+
 
 ## 2026-10-04 방문·동행·공간·네 게임 (Issue #363)
 

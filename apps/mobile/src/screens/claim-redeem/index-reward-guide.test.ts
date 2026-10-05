@@ -95,12 +95,14 @@ test('no app copy guesses the earn rules: no bonus suffixes and no hardcoded 50/
   assert.doesNotMatch(guideSource, /progressCounted|newStoreMileage|seriesCompleteMileage|visitMileage/);
 });
 
-test('완료 카드에는 주 행동 하나와 도감·상점·의견의 보조 링크가 있다', () => {
+test('완료 카드에는 주 행동 하나와 홈·도감·상점·의견의 보조 링크가 있다', () => {
   const actions = between('<View style={styles.successActions}>', '</SkyScrollView>');
   assert.match(actions, /followAfterVisitAction\(primaryAction\)/);
   assert.match(actions, /\{primaryAction\.label\}/);
   assert.match(actions, /styles\.secondaryLinks/);
+  assert.match(actions, /router\.replace\('\/'\)/);
   assert.match(actions, /router\.navigate\('\/shop'\)/);
+  assert.match(actions, />홈으로</);
   assert.match(actions, />상점 뽑기</);
   assert.match(actions, />도감</);
   assert.match(actions, /이 가게 어땠나요\?\(선택\)/);

@@ -25,6 +25,7 @@ export default function ShopRoute() {
     <ShopScreen
       key={auth.accountId}
       apiUrl={publicApiConfig.apiUrl}
+      accountId={auth.accountId}
       credential={auth.credential}
       onSessionInvalid={auth.invalidateSession}
     />

@@ -28,6 +28,7 @@ export type FriendStudioSnapshot = {
   studio: Omit<Studio, 'slots'>;
   items: Omit<StudioItem, 'entitlementId'>[];
   avatar: string | null;
+  avatarClothingId?: string | null;
 };
 export type PlayResult = { kind: GameKind; rulesVersion?: 1 | 2; score: number; bestScore: number; plays: number;
   version2BestScore?: number; version2Plays?: number;

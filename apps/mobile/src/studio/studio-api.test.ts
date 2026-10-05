@@ -19,6 +19,16 @@ test('friend studio drops accidental entitlement IDs even if present in response
   assert.equal('entitlementId' in parsed.items[0], false);
 });
 
+test('friend clothing accepts only a bounded optional public item id', () => {
+  const base = { nickname: '친구', studio, items: [], avatar: 'cook-cat' };
+  assert.equal(parseFriendStudioSnapshot(base).avatarClothingId, undefined);
+  assert.equal(parseFriendStudioSnapshot({ ...base, avatarClothingId: null }).avatarClothingId, null);
+  assert.equal(parseFriendStudioSnapshot({ ...base, avatarClothingId: 'green-apron' }).avatarClothingId, 'green-apron');
+  for (const id of ['', 42, {}, 'x'.repeat(81)]) {
+    assert.throws(() => parseFriendStudioSnapshot({ ...base, avatarClothingId: id }));
+  }
+});
+
 test('studio rejects duplicate or excessive owned slots', () => {
   assert.throws(() => parseStudioSnapshot({ studio: { ...studio, slots: ['owned-1', 'owned-1'] }, items: [], avatar: null, records: [], unlockedThemes: ['daylight'] }));
   assert.throws(() => parseStudioSnapshot({ studio: { ...studio, slots: Array.from({ length: 7 }, (_, index) => `${index}`) }, items: [], avatar: null, records: [], unlockedThemes: ['daylight'] }));

@@ -20,6 +20,7 @@ import { consumeMerchantReturn } from '@/navigation/showcase-entry';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
 import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
 import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
+import { appVariantForPackage, beginSocialPushBindingRevocation, revokeSocialPushBindings } from '@/social/push-runtime';
 import { purgeForeignWalletSessions } from '@/wallet/account-scope';
 import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit';
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
@@ -91,6 +92,17 @@ const startup = resolveAuthStartup({
   isWeb,
 });
 
+async function revokeSocialPushBindingForAuthSession(accountId?: string, credential?: AccountCredential): Promise<void> {
+  beginSocialPushBindingRevocation();
+  await revokeSocialPushBindings({
+    apiUrl: publicApiConfiguration.available ? publicApiConfiguration.apiUrl : undefined,
+    accountId,
+    credential,
+    appVariant: appVariantForPackage(getAppPackageId()),
+  });
+}
+
+
 export function AuthSessionProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<AuthSessionState>(startup.initialState);
   const controllerRef = useRef<ReturnType<typeof createAuthController> | undefined>(undefined);
@@ -114,6 +126,9 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
           listStoredKeys: listAppKitStorageKeys,
           removeStoredKeys: removeAppKitStorageKeys,
         });
+      },
+      beforeGuestTrialRestart: async (restartingSession) => {
+        await revokeSocialPushBindingForAuthSession(restartingSession.accountId, { kind: 'bearer', sessionToken: restartingSession.sessionToken });
       },
       publish: setState,
     });
@@ -144,7 +159,6 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     latestAccountIdRef.current = accountId;
   }, [accountId]);
-
   useEffect(() => {
     if (!accountId) return;
     void purgeForeignWalletSessions({
@@ -193,6 +207,9 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.
       clearPendingFriendLink();
+      const previousAccountId = accountId;
+      const previousCredential = credential;
+      await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (state.status === 'demo') {
         await forgetWalletSession({
           disconnect: async () => {
@@ -210,6 +227,9 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     },
     async switchAccount() {
       clearPendingFriendLink();
+      const previousAccountId = accountId;
+      const previousCredential = credential;
+      await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       if (publicApiConfiguration.available && credential?.kind === 'bearer') {
         await unregisterCurrentNotificationDevice(publicApiConfiguration.apiUrl, credential).catch(() => undefined);
@@ -217,9 +237,15 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       await controllerRef.current.switchAccount();
     },
     async invalidateSession() {
+      const controller = controllerRef.current;
+      if (!session || !controller) return;
+      const current = controller.getState();
+      if (current.status !== 'signedIn' || current.session.sessionToken !== session.sessionToken) return;
       clearPendingFriendLink();
-      if (!session || !controllerRef.current) return;
-      await controllerRef.current.invalidateSession(session.sessionToken);
+      const previousAccountId = accountId;
+      const previousCredential = credential;
+      await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
+      await controller.invalidateSession(session.sessionToken);
     },
   }), [accountId, appKit, credential, session, state]);
 

@@ -6,6 +6,7 @@ import { AvatarPortrait } from '@/illustration/avatar-portrait';
 import { BadgeArt, CosmeticArt } from '@/illustration/artwork';
 import { badgeFrame, cosmeticFrames } from '@/illustration/art-catalog';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
+import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
 import { CollectibleFaceOutline } from '@/screens/collection/collectible-default-back';
 import { gradeMaterialFor, gradeMaterialPresets } from '@/screens/collection/grade-material';
@@ -20,10 +21,10 @@ const rooms = {
 } as const;
 const accentColors = { mint: '#68BAAC', rose: '#E78F9B', sky: '#72A7E6' } as const;
 
-export function CompanionScene({ avatar, size = 160, onLoad, onError, experienceProfile, interactive = false }: {
-  avatar: string | null; size?: number; onLoad?: () => void; onError?: () => void; experienceProfile?: DisplayExperienceProfile; interactive?: boolean;
+export function CompanionScene({ avatar, clothing, size = 160, onLoad, onError, experienceProfile, interactive = false }: {
+  avatar: string | null; clothing?: EquippedClothingArt | null; size?: number; onLoad?: () => void; onError?: () => void; experienceProfile?: DisplayExperienceProfile; interactive?: boolean;
 }) {
-  return <AvatarPortrait avatar={avatar} profile={experienceProfile} size={size} interactive={interactive}
+  return <AvatarPortrait avatar={avatar} profile={experienceProfile} clothing={clothing} size={size} interactive={interactive}
     reaction="idle" onLoad={onLoad} onError={onError} animated={false} />;
 }
 
@@ -74,8 +75,8 @@ export function StudioDecor({ id, width, height, onLoad, onError }: {
   </View>;
 }
 
-export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAssetsReady, onAssetError, width = 360, height = 330, experienceProfile, badgeName, representativeCoin, videoBackground = false }: {
-  studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; apiUrl: string;
+export function StudioScene({ studio, items, avatar, clothing, apiUrl, onItemPress, onAssetsReady, onAssetError, width = 360, height = 330, experienceProfile, badgeName, representativeCoin, videoBackground = false }: {
+  studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; clothing?: EquippedClothingArt | null; apiUrl: string;
   onItemPress?: (item: StudioItem) => void; onAssetsReady?: () => void; onAssetError?: () => void;
   width?: number; height?: number; experienceProfile?: DisplayExperienceProfile; badgeName?: string; representativeCoin?: StudioItem; videoBackground?: boolean;
 }) {
@@ -142,7 +143,7 @@ export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAsse
       {experienceProfile?.cosmetics.decor ? <StudioDecor id={experienceProfile.cosmetics.decor} width={width} height={height}
         onLoad={() => markLoaded('decor')} onError={onAssetError} /> : null}
       {!videoBackground ? <View style={[styles.companion, { left: width * studioComposition.avatarLeft, bottom: height * (1 - studioComposition.avatarFloor) }]}>
-        <CompanionScene avatar={avatar} experienceProfile={experienceProfile} size={Math.min(width * studioComposition.avatarWidth, height * studioComposition.avatarHeight)}
+        <CompanionScene avatar={avatar} clothing={clothing} experienceProfile={experienceProfile} size={Math.min(width * studioComposition.avatarWidth, height * studioComposition.avatarHeight)}
           onLoad={onAssetsReady ? () => markLoaded('companion') : undefined} onError={onAssetError} />
       </View> : null}
       {!videoBackground && coinSource ? <Pressable

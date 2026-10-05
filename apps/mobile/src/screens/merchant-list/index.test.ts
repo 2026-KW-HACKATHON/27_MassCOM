@@ -6,17 +6,7 @@ import test from 'node:test';
 // react-native views, which the node:test/esbuild runner cannot load.
 const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
 
-// PR #301 리뷰: 홈 보상 카드가 `onOpenFailed`를 넘기지 않아, 보상 열기가 거절돼도(예: 마지막 쿠폰 소진) 배지 책을
-// 다시 읽지 않았다 — 그 상자가 계속 READY로 보여 homeFeaturedReward가 같은 상자만 돌려주고 다음 READY 상자를 가렸다.
-test('the home reward card wires onOpenFailed through to a quiet badge refresh (#301 review)', () => {
-  assert.match(screen, /<HomeRewardCard book=\{book\} onOpen=\{badgeApi\.openReward\} onRevealed=\{onRevealed\} onOpenFailed=\{onOpenFailed\} \/>/);
-  const onOpenFailed = screen.slice(screen.indexOf('const onOpenFailed = useCallback'), screen.indexOf('const onRevealed = useCallback'));
-  assert.match(onOpenFailed, /shouldRefreshBadgesQuietly\(code\)/);
-  assert.match(onOpenFailed, /void refreshQuietly\(\);/);
-});
-
-// PR #301 리뷰: 당겨서 새로고침이 음식점 목록만 다시 받고 배지 책(여권 칩·보상 카드)은 그대로였다.
-test('pull-to-refresh also refreshes the badge book, not just the store list (#301 review)', () => {
+test('pull-to-refresh refreshes the store list and progress filters on the search tab', () => {
   const pullToRefresh = screen.slice(screen.indexOf('refreshControl={'), screen.indexOf('ListHeaderComponent={'));
   assert.doesNotMatch(pullToRefresh, /onRefresh=\{refresh\}/);
   assert.match(pullToRefresh, /onRefresh=\{refreshAll\}/);
@@ -24,8 +14,6 @@ test('pull-to-refresh also refreshes the badge book, not just the store list (#3
   assert.match(refreshAll, /void refresh\(\);/);
   assert.match(refreshAll, /setBadgeRefreshToken/);
   assert.match(screen, /refreshToken: badgeRefreshToken/);
-  assert.match(screen, /PassportChip copy="내 탐험 여권 보기" data=\{passportChipData\(discovery\.book\)\}/);
-  assert.match(screen, /SignedInRewardCard book=\{discovery\.book\}/);
 });
 
 // Issue #331: 탐색 목록의 메뉴 검색·업종 칩·진행 칩. 화면은 렌더러로 못 읽으니 소스를 검사하고, 규칙은 discovery-filters.test.ts가 맡는다.
@@ -33,11 +21,21 @@ const chips = readFileSync(new URL('./discovery-chips.tsx', import.meta.url), 'u
 const progressHook = readFileSync(new URL('./use-discovery-progress.ts', import.meta.url), 'utf8');
 
 test('the search box names menus, and the list is filtered by search, category and progress together (#331)', () => {
+  assert.match(screen, /title="가게 검색"/);
   assert.match(screen, /placeholder="이름·메뉴·주소로 찾기"/);
   assert.doesNotMatch(screen, /이름·주소·이야기로 찾기/);
   assert.match(screen, /applyMerchantFilters\(merchants, filters, filterContext\)/);
   assert.doesNotMatch(screen, /filterMerchants/);
   assert.match(screen, /const filtering = hasActiveFilters\(filters\);/);
+});
+
+test('the search tab keeps map access but does not render home-only cards', () => {
+  assert.match(screen, /<MapChip \/>/);
+  assert.match(screen, /href="\/map"/);
+  for (const homeOnly of ['HomeRewardCard', 'RewardReveal', 'ExperienceEntry', 'HomeExploration', 'SignedInRewardCard', 'PassportChip', 'createRecommendationApiClient']) {
+    assert.doesNotMatch(screen, new RegExp(homeOnly));
+  }
+  assert.doesNotMatch(screen, /href="\/friends"/);
 });
 
 test('progress chips need a signed-in account and loaded data, and a choice whose chip vanished is cleared (#331)', () => {
@@ -85,18 +83,12 @@ test('discovery data reuses the collection and badge-book reads: no new endpoint
 });
 
 
-test('홈 여권·보상·필터는 배지 책을 한 번 읽고 같은 갱신을 쓴다 (#354)', () => {
+test('검색 필터는 배지 책을 한 번 읽고 같은 갱신을 쓴다 (#354)', () => {
   assert.doesNotMatch(screen, /useBadgeBook\(|createBadgeApiClient\(/);
   assert.equal((progressHook.match(/useBadgeBook\(badgeApi\)/g) ?? []).length, 1);
-  assert.match(screen, /refreshQuietly=\{discovery\.refreshQuietly\} applyOpened=\{discovery\.applyOpened\}/);
   assert.match(progressHook, /badgeApi, refreshQuietly, applyOpened/);
 });
 
-test('홈 다음 목표는 서버 첫 추천을 사용하고 출처를 넘긴다 (#354)', () => {
-  assert.match(screen, /item: items\[0\]/);
-  assert.match(screen, /bestNextGoal = signedIn && nextGoal\?\.api === recommendationApi/);
-  assert.match(screen, /from: 'recommendation'/);
-  assert.match(screen, /accessibilityHint="추천 가게 상세 보기"/);
+test('가게 카드는 검색 목록 출처를 넘긴다 (#354)', () => {
   assert.match(screen, /params: \{ merchantId, from: 'list' \}/);
-  assert.match(screen, /return \(\) => controller\.abort\(\)/);
 });

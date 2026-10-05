@@ -61,7 +61,7 @@
     "export:android": "expo export --platform android --output-dir dist",
     "export:web:showcase": "APP_VARIANT=showcase EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr MASSCOM_WEB_BASE_URL=/play expo export --platform web --output-dir dist-web",
     "ios": "expo run:ios",
-    "test": "tsx --test 'src/**/*.test.ts'",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "web": "expo start --web",
     "lint": "expo lint",

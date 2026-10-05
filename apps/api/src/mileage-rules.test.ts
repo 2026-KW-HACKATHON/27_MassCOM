@@ -2,11 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  DRAW_BONUS_MILEAGE,
+  DRAW_CLOTHING_PROBABILITY,
   MILEAGE_CATALOG,
+  MILEAGE_CLOTHING_CATALOG,
   MILEAGE_GRADE_PRICES,
+  canEquipClothing,
   canSetAvatar,
   chooseUniform,
   computeEarnedMileage,
+  decideDrawRewards,
   decideReroll,
   findCatalogItem,
   isMileageGrade,
@@ -63,6 +68,34 @@ test('chooseUniform picks only among the unowned set passed in (caller filters o
   const unowned = itemsOfGrade('BRONZE').filter((item) => !owned.has(item.id));
   assert.deepEqual(unowned.map((item) => item.id), ['walk-rabbit']);
   assert.equal(chooseUniform(unowned, () => 0).id, 'walk-rabbit');
+});
+
+
+test('decideDrawRewards gives 10-50 mileage uniformly and awards clothing on the documented 50% branch', () => {
+  const lowNoClothing = decideDrawRewards((bound) => {
+    assert.equal(bound === 41 || bound === 2, true);
+    return 0;
+  });
+  assert.deepEqual(lowNoClothing, { bonusMileage: 10, clothingItem: null });
+
+  const sequence = [40, 1, 2];
+  const highWithClothing = decideDrawRewards((bound) => {
+    const next = sequence.shift();
+    assert.notEqual(next, undefined);
+    assert.ok(next! >= 0 && next! < bound);
+    return next!;
+  });
+  assert.deepEqual(highWithClothing, { bonusMileage: 50, clothingItem: MILEAGE_CLOTHING_CATALOG[2] });
+  assert.deepEqual(DRAW_BONUS_MILEAGE, { min: 10, max: 50, probabilityPerAmount: 1 / 41 });
+  assert.equal(DRAW_CLOTHING_PROBABILITY, 0.5);
+});
+
+test('canEquipClothing allows null and only owned clothing catalog items', () => {
+  const owned = new Set(['green-apron']);
+  assert.equal(canEquipClothing(null, owned), true);
+  assert.equal(canEquipClothing('green-apron', owned), true);
+  assert.equal(canEquipClothing('sky-hoodie', owned), false);
+  assert.equal(canEquipClothing('unknown-clothing', owned), false);
 });
 
 test('canSetAvatar allows null (no avatar) and only owned items', () => {

@@ -15,6 +15,7 @@ test('#298: 친구 is a hidden tab reached from the home header / 내 정보, wi
   // The route builds the header (same split as settings.tsx/account-settings) and hands it down, so every state — signed-out,
   // demo-not-configured, loaded — keeps a way back even though 친구 is no longer in the bottom bar.
   assert.match(tabRoute, /<BackHeader title=\{FRIENDS_TITLE\}>/);
+  assert.match(read('../../ui/back-header.tsx'), /accessibilityLabel="뒤로"/);
   assert.match(tabRoute, /<Mascot interactive pose="friends" size=\{heroMascotSize\(fontScale, 112\)\} \/>/);
   assert.match(tabRoute, /<SkyBackdrop><AuthRequiredRoute header=\{header\} \/><\/SkyBackdrop>/);
   assert.match(tabRoute, /key=\{auth\.accountId\}/);
@@ -83,6 +84,19 @@ test('adding takes a typed code in upper case or a scanned QR, and a QR or link 
   assert.match(screen, /friendsErrorMessage\(error\)/);
   assert.match(screen, /friendCodeProblemMessage\(checked\.reason\)/);
   assert.match(screen, /카메라 권한이 없어/);
+});
+
+test('adding and returning to the friends tab refresh both the friend list and social actions', () => {
+  assert.match(screen, /const \{ snapshot, refreshQuietly, applyMe \} = friends;/);
+  assert.match(screen, /const \{ refreshQuietly: refreshSocialQuietly \} = social;/);
+  assert.match(screen, /const refreshFriendsAndSocial = useCallback\(\s*\(\) => Promise\.allSettled\(\[refreshQuietly\(\), refreshSocialQuietly\(\)\]\),\s*\[refreshQuietly, refreshSocialQuietly\],\s*\);/);
+  const addFriend = screen.slice(screen.indexOf('const addFriend = useCallback'), screen.indexOf('// A code that arrived by QR or link'));
+  assert.match(addFriend, /await refreshFriendsAndSocial\(\);/);
+  assert.match(addFriend, /\}, \[api, refreshFriendsAndSocial\]\);/);
+  const focus = screen.slice(screen.indexOf('const focusCount = useRef'), screen.indexOf('function submitTyped'));
+  assert.match(focus, /else if \(focusCount\.current > 1\) void refreshFriendsAndSocial\(\);/);
+  const pull = screen.slice(screen.indexOf('async function refresh()'), screen.indexOf('const sky ='));
+  assert.match(pull, /await refreshFriendsAndSocial\(\);/);
 });
 
 test('the ranking says once what friends can see and up to which day, and each friend row opens that friend', () => {

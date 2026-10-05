@@ -4,6 +4,7 @@ import { practiceTokens } from './play-copy';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
+import type { EquippedClothingArt } from '@/shop/wardrobe';
 
 export type OwnedArt = { name: string; uri: string; merchantId?: string; merchantName?: string };
 
@@ -36,6 +37,6 @@ export function GameToken({ value, art, size = 48 }: { value: number; art: reado
   return 'food' in token ? <FoodToken value={token.food} size={size} /> : <CosmeticArt id={token.cosmetic} size={size} />;
 }
 
-export function Companion({ avatar, equipment, reaction = 'idle' }: { avatar: string | null; equipment?: DisplayExperienceProfile; reaction?: 'idle' | 'wave' | 'cheer' | 'concerned' }) {
-  return avatar ? <AvatarPortrait avatar={avatar} profile={equipment} size={66} reaction={reaction} /> : null;
+export function Companion({ avatar, equipment, clothing, reaction = 'idle' }: { avatar: string | null; equipment?: DisplayExperienceProfile; clothing?: EquippedClothingArt | null; reaction?: 'idle' | 'wave' | 'cheer' | 'concerned' }) {
+  return avatar ? <AvatarPortrait avatar={avatar} profile={equipment} clothing={clothing} size={66} reaction={reaction} /> : null;
 }

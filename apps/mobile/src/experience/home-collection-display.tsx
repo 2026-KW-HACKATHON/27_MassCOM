@@ -1,8 +1,9 @@
 import { useRouter, type Href } from 'expo-router';
-import { Pressable, StyleSheet, Text, View, useColorScheme, type ImageSourcePropType } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { ShopSnapshot } from '@/shop/shop-api';
+import { equippedClothingArt } from '@/shop/wardrobe';
 import type { resolveStudioGoal } from '@/studio/studio-goals';
 import { CompanionScene, StudioCoin } from '@/studio/studio-scene';
 import { BadgeArt, PackArt } from '@/illustration/artwork';
@@ -14,7 +15,6 @@ export function HomeCollectionDisplay({ experience, collection, shop, visitGoal,
   experience: ExperienceSnapshot;
   collection?: CollectionSnapshot;
   shop?: ShopSnapshot;
-  avatarArt?: ImageSourcePropType;
   visitGoal?: ReturnType<typeof resolveStudioGoal>;
   apiUrl: string;
 }) {
@@ -33,7 +33,7 @@ export function HomeCollectionDisplay({ experience, collection, shop, visitGoal,
     <View style={styles.titleRow}><Text accessibilityRole="header" style={styles.title}>나의 탐험 전시</Text>
       <Pressable accessibilityRole="button" onPress={() => router.push('/studio')}><Text style={styles.link}>꾸미기 ›</Text></Pressable></View>
     <View style={styles.showcase}>
-      <CompanionScene avatar={shop?.avatar ?? null} experienceProfile={experience.profile} interactive size={132} />
+      <CompanionScene avatar={shop?.avatar ?? null} clothing={equippedClothingArt(shop)} experienceProfile={experience.profile} interactive size={132} />
       <View style={styles.details}>
         {badge ? <View style={styles.badgeLine}><BadgeArt id={badge.id} size={42} /><Text style={styles.detail}>{badge.name}</Text></View> : null}
         <Pressable accessibilityRole="button" accessibilityLabel={coin ? `${coin.displayName} 도감에서 보기` : "대표 코인 고르기"} onPress={() => router.push('/collection')} style={styles.coinLine}>{coin ? <StudioCoin item={coin} apiUrl={apiUrl} size={108} /> : null}

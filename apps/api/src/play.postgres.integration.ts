@@ -155,6 +155,7 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   assert.equal((await play.getStudio('player')).avatar, 'companion-legacy');
   const beforeSave = await play.getFriendStudio({ accountId: 'friend', friendshipId });
   assert.equal(beforeSave.avatar, null);
+  assert.equal(beforeSave.avatarClothingId, null);
   assert.deepEqual(beforeSave.items, []);
   assert.deepEqual(beforeSave.studio, { theme: 'daylight', layout: 'shelf', accent: 'mint', goal: null });
   const studio: Studio = { theme: 'evening', layout: 'gallery', accent: 'rose', slots: [entitlement],
@@ -187,6 +188,7 @@ test('play runs replay once, studio requires ownership, friend view hides identi
     (error) => error instanceof PlayError && error.code === 'STUDIO_THEME_LOCKED');
   const friendView = await play.getFriendStudio({ accountId: 'friend', friendshipId });
   assert.equal(friendView.avatar, 'companion-legacy');
+  assert.equal(friendView.avatarClothingId, null);
   assert.equal(friendView.items[0]?.merchantId, 'play-merchant');
   assert.equal(JSON.stringify(friendView).includes(entitlement), false);
   assert.equal(JSON.stringify(friendView).includes('player'), false);
@@ -437,4 +439,41 @@ test('explicit legacy and quality starts persist their negotiated version and fi
   assert.equal(newResult.version2Plays, 1);
   assert.deepEqual(await play.finish({ accountId, runId: legacy.id, actions: [] }), oldResult);
   assert.deepEqual(await play.finish({ accountId, runId: quality.id, actions: [] }), newResult);
+});
+
+test('friend studios project only equipped owned clothing under the existing sharing and friendship boundary', async t => {
+  const connectionString = process.env.TEST_DATABASE_URL;
+  if (!connectionString || !decodeURIComponent(new URL(connectionString).pathname).endsWith('_test')) throw new Error('dedicated test database required');
+  const pool = new Pool({ connectionString }); t.after(() => pool.end());
+  await runMigrations(pool);
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const play = new PostgresPlayService(pool, lifecycle);
+  const owner = `clothing-owner-${randomUUID()}`;
+  const viewer = `clothing-viewer-${randomUUID()}`;
+  const friendshipId = randomUUID();
+  await pool.query('INSERT INTO friendships(id,account_low,account_high) VALUES($1,$2,$3)', [friendshipId, ...[owner, viewer].sort()]);
+  await pool.query("INSERT INTO account_clothing(account_id,item_id,source) VALUES($1,'green-apron','REROLL'),($1,'sky-hoodie','REROLL')", [owner]);
+  const { PostgresMileageShopService } = await import('./postgres/mileage-shop.js');
+  const shop = new PostgresMileageShopService(pool, { accountLifecycle: lifecycle });
+  await shop.setClothing({ accountId: owner, itemId: 'green-apron' });
+  assert.equal((await play.getFriendStudio({ accountId: viewer, friendshipId })).avatarClothingId, null,
+    'selected clothing remains private without a shared studio');
+  await play.saveStudio({ accountId: owner, studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null } });
+  assert.equal((await play.getFriendStudio({ accountId: viewer, friendshipId })).avatarClothingId, null,
+    'a saved studio without current consent remains private');
+  await pool.query("INSERT INTO account_consents(account_id,terms_version,privacy_version,age_confirmed,source) VALUES($1,$2,$3,true,'ANDROID')", [owner, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION]);
+  const equipped = await play.getFriendStudio({ accountId: viewer, friendshipId });
+  assert.equal(equipped.avatarClothingId, 'green-apron');
+  assert.equal(JSON.stringify(equipped).includes('sky-hoodie'), false, 'unselected clothing inventory stays private');
+  assert.equal(JSON.stringify(equipped).includes(owner), false);
+  await shop.setClothing({ accountId: owner, itemId: null });
+  assert.equal((await play.getFriendStudio({ accountId: viewer, friendshipId })).avatarClothingId, null);
+  await shop.setClothing({ accountId: owner, itemId: 'green-apron' });
+  await pool.query("DELETE FROM account_clothing WHERE account_id=$1 AND item_id='green-apron'", [owner]);
+  assert.equal((await play.getFriendStudio({ accountId: viewer, friendshipId })).avatarClothingId, null,
+    'removed ownership stops clothing projection');
+  await assert.rejects(() => shop.setClothing({ accountId: owner, itemId: 'green-apron' }));
+  await pool.query('DELETE FROM friendships WHERE id=$1', [friendshipId]);
+  await assert.rejects(() => play.getFriendStudio({ accountId: viewer, friendshipId }),
+    error => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
 });

@@ -1,5 +1,21 @@
 # 프로젝트 상태
 
+## 현재 작업: PR #374 병합 복구 (Issue #367, 2026-10-06)
+
+브랜치 `fix/pr374-review`에서 PR #374 SHA `dbe8f09e0ac347d0aa08fde80817078648674cd2`와 `origin/main` SHA `57e7746ff8586c60bc5555f731b93ddc789dcbc6`을 통합했다. 리뷰 결함 5건과 PR #375 병합의 충돌 11개를 해결해 소스·시험·양쪽 문서 이력을 함께 보존했다. 자세한 수용 기준과 CUA 증거는 [복구 보고서](PR374_REPAIR.md)에 있다.
+
+검증: API 513/typecheck/build, 모바일 1,673/typecheck/lint, PostgreSQL 494 PASS·3 SKIP·0 FAIL/183초, site 508; focused social 46과 friend/play 6 RED→GREEN. CodeReviewer must-fix 0, TypeScript Language Service 75 files/0 diagnostics, Architect 29 focused/0 blockers. 합성 브라우저 계정(mode 0600)으로 구매 응답 유실 자동 복구·원장 6건/no duplicate debit 및 의상·공유 결과를 확인했다. 실제 Google·실기·Expo push·오디오/진동·production APK는 검증하지 않았다. 공통 36개 시험 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN` 행은 유지한다. 원격 CI/merge 상태는 PR 기록, 공개 배포·Play는 별도 `NOT_RUN`이다.
+
+## 앱 내 상점·홈·우정/우편 개편 (Issue #367, 2026-10-05)
+
+브랜치 `feat/shop-home-social`은 사용자가 보낸 상점 상세 그림과 홈 구성 그림을 기준으로 고객 앱 흐름을 재배치하는 로컬 작업이다. 아직 공개 앱, 운영/시연 서버, `/open`, GitHub Release에는 반영하지 않았다. 기존 최신 공개 설치본은 운영 test.10·시연 Preview 19 그대로이며, 이 항목은 그 출시 증거를 대체하지 않는다. Cycle8 source repair는 알림 응답 교체 중 오래된 처리기가 최신 다른 영역 응답을 지울 수 있던 문제를 고쳤고 source frozen 상태다. Final 검증은 API 502/502, mobile 1633/1633, PostgreSQL 190/190, site 340/340로 총 2665개 distinct full-suite PASS다. Typecheck·lint·build, production Android·showcase Android·development web exports, variant asset/API origin/accessibility/privacy guard, 55개 migration 두 DB idempotent도 PASS다. CodeReviewer는 APPROVE 0 issues, Architect는 CLEAR 0 blockers이고 final gate는 exit 0 PASS다. Live QA는 baseline 14 PASS·0 findings·cleanup 0, UltraQA 15 PASS·1 NOT_RUN·0 findings·cleanup 0이다. 현재 `npm audit --omit=dev`는 35건(12 moderate, 23 high, critical 0)이고 package-lock은 origin/main `0ce3114c`와 byte-equal이라 branch 신규 dependency advisory는 0건이다. Draft PR #374가 생성됐고 현재 PR body와 SHA-linked body 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다.
+
+상점은 재뽑기권 선택 화면을 한 번 더 거치지 않고 등급 카드에서 직접 상세로 들어간다. 초록색 200P 구매 버튼을 누르면 보상은 마일리지 → 옷 → 캐릭터 순서로 공개된다. 하단 탭은 사용자 확정대로 `상점 · 도감 · 홈 · 검색 · 상점`이며, 두 상점 탭은 같은 화면을 중복 진입한다. 홈은 지도 자리에 친구 진입을 두고, 우편·설정·방문 인증·QR·미션·보유 가게권을 함께 보여준다. BGM/효과음/진동 설정은 설정 화면에서 켜기·끄기·음량·초기화를 제공한다.
+
+소셜 범위는 친구 우정 보내기/받기, 친구 정보·쪽지, 우편, 같이 밥 먹기 초대다. 우정 보내기는 하루 5회, 받기는 무제한이지만 계정당 하루 우정 마일리지 총액은 25P가 상한이다. Fresh cycle8 브라우저에서 새 게스트 동의→홈 빈 상태 0개→가상 점포 A 테스트 방문→홈 1/9 배지와 가게권 1장, QR 화면의 숨겨진 하단 탭과 홈 복귀, 실버 1탭 직접 모달, 실제 구매 잔액 100,150→99,973·+23P·하늘 후드·빵집 다람쥐·upstream 빵집 골목 모자 보너스, BGM/SE OFF와 비활성 슬라이더→reset ON 30%, 진동 3선택을 확인했다. Historical cycle6 브라우저 증거는 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, A 가게 2026-10-06 12~14시 식사 초대에 B가 12:40을 고른 뒤 보낸 사람 우편 상세에 확정 시간이 표시되는 흐름을 보존한다. Fresh search/filter/map/friends browser smoke도 PASS다. 같은 친구에게 보낸 우정은 상대가 받을 때까지 다시 보낼 수 없다. 식사 초대는 확정 시간 또는 날짜+시간 범위로 보내고, 범위 초대의 수신자가 정확한 시간을 골라 답하면 보낸 사람에게 우편과 앱 푸시로 돌아간다. 메시지·식사 시간·푸시 토큰은 온체인/IPFS/로그에 남기지 않는 개인정보 경계로 문서화했다.
+
+스키마는 upstream `0043_campaign_extended_audit.sql`과 새 main의 `0044_collection_experience.sql`~`0049_notification_sources.sql`을 보존하고, Issue #367 migration `0050_social_mail.sql`, `0051_shop_draw_rewards.sql`, `0052_store_ticket_openings.sql`, `0053_social_notification_deliveries.sql`, `0054_push_token_binding_revision.sql`, `0055_notification_delivery_token_version.sql`을 추가하는 형태다. 0050은 소셜 우편·우정·social push outbox, 0051은 뽑기 보너스 마일리지와 옷장, 0052는 열린 보상권 ACK 표식이다. 0053은 upstream `notification_deliveries`와 분리된 `social_notification_deliveries` token별 push delivery와 lease generation을 추가하고, 0054는 device binding revision으로 계정 전환·logout·token rotation의 늦은 요청을 fencing한다. 0055는 receipt 효과를 dispatch 때 authorization된 push token id와 binding revision에 묶는 token-version fence다. Cycle7 migration 0055 포함 55개 migration from-scratch와 rerun idempotent 검증은 두 owned DB에서 PASS다. 처리방침 동의판은 `privacy-2026-10-05`로 올렸고, 푸시 빌드 변수는 `EXPO_PUSH_ACCESS_TOKEN`(서버), `MASSCOM_NOTIFICATION_PROJECT_ID`(Expo project UUID), `MASSCOM_FIREBASE_ANDROID_CONFIG`(Android Firebase 설정 파일 경로)로 나뉜다. Store ticket의 브라우저 QA는 fixture media fallback 때문에 실제 표시/ACK 증거가 없고, API 시험이 ACK authorization을 덮으며 UI는 티켓이 유지되는 것까지만 확인했다. Mounted shop focus는 idle 약 62초 동안 shop GET 4328→4328이고 재포커스에서 bounded +2였다. 실제 Android 푸시 수신, native BGM/SE 청음, haptic 체감, hardware back, media-less seed 실제 display ACK, unsupported runtime cancel/resume/hung CLI class, 공개 배포, merge는 아직 `NOT_RUN`이다. 검증 세부 결과는 [TEST_STATUS](TEST_STATUS.md)의 Issue #367 항목을 따른다.
+
 ## 현재 작업: 전체 경험 품질 개선 (Issue #373, 2026-10-05)
 
 기준 커밋 `0ce3114c`, 브랜치 `feat/experience-quality`. 통합 상태는 이 브랜치의 PR 검사·병합 기록에 따른다. 공개 서버와 공개 설치본은 변경하지 않았다. 전체 품질 변경과 한계는 [보고서](EXPERIENCE_QUALITY.md), 캡처와 합성 증거는 [로컬 증거](evidence/experience-quality-2026-10-05/)를 따른다.
@@ -43,6 +59,7 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 당시 다음 순서는 병합 → 운영·시연 새 APK 빌드와 서버 배포 준비(migration 0042·0043 포함) → 서버 배포와 새 APK 게시를 함께 진행 → 시연 재시드·일일 host seed 작업 설치/실행 확인 → 시연 웹 체험 번들 재빌드 → 두 설치본 실폰 확인이었다. 처리방침 `privacy-2026-10-04`를 요구하는 서버는 이전 설치본을 업데이트 안내로 막는다. 당시 이 브랜치의 공개 서버 배포·새 공개 APK·웹 체험 번들 재빌드·시연 호스트 작업 설치는 `NOT_RUN`이었으며, 이후 `db28003` 배포로 완료했다(위 Issue #369 기록). 점포 C 프리즘은 C를 아직 완료하지 않은 계정에서 확인해야 하며 재시드는 점주 게시물·발급 보상을 바꾸지 않는다. fixture 문구 변경 시 일일 seed는 오류로 실패하므로 로그 확인이 필요하다.
 
 **NOT_RUN:** 이 빌드의 Samsung·TalkBack·물리 기울임, 실제 시연 서버의 “체험 처음부터 다시” 성공(로컬은 세션 회수 불가 사유와 로그아웃·새 체험 안내까지, 순서는 단위 시험), 기기의 점주 현황 캠페인 안내·점주 홈(단위 시험만), 운영 로그인·실제 QR·지갑, 새 기능의 실제 점주/운영자 Google 웹 세션·종이 인쇄, DB 복원 훈련.
+
 
 ## 방문·수집·동행·놀이 통합 (Issue #363, 2026-10-04)
 

@@ -1,7 +1,7 @@
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import type { ColorValue } from 'react-native';
 
-type GlyphName = 'explore' | 'map' | 'claim' | 'collection' | 'friends' | 'shop' | 'account';
+type GlyphName = 'explore' | 'map' | 'claim' | 'collection' | 'friends' | 'shop' | 'account' | 'home' | 'mail';
 
 export function TabGlyph({ name, color, size }: {
   name: GlyphName;
@@ -15,6 +15,11 @@ export function TabGlyph({ name, color, size }: {
       {name === 'explore' ? <>
         <Circle cx="10.5" cy="10.5" r="6.5" {...stroke} />
         <Path d="M15.5 15.5 21 21" {...stroke} />
+      </> : null}
+      {name === 'home' ? <>
+        <Path d="M3.5 11.5 12 4l8.5 7.5" {...stroke} strokeLinejoin="round" />
+        <Path d="M6 10.5V20h12v-9.5" {...stroke} strokeLinejoin="round" />
+        <Path d="M10 20v-5h4v5" {...stroke} strokeLinejoin="round" />
       </> : null}
       {name === 'map' ? <>
         {/* A folded map: three panels with two creases. */}
@@ -48,6 +53,10 @@ export function TabGlyph({ name, color, size }: {
       {name === 'account' ? <>
         <Circle cx="12" cy="8" r="3.5" {...stroke} />
         <Path d="M5 20c.5-3.4 3-5 7-5s6.5 1.6 7 5" {...stroke} />
+      </> : null}
+      {name === 'mail' ? <>
+        <Rect x="3.5" y="5.5" width="17" height="13" rx="2" {...stroke} />
+        <Path d="m5 8 7 5 7-5" {...stroke} strokeLinejoin="round" />
       </> : null}
     </Svg>
   );

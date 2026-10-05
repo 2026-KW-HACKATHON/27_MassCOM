@@ -11,6 +11,7 @@ import { evaluateGameSkill, gameDurationMs, gameKinds, gameSkills, isGameKind, l
 import { evaluateQualityGameSkill, getQualityGameState } from '../play-rules-quality.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
+import { findClothingItem } from '../mileage-rules.js';
 
 type RunRow = { id: string; kind: GameKind; seed: number; started_at: Date; expires_at: Date;
   rules_version: 1 | 2; result: PlayResult | null };
@@ -213,15 +214,20 @@ export class PostgresPlayService implements PlayService {
           SELECT 1 FROM account_consents WHERE account_id=$1 AND terms_version=$2 AND privacy_version=$3)`,
         [friendId, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION])).rows[0];
       if (!saved) return { nickname, studio: { theme: defaultStudio.theme, layout: defaultStudio.layout,
-        accent: defaultStudio.accent, goal: null }, items: [], avatar: null };
+        accent: defaultStudio.accent, goal: null }, items: [], avatar: null, avatarClothingId: null };
       const studio = saved.studio;
       const goal = studio.goal?.kind !== 'play' && studio.goal &&
         !(await this.publicMerchant(client, studio.goal.merchantId)) ? null : studio.goal;
       const items = await this.items(client, friendId, studio.slots);
+      const clothing = (await client.query<{ item_id: string }>(
+        `SELECT clothing.item_id FROM account_profile profile
+         JOIN account_clothing clothing ON clothing.account_id = profile.account_id
+           AND clothing.item_id = profile.equipped_clothing_item_id
+         WHERE profile.account_id = $1`, [friendId])).rows[0];
       return { nickname, studio: { theme: studio.theme, layout: studio.layout, accent: studio.accent, goal },
         items: items.map(({ merchantId, merchantName, campaignTitle, displayName, artwork }) => ({
           merchantId, merchantName, campaignTitle, displayName, ...(artwork ? { artwork } : {}),
-        })), avatar: await this.avatar(client, friendId) };
+        })), avatar: await this.avatar(client, friendId), avatarClothingId: findClothingItem(clothing?.item_id ?? '')?.id ?? null };
     });
   }
 

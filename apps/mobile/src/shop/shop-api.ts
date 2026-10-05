@@ -20,6 +20,7 @@ export type ShopGradeView = {
 };
 
 export type ShopItemView = { id: string; grade: MileageGrade; name: string; owned: boolean };
+export type ShopClothingView = { id: string; name: string; owned: boolean; equipped: boolean };
 
 export type ShopSnapshot = {
   // showcaseBonus는 시연 서버가 balance에 따로 더해 준 체험 마일리지다(#333). 운영 응답에는 없고, 없으면 0으로 읽는다.
@@ -27,6 +28,14 @@ export type ShopSnapshot = {
   grades: readonly ShopGradeView[];
   items: readonly ShopItemView[];
   avatar: string | null;
+  clothing: {
+    items: readonly ShopClothingView[];
+    equipped: string | null;
+    draw: { probability: number };
+  };
+  drawRewards: {
+    bonusMileage: { min: number; max: number; probabilityPerAmount: number };
+  };
 };
 
 export type ShopHistoryEntry = {
@@ -49,6 +58,11 @@ export type ShopRerollResult = {
   bonus?: { id: string; name: string; slot: 'hat' | 'bag' | 'prop' | 'pose' | 'decor' };
   balance: number;
   replayed: boolean;
+  rewards: {
+    mileage: { amount: number; min: number; max: number; probabilityPerAmount: number };
+    clothing: { awarded: boolean; duplicate: boolean; item: null | { id: string; name: string }; probability: number };
+    sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'];
+  };
 };
 
 export class ShopApiError extends Error {
@@ -136,17 +150,27 @@ export function createShopApiClient(options: Options) {
       if (!isRecord(payload) || (payload.avatar !== null && typeof payload.avatar !== 'string')) throw invalidResponse();
       return { avatar: payload.avatar };
     },
+
+    async setClothing(itemId: string | null): Promise<{ equippedClothing: string | null }> {
+      const payload = await request('/shop/clothing', json('PUT', { itemId }));
+      if (!isRecord(payload) || (payload.equippedClothing !== null && typeof payload.equippedClothing !== 'string')) throw invalidResponse();
+      return { equippedClothing: payload.equippedClothing };
+    },
   };
 }
 
 function parseShopSnapshot(value: unknown): ShopSnapshot {
   if (!isRecord(value) || !Array.isArray(value.grades) || !Array.isArray(value.items)) throw invalidResponse();
   if (value.avatar !== null && typeof value.avatar !== 'string') throw invalidResponse();
+  const clothing = parseClothing(value.clothing);
+  const drawRewards = parseDrawRewards(value.drawRewards);
   return {
     mileage: parseMileage(value.mileage),
     grades: value.grades.map(parseGradeView),
     items: value.items.map(parseItemView),
     avatar: value.avatar,
+    clothing,
+    drawRewards,
   };
 }
 
@@ -168,7 +192,7 @@ function parseRerollResult(value: unknown): ShopRerollResult {
   if (bonus !== undefined && (!isRecord(bonus) || typeof bonus.id !== 'string' || !bonus.id ||
     typeof bonus.name !== 'string' || !bonus.name || !['hat', 'bag', 'prop', 'pose', 'decor'].includes(bonus.slot as string))) throw invalidResponse();
   return { item: parseCatalogRef(value.item), balance: value.balance, replayed: value.replayed,
-    ...(bonus ? { bonus: bonus as ShopRerollResult['bonus'] } : {}) };
+    rewards: parseDrawResult(value.rewards), ...(bonus ? { bonus: bonus as ShopRerollResult['bonus'] } : {}) };
 }
 
 function parseMileage(value: unknown): ShopSnapshot['mileage'] {
@@ -205,6 +229,59 @@ function parseItemView(value: unknown): ShopItemView {
   const catalogRef = parseCatalogRef(value);
   if (!isRecord(value) || typeof value.owned !== 'boolean') throw invalidResponse();
   return { ...catalogRef, owned: value.owned };
+}
+
+function parseClothing(value: unknown): ShopSnapshot['clothing'] {
+  if (!isRecord(value) || !Array.isArray(value.items) || (value.equipped !== null && typeof value.equipped !== 'string')
+    || !isRecord(value.draw) || typeof value.draw.probability !== 'number') throw invalidResponse();
+  return {
+    items: value.items.map(parseClothingView),
+    equipped: value.equipped,
+    draw: { probability: value.draw.probability },
+  };
+}
+
+function parseClothingView(value: unknown): ShopClothingView {
+  if (!isRecord(value) || typeof value.id !== 'string' || !value.id || typeof value.name !== 'string' || !value.name
+    || typeof value.owned !== 'boolean' || typeof value.equipped !== 'boolean') throw invalidResponse();
+  return { id: value.id, name: value.name, owned: value.owned, equipped: value.equipped };
+}
+
+function parseDrawRewards(value: unknown): ShopSnapshot['drawRewards'] {
+  if (!isRecord(value) || !isRecord(value.bonusMileage)) throw invalidResponse();
+  const bonus = value.bonusMileage;
+  if (!isNonNegativeInteger(bonus.min) || !isNonNegativeInteger(bonus.max) || typeof bonus.probabilityPerAmount !== 'number') {
+    throw invalidResponse();
+  }
+  return { bonusMileage: { min: bonus.min, max: bonus.max, probabilityPerAmount: bonus.probabilityPerAmount } };
+}
+
+function parseDrawResult(value: unknown): ShopRerollResult['rewards'] {
+  if (!isRecord(value) || !isRecord(value.mileage) || !isRecord(value.clothing) || !Array.isArray(value.sequence)) throw invalidResponse();
+  if (value.sequence.join(',') !== 'MILEAGE,CLOTHING,CHARACTER') throw invalidResponse();
+  const mileage = value.mileage;
+  if (!isNonNegativeInteger(mileage.amount) || !isNonNegativeInteger(mileage.min) || !isNonNegativeInteger(mileage.max)
+    || typeof mileage.probabilityPerAmount !== 'number') throw invalidResponse();
+  const clothing = value.clothing;
+  if (typeof clothing.awarded !== 'boolean' || typeof clothing.duplicate !== 'boolean' || typeof clothing.probability !== 'number') {
+    throw invalidResponse();
+  }
+  const item = clothing.item === null ? null : parseClothingRewardItem(clothing.item);
+  return {
+    mileage: {
+      amount: mileage.amount,
+      min: mileage.min,
+      max: mileage.max,
+      probabilityPerAmount: mileage.probabilityPerAmount,
+    },
+    clothing: { awarded: clothing.awarded, duplicate: clothing.duplicate, item, probability: clothing.probability },
+    sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'],
+  };
+}
+
+function parseClothingRewardItem(value: unknown): { id: string; name: string } {
+  if (!isRecord(value) || typeof value.id !== 'string' || !value.id || typeof value.name !== 'string' || !value.name) throw invalidResponse();
+  return { id: value.id, name: value.name };
 }
 
 function parseCatalogRef(value: unknown): { id: string; grade: MileageGrade; name: string } {
@@ -269,6 +346,8 @@ export function shopErrorMessage(error: unknown): string {
         : `잠시 후 다시 시도해 주세요 (${Math.max(1, Math.ceil(error.retryAfterSeconds / 60))}분)`;
     case 'SHOP_ITEM_NOT_OWNED':
       return '가지고 있지 않은 친구예요. 상점을 다시 불러와 주세요.';
+    case 'SHOP_CLOTHING_NOT_OWNED':
+      return '가지고 있지 않은 옷이에요. 상점을 다시 불러와 주세요.';
     case 'ACCOUNT_DELETED':
       return '삭제된 계정이라 상점을 쓸 수 없어요.';
     case 'MILEAGE_SHOP_NOT_CONFIGURED':
