@@ -1,0 +1,38 @@
+{
+  "environment": "synthetic localhost QA only",
+  "legacyHttpRequest": {
+    "kind": "orders"
+  },
+  "legacyResponseRulesVersion": 1,
+  "newHttpRequest": {
+    "kind": "orders",
+    "rulesVersion": 2
+  },
+  "newResponseRulesVersion": 2,
+  "actualNewUiRequest": {
+    "kind": "delivery",
+    "rulesVersion": 2
+  },
+  "actualNewUiResponseRulesVersion": 2,
+  "actualNewUiResult": {
+    "score": 365,
+    "segments": 5,
+    "safeSegments": 4,
+    "cargoHealth": 2,
+    "collisions": 1,
+    "completed": false,
+    "saved": true,
+    "screenshot": "version2-after-negotiation-ui.png"
+  },
+  "directRealPostgresVerification": {
+    "v1CompletedScore": 1125,
+    "v2CompletedScore": 1110,
+    "cachedResultsUnchanged": true
+  },
+  "counts": {
+    "apiUnit": 482,
+    "mobileUnit": 1545,
+    "focusedPostgres": 5
+  },
+  "deploymentOrder": "negotiation API before new app/web"
+}

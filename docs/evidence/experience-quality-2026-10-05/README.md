@@ -31,6 +31,6 @@ Chrome 390×844에서 실제 버튼 입력과 서버 기록 저장까지 실행�
 
 ## 자동 검사와 한계
 
-API 단위 480/480, 모바일 단위 1,545/1,545, 사이트 508/508, 전체 실제 PostgreSQL 446 중 443 PASS·3 SKIP·0 FAIL. API 타입·빌드, 모바일 타입·lint, 접근성 의미·사이트·개인정보 소스 860개/회귀·지갑 경계·문서 검사 PASS. 주요 실행 명령은 `npm test --prefix apps/api`, `npm run test:postgres --prefix apps/api`, `npm test --prefix apps/mobile`, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, `node --test 'tests/site/*.mjs'`다. DB 연결은 별도 로컬 시험 설정으로 공급하며 비밀값을 문서화하지 않는다. 별도 호스트 시드 시험 3개는 전용 격리 환경이 없어 SKIP이고 CI에서 별도 실행한다.
+API 단위 482/482, 모바일 단위 1,545/1,545, 사이트 508/508, 전체 실제 PostgreSQL 446 중 443 PASS·3 SKIP·0 FAIL. API 타입·빌드, 모바일 타입·lint, 접근성 의미·사이트·개인정보 소스 860개/회귀·지갑 경계·문서 검사 PASS. 주요 실행 명령은 `npm test --prefix apps/api`, `npm run test:postgres --prefix apps/api`, `npm test --prefix apps/mobile`, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, `node --test 'tests/site/*.mjs'`다. DB 연결은 별도 로컬 시험 설정으로 공급하며 비밀값을 문서화하지 않는다. 추가 버전 협상 변경은 API 단위 482개·모바일 계약 15개·실제 PostgreSQL 5개와 캐시 불변에서 확인했다. 버전 없는 기존 HTTP 요청은 v1, 새 앱은 명시적으로 v2를 요청한다. 협상 API를 먼저 배포해야 한다. 별도 호스트 시드 시험 3개는 전용 격리 환경이 없어 SKIP이고 CI에서 별도 실행한다.
 
 실폰·TalkBack·센서/소리/진동 체감·실제 Google 로그인·Firebase 실수신·Instagram 게시·실사용자 재미 평가·공개 배포는 NOT_RUN. 네이티브 공유에서 실제 소유 데이터를 검증한 형태는 원형이며 우표/톱니 저장, 다른 장르의 네이티브 결과, 네이티브 UI 구매는 NOT_RUN이다. 웹 영상은 Chrome의 MP4 선택 경로를 검증했고 WebM 대체 경로는 이번 실제 저장에서 실행하지 않았다. 모든 조합의 완전한 교차 시험을 주장하지 않는다. 전체 변경과 경계는 [품질 보고서](../../EXPERIENCE_QUALITY.md)를 따른다.

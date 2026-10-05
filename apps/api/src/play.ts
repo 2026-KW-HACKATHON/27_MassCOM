@@ -43,7 +43,7 @@ export type PlayMetrics = { days: number; events: { event: string; count: number
   games: { kind: GameKind; started: number; completed: number }[] };
 
 export interface PlayService {
-  start(input: { accountId: string; kind: GameKind }): Promise<PlayRun>;
+  start(input: { accountId: string; kind: GameKind; rulesVersion?: 1 | 2 }): Promise<PlayRun>;
   finish(input: { accountId: string; runId: string; actions: GameAction[] }): Promise<PlayResult>;
   getPlay(accountId: string): Promise<PlaySnapshot>;
   getStudio(accountId: string): Promise<StudioSnapshot>;

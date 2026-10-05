@@ -21,6 +21,7 @@ test('play client scopes reads, start and finish to bearer account and sends onl
   assert.equal((await api.start('stack')).id, 'run-1');
   assert.equal((await api.finish(run, [{ at: 42, choice: 2 }])).score, 80);
   assert.deepEqual(calls.map((call) => call.auth), ['Bearer test-session', 'Bearer test-session', 'Bearer test-session']);
+  assert.deepEqual(calls[1]?.body, { kind: 'stack', rulesVersion: 2 });
   assert.deepEqual(calls[2]?.body, { actions: [{ at: 42, choice: 2 }] });
 });
 

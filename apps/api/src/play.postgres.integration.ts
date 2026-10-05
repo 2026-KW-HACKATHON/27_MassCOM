@@ -401,3 +401,40 @@ test('quality finishes enforce server elapsed and stop sample while preserving l
   }
   assert.equal((await pool.query('SELECT 1 FROM play_records WHERE account_id=$1', [accountId])).rowCount, 0);
 });
+
+test('explicit legacy and quality starts persist their negotiated version and finish with separate scores', async t => {
+  const connectionString = process.env.TEST_DATABASE_URL;
+  if (!connectionString || !decodeURIComponent(new URL(connectionString).pathname).endsWith('_test')) throw new Error('dedicated test database required');
+  const pool = new Pool({ connectionString }); t.after(() => pool.end());
+  await runMigrations(pool);
+  const now = new Date('2026-10-05T00:00:00Z');
+  const play = new PostgresPlayService(pool, new PostgresAccountLifecycle({ hmacSecret: secret }), { now: () => now });
+  const accountId = `negotiated-${randomUUID()}`;
+  const legacy = await play.start({ accountId, kind: 'orders', rulesVersion: 1 });
+  const quality = await play.start({ accountId, kind: 'orders', rulesVersion: 2 });
+  assert.equal(legacy.rulesVersion, 1);
+  assert.equal(quality.rulesVersion, 2);
+  assert.equal((await play.start({ accountId, kind: 'orders' })).rulesVersion, 2,
+    'internal service callers retain the new-rule default');
+  const stored = await pool.query('SELECT rules_version FROM play_runs WHERE id=$1 OR id=$2 ORDER BY rules_version', [legacy.id, quality.id]);
+  assert.deepEqual(stored.rows, [{ rules_version: 1 }, { rules_version: 2 }]);
+  await pool.query('UPDATE play_runs SET seed=17 WHERE id=$1 OR id=$2', [legacy.id, quality.id]);
+  const board = getGameBoard('orders', 17);
+  if (board.kind !== 'orders') throw new Error('unexpected board');
+  now.setTime(now.getTime() + 1600);
+  const oldResult = await play.finish({ accountId, runId: legacy.id,
+    actions: board.orders.flat().map((choice, index) => ({ at: index * 100, choice })) });
+  const newResult = await play.finish({ accountId, runId: quality.id,
+    actions: board.orders.flatMap(order => [...order, 4]).map((choice, index) => ({ at: index * 100, choice })) });
+  assert.equal(oldResult.rulesVersion, 1);
+  assert.equal(oldResult.score, 1125);
+  assert.equal(oldResult.version2Plays, 0);
+  assert.equal(newResult.rulesVersion, 2);
+  assert.equal(newResult.score, 1110);
+  assert.equal(newResult.bestScore, 1125);
+  assert.equal(newResult.version2BestScore, 1110);
+  assert.equal(newResult.plays, 2);
+  assert.equal(newResult.version2Plays, 1);
+  assert.deepEqual(await play.finish({ accountId, runId: legacy.id, actions: [] }), oldResult);
+  assert.deepEqual(await play.finish({ accountId, runId: quality.id, actions: [] }), newResult);
+});

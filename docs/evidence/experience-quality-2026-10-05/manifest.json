@@ -3,8 +3,8 @@
   "files": [
     {
       "file": "README.md",
-      "bytes": 6275,
-      "sha256": "8f20b9217a7e78dc85993963ccdf9ca8e8ec10848479d111464c1f6bef626428"
+      "bytes": 6538,
+      "sha256": "49a270f3ce9705a2f2cb2d23ef4163c478608bae5caed9bc6a03d4d1f0b9afb9"
     },
     {
       "file": "a11y-final-proof.json",
@@ -325,6 +325,16 @@
       "file": "theme-unowned-preview-390.png",
       "bytes": 43418,
       "sha256": "1e15424825fea67254425e98446b02774c06ef9ceb812247ca0afcc8fa6f3eae"
+    },
+    {
+      "file": "version-negotiation-proof.json",
+      "bytes": 872,
+      "sha256": "c75795df547ed74461c835c670579d566e008df928301708b7276a4d7d390109"
+    },
+    {
+      "file": "version2-after-negotiation-ui.png",
+      "bytes": 174598,
+      "sha256": "2575a1f95934784cbf3f58350b7a288415c53ddbedf5f216af669c742f09afe8"
     },
     {
       "file": "web-feed.mp4",

@@ -74,7 +74,7 @@ export function createPlayApiClient({ apiUrl, credential, onSessionInvalid, fetc
         ...(value.achievements ? { achievements: value.achievements } : {}) };
     },
     async start(kind: GameKind, signal?: AbortSignal): Promise<PlayRun> {
-      const value = await request('/me/play/runs', post({ kind }, signal));
+      const value = await request('/me/play/runs', post({ kind, rulesVersion: 2 }, signal));
       if (!record(value) || typeof value.id !== 'string' || !value.id || value.kind !== kind || !integer(value.seed) || value.seed > 0x7fffffff
         || typeof value.startedAt !== 'string' || Number.isNaN(Date.parse(value.startedAt))
         || typeof value.expiresAt !== 'string' || Number.isNaN(Date.parse(value.expiresAt))

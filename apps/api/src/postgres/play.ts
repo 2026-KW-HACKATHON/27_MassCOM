@@ -57,8 +57,10 @@ export class PostgresPlayService implements PlayService {
     this.now = options.now ?? (() => new Date());
   }
 
-  async start(input: { accountId: string; kind: GameKind }): Promise<PlayRun> {
-    if (!isGameKind(input.kind)) throw new PlayError('PLAY_KIND_INVALID');
+  async start(input: { accountId: string; kind: GameKind; rulesVersion?: 1 | 2 }): Promise<PlayRun> {
+    if (!isGameKind(input.kind) || (input.rulesVersion !== undefined && input.rulesVersion !== 1 && input.rulesVersion !== 2)) {
+      throw new PlayError('PLAY_KIND_INVALID');
+    }
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, input.accountId);
       const now = this.now();
@@ -69,10 +71,10 @@ export class PostgresPlayService implements PlayService {
       if (recent.rows[0]!.count >= 30) throw new PlayError('PLAY_RATE_LIMITED');
       const run: PlayRun = { id: randomUUID(), kind: input.kind, seed: randomInt(0, 0x80000000),
         startedAt: now.toISOString(), expiresAt: new Date(now.getTime() + gameDurationMs + 15_000).toISOString(),
-        durationMs: gameDurationMs, rulesVersion: 2 };
+        durationMs: gameDurationMs, rulesVersion: input.rulesVersion ?? 2 };
       await client.query(`INSERT INTO play_runs (id, account_id, kind, seed, started_at, expires_at, rules_version)
-        VALUES ($1,$2,$3,$4,$5,$6,2)`,
-      [run.id, input.accountId, run.kind, run.seed, run.startedAt, run.expiresAt]);
+        VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [run.id, input.accountId, run.kind, run.seed, run.startedAt, run.expiresAt, run.rulesVersion]);
       await this.count(client, 'start', input.kind, now);
       return run;
     });
