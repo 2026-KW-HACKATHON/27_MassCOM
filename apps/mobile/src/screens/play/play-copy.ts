@@ -1,17 +1,59 @@
+import type { PlayRecord } from '@/play/play-api';
 import type { GameKind } from '../../../../api/src/play-rules';
 
 export const gameCopy: Record<GameKind, { title: string; tag: string; rule: string; color: string }> = {
-  stack: { title: '타이밍 쌓기', tag: '타이밍', rule: '움직이는 블록이 목표 자리에 왔을 때 놓으세요. 여섯 층을 쌓아요.', color: '#DF6D62' },
-  memory: { title: '짝 찾기', tag: '기억', rule: '뒤집힌 카드 두 장을 골라 같은 그림을 찾으세요. 여섯 쌍을 맞히면 끝나요.', color: '#699CCB' },
-  delivery: { title: '세 갈래 배달', tag: '피하기', rule: '세 길을 오가며 장애물을 피하고 선물을 챙기세요. 달리는 동안 길을 바꿀 수 있어요.', color: '#67A989' },
-  orders: { title: '주문 맞추기', tag: '순서', rule: '나타난 주문 세 개를 순서대로 누르세요. 네 묶음의 주문을 완성해요.', color: '#D7A14E' },
+  stack: { title: '가게 포장 쌓기', tag: '타이밍', rule: '움직이는 포장 상자를 아래 상자에 겹쳐 놓아요. 어긋난 부분이 잘리고, 남은 폭으로 여섯 층을 쌓아요.', color: '#DF6D62' },
+  memory: { title: '방문 도감 복원', tag: '기억', rule: '방문한 가게의 수집품 그림을 두 장씩 찾아요. 발견한 여섯 쌍이 도감에 그대로 남아요.', color: '#699CCB' },
+  delivery: { title: '동네 꾸러미 배달', tag: '피하기', rule: '가게 그림이 담긴 꾸러미를 동네 전시대로 운반해요. 세 길에서 공사 상자를 피하세요. 세 번 부딪히면 도전이 끝나요.', color: '#67A989' },
+  orders: { title: '꾸러미 주문 작업대', tag: '조합', rule: '주문표의 그림과 수량을 보고 물건 세 개를 담아 전달해요. 담는 순서는 자유이고 잘못 담으면 고칠 수 있어요. 네 주문을 준비해요.', color: '#D7A14E' },
 };
 
 export const themeNames: Record<string, string> = { daylight: '햇살 방', evening: '노을 방', garden: '정원 방' };
 
 export const skillCopy: Record<GameKind, { badge: string; goal: string; reward: string; metric: string }> = {
-  stack: { badge: '균형의 달인', goal: '중앙에서 4칸 이내로 3번 연속 놓기', reward: '균형의 달인 포즈', metric: '연속 정밀 배치' },
+  stack: { badge: '균형의 달인', goal: '아래 상자 중앙에서 3칸 이내로 3번 연속 놓기', reward: '균형의 달인 포즈', metric: '연속 정밀 배치' },
   memory: { badge: '기억의 달인', goal: '틀린 짝 1번 이하로 6쌍 맞히기', reward: '기억의 달인 카드 소품', metric: '효율적인 짝' },
   delivery: { badge: '배달의 달인', goal: '12구간 모두 충돌 없이 완주하기', reward: '배달의 달인 가방', metric: '충돌 없는 구간' },
-  orders: { badge: '주문 박사', goal: '8개 메뉴를 연속으로 정확히 고르기', reward: '주문 박사 장식', metric: '연속 정답' },
+  orders: { badge: '주문 박사', goal: '틀린 전달 없이 물건 8개를 연속 포장하기', reward: '주문 박사 장식', metric: '연속 포장한 물건' },
 };
+
+/** Legacy highest is meaningful only when a legacy run was completed. */
+export function playRecordLabel(record: PlayRecord | undefined): string {
+  if (!record) return '첫 기록에 도전';
+  if (record.version2BestScore === undefined || record.version2Plays === undefined) {
+    return record.plays > 0 ? `기존 규칙 최고 ${record.bestScore.toLocaleString()}점 · ${record.plays}회 완주` : '첫 기록에 도전';
+  }
+  const current = record.version2Plays > 0 ? `새 규칙 최고 ${record.version2BestScore.toLocaleString()}점 · ${record.version2Plays}회 완주` : '새 규칙 첫 기록에 도전';
+  const legacyPlays = Math.max(0, record.plays - record.version2Plays);
+  return legacyPlays > 0 ? `${current} · 기존 규칙 최고 ${record.bestScore.toLocaleString()}점 · ${legacyPlays}회 완주` : current;
+}
+
+export const practiceTokens = [
+  { name: '크루아상 그림', food: 0 },
+  { name: '커피 그림', food: 1 },
+  { name: '샌드위치 그림', food: 2 },
+  { name: '타르트 그림', food: 3 },
+  { name: '기억 카드', cosmetic: 'memory-card' },
+  { name: '금빛 랜턴', cosmetic: 'gold-prop' },
+] as const;
+
+export function tokenName(art: readonly { name: string }[], value: number): string {
+  return art[value]?.name ?? `${practiceTokens[value]?.name ?? '그림'} · 연습용`;
+}
+
+export const skillRewardArt: Record<GameKind, string> = {
+  stack: 'stack-cheer', memory: 'memory-card', delivery: 'courier-bag', orders: 'order-sign',
+};
+
+export function playEndLabel(state: { kind: GameKind; completed: boolean; failed: boolean }, timedOut: boolean, inputLimit: boolean): string {
+  if (state.completed) return state.kind === 'delivery' ? '꾸러미가 전시대에 도착했어요' : '이번 작업을 모두 완성했어요';
+  if (state.failed) return state.kind === 'stack' ? '겹치는 부분이 없어 상자가 떨어졌어요' : '세 번 충돌해 꾸러미 운반이 멈췄어요';
+  if (timedOut) return '시간이 끝났어요. 완성한 부분을 남겼어요';
+  if (inputLimit) return '이번 판의 조작을 모두 사용했어요';
+  return '직접 도전을 마쳤어요. 완성한 부분을 남겼어요';
+}
+
+export function rewardState(previouslyEarned: boolean, result: { skill?: { achieved: boolean }; newlyEarned?: boolean } | undefined): { owned: boolean; newlyEarned: boolean } {
+  return { owned: previouslyEarned || result?.skill?.achieved === true || result?.newlyEarned === true,
+    newlyEarned: result?.newlyEarned === true };
+}

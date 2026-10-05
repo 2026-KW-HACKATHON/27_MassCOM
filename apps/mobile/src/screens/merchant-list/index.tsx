@@ -32,15 +32,14 @@ import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
 import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
 import { createShopApiClient, type ShopSnapshot } from '@/shop/shop-api';
+import { resolveStudioGoal } from '@/studio/studio-goals';
 import { createStudioApiClient, type StudioGoal } from '@/studio/studio-api';
 import { medalColorsForScheme, tierColors } from '@/theme/medal-colors';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { AppHeader } from '@/ui/app-header';
 import { FloatingCard } from '@/ui/floating-card';
-import { heroMascotSize, isLargeText } from '@/ui/large-text';
-import { Mascot } from '@/ui/mascot';
-import { CompanionScene } from '@/studio/studio-scene';
+import { isLargeText } from '@/ui/large-text';
 import { ExperienceEntry } from '@/ui/experience-entry';
 import { HomeExploration } from '@/ui/home-exploration';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
@@ -201,8 +200,6 @@ export function MerchantListScreen({ apiUrl }: Props) {
               title="어디로 탐험할까요?"
               subtitle="안 가본 가게에 도장을 찍어요"
               showFriendsEntry
-              avatarArt={avatarArt}
-              avatarContent={homeShop?.avatar ? <CompanionScene avatar={homeShop.avatar} experienceProfile={experience.snapshot?.profile} size={44} /> : undefined}
             >
               <View style={styles.heroRow}>
                 <View style={styles.heroCopy}>
@@ -215,14 +212,12 @@ export function MerchantListScreen({ apiUrl }: Props) {
                     <MapChip />
                   </View>
                 </View>
-                {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
-                {avatarArt ? <CompanionScene avatar={homeShop?.avatar ?? null} experienceProfile={experience.snapshot?.profile} interactive size={heroMascotSize(fontScale, 120)} />
-                  : <Mascot interactive pose={refreshing ? 'search' : 'explore-map'} size={heroMascotSize(fontScale, 120)} />}
+
               </View>
             </AppHeader>
             {signedIn && experience.snapshot ? <HomeCollectionDisplay experience={experience.snapshot}
               collection={discovery.collection} shop={homeShop} avatarArt={avatarArt} apiUrl={apiUrl}
-              visitGoal={{ goal: visitGoal ?? null, merchantName: merchants.find((merchant) => merchant.id === visitGoal?.merchantId)?.name }} /> : null}
+              visitGoal={discovery.collection && visitGoal ? resolveStudioGoal(visitGoal, merchants, discovery.collection) : undefined} /> : null}
             {auth.credential && auth.accountId ? (
               <View style={styles.rewardCardWrap}>
                 <SignedInRewardCard book={discovery.book} badgeApi={discovery.badgeApi} refreshQuietly={discovery.refreshQuietly} applyOpened={discovery.applyOpened} companionArt={avatarArt} key={auth.accountId} />

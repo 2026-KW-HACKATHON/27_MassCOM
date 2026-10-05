@@ -11,7 +11,8 @@ export type Studio = {
   slots: string[];
   goal: StudioGoal | null;
 };
-export type PlayRecord = { kind: GameKind; bestScore: number; plays: number };
+export type PlayRecord = { kind: GameKind; bestScore: number; plays: number;
+  version2BestScore: number; version2Plays: number };
 export type StudioItem = {
   entitlementId?: string;
   merchantId: string;
@@ -28,7 +29,8 @@ export type FriendStudioSnapshot = {
   items: Omit<StudioItem, 'entitlementId'>[];
   avatar: string | null;
 };
-export type PlayResult = { kind: GameKind; score: number; bestScore: number; plays: number;
+export type PlayResult = { kind: GameKind; rulesVersion?: 1 | 2; score: number; bestScore: number; plays: number;
+  version2BestScore?: number; version2Plays?: number;
   completed: boolean; correct: number; total: number; unlockedThemes: string[];
   skill?: GameSkill; newlyEarned?: boolean };
 

@@ -10,7 +10,7 @@ export type StudioGoal = null | { kind: 'discover' | 'regular' | 'series' | 'pla
 export type Studio = { theme: StudioTheme; layout: StudioLayout; accent: StudioAccent; slots: string[]; goal: StudioGoal };
 export type PublicStudio = Omit<Studio, 'slots'>;
 export type StudioItem = { entitlementId?: string; merchantId: string; merchantName: string; campaignTitle: string; displayName: string; artwork?: CollectibleArtwork };
-export type StudioRecord = { kind: string; bestScore: number; plays: number };
+export type StudioRecord = { kind: string; bestScore: number; plays: number; version2BestScore?: number; version2Plays?: number };
 export type StudioSnapshot = { studio: Studio; items: StudioItem[]; avatar: string | null; records: StudioRecord[]; unlockedThemes: StudioTheme[] };
 export type FriendStudioSnapshot = { nickname: string; studio: PublicStudio; items: StudioItem[]; avatar: string | null };
 
@@ -21,6 +21,7 @@ const accents: readonly string[] = ['mint', 'rose', 'sky'];
 const kinds: readonly string[] = ['discover', 'regular', 'series', 'play'];
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const string = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+const integer = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
 function parseStudio(value: unknown, friend: false): Studio;
 function parseStudio(value: unknown, friend: true): PublicStudio;
@@ -63,9 +64,13 @@ function parseAvatar(value: unknown): string | null {
 export function parseStudioSnapshot(value: unknown): StudioSnapshot {
   if (!record(value) || !Array.isArray(value.records) || !Array.isArray(value.unlockedThemes)) throw new Error('INVALID_STUDIO');
   const records = value.records.map((entry: unknown) => {
-    if (!record(entry) || !string(entry.kind) || !Number.isFinite(entry.bestScore)
-      || !Number.isInteger(entry.plays)) throw new Error('INVALID_STUDIO_RECORD');
-    return { kind: entry.kind, bestScore: entry.bestScore as number, plays: entry.plays as number };
+    if (!record(entry) || !string(entry.kind) || !integer(entry.bestScore) || !integer(entry.plays)
+      || entry.version2BestScore !== undefined && !integer(entry.version2BestScore)
+      || entry.version2Plays !== undefined && (!integer(entry.version2Plays) || entry.version2Plays > entry.plays)
+      || (entry.version2BestScore === undefined) !== (entry.version2Plays === undefined)) throw new Error('INVALID_STUDIO_RECORD');
+    return { kind: entry.kind, bestScore: entry.bestScore as number, plays: entry.plays as number,
+      ...(entry.version2BestScore !== undefined ? { version2BestScore: entry.version2BestScore as number } : {}),
+      ...(entry.version2Plays !== undefined ? { version2Plays: entry.version2Plays as number } : {}) };
   });
   if (!value.unlockedThemes.every((theme: unknown) => themes.includes(theme as string))) throw new Error('INVALID_STUDIO_THEMES');
   return {

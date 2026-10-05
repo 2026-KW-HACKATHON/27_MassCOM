@@ -6,9 +6,8 @@ import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import { buildExplorationSummary } from '@/merchant/home-exploration';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 import { createStudioApiClient, type StudioGoal } from '@/studio/studio-api';
+import { resolveStudioGoal } from '@/studio/studio-goals';
 import { colorsForScheme } from '@/theme/palette';
-
-const gameNames: Record<string, string> = { stack: '타이밍 쌓기', memory: '짝 찾기', delivery: '세 갈래 배달', orders: '주문 맞추기' };
 
 export function HomeExploration({ apiUrl, credential, onSessionInvalid, merchants, collection }: {
   apiUrl: string; credential: AccountCredential; onSessionInvalid: () => Promise<void>;
@@ -24,17 +23,16 @@ export function HomeExploration({ apiUrl, credential, onSessionInvalid, merchant
     return () => { current = false; };
   }, [client]));
   const goal = loaded?.client === client ? loaded.goal : null;
-  const merchant = goal?.merchantId ? merchants.find((item) => item.id === goal.merchantId) : undefined;
-  const selectedTitle = goal?.kind === 'play' ? `${gameNames[goal.gameKind ?? ''] ?? '놀이'} 기록 도전`
-    : merchant ? `${merchant.name} ${goal?.kind === 'discover' ? '처음 가기' : goal?.kind === 'regular' ? '단골 되기' : '시리즈 모으기'}` : undefined;
   if (!collection) return null;
+  const resolved = resolveStudioGoal(goal, merchants, collection);
   const summary = buildExplorationSummary(merchants, collection, new Date());
   const openMerchant = (merchantId: string) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId, from: 'recommendation' } });
   return <View style={[styles.band, { borderColor: palette.separator }]}>
-    {selectedTitle ? <Pressable accessibilityRole="button" accessibilityLabel={`나의 목표, ${selectedTitle}`}
-      onPress={() => goal?.kind === 'play' ? router.push('/play') : merchant && openMerchant(merchant.id)} style={styles.goal}>
-      <Text style={[styles.eyebrow, { color: palette.primary }]}>나의 목표</Text>
-      <Text style={[styles.title, { color: palette.label }]}>{selectedTitle}</Text>
+    {resolved ? <Pressable accessibilityRole="button" accessibilityLabel={`${resolved.status === 'active' ? '나의 목표' : '새 목표 고르기'}, ${resolved.label}`}
+      onPress={() => resolved.status !== 'active' ? router.push('/studio') : goal?.kind === 'play' ? router.push('/play') : goal?.merchantId && openMerchant(goal.merchantId)} style={styles.goal}>
+      <Text style={[styles.eyebrow, { color: palette.primary }]}>{resolved.status === 'active' ? '나의 목표' : resolved.status === 'completed' ? '목표 달성' : '목표 다시 고르기'}</Text>
+      <Text style={[styles.title, { color: palette.label }]}>{resolved.label}</Text>
+      {resolved.status !== 'active' ? <Text style={[styles.note, { color: palette.secondaryLabel }]}>{resolved.next ? `${resolved.next.label} · 새 목표 고르기` : '새 목표 고르기'} ›</Text> : null}
     </Pressable> : null}
     {summary.weekly.target > 0 ? <>
       <Text style={[styles.title, { color: palette.label }]}>이번 주 {summary.weekly.current}곳 탐험 · 목표 {summary.weekly.target}곳</Text>

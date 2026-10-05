@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
-import { gradeMaterialPresets } from '@/screens/collection/grade-material';
+import { studioComposition } from './studio-composition';
 
 export type VideoLayers = {
   backgroundUri: string;
@@ -12,6 +12,7 @@ export type VideoLayers = {
   sceneHeight: number;
   sceneTop?: number;
   coinSizeRatio?: number;
+  motionEnabled?: boolean;
 };
 
 export async function saveStudioImage(uri: string): Promise<boolean> {
@@ -45,6 +46,7 @@ export async function exportStudioVideo(layers: VideoLayers, isAlive: () => bool
     ...(layers.avatarUri ? { avatarUri: layers.avatarUri } : {}),
     ...(layers.coinUri ? { coinUri: layers.coinUri } : {}),
     ...(layers.coinColors ? { coinColors: [...layers.coinColors] } : {}),
+    motionEnabled: layers.motionEnabled !== false,
     ...(layers.sceneTop !== undefined ? { sceneTop: layers.sceneTop } : {}),
     ...(layers.coinSizeRatio !== undefined ? { coinSizeRatio: layers.coinSizeRatio } : {}),
   });
@@ -89,39 +91,33 @@ async function exportWebStudioVideo(layers: VideoLayers, isAlive: () => boolean)
   });
   recorder.start();
   const started = performance.now();
-  while (performance.now() - started < 4000 && isAlive()) {
-    const progress = (performance.now() - started) / 4000;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(background, 0, 0, layers.width, layers.height);
-    context.save();
-    context.translate(0, layers.sceneTop ?? 0);
-    if (avatar) {
-      const size = Math.min(layers.width * .43, layers.sceneHeight * .46);
-      context.drawImage(avatar, layers.width * .285, layers.sceneHeight * .83 - size + Math.sin(progress * Math.PI * 4) * 19, size, size);
-    }
-    if (coin) {
-      const colors = layers.coinColors && layers.coinColors.length >= 2 ? layers.coinColors : gradeMaterialPresets.bronze.colors;
-      const radius = layers.width * (layers.coinSizeRatio ?? .30) / 2;
+  try {
+    while (performance.now() - started < 4000 && isAlive()) {
+      const progress = layers.motionEnabled === false ? 0 : (performance.now() - started) / 4000;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(background, 0, 0, layers.width, layers.height);
       context.save();
-      context.translate(layers.width * .235 + Math.sin(progress * Math.PI * 4) * 15, layers.sceneHeight * .23);
-      context.scale(Math.max(.12, Math.abs(Math.cos(progress * Math.PI * 4))), 1);
-      context.fillStyle = colors[colors.length - 1];
-      context.beginPath(); context.arc(5, 7, radius + 8, 0, Math.PI * 2); context.fill();
-      const rim = context.createLinearGradient(-radius, -radius, radius, radius);
-      colors.forEach((color, index) => rim.addColorStop(index / (colors.length - 1), color));
-      context.fillStyle = rim; context.beginPath(); context.arc(0, 0, radius + 4, 0, Math.PI * 2); context.fill();
-      context.save(); context.beginPath(); context.arc(0, 0, radius - 9, 0, Math.PI * 2); context.clip();
-      context.drawImage(coin, -radius + 9, -radius + 9, (radius - 9) * 2, (radius - 9) * 2);
-      const gleam = context.createLinearGradient(-radius * 2 + progress * radius * 5, -radius, -radius + progress * radius * 5, radius);
-      gleam.addColorStop(0, '#ffffff00'); gleam.addColorStop(.5, '#ffffffaa'); gleam.addColorStop(1, '#ffffff00');
-      context.fillStyle = gleam; context.fillRect(-radius, -radius, radius * 2, radius * 2);
-      context.restore(); context.restore();
+      context.translate(0, layers.sceneTop ?? 0);
+      if (avatar) {
+        const size = Math.min(layers.width * studioComposition.avatarWidth, layers.sceneHeight * studioComposition.avatarHeight);
+        context.drawImage(avatar, layers.width * studioComposition.avatarLeft, layers.sceneHeight * studioComposition.avatarFloor - size + Math.sin(progress * Math.PI * 4) * 6, size, size);
+      }
+      if (coin) {
+        const size = layers.width * (layers.coinSizeRatio ?? studioComposition.coinSizeRatio);
+        context.save();
+        context.translate(layers.width * studioComposition.coinCenterX, layers.sceneHeight * studioComposition.coinCenterY);
+        // The captured shell carries shape, paint and metal. Tilt it without replacing it with a circular rim.
+        context.scale(1 - Math.sin(progress * Math.PI * 4) ** 2 * .12, 1);
+        context.drawImage(coin, -size / 2, -size / 2, size, size);
+        context.restore();
+      }
+      context.restore();
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
     }
-    context.restore();
-    await new Promise<void>((resolve) => setTimeout(resolve, 50));
+  } finally {
+    if (recorder.state !== 'inactive') recorder.stop();
+    stream.getTracks().forEach((track) => track.stop());
   }
-  recorder.stop();
-  stream.getTracks().forEach((track) => track.stop());
   const video = await finished;
   if (!isAlive()) return 'cancelled';
   if (video.size === 0) throw new Error('VIDEO_EMPTY');

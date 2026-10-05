@@ -1,14 +1,16 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, type ReactNode } from 'react';
-import { Image, Pressable, type ImageSourcePropType } from 'react-native';
+import { Image, Pressable, View, type ImageSourcePropType } from 'react-native';
 import Animated, { cancelAnimation, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { lightHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound } from '@/sound/ui-sounds';
 import { Mascot } from './mascot';
+import { friendArt } from '@/shop/shop-art';
+import { AvatarPortrait } from '@/illustration/avatar-portrait';
 
-export function Companion({ art, size = 120, celebrate = false, interactive = false, characterId, poseId, children }: {
+type Props = {
   art?: ImageSourcePropType;
   size?: number;
   celebrate?: boolean;
@@ -16,7 +18,17 @@ export function Companion({ art, size = 120, celebrate = false, interactive = fa
   characterId?: string | null;
   poseId?: string | null;
   children?: ReactNode;
-}) {
+};
+
+export function Companion(props: Props) {
+  const avatar = props.characterId ?? Object.keys(friendArt).find(id => friendArt[id] === props.art);
+  const size = props.size ?? 120;
+  return avatar ? <View style={{ width: size, height: size }}><AvatarPortrait avatar={avatar} size={size}
+    reaction={props.celebrate || props.poseId === 'stack-cheer' ? 'cheer' : 'idle'} interactive={props.interactive} />{props.children}</View>
+    : <LegacyCompanion {...props} />;
+}
+
+function LegacyCompanion({ art, size = 120, celebrate = false, interactive = false, characterId, poseId, children }: Props) {
   const motion = useMotionEnabled();
   const lift = useSharedValue(0);
   const scale = useSharedValue(1);

@@ -1,12 +1,15 @@
-import { useRef } from 'react';
-import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions, type ImageSourcePropType } from 'react-native';
+import { useId, useRef } from 'react';
+import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
-import { friendArt } from '@/shop/shop-art';
-import { AvatarEquipment } from '@/experience/avatar-equipment';
+import Svg, { Defs, G, LinearGradient, Stop } from 'react-native-svg';
+import { AvatarPortrait } from '@/illustration/avatar-portrait';
+import { BadgeArt, CosmeticArt } from '@/illustration/artwork';
+import { badgeFrame, cosmeticFrames } from '@/illustration/art-catalog';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
+import { CollectibleFaceOutline } from '@/screens/collection/collectible-default-back';
 import { gradeMaterialFor, gradeMaterialPresets } from '@/screens/collection/grade-material';
-import { Companion } from '@/ui/companion';
+import { studioComposition, studioDecorPlacement } from './studio-composition';
 
 import type { PublicStudio, StudioItem } from './studio-api';
 
@@ -15,20 +18,59 @@ const rooms = {
   evening: require('../../assets/images/play/room-evening.png'),
   garden: require('../../assets/images/play/room-garden.png'),
 } as const;
-const mascot = require('../../assets/images/mascot/v2/wave.png');
 const accentColors = { mint: '#68BAAC', rose: '#E78F9B', sky: '#72A7E6' } as const;
 
 export function CompanionScene({ avatar, size = 160, onLoad, onError, experienceProfile, interactive = false }: {
   avatar: string | null; size?: number; onLoad?: () => void; onError?: () => void; experienceProfile?: DisplayExperienceProfile; interactive?: boolean;
 }) {
-  const source: ImageSourcePropType | undefined = avatar ? friendArt[avatar] : undefined;
-  const equipment = <AvatarEquipment avatar={avatar} equipment={experienceProfile} size={size} />;
+  return <AvatarPortrait avatar={avatar} profile={experienceProfile} size={size} interactive={interactive}
+    reaction="idle" onLoad={onLoad} onError={onError} animated={false} />;
+}
+
+/** The exact metal shell is captured once for both photographs and video layers. */
+export function StudioCoin({ item, apiUrl, size, onLoad, onError }: {
+  item: StudioItem; apiUrl: string; size: number; onLoad?: () => void; onError?: () => void;
+}) {
+  const id = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const source = item.artwork?.thumbnailDataUrl ? { uri: item.artwork.thumbnailDataUrl }
+    : merchantArtSource({ id: item.merchantId }, apiUrl);
+  const material = gradeMaterialPresets[gradeMaterialFor(item.artwork?.gradeId ?? '', item.artwork?.gradeName ?? '')];
+  const shape = item.artwork?.shape ?? 'circle';
   return <View style={{ width: size, height: size }}>
-    {onLoad ? <View style={{ transform: [{ rotate: experienceProfile?.cosmetics.pose === 'stack-cheer' ? '-7deg' : '0deg' }] }}>
-      <Image source={source ?? mascot} resizeMode="contain" onLoad={onLoad} onError={onError}
-        accessible accessibilityLabel={source ? '선택한 동행' : '동행을 기다리는 마스코트'} style={{ width: size, height: size }} />
-      {equipment}
-    </View> : <Companion art={source} size={size} interactive={interactive} characterId={avatar} poseId={experienceProfile?.cosmetics.pose}>{equipment}</Companion>}
+    <Svg width={size} height={size} viewBox="0 0 100 100">
+      <Defs>
+        <LinearGradient id={`${id}metal`} x1="0" y1="0" x2="1" y2="1">
+          {material.colors.map((color, index) => <Stop key={index} offset={index / (material.colors.length - 1)} stopColor={color} />)}
+        </LinearGradient>
+      </Defs>
+      <G transform="translate(1.2 2)"><CollectibleFaceOutline shape={shape} fill={material.colors[material.colors.length - 1]!} /></G>
+      <CollectibleFaceOutline shape={shape} fill={`url(#${id}metal)`} stroke={material.colors[0]} strokeWidth={2} />
+    </Svg>
+    {source ? <View style={{ position: 'absolute', overflow: 'hidden',
+      left: size * (shape === 'stamp' ? .12 : shape === 'serrated' ? .15 : .1),
+      top: size * (shape === 'stamp' ? .08 : shape === 'serrated' ? .15 : .1),
+      width: size * (shape === 'stamp' ? .76 : shape === 'serrated' ? .70 : .8),
+      height: size * (shape === 'stamp' ? .84 : shape === 'serrated' ? .70 : .8),
+      borderRadius: shape === 'stamp' ? size * .04 : size }}>
+      <Image source={source} resizeMode="contain" style={{ width: '100%', height: '100%' }} onLoad={onLoad} onError={onError} />
+    </View> : null}
+    <Svg pointerEvents="none" width={size} height={size} viewBox="0 0 100 100" style={{ position: 'absolute' }}>
+      <CollectibleFaceOutline shape={shape} fill="none" stroke={material.colors[1]} strokeWidth={1} />
+    </Svg>
+  </View>;
+}
+
+/** The same grounded decor layer belongs to live scenes and the captured video background. */
+export function StudioDecor({ id, width, height, onLoad, onError }: {
+  id: string; width: number; height: number; onLoad?: () => void; onError?: () => void;
+}) {
+  const placement = studioDecorPlacement(id);
+  const size = width * placement.size;
+  const top = height * placement.anchorY - size * placement.paintedBase;
+  return <View pointerEvents="none" style={[styles.decor, { left: width * placement.left, top, width: size, height: size }]}>
+    {placement.surface !== 'wall' ? <View style={[styles.decorContact,
+      { left: size * .14, top: size * placement.paintedBase - size * .025, width: size * .74, height: size * .075 }]} /> : null}
+    <CosmeticArt id={id} size={size} onLoad={onLoad} onError={onError} />
   </View>;
 }
 
@@ -42,7 +84,7 @@ export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAsse
   const accent = accentColors[studio.accent];
   const sceneItems = items.slice(0, 6);
   const representative: StudioItem | undefined = representativeCoin ?? (experienceProfile?.coinEntitlementId
-    ? sceneItems.find((item) => item.entitlementId === experienceProfile.coinEntitlementId) : experienceProfile?.coin ?? undefined);
+    ? sceneItems.find((item) => item.entitlementId === experienceProfile.coinEntitlementId) : experienceProfile?.coin ?? sceneItems[0]);
   const coinSource = representative?.artwork?.thumbnailDataUrl ? { uri: representative.artwork.thumbnailDataUrl }
     : representative ? merchantArtSource({ id: representative.merchantId }, apiUrl) : undefined;
   const shelf = studio.layout === 'shelf';
@@ -50,9 +92,10 @@ export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAsse
     (representative.entitlementId && item.entitlementId ? representative.entitlementId === item.entitlementId :
       item.merchantId === representative.merchantId && item.campaignTitle === representative.campaignTitle &&
       item.displayName === representative.displayName && item.artwork?.gradeId === representative.artwork?.gradeId));
-  const material = gradeMaterialPresets[gradeMaterialFor(representative?.artwork?.gradeId ?? '', representative?.artwork?.gradeName ?? '')];
-  const coinWidth = width * (onAssetsReady ? .30 : .19);
-  const expectedAssets = (videoBackground ? 1 : 2) + (!videoBackground && coinSource ? 1 : 0) + sceneItems.filter((item, index) => index !== featuredIndex && (!!item.artwork?.thumbnailDataUrl ||
+  const coinWidth = width * studioComposition.coinSizeRatio;
+  const badgeAsset = !!experienceProfile?.badgeId && badgeFrame(experienceProfile.badgeId) !== undefined;
+  const decorAsset = !!experienceProfile?.cosmetics.decor && cosmeticFrames[experienceProfile.cosmetics.decor] !== undefined;
+  const expectedAssets = Number(badgeAsset) + Number(decorAsset) + (videoBackground ? 1 : 2) + (!videoBackground && coinSource ? 1 : 0) + sceneItems.filter((item, index) => index !== featuredIndex && (!!item.artwork?.thumbnailDataUrl ||
     !!merchantArtSource({ id: item.merchantId }, apiUrl))).length;
   const markLoaded = (key: string) => {
     if (!onAssetsReady) return;
@@ -64,19 +107,9 @@ export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAsse
       <Image source={rooms[studio.theme]} resizeMode="cover" style={styles.backdrop} accessible={false}
         onLoad={() => markLoaded('room')} onError={onAssetError} />
       <View style={[styles.accentLine, { borderColor: accent }]} />
-      {!videoBackground ? <View style={[styles.companion, { left: width * 0.285, bottom: height * 0.17 }]}>
-        <CompanionScene avatar={avatar} experienceProfile={experienceProfile} size={Math.min(width * 0.43, height * 0.46)}
-          onLoad={onAssetsReady ? () => markLoaded('companion') : undefined} onError={onAssetError} />
-      </View> : null}
-      {!videoBackground && coinSource ? <Pressable
-        accessibilityRole={onItemPress && representative ? 'button' : 'image'}
-        accessibilityLabel={`대표 수집품 ${representative?.displayName ?? experienceProfile?.coin?.displayName ?? ''}`}
-        disabled={!onItemPress || !representative} onPress={() => representative && onItemPress?.(representative)}
-        style={[styles.featuredCoin, { left: width * .235 - coinWidth / 2, top: Math.max(0, height * .23 - coinWidth / 2), width: coinWidth, height: coinWidth,
-          backgroundColor: material.tint, borderColor: material.colors[0] }]}>
-        <Image source={coinSource} resizeMode="contain" style={styles.itemImage} accessible={false}
-          onLoad={() => markLoaded('featured-coin')} onError={onAssetError} />
-      </Pressable> : null}
+      <View style={[styles.floor, { top: height * .77 }]} />
+      <View style={[styles.pedestal, { left: width * .235 - coinWidth * .42, top: height * .23 + coinWidth * .43, width: coinWidth * .84, height: height * .035 }]} />
+      <View style={[styles.contactShadow, { left: width * .285 + width * .06, bottom: height * .16, width: width * .31, height: height * .045 }]} />
       {sceneItems.map((item, index) => {
           if (index === featuredIndex) return null;
           const source = item.artwork?.thumbnailDataUrl
@@ -92,6 +125,7 @@ export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAsse
               style={[styles.item, { borderColor: accent, width: width * (shelf ? 0.13 : 0.17), height: height * (shelf ? 0.13 : 0.17),
                 left: width * (shelf ? (column ? 0.79 : 0.08) : (0.15 + column * 0.27)),
                 top: height * (shelf ? (0.17 + row * 0.14) : (0.13 + row * 0.2)) }]}>
+              <View style={styles.shelfLip} />
               {source ? <Image source={source} resizeMode="contain" style={styles.itemImage} accessible={false}
                 onLoad={() => markLoaded(`item-${index}`)} onError={onAssetError} />
                 : <Text style={styles.missingArt} numberOfLines={2}>{item.displayName}</Text>}
@@ -101,22 +135,34 @@ export function StudioScene({ studio, items, avatar, apiUrl, onItemPress, onAsse
       {!sceneItems.length && fontScale < 1.5 ? <View style={[styles.empty, { right: width * 0.06, top: height * 0.29 }]}>
         <Text style={styles.emptyText}>첫 수집품을 기다리는 공간</Text>
       </View> : null}
-      {experienceProfile?.badgeId ? <View style={[styles.badge, onAssetsReady && { left: undefined, right: 12, maxWidth: width * .6 }]}><Text allowFontScaling={!onAssetsReady} style={styles.badgeText} numberOfLines={1}>✦ {badgeName ?? experienceProfile.badgeName ?? experienceProfile.badgeId}</Text></View> : null}
+      {experienceProfile?.badgeId ? <View style={[styles.badge, { right: 12, maxWidth: width * .40 }]}><BadgeArt id={experienceProfile.badgeId} size={30} onLoad={() => markLoaded('badge')} onError={onAssetError} /><Text allowFontScaling={!onAssetsReady} style={styles.badgeText} numberOfLines={1}>{badgeName ?? experienceProfile.badgeName ?? experienceProfile.badgeId}</Text></View> : null}
       {(experienceProfile?.coin || experienceProfile?.coinEntitlementId) ? <View style={styles.coinLabel}>
-        {coinSource ? <Image source={coinSource} resizeMode="contain" style={styles.coinImage} accessible={false} /> : null}
         <Text allowFontScaling={!onAssetsReady} style={styles.coinText} numberOfLines={1}>{experienceProfile.coin?.displayName ?? representative?.displayName ?? '대표 코인'}</Text>
       </View> : null}
-      {experienceProfile?.cosmetics.decor ? <View style={[styles.wallDecor,
-        { backgroundColor: experienceProfile.cosmetics.decor.includes('gold') ? '#F6D77C' : experienceProfile.cosmetics.decor.includes('silver') ? '#DEE8F2' : '#F2C9AF' }]}>
-        <Text style={styles.wallDecorText}>{experienceProfile.cosmetics.decor.includes('flower') ? '✿' : '✦'}</Text>
+      {experienceProfile?.cosmetics.decor ? <StudioDecor id={experienceProfile.cosmetics.decor} width={width} height={height}
+        onLoad={() => markLoaded('decor')} onError={onAssetError} /> : null}
+      {!videoBackground ? <View style={[styles.companion, { left: width * studioComposition.avatarLeft, bottom: height * (1 - studioComposition.avatarFloor) }]}>
+        <CompanionScene avatar={avatar} experienceProfile={experienceProfile} size={Math.min(width * studioComposition.avatarWidth, height * studioComposition.avatarHeight)}
+          onLoad={onAssetsReady ? () => markLoaded('companion') : undefined} onError={onAssetError} />
       </View> : null}
+      {!videoBackground && coinSource ? <Pressable
+        accessibilityRole={onItemPress && representative ? 'button' : 'image'}
+        accessibilityLabel={`대표 수집품 ${representative?.displayName ?? experienceProfile?.coin?.displayName ?? ''}`}
+        disabled={!onItemPress || !representative} onPress={() => representative && onItemPress?.(representative)}
+        style={[styles.featuredCoin, { left: width * studioComposition.coinCenterX - coinWidth / 2, top: height * studioComposition.coinCenterY - coinWidth / 2, width: coinWidth, height: coinWidth }]}>
+        <StudioCoin item={representative!} apiUrl={apiUrl} size={coinWidth}
+          onLoad={() => markLoaded('featured-coin')} onError={onAssetError} />
+      </Pressable> : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  featuredCoin: { position: 'absolute', borderRadius: 999, backgroundColor: '#FFF0C3', borderWidth: 3,
-    borderColor: '#D6AD54', padding: 3, overflow: 'hidden', elevation: 4, shadowColor: '#65451B', shadowOpacity: .24, shadowRadius: 5 },
+  featuredCoin: { position: 'absolute' },
+  floor: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#B7947340', borderTopWidth: 2, borderTopColor: '#9D79564A' },
+  pedestal: { position: 'absolute', backgroundColor: '#C6A67D', borderRadius: 8, borderBottomWidth: 5, borderBottomColor: '#92704F', elevation: 3 },
+  contactShadow: { position: 'absolute', borderRadius: 999, backgroundColor: '#584B3D24' },
+  shelfLip: { position: 'absolute', bottom: -5, left: -6, right: -6, height: 7, borderRadius: 2, backgroundColor: '#B8936A', borderBottomWidth: 2, borderBottomColor: '#785A42' },
   scene: { overflow: 'hidden', position: 'relative' },
   backdrop: { position: 'absolute', width: '100%', height: '100%', top: 0 },
   accentLine: { position: 'absolute', bottom: 0, left: 0, width: '100%', borderBottomWidth: 5 },
@@ -126,11 +172,10 @@ const styles = StyleSheet.create({
   missingArt: { color: '#35445B', textAlign: 'center', fontSize: 10, fontWeight: '700' },
   empty: { position: 'absolute', width: '46%', backgroundColor: '#FFFFFFDD', padding: 9, borderRadius: 6 },
   emptyText: { color: '#34445B', fontWeight: '700', fontSize: 12, textAlign: 'center' },
-  badge: { position: 'absolute', top: 9, left: 9, maxWidth: '65%', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#FFF1BD', borderWidth: 1, borderColor: '#C5904E' },
+  badge: { position: 'absolute', top: 9, right: 12, maxWidth: '40%', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#FFF1BD', flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#C5904E' },
   badgeText: { color: '#68491E', fontWeight: '900', fontSize: 11 },
   coinLabel: { position: 'absolute', bottom: 8, right: 8, maxWidth: '45%', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#FFFFFFDD', flexDirection: 'row', alignItems: 'center', gap: 4 },
-  coinImage: { width: 24, height: 24 },
   coinText: { color: '#35445B', fontWeight: '800', fontSize: 10 },
-  wallDecor: { position: 'absolute', top: '16%', right: '9%', width: 31, height: 31, borderRadius: 8, borderWidth: 2, borderColor: '#A47B50', alignItems: 'center', justifyContent: 'center' },
-  wallDecorText: { color: '#69503B', fontSize: 22, fontWeight: '900' },
+  decor: { position: 'absolute' },
+  decorContact: { position: 'absolute', borderRadius: 999, backgroundColor: '#44321C35' },
 });

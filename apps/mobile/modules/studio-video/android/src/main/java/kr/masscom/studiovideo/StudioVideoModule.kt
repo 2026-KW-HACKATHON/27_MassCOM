@@ -4,11 +4,8 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
-import android.graphics.Shader
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -24,9 +21,6 @@ import expo.modules.kotlin.modules.ModuleDefinition
 import expo.modules.kotlin.functions.Queues
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.max
 import kotlin.math.sin
 
 /** Encodes an actual H.264 MP4 from the share card and its moving character/coin layers. */
@@ -91,15 +85,12 @@ class StudioVideoModule : Module() {
     val height = (options["height"] as Number).toInt()
     val sceneHeight = (options["sceneHeight"] as Number).toInt()
     val sceneTop = (options["sceneTop"] as? Number)?.toFloat() ?: 0f
+    val motionEnabled = options["motionEnabled"] != false
     val coinSizeRatio = (options["coinSizeRatio"] as? Number)?.toFloat() ?: .30f
     require(width == 1080 && (height == 1350 || height == 1920)) { "Unsupported share size" }
     val background = readBitmap(options["backgroundUri"] as String)
     val avatar = (options["avatarUri"] as? String)?.let(::readBitmap)
     val coin = (options["coinUri"] as? String)?.let(::readBitmap)
-    val coinColors = (options["coinColors"] as? List<*>)?.mapNotNull { value ->
-      (value as? String)?.let { runCatching { Color.parseColor(it) }.getOrNull() }
-    }?.takeIf { it.size >= 2 }?.toIntArray()
-      ?: intArrayOf(Color.parseColor("#E3BB8B"), Color.parseColor("#FFF1DC"), Color.parseColor("#A9673F"))
     val output = File(context.cacheDir, "masscom-studio-${SystemClock.elapsedRealtimeNanos()}.mp4")
     val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
       setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
@@ -122,7 +113,7 @@ class StudioVideoModule : Module() {
       val totalFrames = FPS * DURATION_SECONDS
       for (index in 0 until totalFrames) {
         if (cancelled.get()) throw InterruptedException("Video export cancelled")
-        renderFrame(canvas, background, avatar, coin, coinColors, width, height, sceneHeight, sceneTop, coinSizeRatio, index.toFloat() / totalFrames)
+        renderFrame(canvas, background, avatar, coin, width, height, sceneHeight, sceneTop, coinSizeRatio, if (motionEnabled) index.toFloat() / totalFrames else 0f)
         val inputIndex = codec.dequeueInputBuffer(TIMEOUT_US)
         if (inputIndex < 0) error("Video encoder input timed out")
         val image = codec.getInputImage(inputIndex) ?: error("Video encoder has no YUV input image")
@@ -193,7 +184,7 @@ class StudioVideoModule : Module() {
     return BitmapFactory.decodeFile(path) ?: error("Unable to decode share image")
   }
 
-  private fun renderFrame(canvas: Canvas, background: Bitmap, avatar: Bitmap?, coin: Bitmap?, coinColors: IntArray,
+  private fun renderFrame(canvas: Canvas, background: Bitmap, avatar: Bitmap?, coin: Bitmap?,
     width: Int, height: Int, sceneHeight: Int, sceneTop: Float, coinSizeRatio: Float, progress: Float) {
     val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     canvas.drawColor(Color.WHITE)
@@ -201,7 +192,7 @@ class StudioVideoModule : Module() {
     canvas.save()
     canvas.translate(0f, sceneTop)
     if (avatar != null) {
-      val bounce = sin(progress * Math.PI * 4).toFloat() * 19f
+      val bounce = sin(progress * Math.PI * 4).toFloat() * 6f
       val size = minOf(width * .43f, sceneHeight * .46f)
       val x = width * .285f
       val y = sceneHeight * .83f - size + bounce
@@ -210,30 +201,13 @@ class StudioVideoModule : Module() {
     if (coin != null) {
       val cx = width * .235f
       val cy = sceneHeight * .23f
-      val radius = width * coinSizeRatio / 2f
+      val size = width * coinSizeRatio
       val phase = progress * Math.PI * 4
-      val faceWidth = max(.12f, abs(cos(phase).toFloat()))
-      val side = sin(phase).toFloat()
       canvas.save()
-      canvas.translate(cx + side * 15f, cy)
-      canvas.scale(faceWidth, 1f)
-      val edge = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = coinColors.last() }
-      canvas.drawCircle(5f, 7f, radius + 8f, edge)
-      edge.shader = LinearGradient(-radius, -radius, radius, radius,
-        coinColors,
-        null, Shader.TileMode.CLAMP)
-      canvas.drawCircle(0f, 0f, radius + 4f, edge)
-      val clip = Path().apply { addCircle(0f, 0f, radius - 9f, Path.Direction.CW) }
-      canvas.save()
-      canvas.clipPath(clip)
-      canvas.drawBitmap(coin, null, RectF(-radius + 9f, -radius + 9f, radius - 9f, radius - 9f), paint)
-      val gleam = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        shader = LinearGradient(-radius * 2f + progress * radius * 5f, -radius,
-          -radius + progress * radius * 5f, radius,
-          intArrayOf(Color.TRANSPARENT, 0xAAFFFFFF.toInt(), Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
-      }
-      canvas.drawRect(-radius, -radius, radius, radius, gleam)
-      canvas.restore()
+      canvas.translate(cx, cy)
+      // The exact RN shell is in the bitmap: preserve stamp/serrated silhouettes and the painted face.
+      canvas.scale(1f - sin(phase).toFloat().let { it * it } * .12f, 1f)
+      canvas.drawBitmap(coin, null, RectF(-size / 2f, -size / 2f, size / 2f, size / 2f), paint)
       canvas.restore()
     }
     canvas.restore()

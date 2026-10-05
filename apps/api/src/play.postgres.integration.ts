@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { IncomingMessage, ServerResponse, type Server } from 'node:http';
 import { Socket } from 'node:net';
 import { PassThrough } from 'node:stream';
@@ -48,7 +49,7 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   const pool = new Pool({ connectionString });
   t.after(() => pool.end());
   await runMigrations(pool);
-  await pool.query(`TRUNCATE merchants, account_deletion_requests, account_profile, account_characters,
+  await pool.query(`TRUNCATE merchants, friendships, account_deletion_requests, account_profile, account_characters,
     play_runs, play_records, studios, play_flow_counts, retention_scan_progress CASCADE`);
   const state = { now: new Date('2026-10-04T10:00:00.000Z') };
   const now = () => state.now;
@@ -90,6 +91,9 @@ test('play runs replay once, studio requires ownership, friend view hides identi
 
   for (let index = 0; index < 3; index++) {
     const run = await play.start({ accountId: 'player', kind: 'orders' });
+    assert.equal(run.rulesVersion, 2);
+    // A run created by the previous server must still finish under its original rules.
+    await pool.query('UPDATE play_runs SET rules_version=1 WHERE id=$1', [run.id]);
     const board = getGameBoard('orders', run.seed);
     if (board.kind !== 'orders') throw new Error('unexpected board');
     const actions = board.orders.flat().map((choice, step) => ({ at: (step + 1) * 180, choice }));
@@ -106,6 +110,23 @@ test('play runs replay once, studio requires ownership, friend view hides identi
     assert.deepEqual(await play.finish({ accountId: 'player', runId: run.id, actions: [] }), finished);
   }
   assert.equal((await play.getPlay('player')).achievements?.find((skill) => skill.id === 'order-streak')?.achieved, true);
+  const version2 = await play.start({ accountId: 'player', kind: 'orders' });
+  const version2Board = getGameBoard('orders', version2.seed);
+  if (version2Board.kind !== 'orders') throw new Error('unexpected board');
+  const version2Actions = version2Board.orders.flatMap((order) => [...order, 4])
+    .map((choice, index) => ({ at: index * 100, choice }));
+  state.now = new Date(state.now.getTime() + 1_600);
+  const version2Result = await play.finish({ accountId: 'player', runId: version2.id, actions: version2Actions });
+  assert.equal(version2Result.rulesVersion, 2);
+  assert.equal(version2Result.completed, true);
+  assert.equal(version2Result.version2Plays, 1);
+  assert.equal(version2Result.plays, 4);
+  assert.ok(version2Result.version2BestScore! > 0);
+  assert.deepEqual(await play.finish({ accountId: 'player', runId: version2.id, actions: [] }), version2Result);
+  assert.deepEqual((await play.getPlay('player')).records.find((record) => record.kind === 'orders'), {
+    kind: 'orders', bestScore: 1125, plays: 4,
+    version2BestScore: version2Result.score, version2Plays: 1,
+  });
   await pool.query(`UPDATE play_runs SET result = result - 'skill' WHERE account_id='player' AND kind='orders'`);
   assert.equal((await play.getPlay('player')).achievements?.find((skill) => skill.id === 'order-streak')?.achieved, true,
     'perfect legacy scores still prove the achievement when old run JSON lacks skill details');
@@ -117,7 +138,7 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   (error) => error instanceof PlayError && error.code === 'PLAY_ACTIONS_INVALID');
   const partial = await play.finish({ accountId: 'player', runId: pending.id, actions: [] });
   assert.equal(partial.completed, false);
-  assert.equal(partial.plays, 3);
+  assert.equal(partial.plays, 4);
   assert.ok(partial.bestScore > 0);
   const expired = await play.start({ accountId: 'player', kind: 'stack' });
   state.now = new Date(state.now.getTime() + 46_000);
@@ -185,7 +206,7 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   assert.equal(sanitized.studio.goal, null);
   assert.deepEqual(sanitized.items, []);
   const metrics = await play.aggregate(30);
-  assert.equal(metrics.games.find((game) => game.kind === 'orders')?.completed, 3);
+  assert.equal(metrics.games.find((game) => game.kind === 'orders')?.completed, 4);
   assert.equal(metrics.events.find((event) => event.event === 'studio_saved')?.count, 1);
   await pool.query('DELETE FROM friendships WHERE id=$1', [friendshipId]);
   await assert.rejects(() => play.getFriendStudio({ accountId: 'friend', friendshipId }),
@@ -268,4 +289,115 @@ test('non-perfect game achievements and equipped rewards survive actual run rete
   const snapshot = await experience.getSnapshot(accountId);
   assert.equal(snapshot.profile.badgeId,'match-efficient');
   assert.equal(snapshot.profile.cosmetics.prop,'memory-card');
+  const retained = (await play.getPlay(accountId)).records.find(record => record.kind === 'memory');
+  assert.deepEqual(retained, { kind: 'memory', bestScore: 0, plays: 1, version2BestScore: 585, version2Plays: 1 });
+});
+
+test('0050 preserves pre-upgrade pending runs, cached results, scores and permanent rights', async (t) => {
+  const connectionString = process.env.TEST_DATABASE_URL;
+  if (!connectionString || !decodeURIComponent(new URL(connectionString).pathname).endsWith('_test')) throw new Error('dedicated test database required');
+  const pool = new Pool({ connectionString }); t.after(() => pool.end());
+  const client = await pool.connect();
+  const schema = `quality_${randomUUID().replaceAll('-', '')}`;
+  try {
+    await client.query('BEGIN');
+    await client.query(`CREATE SCHEMA ${schema}`);
+    await client.query(`SET LOCAL search_path TO ${schema}`);
+    await client.query(await readFile(new URL('../migrations/0042_connected_play.sql', import.meta.url), 'utf8'));
+    const pendingId = randomUUID();
+    const cachedId = randomUUID();
+    const cached = { kind: 'orders', score: 1125, bestScore: 1125, plays: 10, completed: true,
+      correct: 12, total: 12, unlockedThemes: ['evening', 'garden'],
+      skill: { id: 'order-streak', progress: 8, target: 8, achieved: true } };
+    await client.query(`INSERT INTO play_records (account_id,kind,best_score,plays) VALUES ('legacy','orders',1125,10)`);
+    await client.query(`INSERT INTO play_runs (id,account_id,kind,seed,started_at,expires_at,rules_version)
+      VALUES ($1,'legacy','orders',17,now(),now()+interval '45 seconds',1)`, [pendingId]);
+    await client.query(`INSERT INTO play_runs (id,account_id,kind,seed,started_at,expires_at,rules_version,finished_at,result)
+      VALUES ($1,'legacy','orders',17,now(),now()+interval '45 seconds',1,now(),$2)`, [cachedId, JSON.stringify(cached)]);
+    await client.query(await readFile(new URL('../migrations/0047_durable_game_achievements.sql', import.meta.url), 'utf8'));
+    await client.query(await readFile(new URL('../migrations/0050_quality_game_records.sql', import.meta.url), 'utf8'));
+    assert.equal((await client.query('SELECT rules_version FROM play_runs WHERE id=$1', [pendingId])).rows[0].rules_version, 1);
+    assert.deepEqual((await client.query('SELECT result FROM play_runs WHERE id=$1', [cachedId])).rows[0].result, cached);
+    assert.deepEqual((await client.query('SELECT best_score,plays,version2_best_score,version2_plays FROM play_records')).rows[0],
+      { best_score: 1125, plays: 10, version2_best_score: 0, version2_plays: 0 });
+    assert.deepEqual((await client.query('SELECT skill_progress,skill_achieved FROM play_records')).rows[0],
+      { skill_progress: 8, skill_achieved: true });
+    await client.query('UPDATE play_runs SET rules_version=2 WHERE id=$1', [pendingId]);
+    assert.equal((await client.query('SELECT rules_version FROM play_runs WHERE id=$1', [pendingId])).rows[0].rules_version, 2);
+  } finally {
+    await client.query('ROLLBACK');
+    client.release();
+  }
+});
+
+test('quality finishes enforce server elapsed and stop sample while preserving legacy scores and closed-account boundaries', async (t) => {
+  const connectionString = process.env.TEST_DATABASE_URL;
+  if (!connectionString || !decodeURIComponent(new URL(connectionString).pathname).endsWith('_test')) throw new Error('dedicated test database required');
+  const pool = new Pool({ connectionString }); t.after(() => pool.end());
+  await runMigrations(pool);
+  const now = new Date('2026-10-05T00:00:00Z');
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const play = new PostgresPlayService(pool, lifecycle, { now: () => now });
+  const accountId = `quality-${randomUUID()}`;
+  await pool.query(`INSERT INTO play_records (account_id,kind,best_score,plays,skill_progress,skill_achieved)
+    VALUES ($1,'stack',10,10,3,true)`, [accountId]);
+  const stack = await play.start({ accountId, kind: 'stack' });
+  await pool.query('UPDATE play_runs SET seed=17 WHERE id=$1', [stack.id]);
+  const stackActions = [172, 541, 1011, 1212, 1711, 2387].map(at => ({ at, choice: 0 }));
+  const invalid = (runId: string, actions: { at: number; choice: number }[]) => assert.rejects(() =>
+    play.finish({ accountId, runId, actions }), error => error instanceof PlayError && error.code === 'PLAY_ACTIONS_INVALID');
+  now.setTime(now.getTime() + 600);
+  await invalid(stack.id, stackActions);
+  now.setTime(now.getTime() + 1787);
+  const result = await play.finish({ accountId, runId: stack.id, actions: stackActions });
+  assert.equal(result.bestScore, 10);
+  assert.equal(result.version2BestScore, 600);
+  assert.equal(result.plays, 11);
+  assert.equal(result.version2Plays, 1);
+  assert.equal(result.newlyEarned, false);
+  assert.deepEqual(result.unlockedThemes, ['evening', 'garden']);
+  now.setTime(now.getTime() + 46_000);
+  assert.deepEqual(await play.finish({ accountId, runId: stack.id, actions: [{ at: -1, choice: 9 }] }), result);
+  const emptyDelivery = await play.start({ accountId, kind: 'delivery' });
+  const stoppedDelivery = await play.start({ accountId, kind: 'delivery' });
+  const completeDelivery = await play.start({ accountId, kind: 'delivery' });
+  await pool.query('UPDATE play_runs SET seed=17 WHERE id=ANY($1::uuid[])', [[emptyDelivery.id, stoppedDelivery.id, completeDelivery.id]]);
+  const deliveryBoard = getGameBoard('delivery', 17);
+  if (deliveryBoard.kind !== 'delivery') throw new Error('unexpected board');
+  const safe = deliveryBoard.ticks.map(tick => ({ at: tick.at, choice: tick.bonusLane }));
+  now.setTime(now.getTime() + 23_000);
+  await invalid(completeDelivery.id, safe);
+  now.setTime(now.getTime() + 1000);
+  const empty = await play.finish({ accountId, runId: emptyDelivery.id, actions: [] });
+  assert.equal(empty.completed, false);
+  assert.equal(empty.score, 0);
+  const stopped = await play.finish({ accountId, runId: stoppedDelivery.id, actions: safe.slice(0, 1) });
+  assert.equal(stopped.completed, false);
+  assert.equal(stopped.score, 100);
+  const [arrived, retry] = await Promise.all([
+    play.finish({ accountId, runId: completeDelivery.id, actions: safe }),
+    play.finish({ accountId, runId: completeDelivery.id, actions: safe }),
+  ]);
+  assert.deepEqual(retry, arrived);
+  assert.equal(arrived.completed, true);
+  assert.equal(arrived.score, 1200);
+  assert.equal(arrived.version2Plays, 1);
+  const pending = await play.start({ accountId, kind: 'orders' });
+  const orders = getGameBoard('orders', pending.seed);
+  if (orders.kind !== 'orders') throw new Error('unexpected board');
+  const actions = orders.orders.flatMap(order => [...order, 4]).map((choice, index) => ({ at: index * 100, choice }));
+  await invalid(pending.id, actions);
+  const snapshot = await play.getPlay(accountId);
+  assert.equal(snapshot.achievements?.find(skill => skill.id === 'stack-precision')?.achieved, true);
+  for (let index = 5; index < 30; index++) await play.start({ accountId, kind: 'memory' });
+  await assert.rejects(() => play.start({ accountId, kind: 'memory' }),
+    error => error instanceof PlayError && error.code === 'PLAY_RATE_LIMITED');
+  const deletion = new PostgresAccountDeletionService(pool, { hmacSecret: secret, policyVersion: 'test',
+    now: () => now, accountLifecycle: lifecycle });
+  await deletion.requestDeletion({ accountId, confirmation: 'DELETE MY ACCOUNT' });
+  for (const action of [() => play.start({ accountId, kind: 'orders' }), () => play.getPlay(accountId),
+    () => play.finish({ accountId, runId: stack.id, actions: [] })]) {
+    await assert.rejects(action, error => error instanceof PlayError && error.code === 'ACCOUNT_DELETED');
+  }
+  assert.equal((await pool.query('SELECT 1 FROM play_records WHERE account_id=$1', [accountId])).rowCount, 0);
 });

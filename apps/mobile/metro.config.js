@@ -6,6 +6,10 @@ const config = getDefaultConfig(__dirname);
 config.watchFolders = [...(config.watchFolders || []), resolve(__dirname, '../api/src')];
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // NodeNext emits .js imports; this one browser-safe source is consumed directly by Metro.
+  if (context.originModulePath === resolve(__dirname, '../api/src/play-rules-quality.ts') && moduleName === './play-rules.js') {
+    return { filePath: resolve(__dirname, '../api/src/play-rules.ts'), type: 'sourceFile' };
+  }
   if (process.env.APP_VARIANT === 'showcase' && moduleName === './showcase-collectible-art-assets') {
     return {
       filePath: resolve(__dirname, 'src/screens/collection/showcase-collectible-art-assets.showcase.ts'),

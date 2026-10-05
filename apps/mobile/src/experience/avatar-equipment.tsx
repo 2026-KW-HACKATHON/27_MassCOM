@@ -1,47 +1,49 @@
-import { StyleSheet, Text, View } from 'react-native';
-
+import { View } from 'react-native';
 import type { ExperienceProfile } from './experience-api';
+import { CosmeticArt } from '@/illustration/artwork';
+import { CharacterArt } from '@/illustration/character-art';
 
 type Equipment = Pick<ExperienceProfile, 'cosmetics'>;
-
-// The existing character art has different head/body proportions. Keep anchors by character,
-// while the equipment remains a separate layer so the original art is preserved.
-const anchors: Record<string, { head: number; bag: number; hand: number }> = {
-  'cook-cat': { head: 0.13, bag: 0.57, hand: 0.57 },
-  'cafe-bear': { head: 0.15, bag: 0.59, hand: 0.61 },
-  'bakery-squirrel': { head: 0.12, bag: 0.55, hand: 0.58 },
-  'walk-rabbit': { head: 0.06, bag: 0.58, hand: 0.57 },
-  'tteok-tiger': { head: 0.15, bag: 0.57, hand: 0.61 },
-  'laundry-seal': { head: 0.17, bag: 0.64, hand: 0.64 },
-  'market-raccoon': { head: 0.12, bag: 0.58, hand: 0.58 },
-  'flower-hedgehog': { head: 0.13, bag: 0.61, hand: 0.59 },
-  'book-owl': { head: 0.13, bag: 0.59, hand: 0.58 },
+type Anchor = { hatX: number; headSeat: number; handX: number; handY: number; waveRight?: boolean };
+const anchors: Readonly<Record<string, Anchor>> = {
+  'cook-cat': { hatX: .28, headSeat: .23, handX: .27, handY: .65, waveRight: true },
+  'cafe-bear': { hatX: .28, headSeat: .22, handX: .27, handY: .61 },
+  'walk-rabbit': { hatX: .28, headSeat: .40, handX: .24, handY: .65, waveRight: true },
+  'bakery-squirrel': { hatX: .27, headSeat: .25, handX: .26, handY: .63, waveRight: true },
+  'flower-hedgehog': { hatX: .27, headSeat: .26, handX: .26, handY: .61 },
+  'book-owl': { hatX: .28, headSeat: .24, handX: .25, handY: .65 },
+  'tteok-tiger': { hatX: .28, headSeat: .25, handX: .25, handY: .64, waveRight: true },
+  'market-raccoon': { hatX: .28, headSeat: .24, handX: .25, handY: .63, waveRight: true },
+  'laundry-seal': { hatX: .28, headSeat: .27, handX: .23, handY: .65 },
 };
 
-export function AvatarEquipment({ avatar, equipment, size }: { avatar: string | null; equipment?: Equipment; size: number }) {
-  if (!equipment || !avatar) return null;
-  const placement = anchors[avatar] ?? { head: 0.13, bag: 0.59, hand: 0.59 };
-  const { hat, bag, prop, pose } = equipment.cosmetics;
-  if (!hat && !bag && !prop && !pose) return null;
-  const hue = hat?.includes('gold') ? '#F6D16E' : hat?.includes('silver') ? '#D5E5F5' :
-    hat?.includes('bronze') ? '#D9A36F' : avatar.includes('bear') || avatar.includes('tiger') ? '#F8C969' : '#F6A6BB';
-  return <View pointerEvents="none" style={[styles.overlay, { width: size, height: size }]} accessible
-    accessibilityLabel={[hat && '모자', bag && '가방', prop && '손 소품', pose && '포즈'].filter(Boolean).join(', ') || undefined}>
-    {hat ? <View style={[styles.hat, { top: size * placement.head, left: size * 0.33, width: size * 0.36, height: size * 0.12, backgroundColor: hue }]}>
-      <Text style={{ color: '#70503C', fontWeight: '900', fontSize: size * 0.08 }}>{hat.includes('explorer') ? '✦' : hat.includes('steady') ? '✓' : '•'}</Text>
+export function AvatarEquipment({ avatar, equipment, size, frame = 0, layer = 'all', onLoad, onError }: {
+  avatar: string | null; equipment?: Equipment; size: number; frame?: 0 | 1 | 2 | 3;
+  layer?: 'back' | 'front' | 'all'; onLoad?: (slot: string) => void; onError?: () => void;
+}) {
+  if (!avatar || !equipment) return null;
+  const anchor = anchors[avatar] ?? anchors['cook-cat']!;
+  const { hat, bag, prop } = equipment.cosmetics;
+  // Measured painted lower edge inside each hat cell; the empty sprite padding is not the brim.
+  const brim = hat === 'silver-hat' ? .988 : hat === 'gold-hat' ? .857 :
+    hat === 'bronze-hat' ? .904 : hat?.startsWith('regular') ? .908 : hat?.startsWith('steady') ? .892 : .920;
+  const handX = frame === 2 ? .18 : frame === 1 && anchor.waveRight ? .51 : anchor.handX;
+  const handY = frame === 2 ? .34 : frame === 3 ? .62 : anchor.handY;
+  return <View pointerEvents="none" style={{ position: 'absolute', width: size, height: size }}>
+    {layer !== 'front' && bag ? <View style={{ position: 'absolute', left: size * .64, top: size * .48 }}>
+      <CosmeticArt id={bag} size={size * .33} onLoad={() => onLoad?.('bag')} onError={onError} />
     </View> : null}
-    {bag ? <View style={[styles.bag, { top: size * placement.bag, left: size * 0.68, width: size * 0.19, height: size * 0.23 }]}><Text style={[styles.glyph, { fontSize: size * 0.11 }]}>✦</Text></View> : null}
-    {prop ? <View style={[styles.prop, { top: size * placement.hand, left: size * 0.11, width: size * 0.23, height: size * 0.23 }]}><Text style={[styles.glyph, { fontSize: size * 0.14 }]}>{prop.includes('memory') ? '▤' : prop.includes('steady') ? '✿' : prop.includes('gold') ? '✧' : '★'}</Text></View> : null}
-    {pose ? <View style={[styles.pose, { top: size * 0.39, left: size * 0.07 }]}><Text style={[styles.poseText]}>{pose.includes('victory') ? '✌' : pose.includes('wave') ? '〰' : '✦'}</Text></View> : null}
+    {layer !== 'back' && hat ? <View style={{ position: 'absolute', left: size * anchor.hatX,
+      top: size * (anchor.headSeat - .47 * brim + (frame === 3 ? .035 : 0)), transform: [{ rotate: frame === 3 ? '-5deg' : '0deg' }] }}>
+      <CosmeticArt id={hat} size={size * .47} onLoad={() => onLoad?.('hat')} onError={onError} />
+    </View> : null}
+    {layer !== 'back' && prop ? <View style={{ position: 'absolute', left: size * (handX - .095), top: size * (handY - .08) }}>
+      <CosmeticArt id={prop} size={size * .33} onLoad={() => onLoad?.('prop')} onError={onError} />
+    </View> : null}
+    {layer !== 'back' && prop ? <View style={{ position: 'absolute', left: size * handX, top: size * handY,
+      width: size * .15, height: size * .13, borderRadius: size * .065, overflow: 'hidden' }}>
+      <CharacterArt avatar={avatar} frame={frame} size={size}
+        style={{ position: 'absolute', left: -size * handX, top: -size * handY }} />
+    </View> : null}
   </View>;
 }
-
-const styles = StyleSheet.create({
-  overlay: { position: 'absolute', top: 0, left: 0 },
-  hat: { position: 'absolute', borderRadius: 999, borderWidth: 2, borderColor: '#8E5364', transform: [{ rotate: '-7deg' }], alignItems: 'center', justifyContent: 'center' },
-  bag: { position: 'absolute', backgroundColor: '#E2A46F', borderRadius: 12, borderWidth: 2, borderColor: '#875437', alignItems: 'center', justifyContent: 'center' },
-  prop: { position: 'absolute', backgroundColor: '#FFF3C8', borderRadius: 999, borderWidth: 2, borderColor: '#C5904E', alignItems: 'center', justifyContent: 'center' },
-  glyph: { color: '#704F42', fontWeight: '900' },
-  pose: { position: 'absolute', backgroundColor: '#FFFFFFDB', borderRadius: 999, paddingHorizontal: 4 },
-  poseText: { color: '#365A91', fontSize: 18, fontWeight: '900' },
-});

@@ -69,7 +69,7 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
     try {
       const mine = await client.getMine();
       await client.save({ ...mine.studio, goal: { kind: 'discover', merchantId } });
-      if (active.current) setGoalNotice(`${merchantName}을 내 다음 방문 목표로 저장했어요.`);
+      if (active.current) setGoalNotice(`${merchantName} 방문을 다음 목표로 저장했어요.`);
     } catch {
       if (active.current) setGoalNotice('방문 목표를 저장하지 못했어요. 다시 시도해 주세요.');
     } finally { if (active.current) setGoalSaving(undefined); }

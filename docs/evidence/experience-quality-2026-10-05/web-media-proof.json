@@ -1,0 +1,29 @@
+{
+  "source": "actual Chrome UI feed-video button and OS Downloads file",
+  "qa": "synthetic localhost session, no Google login",
+  "file": "web-feed.mp4",
+  "bytes": 1469576,
+  "codec": "avc1",
+  "width": 1080,
+  "height": 1350,
+  "fps": 19.003223,
+  "durationSeconds": 4.104,
+  "frames": [
+    {
+      "file": "web-feed.mp4-0.png",
+      "sha256": "3f3a36c3e5ef7535c8ebcb28509a5a0822c3f943a530a5ba00bac8700140be53"
+    },
+    {
+      "file": "web-feed.mp4-1.png",
+      "sha256": "71654de3df5de3aefc8a1aeefb93e836a6baf6794a282ce938facbdede935d93"
+    },
+    {
+      "file": "web-feed.mp4-2.png",
+      "sha256": "2abdfb338db44c8e2cd5b24f2128a5414fff2b7ae735eba42fa8627203b1c563"
+    }
+  ],
+  "changed": true,
+  "image": "web-feed.png",
+  "downloadEvent": "Cua event timed out; actual OS file and saved UI verified",
+  "decoder": "AVFoundation with exact zero time tolerance; default keyframe tolerance was insufficient"
+}

@@ -90,3 +90,30 @@ test('배달 종료 응답이 유실돼도 확정한 종료 시각과 lane을 �
   assert.deepEqual(bodies, [JSON.stringify({ actions: [{ at: 2_500, choice: 1 }] }),
     JSON.stringify({ actions: [{ at: 2_500, choice: 1 }] })]);
 });
+
+test('version 2 retains separated records and rejects missing, mixed or impossible response fields', async () => {
+  const qualityRun = { ...run, rulesVersion: 2 } as const;
+  const result = { kind: 'stack', rulesVersion: 2, score: 500, bestScore: 600, plays: 10,
+    version2BestScore: 500, version2Plays: 1, completed: true, correct: 6, total: 6, unlockedThemes: ['garden'] };
+  const snapshot = { records: [{ kind: 'stack', bestScore: 600, plays: 10,
+    version2BestScore: 500, version2Plays: 1 }], unlockedThemes: ['garden'] };
+  const api = createPlayApiClient({ apiUrl: 'https://api.test', credential, fetcher: async url =>
+    Response.json(String(url).endsWith('/me/play') ? snapshot : String(url).endsWith('/finish') ? result : qualityRun) });
+  assert.deepEqual(await api.getPlay(), snapshot);
+  assert.deepEqual(await api.start('stack'), qualityRun);
+  assert.deepEqual(await api.finish(qualityRun, []), result);
+  for (const patch of [{ rulesVersion: 1 }, { rulesVersion: undefined }, { version2BestScore: undefined },
+    { version2Plays: undefined }, { version2BestScore: -1 }, { version2Plays: 11 }, { correct: 7 }]) {
+    const malformed = createPlayApiClient({ apiUrl: 'https://api.test', credential,
+      fetcher: async () => Response.json({ ...result, ...patch }) });
+    await assert.rejects(() => malformed.finish(qualityRun, []),
+      error => error instanceof PlayApiError && error.code === 'INVALID_RESPONSE');
+  }
+  for (const patch of [{ version2BestScore: undefined }, { version2Plays: undefined },
+    { version2Plays: 11 }, { version2BestScore: 1.5 }]) {
+    const malformed = createPlayApiClient({ apiUrl: 'https://api.test', credential,
+      fetcher: async () => Response.json({ ...snapshot, records: [{ ...snapshot.records[0], ...patch }] }) });
+    await assert.rejects(() => malformed.getPlay(),
+      error => error instanceof PlayApiError && error.code === 'INVALID_RESPONSE');
+  }
+});

@@ -1,23 +1,31 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 
+import { ThemeOutfitPreview } from '@/experience/theme-pack-board';
+import type { ExperienceProfile } from '@/experience/experience-api';
+import { CosmeticArt, PackArt } from '@/illustration/artwork';
+import { AvatarPortrait } from '@/illustration/avatar-portrait';
 import { ConfettiBurst } from '@/gamification/confetti';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { lightHaptic, successHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound } from '@/sound/ui-sounds';
 import type { MileageGrade, ShopGradeView, ShopRerollResult, ShopSnapshot } from '@/shop/shop-api';
-import { friendArt, ticketArt } from '@/shop/shop-art';
+import { CharacterArt } from '@/illustration/character-art';
 import { rerollDisclosure } from '@/shop/shop-rules';
 
 import { themePackName, cosmeticSequenceDisclosure, gachaAffordability, gachaPhaseAfter, gachaTimeline, isNewDraw, type GachaPhase, type GachaStage } from './gacha-rules';
 
 type Props = {
   snapshot: ShopSnapshot;
+  profile?: ExperienceProfile;
+  bonusSaving?: boolean;
+  bonusError?: string;
+  onEquipBonus?: () => void;
   result?: ShopRerollResult;
   ownedBefore: readonly string[];
   busy: boolean;
@@ -43,7 +51,7 @@ const gradeStyle: Record<MileageGrade, { name: string; color: string; pale: stri
 const stages: GachaStage[] = ['crank', 'shake', 'drop', 'wobble', 'split', 'burst', 'pop'];
 
 /** The same full-screen purchase experience opens from the shop and the visit reward reel. */
-export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
+export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEquipBonus, result, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
   wishId, onWish, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
@@ -72,6 +80,9 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
   }, {}), [snapshot.items]);
   const availability = gachaAffordability(snapshot.mileage.balance, snapshot.grades, ownedByGrade);
   const canRepeat = availability.some((entry) => entry.enabled);
+  const baseProfile = profile ?? { badgeId: null, cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null } };
+  const bonusProfile = result?.bonus ? { ...baseProfile, cosmetics: { ...baseProfile.cosmetics, [result.bonus.slot]: result.bonus.id } } : profile;
+  const bonusEquipped = !!result?.bonus && profile?.cosmetics[result.bonus.slot] === result.bonus.id;
   const grade = result?.item.grade ?? drawing?.grade ?? 'BRONZE';
   const tone = gradeStyle[grade];
 
@@ -170,7 +181,7 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
           <Text style={styles.balance}>보유 {snapshot.mileage.balance.toLocaleString('ko-KR')} 마일리지</Text>
           {animating || displayPhase === 'pending' ? <Control label="건너뛰기" onPress={skip} /> : <Control label="닫기" onPress={onClose} />}
         </View>
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {displayPhase === 'picker' ? (
             <>
               <Text accessibilityRole="header" style={styles.heading}>어떤 친구를 만날까요?</Text>
@@ -181,7 +192,7 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
                   accessibilityState={{ selected: wishId === item.id, disabled: item.owned }} disabled={item.owned}
                   onPress={() => onWish?.(wishId === item.id ? null : item.id)}
                   style={[styles.catalogItem, { borderColor: wishId === item.id ? '#FFCE70' : 'transparent' }]}>
-                  {friendArt[item.id] ? <Image source={friendArt[item.id]} resizeMode="contain" style={styles.catalogArt} accessible={false} /> : null}
+                  <CharacterArt avatar={item.id} frame="calm" size={70} />
                   <Text style={styles.catalogName}>{item.name}</Text>
                   <Text style={styles.catalogStatus}>{item.owned ? '함께해요' : wishId === item.id ? '내 목표' : gradeStyle[item.grade].name}</Text>
                 </Pressable>)}
@@ -195,7 +206,7 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
                   return <Pressable key={item.grade} accessibilityRole="button" accessibilityLabel={`${label} ${item.price}마일리지${available.reason ? `, ${available.reason}` : ''}`}
                     accessibilityState={{ disabled: !available.enabled || busy || !!refreshing }} disabled={!available.enabled || busy || refreshing}
                     onPress={() => { void startDraw(item); }} style={[styles.ticketButton, !available.enabled && styles.disabled]}>
-                    <Image source={ticketArt[item.grade]} style={styles.ticketArt} resizeMode="contain" accessible={false} />
+                    <PackArt grade={item.grade} size={80} />
                     <View style={styles.ticketCopy}><Text style={styles.ticketName}>{label} · {item.price}P</Text><Text style={styles.ticketNote}>{available.reason ?? rerollDisclosure(item)}</Text><Text style={styles.ticketNote}>{cosmeticSequenceDisclosure}</Text></View>
                   </Pressable>;
                 })}
@@ -226,18 +237,33 @@ export function GachaMachine({ snapshot, result, ownedBefore, busy, error, refre
                 <Animated.View style={[styles.resultCard, { borderColor: tone.color }, resultStyle]} accessible accessibilityLabel={`결과: ${result.item.name}`}>
                 <Text style={[styles.gradePill, { backgroundColor: tone.color }]}>{tone.name}</Text>
                 {isNewDraw(result.item, ownedBefore) ? <Text style={styles.newBadge}>NEW</Text> : null}
-                {friendArt[result.item.id] ? <Image source={friendArt[result.item.id]} style={styles.character} resizeMode="contain" accessible={false} /> : <Text style={styles.missingCharacter}>?</Text>}
+                <AvatarPortrait avatar={result.item.id} profile={bonusProfile} size={240} reaction="cheer" animated={motionAllowed} />
                 <Text style={styles.characterName}>{result.item.name}</Text>
-                {result.bonus ? <Text style={styles.description}>함께 얻은 꾸미기 · {result.bonus.name}</Text> : null}
+                {result.bonus ? <View style={styles.bonusReveal}>
+                  <CosmeticArt id={result.bonus.id} size={82} /><View style={styles.ticketCopy}>
+                    <Text style={styles.description}>함께 얻은 꾸미기</Text><Text style={styles.catalogName}>{result.bonus.name}</Text>
+                    <Text style={styles.ticketNote}>{bonusEquipped ? result.bonus.slot === 'decor' ? '배치 완료' : '장착 완료' : result.bonus.slot === 'decor' ? '공간 장식 · 아래에서 배치 미리보기' : '착용 미리보기 · 아직 장착하지 않았어요'}</Text>
+                  </View>
+                </View> : null}
                 <Text style={styles.description}>{wishId === result.item.id ? '기다리던 동행을 만났어요!' : '내 공간에서 함께 놀고, 가게를 탐험해요.'}</Text>
                 <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>
                 </Animated.View>
               </View>}
               {displayPhase === 'result' ? <View style={styles.actions}>
                 {avatarError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{avatarError}</Text> : null}
-                <Control label={isAvatar ? '대표 캐릭터예요' : avatarBusy ? '설정 중…' : '대표 캐릭터로'} primary disabled={isAvatar || avatarBusy} onPress={onSetAvatar} />
-                {onOpenStudio ? <Control label="내 공간에서 만나기" disabled={avatarBusy} onPress={onOpenStudio} /> : null}
-                {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy} onPress={() => { activeResult.current = undefined; advancePhase('picker'); }} /> : null}
+                {result.bonus?.slot === 'decor' ? <View style={{ alignItems: 'center', gap: 8 }}>
+                  <ThemeOutfitPreview avatar={snapshot.avatar} profile={bonusProfile} />
+                  <Text style={styles.description}>참고용 배치 미리보기 · 실제 배치는 내 공간에서 확인해요</Text>
+                </View> : null}
+                {result.bonus && result.bonus.slot !== 'decor' && profile ? <View style={styles.bonusReveal}>
+                  <AvatarPortrait avatar={snapshot.avatar} profile={bonusProfile} size={104} reaction="idle" />
+                  <Text style={[styles.description, styles.ticketCopy]}>지금 동행에게 입혀 본 모습{bonusEquipped ? ' · 장착 완료' : ''}</Text>
+                </View> : null}
+                {bonusError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{bonusError}</Text> : null}
+                {result.bonus && onEquipBonus ? <Control label={bonusSaving ? '꾸미기 저장 중…' : bonusEquipped ? result.bonus?.slot === 'decor' ? '장식 배치 완료' : '꾸미기 장착 완료' : result.bonus?.slot === 'decor' ? '내 공간에 이 장식 배치' : '지금 동행에게 꾸미기 장착'} disabled={avatarBusy || bonusSaving || bonusEquipped} onPress={onEquipBonus} /> : null}
+                <Control label={isAvatar ? '대표 캐릭터예요' : avatarBusy ? '설정 중…' : '대표 캐릭터로'} primary disabled={isAvatar || avatarBusy || bonusSaving} onPress={onSetAvatar} />
+                {onOpenStudio ? <Control label={result.bonus?.slot === 'decor' ? '내 공간에 놓으러 가기' : '내 공간에서 만나기'} disabled={avatarBusy || bonusSaving} onPress={onOpenStudio} /> : null}
+                {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy || bonusSaving} onPress={() => { activeResult.current = undefined; advancePhase('picker'); }} /> : null}
                 <Control label="닫기" onPress={onClose} />
               </View> : null}
             </>
@@ -287,9 +313,10 @@ function Control({ label, onPress, primary, disabled }: { label: string; onPress
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#142724', paddingHorizontal: 22 },
+  root: { flex: 1, minHeight: 0, backgroundColor: '#142724', paddingHorizontal: 22 },
   topBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balance: { color: '#FFE5A4', fontSize: 15, fontWeight: '800' },
+  scroll: { flex: 1, minHeight: 0 },
   content: { alignItems: 'center', paddingBottom: 24, gap: 14 },
   heading: { color: '#FFFFFF', fontSize: 25, fontWeight: '900', textAlign: 'center', marginTop: 12 },
   description: { color: '#D9E7FA', fontSize: 15, textAlign: 'center' },
@@ -321,6 +348,7 @@ const styles = StyleSheet.create({
   character: { width: 250, height: 260, maxWidth: '100%' },
   missingCharacter: { color: '#FFFFFF', fontSize: 90, fontWeight: '900' },
   characterName: { color: '#FFFFFF', fontSize: 26, fontWeight: '900', textAlign: 'center', flexShrink: 1 },
+  bonusReveal: { alignSelf: 'stretch', flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: 10, borderRadius: 14, backgroundColor: '#29473F' },
   resultBalance: { color: '#D9E7FA', fontSize: 14 },
   actions: { alignSelf: 'stretch', gap: 10, marginTop: 8 },
   control: { minHeight: 48, minWidth: 44, borderRadius: 8, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#29473F' },
