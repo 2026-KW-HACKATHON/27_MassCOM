@@ -21,7 +21,7 @@
 
 - API 단위 `npm test --prefix apps/api`, 모바일 단위 `npm test --prefix apps/mobile`, 각각 타입 검사와 모바일 lint, API build.
 - 실제 PostgreSQL 16: 별도 `masscom_371_full_test`의 `npm run test:postgres --prefix apps/api`, 동시 연장·직원/삭제 경합·CSV·기기/세션·알림 소스 변경·친구 해제·취소·영구 성취·미보유 보너스/과거 원장/구 API INSERT 포함. 최종 수치는 summary.json을 따른다.
-- `node --test 'tests/site/*.test.mjs'`, 웹 Blob CSV 다운로드와 범위/응답·공개 정책/동의 판독 포함.
+- `node --test 'tests/site/*.mjs'`507/507, 웹 Blob CSV 다운로드와 범위/응답·공개 정책/동의 판독 포함.
 - 실제 Chrome 390×844 로컬 웹: 개봉→대표 설정→장착, 네 게임 각각 완주(타이밍88, 기억600, 배달630, 주문1125점)→기억/주문 배지와 노을 방 해금→배지/소품 장착→공간 저장. 자동 조작 기반이며 사람의 실력을 증명하지 않는다. 기억의 시간 초과 0점은 완주/배지로 올리지 않는 것도 확인했다.
 - Android 개발 앱 arm64 APK 실제 빌드/설치, 에뮬레이터(실제 API 수준은 summary.json), MediaCodec H.264 + MediaMuxer, MediaStore/Photos. 외부 게시·전송은 공유 대화상자에서 실행하지 않았다.
 - 스토리 자체 설계: 상단270px/하단384px 비워 중앙에 필수 문구 배치, 확대 대표 코인·동행·배지. 실제 PNG와 디코딩 영상 OCR7개 모두 Y270–1536 안, 관측 범위 Y320.93–1487.44. 공식 플랫폼 승인/실제 Instagram 게시 검증은 아니다.
@@ -36,6 +36,8 @@
 
 ## 실패 수정과 보존
 
+첫 CI의 웹 동의 안내 불일치를 기존 시험으로 재현해 HTML 두 줄을 고쳤다. 최초 로컬 시험의 `.test.mjs` 범위에서 빠진 `_test.mjs`도 함께 실행해 전체 웹507/507 PASS했다. 첫 실패를 최종 성공으로 덮어 쓰지 않고 PR 검사 이력과 함께 기록한다.
+
 기존 .env.local이 Expo57 virtual env에 합쳐져 옛 주소·로그인 조건을 덮어쓰는 것을 실제 네트워크/단말로 확인했다. 빌드/QA 동안만 분리하고 SHA256·0644·mtime 원상 복구했다. 글꼴 배율2.0 복원, QA Metro 종료, 다른 운영/시연 설치본과 이전 미추적 export는 보존했다. 에뮬레이터 공간 부족은 QA dev package 데이터 보존과 arm64 APK로 복구했다.
 
 단위 helper의 1×1 PNG를 사용한 과거 QA A 자료가 실제 Android 디코딩에 실패했다. 기존 스냅샷을 덮어쓰지 않고 격리 DB에서 실제 제작 서비스로 포함된 C 그림을 게시·방문해 새 정상 수집품을 얻었다. 잘못된 자산 때 공유를 성공으로 표시하지 않는다.
@@ -49,4 +51,4 @@
 - 설치된 Excel/Numbers에서 CSV 열기: NOT_RUN. 한글 UTF-8 BOM·정상 CSV 파싱·필터 수치·수식 방어·웹 Blob 다운로드는 실제 파일 바이트/시험으로 확인했다.
 - 작업 디렉터리 전체 빠른 검사: 기존 사용자 환경/ignored QA 산출물의 비밀 탐지 경고. 검사를 끄거나 사용자 파일을 지우지 않고 실제 스테이징 소스·원래 Git 이력을 가진 깨끗한 복사본에서 검사한다.
 
-실행 수치·명령 출력은 [summary.json](summary.json)·[checks.txt](checks.txt), 실제 네 게임 기록과 저장한 공간은 [games-and-space.json](games-and-space.json)·[실제 웹 저장 화면](web-games-saved.png)을 따른다. 최종 커밋·PR·CI는 TEST_STATUS에 동기화한다.
+실행 수치·명령 출력은 [summary.json](summary.json)·[checks.txt](checks.txt), 실제 네 게임 기록과 저장한 공간은 [games-and-space.json](games-and-space.json)·[실제 웹 저장 화면](web-games-saved.png)을 따른다. 구현 커밋은 `e70699a8`, [통합 PR #372](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372)의 최신 검사·병합 기록이 CI와 코드 통합 상태의 근거다. 공개 배포와는 별도다.

@@ -24,9 +24,10 @@
       "skipReason": "unchanged hosted-seed tests require a newly created disposable container on localhost:55435"
     },
     "site": {
-      "total": 340,
-      "passed": 340,
-      "failed": 0
+      "total": 507,
+      "passed": 507,
+      "failed": 0,
+      "command": "node --test 'tests/site/*.mjs'"
     },
     "apiTypecheck": "PASS",
     "apiBuild": "PASS",
@@ -91,5 +92,13 @@
     "production/showcase migrations and deployment",
     "public Android release, Google Play",
     "CSV opening in installed Excel/Numbers; UTF-8 BOM bytes and parsing covered by tests"
-  ]
+  ],
+  "integration": {
+    "implementationCommit": "e70699a84f42666575ac2757f02b27765026aecc",
+    "pullRequest": "https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372",
+    "firstCiRun": "https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/37260248135",
+    "statusAuthority": "current pull request check and merge records; a queued/in-progress run does not prove success",
+    "firstCiConclusion": "FAIL_WEB_CONSENT_COPY_MISMATCH",
+    "firstFailureCorrected": "Web HTML now matches mobile purpose and collection fields; reproduced with existing regression, full site507 PASS"
+  }
 }

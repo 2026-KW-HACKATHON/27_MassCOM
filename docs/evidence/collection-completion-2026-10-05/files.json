@@ -1,8 +1,8 @@
 [
   {
     "file": "README.md",
-    "bytes": 7241,
-    "sha256": "3f076ec3a4aa36c9b71312c8b01f26401b4b33d3a9e87efa6eba2b89aa8537af"
+    "bytes": 7710,
+    "sha256": "6a392fcba4dbf911b935ad59f477ef5b216d7e497f5df0d3e79084d73b2bbf74"
   },
   {
     "file": "bronze-timing.json",
@@ -16,8 +16,8 @@
   },
   {
     "file": "checks.txt",
-    "bytes": 2171,
-    "sha256": "da6165b9450bff28e91b8988293c999b993092b7ff5722fe49f8eb03a2e2f338"
+    "bytes": 2492,
+    "sha256": "1bdd8e0bdf0f5f7095ae3f9e3b78db19088ad1918d1c6a07c3cf3145a656ce0a"
   },
   {
     "file": "games-and-space.json",
@@ -91,8 +91,8 @@
   },
   {
     "file": "summary.json",
-    "bytes": 2717,
-    "sha256": "f76a83981973d188a043d99cba22c68aaa0b50c66f355acf6f658e6e5c3c97ae"
+    "bytes": 3361,
+    "sha256": "150c7284a80a591f48c954c421f1160071f298008c32d2cbf3a117c542d3b931"
   },
   {
     "file": "web-games-saved.png",

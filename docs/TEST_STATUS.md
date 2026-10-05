@@ -2,7 +2,11 @@
 
 ## 2026-10-05 Issue #371 전체 통합
 
-브랜치 `feat/collection-merchant-completion`, 기준 main `aae64d88`. **PASS:** API473/473·모바일1513/1513·사이트340/340, PostgreSQL444 중441 PASS/3 SKIP/0 FAIL, API 타입/build·모바일 타입/lint·접근성·릴리스 지갑 표면·개인정보 로그 검사, API audit0건·모바일 audit 기존 만료 있는 좁은 예외 외 high/critical0건. 독립 Astra 검토의 남은 구체적 지적0건. 네 게임 웹 조작·장착/공간 저장과 Android 실제 PNG/4초 H.264 저장/Photos 재생·취소, Chrome MP4/WebM 실제 인코딩도 PASS다.  API 단위·모바일 단위·PostgreSQL 전체·사이트·타입/lint/build/비밀 검사와 실제 Chrome/Android 내보내기를 구분해 [전용 증거](evidence/collection-completion-2026-10-05/README.md)에 기록한다. 전체 DB 시험의 기존 hosted seed3건은 55435 전용 새 컨테이너가 필요해 SKIP이며 테스트 실패로 숨기지 않는다. 점주 DB·CSV·권한/삭제 경합·FCM 모의 발송·고정 보너스·친구 해제·성취 보관은 실제 PostgreSQL 시험을 실행했다.
+구현 커밋 `e70699a8`을 [PR #372](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372)로 push했다. 필수 CI와 최종 통합 상태는 PR의 최신 검사·병합 기록을 따른다. CI 실행 요청과 완료를 구분하며 공개 서버·APK 배포를 뜻하지 않는다.
+
+브랜치 `feat/collection-merchant-completion`, 기준 main `aae64d88`. **PASS:** API473/473·모바일1513/1513·전체 사이트507/507, PostgreSQL444 중441 PASS/3 SKIP/0 FAIL, API 타입/build·모바일 타입/lint·접근성·릴리스 지갑 표면·개인정보 로그 검사, API audit0건·모바일 audit 기존 만료 있는 좁은 예외 외 high/critical0건. 독립 Astra 검토의 남은 구체적 지적0건. 네 게임 웹 조작·장착/공간 저장과 Android 실제 PNG/4초 H.264 저장/Photos 재생·취소, Chrome MP4/WebM 실제 인코딩도 PASS다.  API 단위·모바일 단위·PostgreSQL 전체·사이트·타입/lint/build/비밀 검사와 실제 Chrome/Android 내보내기를 구분해 [전용 증거](evidence/collection-completion-2026-10-05/README.md)에 기록한다. 전체 DB 시험의 기존 hosted seed3건은 55435 전용 새 컨테이너가 필요해 SKIP이며 테스트 실패로 숨기지 않는다. 점주 DB·CSV·권한/삭제 경합·FCM 모의 발송·고정 보너스·친구 해제·성취 보관은 실제 PostgreSQL 시험을 실행했다.
+
+첫 CI는 웹 동의 안내 두 줄이 앱과 다른 것으로 실패했다. 기존 회귀 시험에서 같은 실패를 확인하고 웹 HTML을 같은 안내로 수정했다. 기존 `.test.mjs`만 포함한 로컬 명령의 범위를 `node --test 'tests/site/*.mjs'`로 넓혀507/507 PASS했다.
 
 미실행: Firebase 실수신/푸시 터치, 물리 휴대폰 센서·효과음/진동 체감·TalkBack, 실제 점포 QR/점주 Google 세션, 공개 배포/최신 공개 APK/Play. 개발 APK 설치·에뮬레이터 Photos 저장/재생·코드/브라우저 검증으로 대신 주장하지 않는다. 최종 수치·명령은 전용 증거를 기준으로 한다.
 

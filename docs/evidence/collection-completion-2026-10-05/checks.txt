@@ -78,3 +78,16 @@ npm run audit:ci --prefix apps/mobile
 audit 예외: GHSA-vfj7-8cjw-p6xm (braces, high): 2026-10-31까지 예외
 audit 예외: GHSA-86w9-cpqp-85rv (node-forge, high): 2026-10-31까지 예외
 audit: high·critical 권고 없음(예외 제외)
+
+전체 웹 확인 (두 파일명 형식 포함)
+node --test 'tests/site/*.mjs'
+ℹ tests 507
+ℹ suites 0
+ℹ pass 507
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 47408.814291
+
+첫 CI: 웹 동의 안내 문구 불일치 FAIL → 기존 회귀로 재현 → HTML두 줄 수정 → 전체507 PASS.

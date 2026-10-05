@@ -9,7 +9,7 @@
 - 로컬 미리보기 8096→API4312→별도 `masscom-connected-play-qa`의 `masscom_showcase_test`(55542); 영상 QA API4311→별도 `masscom-video-qa`(55543). 운영 DB·사용자 역할·공개 서버를 바꾸지 않았다. `.env.local` 내용·권한·mtime와 에뮬레이터 font_scale2.0 복구, QA Metro 종료. 이전 ignored/untracked export는 보존했다.
 - FCM 실수신은 프로젝트/서비스 계정/패키지 일치 google-services.json이 없어 NOT_RUN. 알림함·토큰 수명·잘못된 대상·재시도·모의 발송은 검증했다. 외부 게시, 실제 점포 QR, 물리 기울임·소리/진동 체감·TalkBack·일반 공개/Play 제출은 NOT_RUN.
 - 공개 반영 전에 최신 API/앱/처리방침 `privacy-2026-10-05`와 migration0044–0049를 함께 적용한다. 코드 롤백 때 새 원장/사용자 표를 DROP하지 않고 최신 삭제·알림 정리를 유지한다. 실제 설정 절차는 구현 안내의 알림 절을 따른다.
-- 최종 커밋·PR·CI는 통합 후 이 항목과 TEST_STATUS에 기록한다.
+- 구현 커밋 `e70699a8`을 [PR #372](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372)로 push했다. 필수 CI와 최종 통합 상태는 PR의 최신 검사·병합 기록을 따른다. CI 실행 요청과 완료를 구분하며 공개 서버·APK 배포를 뜻하지 않는다.
 
 ## 2026-10-05 `db28003` 운영·시연 배포와 운영 test.10·시연 Preview 19 공개 (Issue #369)
 

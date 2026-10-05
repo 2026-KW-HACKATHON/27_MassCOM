@@ -23,7 +23,7 @@
 - [x] 웹/Android 사용자·점주 연결과 이미지/영상 결과물의 실제 파일을 검증한다.
 - [x] 독립 권한·보상·알림 검토를 수행하고 지적을 해결한다.
 - [x] 증거·한계·외부 설정을 HANDOFF/PROJECT_STATE/TEST_STATUS/AI_USAGE/DECISIONS에 동기화한다.
-- [ ] Lore 커밋·push·한국어 PR·CI 확인과 승인된 통합을 진행한다.
+- [x] Lore 커밋·push·한국어 [PR #372](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/372) 생성과 필수 CI 실행을 연결한다. 최종 검사·병합 결과는 PR의 최신 기록을 따른다.
 
 ## 주요 실패 조건
 
