@@ -61,11 +61,11 @@
 
 ## 독립 리뷰 상태
 
-Cycle3 code review APPROVE와 architecture review `BLOCK — REQUEST CHANGES`의 HIGH 5건은 보정 입력으로 보존합니다. Cycle6에서 G007 ACK revision fence repair를 완료해 current-binding logout ACK가 최신 device revision fence 없이 local state를 지우던 gap을 닫았습니다. Cycle6 CodeReviewer는 APPROVE(0 issues), Architect는 CLEAR입니다. UltraQA는 14개 기록 claim 중 13 PASS·1 NOT_RUN으로 보존합니다. NOT_RUN은 ADV-CLI-002(runtime cancel/resume/stale state/hung CLI unsupported)이며 native audio/haptics/hardwareBack/remote push와 media-less seed의 실제 display ACK도 계속 `NOT_RUN`입니다. Cycle7 final review의 Code REQUEST CHANGES와 Architect BLOCK/HIGH는 cold-response fence repair로 해결된 역사입니다. Cycle8 owner/root mobile·coverage·cleaner·post-cleaner full rerun·세 export/guard·final reviews·live QA/UltraQA·final gate·browser smoke·vision review는 PASS입니다. PR 생성, production deployment, merge, 현재 PR body 기준 한국어 검사는 아직 root follow-up입니다.
+Cycle3 code review APPROVE와 architecture review `BLOCK — REQUEST CHANGES`의 HIGH 5건은 보정 입력으로 보존합니다. Cycle6에서 G007 ACK revision fence repair를 완료해 current-binding logout ACK가 최신 device revision fence 없이 local state를 지우던 gap을 닫았습니다. Cycle6 CodeReviewer는 APPROVE(0 issues), Architect는 CLEAR입니다. UltraQA는 14개 기록 claim 중 13 PASS·1 NOT_RUN으로 보존합니다. NOT_RUN은 ADV-CLI-002(runtime cancel/resume/stale state/hung CLI unsupported)이며 native audio/haptics/hardwareBack/remote push와 media-less seed의 실제 display ACK도 계속 `NOT_RUN`입니다. Cycle7 final review의 Code REQUEST CHANGES와 Architect BLOCK/HIGH는 cold-response fence repair로 해결된 역사입니다. Cycle8 owner/root mobile·coverage·cleaner·post-cleaner full rerun·세 export/guard·final reviews·live QA/UltraQA·final gate·browser smoke·vision review는 PASS입니다. Draft PR #374 생성과 현재 PR body/SHA-linked body 한국어 checker PASS는 완료됐습니다. Production deployment와 merge는 아직 `NOT_RUN`입니다.
 
 ## Remaining PR state
 
-Cycle8 source repair는 frozen 상태입니다. Final CodeReviewer/Architect, live QA/UltraQA, 최신 gate와 fresh search/filter/map/friends browser smoke는 PASS입니다. PR 생성과 현재 PR body 기준 한국어 검사는 root follow-up입니다.
+Cycle8 source repair는 frozen 상태입니다. Final CodeReviewer/Architect, live QA/UltraQA, 최신 gate와 fresh search/filter/map/friends browser smoke는 PASS입니다. Draft PR #374가 생성됐고 현재 PR body/SHA-linked body 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS입니다.
 
 ## NOT_RUN
 

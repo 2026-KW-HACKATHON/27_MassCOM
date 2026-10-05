@@ -1,6 +1,6 @@
 # Issue #367 브라우저 화면 증거
 
-2026-10-05 `feat/shop-home-social`의 로컬 Expo 웹 번들과 실제 개발 API/PostgreSQL로 확인한 화면입니다. cycle8 최종 자동·리뷰·QA·gate 증거와 최신 vision PASS88은 PASS이며, 가게·계정·초대는 검증용 가상 데이터입니다. 화면 밖 흰 영역은 브라우저 미리보기 환경에 포함됐습니다. Vision blocker는 없고, 녹색 구매 버튼 강조는 읽을 수 있는 주 버튼으로 기록됐으며 sound/vibration 스크롤 컷오프는 캡처 한계입니다.
+2026-10-05 `feat/shop-home-social`의 로컬 Expo 웹 번들과 실제 개발 API/PostgreSQL로 확인한 화면입니다. cycle8 최종 자동·리뷰·QA·gate 증거와 최신 vision PASS88은 PASS이고 Draft PR #374와 현재 PR body 한국어 checker도 PASS이며, 가게·계정·초대는 검증용 가상 데이터입니다. 화면 밖 흰 영역은 브라우저 미리보기 환경에 포함됐습니다. Vision blocker는 없고, 녹색 구매 버튼 강조는 읽을 수 있는 주 버튼으로 기록됐으며 sound/vibration 스크롤 컷오프는 캡처 한계입니다.
 
 - `home-top-cycle8.png`: fresh cycle8 홈 상단, 가게권 1장과 1/9 배지 상태.
 - `home-test-ticket.png`: 테스트 방문 1회 후 홈에 가게 뽑기권 1장 표시.

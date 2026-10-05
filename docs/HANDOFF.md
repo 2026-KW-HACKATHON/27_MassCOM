@@ -2,14 +2,14 @@
 
 ## 2026-10-05 앱 내 상점·홈·우정/우편 개편 (Issue #367)
 
-- 브랜치 `feat/shop-home-social`. Cycle8 source repair는 source frozen 상태이고 최종 자동·리뷰·QA·gate 검증은 완료됐다. 기존 운영 test.10·시연 Preview 19 공개 증거와 링크는 이번 항목으로 바꾸지 않는다. PR 생성과 현재 PR body 기준 한국어 검사는 아직 root follow-up이다.
+- 브랜치 `feat/shop-home-social`. Cycle8 source repair는 source frozen 상태이고 최종 자동·리뷰·QA·gate 검증은 완료됐다. 기존 운영 test.10·시연 Preview 19 공개 증거와 링크는 이번 항목으로 바꾸지 않는다. Draft PR [#374](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/374)는 생성됐고, 현재 PR body와 SHA-linked body 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다.
 - Cycle8 현재 증거: API 502/502, mobile 1633/1633, PostgreSQL 190/190, site 340/340으로 총 2665개 distinct full-suite PASS. Typecheck·lint·build, 55개 migration 두 DB idempotent, production Android·showcase Android·development web exports와 variant/accessibility/privacy guard PASS. CodeReviewer APPROVE 0 issues(`.omx/reviews/code-review-final-cycle8.md`), Architect CLEAR 0 blockers(`.omx/reviews/architect-final-cycle8.md`), final review gate clean(`.omx/reviews/code-review-final-gate-cycle8.json`), final `tools/gate.sh` exit 0(`.omx/gate-final-cycle8.log`). Live QA는 baseline 14 PASS·0 findings·cleanup 0, UltraQA 15 PASS·1 NOT_RUN·0 findings·cleanup 0(`.omx/qa-ultraqa-report-cycle8.md`). Cycle7 final review의 Code REQUEST CHANGES와 Architect BLOCK/HIGH는 cold-response fence repair로 해결된 역사로 보존한다.
 - Cycle7 통합 계획 `.omx/plans/main-0ce-integration-cycle7.md`는 Architect APPROVE와 Critic APPROVE를 받았다. 새 main의 collection/merchant/video/FCM 기능과 Issue #367의 상점·홈·소셜·오디오 동작을 모두 보존해야 한다.
 - Migration 번호는 최신 main 보존 때문에 바뀌었다. upstream `0043_campaign_extended_audit.sql`과 `0044_collection_experience.sql`~`0049_notification_sources.sql`을 그대로 두고, Issue #367은 `0050_social_mail.sql`, `0051_shop_draw_rewards.sql`, `0052_store_ticket_openings.sql`, `0053_social_notification_deliveries.sql`, `0054_push_token_binding_revision.sql`, `0055_notification_delivery_token_version.sql`로 적용한다. upstream `notification_deliveries`는 collection/FCM 알림용이고, Issue #367 social push delivery는 `social_notification_deliveries` namespace를 쓴다.
 - 사용자 요구는 유지한다: 하단 탭 `상점 · 도감 · 홈 · 검색 · 상점`, 홈 친구 빠른 버튼, 재뽑기권 직접 상세와 200P 구매, 결과 순서 마일리지→옷→캐릭터, 우정 보내기 5회/받기 무제한/일일 합산 25P(KST), pending gift 재전송 차단, 식사 초대 선택 시간 답장 우편.
 - fresh8 브라우저 증거는 새 게스트 동의, 홈 빈 상태 0개, 테스트 방문 A 뒤 홈 가게권 1개와 1/9 배지, QR 화면의 숨겨진 하단 탭과 홈 복귀, 실버 직접 상세 모달, 실제 구매 잔액 100,150→99,973·+23P·하늘 후드·빵집 다람쥐·upstream 빵집 골목 모자 bonus, BGM/SE OFF와 비활성 슬라이더→reset ON 30%, 진동 3선택, 검색/필터/지도(A visited, B/C unvisited)→홈, 친구 빈 목록·코드·추가 UI와 remaining 5/reward 25 표시, media-less ticket skip 뒤 미개봉 1장 유지, 설정→홈 복귀를 확인했다. Historical cycle6 증거는 실제 친구 추가→프로필→우정 5P 보내기, 하루 남은 보내기 4/5와 보상 20P, pending 수신 전 재전송 차단, 식사 초대 12:40 응답을 보존한다.
-- 실제 remote push/device BGM/SE/진동/hardware back, media-less seed의 실제 표시 ACK, unsupported runtime cancel/resume/hung CLI class, 공개 배포, merge는 계속 `NOT_RUN`이다. PR 생성과 현재 PR body 기준 한국어 검사는 root가 fresh 결과를 준 뒤 문서화한다.
-- PR 한국어 검사는 이전 본문 기준 PASS 기록이 있었지만, 현재 PR body는 final cycle8 수치와 이미지 SHA 갱신 뒤 root가 다시 검사해야 한다. PR 생성도 아직 기록하지 않는다.
+- 실제 remote push/device BGM/SE/진동/hardware back, media-less seed의 실제 표시 ACK, unsupported runtime cancel/resume/hung CLI class, 공개 배포, merge는 계속 `NOT_RUN`이다. Draft PR #374 생성과 현재 PR body 기준 한국어 checker PASS는 문서화했다.
+- 현재 PR body와 SHA-linked body의 한국어 checker는 `.omx/pr-korean-final.log` 기준 PASS다. Draft PR #374 head는 `e4138fc7a2f2c0e93360e3377488bda586441eda`, base는 `0ce3114c`다. main merge와 deploy는 하지 않았다.
 
 ## 2026-10-05 수집·게임·점주 운영 전체 연결 (Issue #371)
 
