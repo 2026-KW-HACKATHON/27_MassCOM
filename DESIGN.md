@@ -1,5 +1,11 @@
 # MassCOM 디자인 기준
 
+## 2026-10-06 홈 첫 화면 우선순위
+
+실기에서 긴 가게권 목록과 전시가 핵심 행동을 화면 아래로 밀어 한눈에 보기 어려웠다. 홈은 기존 수채화 그림을 내용 높이에 맞춘 머리글로 보존하고, 실제 서버의 가게권·마일리지·보유 동행 수와 현재 동행을 간결하게 보여준다. `방문 QR`·`받은 가게권`·`미션`·`나의 전시` 네 목적별 진입을 첫 화면에 둔다. 전체 가게권 목록과 개봉 연출은 `/home/tickets`, 상자·1·3·5회 방문 목표는 기존 `/home/missions`, 캐릭터·대표 코인·상점·위시리스트·방문 목표·알림함을 포함한 전시는 `/home/exhibit`에서 볼 수 있다. 세 상세 화면에는 홈으로 돌아가는 뒤로 버튼을 둔다. 로딩·조회 실패는 숫자 0으로 위장하지 않는다. 친구·우편·내 정보는 홈 머리글에서 접근한다.
+
+수용 기준: 360dp 기본 글씨 화면에서 실제 수치·현재 동행·네 목적별 진입을 목록 스크롤 없이 찾는다. 가게권 상세는 모든 서버 권한을 보여주고 카드가 실제 표시된 후에만 개봉 확인한다. 전시 상세는 기존 링크와 소유 상태를 보존한다. 200% 글씨에서는 줄바꿈과 세로 스크롤을 허용하고 48dp 터치 목표와 정보·링크를 보존한다. 라이트·다크 및 실폰 화면 확인은 구현 뒤 증거로 따로 남긴다.
+
 ## 2026-10-05 전체 경험 품질 기준 (현재 요청의 우선 적용)
 
 [품질 명세](docs/superpowers/specs/2026-10-05-experience-quality.md)를 게임·수집·꾸미기·공유의 최신 기준으로 쓴다. 이전 기능의 존재가 시각·조작 완성도의 증거는 아니다. 같은 동행 반복·도형/문자 장비·정답 따라누르기·이전층과 무관한 쌓기는 완성된 경험으로 보지 않는다. 기존 하늘 동네 수채화 가족을 유지하되 실제 물건 그림과 행동 프레임, 한 주 전시, 공통 착용/재질 합성을 사용한다. 이 사용자 요청은 네 게임 규칙과 화면 재설계를 허용한다. 기존 보상·기록·배지 권리와 운영·시연 경계는 보존한다. 실제 플레이/화면/저장파일의 변경 전후와 검증 한계를 남긴다.
@@ -16,7 +22,7 @@ PR #138의 역할 선택·선택적 외부지갑·다섯 빈 공간은 **개발 
 ## Source of truth
 
 - 상태: `Active` — Issue #224가 하늘 동네·여권 도장 체계와 연출을 도입했다. 자동 시험·타입·린트·두 Android export와 에뮬레이터 화면 확인은 끝났고, 실폰·TalkBack·소유자의 "꾸민 느낌" 판정은 남았다([증거](docs/evidence/sky-town-redesign-2026-09-29/README.md)). Issue #129 탐색 검색·빈 상태 개선은 자동 검증 후 실기 재확인 대상이다.
-- 마지막 갱신: 2026-09-29
+- 마지막 갱신: 2026-10-06
 - 적용 표면: Android 앱의 음식점 탐색·방문 인증·도감·계정 화면. 프로젝트 포털과 발표 자료는 별도 표면이다.
 - 근거: `docs/PRD.md`, `docs/DECISIONS.md`(D-045~D-048), `apps/mobile/src/app/_layout.tsx`, `apps/mobile/src/theme/palette.ts`, `apps/mobile/src/theme/world.ts`, `apps/mobile/src/ui/`, `apps/mobile/src/motion/`, `apps/mobile/src/navigation/floating-tab-bar.tsx`, `apps/mobile/src/screens/`, `docs/evidence/sky-town-redesign-2026-09-29/README.md`, `docs/superpowers/specs/2026-09-29-town-map-design.md`, `docs/superpowers/specs/2026-09-29-ai-store-art-design.md`, `apps/mobile/src/merchant-art/`.
 - 상세 설계: [하늘 동네·여권 도장 디자인과 연출 개편 명세](docs/superpowers/specs/2026-09-29-sky-town-redesign-design.md)와 [구현 계획](docs/superpowers/plans/2026-09-29-sky-town-redesign.md)이 현재 앱 디자인의 수용 기준이다. 이전 [모바일 UI 구조 명세](docs/superpowers/specs/2026-09-23-mobile-ui-navigation-design.md)와 [파란 UI 일관화 명세](docs/superpowers/specs/2026-09-24-blue-design-consistency.md)의 화면 구조·색은 이 문서로 대체됐고 기록으로만 남는다. 이 문서는 방향과 일관성의 기준이며, 명세는 각 변경의 수용 기준이다.

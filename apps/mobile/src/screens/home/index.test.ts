@@ -2,66 +2,75 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+const home = read('./index.tsx');
+const overview = home.slice(0, home.indexOf('export function HomeMissionsScreen'));
+const tickets = read('./home-tickets.tsx');
+const exhibit = read('./home-exhibit.tsx');
+const layout = read('../../app/_layout.tsx');
 
-test('home loads real unopened store tickets from the authenticated server contract', () => {
-  assert.match(screen, /createStoreTicketApiClient\(\{ apiUrl, credential, onSessionInvalid \}\)/);
-  assert.match(screen, /ticketApi\.listStoreTickets\(\)/);
-  assert.doesNotMatch(screen, /AsyncStorage|presentedCollectibleIds|fixture/i);
-  assert.match(screen, /오늘 받은 가게권과 미션을 확인해요/);
-  assert.doesNotMatch(screen, /열어도 새 NFT나 보상을 만들지 않아요/);
-  assert.match(screen, /아직 가게 뽑기권이 없어요/);
-  assert.match(screen, /방문 인증 열기/);
+test('home shows only live summary data and four purpose routes', () => {
+  assert.match(home, /ticketApi\.listStoreTickets\(\)/);
+  assert.match(home, /status: 'ready', count: tickets\.length/);
+  assert.match(home, /ticketCount\.status === 'ready' \? `\$\{ticketCount\.count\}장`/);
+  assert.match(home, /shop\.snapshot\.mileage\.balance\.toLocaleString\('ko-KR'\)/);
+  assert.match(home, /shop\.snapshot\.items\.filter\(\(item\) => item\.owned\)\.length/);
+  for (const route of ['/claim', '/home/tickets', '/home/missions', '/home/exhibit']) {
+    assert.match(home, new RegExp(`<Link href="${route}" asChild>`), route);
+  }
+  assert.match(home, /shop\.status === 'ready' && shop\.snapshot \? <CompanionScene/);
+  assert.doesNotMatch(overview, /<HomeCollectionDisplay|<HomeMissionsPanel|<CollectibleReveal|tickets\.map\(/);
+  assert.doesNotMatch(home, /AsyncStorage|fixture/i);
 });
 
-test('store ticket ACK is sent only after the reveal reports a shown card', () => {
-  assert.match(screen, /<CollectibleReveal/);
-  assert.match(screen, /onCardShown=\{acknowledgeShownTicket\}/);
-  assert.match(screen, /ticketApi\.openStoreTicket\(entitlementId\)/);
-  assert.match(screen, /useDrawMusic\(opening !== undefined\)/);
-  const openTicket = screen.slice(screen.indexOf('const openTicket = useCallback'), screen.indexOf('const acknowledgeShownTicket = useCallback'));
+test('home keeps account, friends and mail in a compact header with safe scrolling', () => {
+  assert.match(home, /<AppHeader title="홈" subtitle="오늘의 탐험" showFriendsEntry showMailEntry compact \/>/);
+  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ paddingBottom: clearance \}\]\}/);
+  assert.match(home, /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
+  assert.match(home, /onScroll=\{scrim\.onScroll\}/);
+  assert.match(home, /progressViewOffset=\{insets\.top\}/);
+  assert.match(home, /if \(request === generation\.current\) setTicketCount/);
+  assert.match(home, /if \(request === generation\.current\) generation\.current \+= 1/);
+});
+
+test('ticket detail lists every server entitlement and ACKs only after the reveal shows its card', () => {
+  assert.match(tickets, /createStoreTicketApiClient\(\{ apiUrl, credential, onSessionInvalid \}\)/);
+  assert.match(tickets, /ticketApi\.listStoreTickets\(\)/);
+  assert.match(tickets, /tickets\.tickets\.map\(\(ticket\) =>/);
+  assert.match(tickets, /key=\{ticket\.entitlementId\}/);
+  assert.match(tickets, /onPress=\{\(\) => openTicket\(ticket\)\}/);
+  assert.match(tickets, /<CollectibleReveal/);
+  assert.match(tickets, /onCardShown=\{acknowledgeShownTicket\}/);
+  assert.match(tickets, /ticketApi\.openStoreTicket\(entitlementId\)/);
+  assert.match(tickets, /useDrawMusic\(opening !== undefined\)/);
+  const openTicket = tickets.slice(tickets.indexOf('const openTicket = useCallback'), tickets.indexOf('const acknowledgeShownTicket = useCallback'));
   assert.doesNotMatch(openTicket, /openStoreTicket/);
-  assert.match(screen, /load=\{commerceApi\.getCollectible\}/);
+  assert.match(tickets, /load=\{commerceApi\.getCollectible\}/);
+  assert.match(tickets, /<BackHeader title="받은 가게권" \/>/);
+  assert.match(tickets, /if \(generation !== loadGeneration\.current\) return/);
 });
 
-test('home has mail/settings in the header, QR and friends quick actions, and no home map action', () => {
-  assert.match(screen, /showMailEntry/);
-  assert.match(screen, /href="\/claim"/);
-  assert.match(screen, /href="\/friends"/);
-  assert.doesNotMatch(screen, /href="\/map"/);
+test('exhibit detail keeps the single full exhibit and its real goal, collection and shop data', () => {
+  assert.match(exhibit, /<HomeCollectionDisplay experience=\{experience\.snapshot\} collection=\{collection\} shop=\{shop\.snapshot\}/);
+  assert.match(exhibit, /resolveStudioGoal\(goalData\[0\]\.studio\.goal, goalData\[1\], nextCollection\)/);
+  assert.match(exhibit, /<BackHeader title="나의 전시" \/>/);
+  assert.match(exhibit, /experience\.error \? 'error' : 'loading'/);
+  assert.match(exhibit, /if \(request !== generation\.current\) return/);
 });
 
-test('home refreshes one shop snapshot and shows the equipped companion in one exhibit', () => {
-  assert.match(screen, /import \{ useShopAvatarAppearance \} from '@\/shop\/use-shop-avatar-art';/);
-  assert.match(screen, /const shop = useShop\(shopApi\);/);
-  assert.match(screen, /const refreshShop = shop\.refreshQuietly;/);
-  assert.match(screen, /void refreshShop\(\);/);
-  assert.match(screen, /<AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요" showFriendsEntry showMailEntry \/>/);
-  assert.equal((screen.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
-  assert.doesNotMatch(screen, /heroMascotSize|<Mascot|<Companion /);
+test('new detail routes guard auth and API configuration and reset on account switch', () => {
+  for (const path of ['tickets', 'exhibit']) {
+    const route = read(`../../app/home/${path}.tsx`);
+    assert.match(route, /if \(!auth\.credential \|\| !auth\.accountId\)/);
+    assert.match(route, /if \(!publicApiConfig\.available\)/);
+    assert.match(route, /key=\{auth\.accountId\}/);
+    assert.match(layout, new RegExp(`Stack.Screen name="home/${path}" options=\\{\\{ headerShown: false \\}\\}`));
+  }
 });
 
-test('home scrolls under the status scrim, clears the tab bar, and keeps one exhibit', () => {
-  assert.match(screen, /const clearance = useTabBarClearance\(\);/);
-  assert.match(screen, /const scrim = useStatusBarScrim\(\);/);
-  assert.match(screen, /onScroll=\{scrim\.onScroll\}/);
-  assert.match(screen, /contentContainerStyle=\{\[styles\.content, \{ paddingBottom: clearance \}\]\}/);
-  assert.match(screen, /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
-  assert.equal((screen.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
-});
-
-test('home drops stale async loads after focus cleanup or a newer request', () => {
-  assert.match(screen, /const loadGeneration = useRef\(0\);/);
-  assert.match(screen, /const load = useCallback\(async \(refresh = false, generation = \+\+loadGeneration\.current\) =>/);
-  assert.match(screen, /if \(generation !== loadGeneration\.current\) return;\s*setTickets\(\{ status: 'ready', tickets: nextTickets \}\);/);
-  assert.match(screen, /if \(generation !== loadGeneration\.current\) return;\s*setTickets\(\(current\) => \(\{ status: 'error'/);
-  assert.match(screen, /if \(generation === loadGeneration\.current\) setRefreshing\(false\);/);
-  assert.match(screen, /return \(\) => \{\s*if \(generation === loadGeneration\.current\) loadGeneration\.current \+= 1;\s*\};/);
-});
-
-test('missions reuse the existing reward box and keep 1, 3 and 5 goals visible', () => {
-  assert.match(screen, /<HomeRewardCard book=\{book\} onOpen=\{badgeApi\.openReward\} onRevealed=\{onRevealed\} onOpenFailed=\{onOpenFailed\} \/>/);
-  assert.match(screen, /shouldRefreshBadgesQuietly\(code\)/);
-  assert.match(screen, /\[1, 3, 5\]\.map/);
-  assert.match(screen, /router\.push\('\/home\/missions'\)/);
+test('missions keep the 1, 3 and 5 goals and existing reward box on a backable page', () => {
+  assert.match(home, /<BackHeader title="미션" \/>/);
+  assert.match(home, /<HomeRewardCard book=\{book\} onOpen=\{badgeApi\.openReward\} onRevealed=\{onRevealed\} onOpenFailed=\{onOpenFailed\} \/>/);
+  assert.match(home, /shouldRefreshBadgesQuietly\(code\)/);
+  assert.match(home, /\[1, 3, 5\]\.map/);
 });

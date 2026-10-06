@@ -91,7 +91,8 @@ test('the role preview Link child does not pass a style array to Expo Router Slo
 
 test('the home quick action Link children do not pass style arrays to Expo Router Slot', () => {
   const home = readFileSync(join(app, '..', 'screens', 'home', 'index.tsx'), 'utf8');
-  for (const href of ['/claim', '/friends']) {
+  assert.match(home, /<AppHeader[^>]*showFriendsEntry/, 'friends stay available from the home header');
+  for (const href of ['/claim', '/home/tickets', '/home/missions', '/home/exhibit']) {
     const link = home.match(new RegExp(`<Link href="${href}" asChild>([\\s\\S]*?)<\\/Link>`))?.[1];
     assert.ok(link, `${href} quick action Link`);
     const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];

@@ -31,17 +31,17 @@ export function HomeCollectionDisplay({ experience, collection, shop, visitGoal,
   const wantedCosmetic = experience.catalog.cosmetics.find((item) => item.id === experience.profile.wishlist);
   return <View style={styles.card}>
     <View style={styles.titleRow}><Text accessibilityRole="header" style={styles.title}>나의 탐험 전시</Text>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/studio')}><Text style={styles.link}>꾸미기 ›</Text></Pressable></View>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/studio')} style={styles.linkButton}><Text style={styles.link}>꾸미기 ›</Text></Pressable></View>
     <View style={styles.showcase}>
-      <CompanionScene avatar={shop?.avatar ?? null} clothing={equippedClothingArt(shop)} experienceProfile={experience.profile} interactive size={132} />
+      <CompanionScene avatar={shop?.avatar ?? null} clothing={equippedClothingArt(shop)} experienceProfile={experience.profile} interactive size={96} />
       <View style={styles.details}>
         {badge ? <View style={styles.badgeLine}><BadgeArt id={badge.id} size={42} /><Text style={styles.detail}>{badge.name}</Text></View> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={coin ? `${coin.displayName} 도감에서 보기` : "대표 코인 고르기"} onPress={() => router.push('/collection')} style={styles.coinLine}>{coin ? <StudioCoin item={coin} apiUrl={apiUrl} size={108} /> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={coin ? `${coin.displayName} 도감에서 보기` : "대표 코인 고르기"} onPress={() => router.push('/collection')} style={styles.coinLine}>{coin ? <StudioCoin item={coin} apiUrl={apiUrl} size={64} /> : null}
           <Text style={styles.detail}>{coin ? coin.displayName : '대표 코인을 골라 보세요'}</Text></Pressable>
       </View>
     </View>
     {nextPack ? <Pressable accessibilityRole="button" onPress={() => router.push('/shop')} style={styles.pack}>
-      <PackArt grade={nextPack.grade} size={64} /><View style={styles.packCopy}><Text style={styles.packTitle}>{nextPack.name}</Text>
+      <PackArt grade={nextPack.grade} size={48} /><View style={styles.packCopy}><Text style={styles.packTitle}>{nextPack.name}</Text>
         <Text style={styles.packHint}>{nextPack.theme} · 꾸미기 {packProgress?.ownedBonuses ?? 0}/{packProgress?.totalBonuses ?? nextPack.bonusItemIds.length}</Text>
         <Text style={styles.packHint}>{shop ? `${nextPack.price} 마일리지 · 보유 ${shop.mileage.balance}` : `${nextPack.price} 마일리지`}</Text></View>
       <Text style={styles.packArrow}>열어보기 ›</Text>
@@ -64,8 +64,9 @@ const makeStyles = (palette: ReturnType<typeof colorsForScheme>, world: ReturnTy
   card: { marginHorizontal: 14, padding: 14, gap: 10, backgroundColor: world.card, borderRadius: 14, borderWidth: 1, borderColor: palette.separator },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { color: world.cardInk, fontWeight: '900', fontSize: 17 },
+  linkButton: { minHeight: 48, justifyContent: 'center' },
   link: { color: palette.primary, fontWeight: '800', fontSize: 12 },
-  showcase: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 156 },
+  showcase: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: 12 },
   details: { flex: 1, minWidth: 124, gap: 6 },
   detail: { color: world.cardInk, fontWeight: '700', fontSize: 12 },
   badgeLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -73,5 +74,5 @@ const makeStyles = (palette: ReturnType<typeof colorsForScheme>, world: ReturnTy
   pack: { flexWrap: 'wrap', borderRadius: 11, padding: 11, backgroundColor: world.paper, borderWidth: 1, borderColor: world.paperLine, flexDirection: 'row', alignItems: 'center', gap: 8 },
   packCopy: { flex: 1 }, packTitle: { color: world.paperInk, fontWeight: '900', fontSize: 13 },
   packHint: { color: world.paperInk, fontSize: 11, marginTop: 2 }, packArrow: { color: world.paperInk, fontSize: 11, fontWeight: '900' },
-  inbox: { alignSelf: 'flex-start', paddingVertical: 4 }, inboxText: { color: palette.primary, fontSize: 12, fontWeight: '800' },
+  inbox: { alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center', paddingVertical: 4 }, inboxText: { color: palette.primary, fontSize: 12, fontWeight: '800' },
 });

@@ -16,7 +16,7 @@ import { isLargeText } from './large-text';
 type Props = {
   title: string;
   subtitle?: string;
-  /** Hero content that sits on the art under the title (a mascot, a chip); the art is always fully shown. */
+  /** Hero content that sits on the art under the title (a mascot, a chip). */
   children?: ReactNode;
   /** The avatar picture; defaults to the mascot badge. Only the home tab passes the chosen 상점 캐릭터 (design-298.md). */
   avatarArt?: ImageSourcePropType;
@@ -27,13 +27,15 @@ type Props = {
   showFriendsEntry?: boolean;
   /** Adds the home mailbox entry; the mailbox route is provided by the social/mail lane. */
   showMailEntry?: boolean;
+  /** Keep the illustrated home header short so its primary actions fit above the fold. */
+  compact?: boolean;
 };
 
 /**
  * Top of a tab screen's scroll content: the sky art, the title on a frosted panel, and the account avatar with its "내 정보" label (outside the panel).
  * `/settings` (계정 삭제·로그아웃) stays one tap away. Put it first inside the ScrollView / list so it scrolls away with the page.
  */
-export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing, avatarContent, showFriendsEntry, showMailEntry }: Props) {
+export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing, avatarContent, showFriendsEntry, showMailEntry, compact }: Props) {
   const styles = useUiStyles();
   const insets = useSafeAreaInsets();
   const { width, fontScale } = useWindowDimensions();
@@ -41,8 +43,8 @@ export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing
   const stackedHeader = largeText || (showFriendsEntry && width < 360);
   const world = worldForScheme(useColorScheme());
   return (
-    <View style={{ minHeight: skyArtHeight(width), marginBottom: 8 }}>
-      <SkyArt />
+    <View style={{ minHeight: compact ? undefined : skyArtHeight(width), marginBottom: 8 }}>
+      <SkyArt compact={compact} />
       <View
         style={{
           flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 12,
