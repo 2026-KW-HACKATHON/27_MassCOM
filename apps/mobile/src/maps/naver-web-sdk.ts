@@ -38,8 +38,11 @@ export function loadNaverWebSdk(clientId: string, timeoutMs = 10_000): Promise<N
     script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&callback=${callbackName}`;
     script.async = true;
     let settled = false;
+    let callbackFired = false;
+    let scriptLoaded = false;
     const cleanup = () => {
       clearTimeout(timer);
+      script.onload = null;
       script.onerror = null;
       delete globals[callbackName];
       if (browser.navermap_authFailure === authFailure) browser.navermap_authFailure = previousAuthFailure;
@@ -52,16 +55,18 @@ export function loadNaverWebSdk(clientId: string, timeoutMs = 10_000): Promise<N
       reject(Error('NAVER SDK unavailable'));
     };
     const authFailure = () => { try { previousAuthFailure?.(); } finally { fail(); } };
-    globals[callbackName] = () => {
+    const finish = () => {
+      if (settled || !callbackFired || !scriptLoaded) return;
       const maps = browser.naver?.maps;
       if (!validMaps(maps)) { fail(); return; }
-      if (settled) return;
       settled = true;
       cleanup();
       resolve(maps);
     };
+    globals[callbackName] = () => { callbackFired = true; finish(); };
     browser.navermap_authFailure = authFailure;
     const timer = setTimeout(fail, timeoutMs);
+    script.onload = () => { scriptLoaded = true; finish(); };
     script.onerror = fail;
     try { document.head.appendChild(script); } catch { fail(); }
   });

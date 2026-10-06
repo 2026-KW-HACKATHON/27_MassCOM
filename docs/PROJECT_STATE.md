@@ -1,5 +1,11 @@
 # 프로젝트 상태
 
+## 2026-10-07 NAVER 발급·실제 주소 대체·SDK 준비 복구 (Issue #385)
+
+PR384는 최신0165b865 CI37530995738 전체 PASS 뒤 main73284651로 병합됐다. 사용자 콘솔에서 신규 Maps masscom(Dynamic Map·Geocoding)을 등록하고 대표 계정·웹/패키지3개를 확인했다. 키는 Git 밖의 권한600 파일에만 보관한다. 실제 TMAP403→NAVER 주소200·후보1건 PASS이며 별도 NAVER Developers 지역 검색 키는 아직 없다.
+
+실제 웹의 네이버 로더는 SDK 콜백이 namespace export보다 먼저 발생해 실패했다. 콜백과 script.onload를 모두 기다리는 두 파일 수정과 두 순서 회귀를 추가했다. 모바일1777/1777·타입/lint, 집중7/7·독립 검토·clear 웹 export PASS. 수정 후 타일/마커는 브라우저 제어 연결이 끊겨 NOT_RUN이다. API 성공으로 지도 성공을 대신하지 않는다. 지정 폰·공개 반영도 미검증이다. [검증/다음 단계](evidence/naver-live-2026-10-07/README.md), [설정](TMAP_NAVER_SETUP.md)을 따른다.
+
 ## 2026-10-07 TMAP 실연결과 NAVER 대체 경로 (Issue #383)
 
 브랜치 `fix/tmap-completion`, 기준 main `fcbf4fbe`(PR #382 병합). [PR #384](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/384)의 첫 CI는 전체 테스트·세 variant export 뒤 기존 DevTools 간접 의존성 shell-quote1.10.0 보안 검사에서 실패했다. 잠금 파일만1.11.0으로 수정하고 npm ci(기존 postinstall 적용)·audit·위험 입력 거부/정상 인자 왕복·모바일 전체1775/타입/lint를 다시 통과했다. 최신 HEAD CI는 별도 확인한다. TMAP 실제 키를 Git 밖에 저장했고 REST 장소·주소·보행과 로컬 개발 웹의 실제 타일·마커 클릭·보행 요청을 확인했다. 주소 구분 F00, 웹 SDK bootstrap의 document.write 회피, 로딩/준비 제한과 정리/재시도를 보완했다. 웹·Android NAVER 대체 지도와 서버 주소/선택적 지역 검색을 연결했다. 보행은 TMAP 전용이다.

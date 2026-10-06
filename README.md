@@ -33,7 +33,7 @@
 
 탐색·도감·홈·놀이·상점의 짧은 다섯 탭으로 실제 가게 위치·영업시간/메뉴·사진·보행 코스·수집 목표·게임·방문 QR 복구와 점주 미리보기를 연결했습니다. [PR #382](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/382), 앱 소스 `138d8a41`의 모바일1,759/API540/PG498+3SKIP/site515와 운영·시연 private native release 빌드96초/97초가 통과했습니다.
 
-공개 API/설치본은 갱신하지 않았습니다. 2026-10-07 후속에서 실제 TMAP 타일·장소/주소 검색·보행과 NAVER 대체 코드 연결을 확인했습니다. NAVER 실제 키·지정 기기·점주 동의/현장 방문·SDK 공개 배포 수용은 미검증입니다. [지도 키 발급·설정](docs/TMAP_NAVER_SETUP.md), [후속 검증](docs/evidence/tmap-fallback-2026-10-07/README.md)을 따릅니다. 두 제공자가 실패해도 주소 목록을 제공합니다. [전체 16개 수용/설정/검증 보고서](docs/REAL_WORLD_STATUS_2026-10-06.md)를 따릅니다.
+공개 API/설치본은 갱신하지 않았습니다. 2026-10-07 후속에서 실제 TMAP 타일·장소/주소 검색·보행과 NAVER 대체 코드 연결을 확인했습니다. NAVER Maps도 발급하고 실제 TMAP403→NAVER 주소200 대체를 확인했습니다. SDK 준비 순서 수정 후 실제 NAVER 타일·지정 기기·점주 동의/현장 방문·SDK 공개 배포 수용은 미검증입니다. [지도 키 발급·설정](docs/TMAP_NAVER_SETUP.md), [TMAP 검증](docs/evidence/tmap-fallback-2026-10-07/README.md), [NAVER 실연결 후속](docs/evidence/naver-live-2026-10-07/README.md)을 따릅니다. 두 제공자가 실패해도 주소 목록을 제공합니다. [전체 16개 수용/설정/검증 보고서](docs/REAL_WORLD_STATUS_2026-10-06.md)를 따릅니다.
 
 ## 심사위원용 3분 요약
 
