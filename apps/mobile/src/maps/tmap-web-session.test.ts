@@ -13,6 +13,7 @@ test('same props after inactive teardown create a fresh ready map with camera, o
   let readyCount = 0;
   let markerRemoved = 0, lineRemoved = 0;
   let polylineCount = 0;
+  const markerEvents: string[] = [];
   const sdk = {
     LatLng: class { constructor(public latitudeValue: number, public longitudeValue: number) {} latitude() { return this.latitudeValue; } longitude() { return this.longitudeValue; } },
     Map: class {
@@ -39,7 +40,7 @@ test('same props after inactive teardown create a fresh ready map with camera, o
     Marker: class {
       constructor(options: { map: { markerClicks: (() => void)[]; icons: string[] }; icon: string }) { options.map.icons.push(options.icon); this.map = options.map; }
       private map: { markerClicks: (() => void)[] };
-      on(_event: string, callback: () => void) { this.map.markerClicks.push(callback); }
+      on(event: string, callback: () => void) { markerEvents.push(event); this.map.markerClicks.push(callback); }
       setMap(value: unknown) { if (value === null) markerRemoved++; }
     },
     Polyline: class { constructor() { polylineCount++; } setMap(value: unknown) { if (value === null) lineRemoved++; } },
@@ -55,9 +56,10 @@ test('same props after inactive teardown create a fresh ready map with camera, o
   const first = new TmapWebSession(sdk, 'map-1', snapshot, callbacks);
   maps[0]!.fire();
   maps[0]!.markerClicks[0]!();
+  assert.deepEqual(markerEvents, ['click']);
   assert.deepEqual(clusters, [['one', 'two']]);
   first.dispose();
-  assert.equal(maps[0]!.destroyed(), true);
+  assert.equal(maps[0]!.destroyed(), false); // Web Vector JS documents overlay removal, not Map.destroy().
   assert.equal(markerRemoved, 1);
   assert.equal(lineRemoved, 1);
   const second = new TmapWebSession(sdk, 'map-2', snapshot, callbacks);
@@ -71,4 +73,28 @@ test('same props after inactive teardown create a fresh ready map with camera, o
   assert.deepEqual(clusters[1], ['one', 'two']);
   assert.deepEqual(selected, []);
   second.dispose();
+});
+
+
+test('map readiness timeout reports failure once and ignores late ConfigLoad', async () => {
+  let configLoad: (() => void) | undefined;
+  let failures = 0, ready = 0;
+  const sdk = {
+    LatLng: class { constructor(public y: number, public x: number) {} latitude() { return this.y; } longitude() { return this.x; } },
+    Map: class {
+      on(_event: string, callback: () => void) { configLoad = callback; }
+      setZoom() {} setCenter() {} getZoom() { return 16; } getCenter() { return point(37.6, 127.1); } getBounds() { return bounds; } resize() {}
+    },
+    Marker: class {}, Polyline: class {},
+  } as unknown as Sdk;
+  const snapshot: Pick<TmapMapProps, 'camera' | 'markers' | 'selectedId' | 'route'> = {
+    camera: { latitude: 37.6, longitude: 127.1, zoom: 16 }, markers: [], selectedId: null, route: null,
+  };
+  const session = new TmapWebSession(sdk, 'pending-map', snapshot, () => ({ onReady: () => { ready++; } }), () => { failures++; }, 5);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(failures, 1);
+  configLoad?.();
+  assert.equal(ready, 0);
+  session.dispose();
+  assert.equal(failures, 1);
 });

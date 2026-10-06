@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-07 TMAP 실연결과 NAVER 대체 경로 (Issue #383)
+
+브랜치 `fix/tmap-completion`, 기준 main `fcbf4fbe`(PR #382 병합). TMAP 실제 키를 Git 밖에 저장했고 REST 장소·주소·보행과 로컬 개발 웹의 실제 타일·마커 클릭·보행 요청을 확인했다. 주소 구분 F00, 웹 SDK bootstrap의 document.write 회피, 로딩/준비 제한과 정리/재시도를 보완했다. 웹·Android NAVER 대체 지도와 서버 주소/선택적 지역 검색을 연결했다. 보행은 TMAP 전용이다.
+
+PASS: 모바일 1,775/1,775·타입/lint, API546/546·타입/build, 운영/시연 설정+웹131/131, 소스-only 비밀/개인정보 gate, 독립 검토 필수 수정0. NAVER SDK3.24 Kotlin 컴파일 및 두 SDK 포함 개발 package private `:app:assembleRelease`48초·금지 권한0·64bit ELF/ZIP16KiB 정렬 PASS. 개인 APK는 `.tmp/tmap-completion/maps-private-development.apk`에 있고 공개 설치본이 아니다. 전체 프로젝트 AAR 생성용 `assembleRelease`는 local TMAP AAR 제약으로 실패했으며 올바른 app APK 대상에서 통과했다.
+
+NAVER 실제 인증/타일/주소·장소 요청은 키가 없어 NOT_RUN. 마지막 ADB는 emulator만 있으며 실폰 설치/GPS/청음/진동/TalkBack은 NOT_RUN; 기존 진동 체감 FAIL을 보존한다. 공개 API·APK·Play는 갱신하지 않았다. [키 등록/적용 절차](TMAP_NAVER_SETUP.md), [검증 기록](evidence/tmap-fallback-2026-10-07/README.md)을 따른다. PR 최신 CI·병합은 GitHub 기록으로 확정한다. 다음 작업은 NAVER 로컬 자격 증명 경로 제공과 등록 출처/패키지 확인 후 실제 fallback 검증이다.
+
 ## 2026-10-06 실제 가게 탐색·방문 연결 (Issue #381)
 
 검증 앱 소스는 `138d8a414d65964b3b85724ac453b80bf6930625`이며 [PR #382](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/382)로 통합한다. 후속 문서 HEAD의 `apps/`·`scripts/`는 이 소스와 같다. 공개 API·APK·Play는 갱신하지 않았다.

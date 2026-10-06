@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'kr.masscom'
+version = '1.0.0'
+
+android {
+  namespace 'kr.masscom.navermap'
+  defaultConfig {
+    minSdkVersion 24
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation 'com.naver.maps:map-sdk:3.24.0'
+}
