@@ -1,5 +1,7 @@
 # TMAP 실연결과 NAVER 대체 검증 — 2026-10-07
 
+아래 표는 PR #384 당시의 기록이다. 이후 NAVER 등록·실제 호출과 Android 주 지도 수정의 최신 결과는 [Android 지도 QA](../../TMAP_ANDROID_QA_2026-10-07.md)를 따른다.
+
 [Issue #383](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/383), 브랜치 `fix/tmap-completion`, 기준 main fcbf4fbe. [설정 절차](../../TMAP_NAVER_SETUP.md). 소스 파일 해시는 [source-hashes.json](source-hashes.json), 정해진 값만 남긴 실제 호출/브라우저 관측은 [live-checks.json](live-checks.json), 개인 APK 정보는 [private-apk.json](private-apk.json)에 있다. 키·전체 SDK 응답·사용자 위치·브라우저 인증 정보를 저장하지 않는다.
 
 | 검증 | 결과 | 범위 |
