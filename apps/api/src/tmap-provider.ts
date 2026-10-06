@@ -99,7 +99,7 @@ export class TmapProvider {
   async geocode(address: string): Promise<LocationCandidate[]> {
     const fullAddr = address.trim();
     if (!fullAddr || fullAddr.length > 200) throw new RealWorldError('INVALID_ADDRESS');
-    const params = new URLSearchParams({ version: '1', fullAddr, addressFlag: 'F01', coordType: 'WGS84GEO', page: '1', count: '20' });
+    const params = new URLSearchParams({ version: '1', fullAddr, addressFlag: 'F00', coordType: 'WGS84GEO', page: '1', count: '20' });
     const response = await this.request(`/geo/fullAddrGeo?${params}`, `geo:${params}`);
     const info = obj(obj(response.data).coordinateInfo);
     const coordinates = info.coordinate == null && num(info.totalCount) === 0 ? [] : info.coordinate;

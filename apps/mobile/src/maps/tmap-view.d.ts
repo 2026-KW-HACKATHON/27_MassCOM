@@ -7,6 +7,7 @@ export type TmapMapProps = {
   route: WalkingLeg['geometry'] | null; padding: { top: number; right: number; bottom: number; left: number };
   active: boolean; style?: StyleProp<ViewStyle>;
   onReady?: () => void; onError?: (error: { code: string; retryable: boolean }) => void;
+  onProviderReady?: (provider: 'TMAP' | 'NAVER') => void;
   onViewport?: (event: { bounds: Bounds; camera: MapCamera }) => void;
   onSelect?: (id: string) => void; onCluster?: (ids: string[]) => void;
 };

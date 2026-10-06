@@ -14,13 +14,17 @@ export class TmapWebSession {
   private disposed = false;
   private markers: Overlay[] = [];
   private lines: Overlay[] = [];
+  private readyTimer: ReturnType<typeof setTimeout>;
 
-  constructor(private readonly sdk: Sdk, id: string, snapshot: Snapshot, private readonly callbacks: () => Callbacks) {
+  constructor(private readonly sdk: Sdk, id: string, snapshot: Snapshot, private readonly callbacks: () => Callbacks,
+    private readonly onFailure?: () => void, readyTimeoutMs = 10_000) {
     this.snapshot = snapshot;
     this.map = new sdk.Map(id, { center: new sdk.LatLng(snapshot.camera.latitude, snapshot.camera.longitude),
       zoom: snapshot.camera.zoom, width: '100%', height: '100%' });
+    this.readyTimer = setTimeout(() => { this.dispose(); this.onFailure?.(); }, readyTimeoutMs);
     this.map.on('ConfigLoad', () => {
       if (this.disposed) return;
+      clearTimeout(this.readyTimer);
       this.ready = true;
       this.apply();
       this.callbacks().onReady?.();
@@ -37,11 +41,11 @@ export class TmapWebSession {
       this.map.setCenter(new this.sdk.LatLng(current.camera.latitude, current.camera.longitude));
     }
     if (!previous || previous.markers !== current.markers || previous.selectedId !== current.selectedId) {
-      this.markers.forEach(marker => marker.setMap(null));
+      this.markers.forEach(marker => { marker.off?.('click'); marker.setMap(null); });
       this.markers = groupMapMarkers(current.markers).map(group => {
         const item = new this.sdk.Marker({ position: new this.sdk.LatLng(group.latitude, group.longitude), map: this.map,
           title: group.title, icon: markerIcon(group, current.selectedId) });
-        item.on?.('Click', () => selectMarkerGroup(group, this.callbacks().onSelect, this.callbacks().onCluster));
+        item.on?.('click', () => selectMarkerGroup(group, this.callbacks().onSelect, this.callbacks().onCluster));
         return item;
       });
     }
@@ -65,10 +69,10 @@ export class TmapWebSession {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.markers.forEach(marker => marker.setMap(null));
+    clearTimeout(this.readyTimer);
+    this.markers.forEach(marker => { marker.off?.('click'); marker.setMap(null); });
     this.lines.forEach(line => line.setMap(null));
     this.markers = [];
     this.lines = [];
-    this.map.destroy?.();
   }
 }

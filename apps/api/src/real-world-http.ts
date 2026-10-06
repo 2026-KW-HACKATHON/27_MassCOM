@@ -2,12 +2,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { businessStateAt } from './real-world-hours.js';
 import { RealWorldError, type DiscoveryEvent, type DiscoveryQuery, type PhotoUploadInput, type Point, type RealWorldProfile, type WalkingRoute } from './real-world-contract.js';
 import type { PostgresRealWorldService } from './postgres/real-world.js';
+import type { MapProvider } from './map-provider.js';
 import type { TmapProvider } from './tmap-provider.js';
 
 type Body = Record<string, unknown>;
 type Deps = {
   request: IncomingMessage; response: ServerResponse; path: string;
-  realWorld?: PostgresRealWorldService | undefined; tmap?: TmapProvider | undefined;
+  realWorld?: PostgresRealWorldService | undefined; tmap?: TmapProvider | undefined; mapProvider?: MapProvider | undefined;
   resolveAccountId(): Promise<string>; resolveWebAccountId(channel: 'merchant' | 'admin'): Promise<string>;
   readBody(maxBytes?: number): Promise<Body>; decode(value: string): string;
   send(status: number, value: unknown): void; consumeEvent(): void; consumeMap?(): void;
@@ -34,7 +35,7 @@ const version = (value: unknown): number => Number.isSafeInteger(value) && (valu
 const bodyLimit = 5 * 1024 * 1024;
 
 export async function handleRealWorldHttp(d: Deps): Promise<boolean> {
-  const { request, response, path, realWorld, tmap } = d;
+  const { request, response, path, realWorld, tmap, mapProvider } = d;
   if (!path.startsWith('/v1/discovery/') && !path.startsWith('/api/web/v1/')) return false;
   const svc = realWorld ?? fail('REAL_WORLD_NOT_CONFIGURED', 503);
   const method = request.method;
@@ -57,8 +58,8 @@ export async function handleRealWorldHttp(d: Deps): Promise<boolean> {
       await svc.profile(accountId, merchantId);
       const body = await d.readBody(); keys(body, ['address']);
       const address = string(body.address);
-      const map = tmap ?? fail('MAP_NOT_CONFIGURED', 503);
-      if (!map.configured()) fail('MAP_NOT_CONFIGURED', 503);
+      const map = mapProvider ?? tmap ?? fail('MAP_NOT_CONFIGURED', 503);
+      if (!(mapProvider?.configuredGeocode() ?? tmap?.configured())) fail('MAP_NOT_CONFIGURED', 503);
       d.consumeMap?.();
       d.send(200, { candidates: await map.geocode(address) });
       return true;
@@ -148,8 +149,8 @@ export async function handleRealWorldHttp(d: Deps): Promise<boolean> {
     const bounds = body.bounds === undefined ? undefined : object(body.bounds);
     if (bounds) { keys(bounds, ['west', 'south', 'east', 'north']); if (!['west', 'south', 'east', 'north'].every(k => typeof bounds[k] === 'number' && Number.isFinite(bounds[k]))) fail(); }
     const query = string(body.query, 100);
-    const map = tmap ?? fail('MAP_NOT_CONFIGURED', 503);
-    if (!map.configured()) fail('MAP_NOT_CONFIGURED', 503);
+    const map = mapProvider ?? tmap ?? fail('MAP_NOT_CONFIGURED', 503);
+    if (!(mapProvider?.configuredPlaces() ?? tmap?.configured())) fail('MAP_NOT_CONFIGURED', 503);
     d.consumeMap?.();
     d.send(200, await map.places({ query, ...(bounds ? { bounds: bounds as DiscoveryQuery['bounds'] } : {}), ...(body.cursor === undefined ? {} : { cursor: string(body.cursor, 10) }) }));
     return true;

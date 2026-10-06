@@ -1,0 +1,24 @@
+{
+  "tmapRest": {
+    "status": "PASS",
+    "poiCount": 1,
+    "addressCandidateCount": 1,
+    "walkingMeters": 379,
+    "walkingSeconds": 299,
+    "lineCount": 5
+  },
+  "tmapWeb": {
+    "status": "PASS",
+    "surface": "Chrome localhost development export",
+    "data": "Synthetic QA merchant records; no real Google login or merchant consent",
+    "tilesVisible": true,
+    "loadingCleared": true,
+    "clusterClick": "200m to 50m scale and merchant-range panel",
+    "appWalkingMeters": 639,
+    "appWalkingMinutesRoundedUp": 9,
+    "dwellMinutes": 15
+  },
+  "naverLive": "NOT_RUN: credentials absent",
+  "physicalDevice": "NOT_RUN: exact phone R3CX10PCWCW absent; emulator not used",
+  "publicDeployment": "NOT_RUN"
+}

@@ -57,7 +57,7 @@ export type DiscoveryPage = {
   nextCursor: string | null; unlocatedCount: number;
 };
 export type ExternalPlace = {
-  id: string; provider: 'TMAP'; participation: 'EXTERNAL_PLACE'; name: string; roadAddress: string;
+  id: string; provider: 'TMAP' | 'NAVER'; participation: 'EXTERNAL_PLACE'; name: string; roadAddress: string;
   point: Point; entrance: Point | null; fetchedAt: string; expiresAt: string;
 };
 export type PlacePage = {

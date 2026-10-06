@@ -42,6 +42,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     : config.plugins;
   const authPlugins = [
     ...(plugins ?? []),
+    './plugins/with-naver-map-repository.cjs',
     'expo-secure-store',
     ['expo-location', {
       locationWhenInUsePermission: '가게와의 거리와 도보 출발지를 확인할 때만 위치를 사용합니다. 지역을 직접 정해 사용할 수도 있어요.',
@@ -77,7 +78,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     extra: {
       ...config.extra,
-      masscomMaps: { provider: 'TMAP', sdkAppKey: process.env.EXPO_PUBLIC_TMAP_MAP_APP_KEY?.trim() || undefined },
+      masscomMaps: { provider: 'TMAP', sdkAppKey: process.env.EXPO_PUBLIC_TMAP_MAP_APP_KEY?.trim() || undefined,
+        fallbackProvider: 'NAVER', naverClientId: process.env.EXPO_PUBLIC_NAVER_MAP_CLIENT_ID?.trim() || undefined },
       ...(notificationProjectId ? { eas: { projectId: notificationProjectId } } : {}),
       // 시연 API origin은 시연 빌드의 extra에만 둔다(Issue #325). JS 소스에 리터럴로 두면 운영 번들에도
       // 들어가 scripts/check-embedded-api.sh가 운영 AAB를 막는다. validateBuildEnvironment가 시연

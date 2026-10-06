@@ -1,0 +1,20 @@
+{
+  "scope": "PRIVATE_DEVELOPMENT_APK",
+  "package": "kr.masscom.wolgye.dev",
+  "sha256": "6e6661ccdccc9820a9f562bbac294ff0a7c558ef732e87d142f5acf847870fde",
+  "bytes": 321034113,
+  "forbiddenPermissions": [],
+  "abis": [
+    "arm64-v8a",
+    "armeabi-v7a",
+    "x86",
+    "x86_64"
+  ],
+  "nativeLibraries": 128,
+  "unaligned64Bit16KiB": [],
+  "legacy32Bit4KiBCount": 40,
+  "zipalign16KiB": "PASS",
+  "installed": false,
+  "publicRelease": false,
+  "sourceTree": "Pre-commit worktree; Kotlin/native wrapper stable before this build, not a distribution release"
+}

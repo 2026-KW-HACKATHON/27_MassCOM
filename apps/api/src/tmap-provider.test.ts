@@ -57,6 +57,7 @@ test('POI and geocode preserve latitude/longitude and original fetch freshness',
   let calls = 0;
   const provider = new TmapProvider({ appKey: 'test-key', now: () => new Date(time), fetch: async (input) => {
     calls++;
+    if (String(input).includes('/fullAddrGeo?')) assert.equal(new URL(String(input)).searchParams.get('addressFlag'), 'F00');
     const payload = String(input).includes('/pois?')
       ? { searchPoiInfo: { totalCount: '1', pois: { poi: [{ id: 'poi-1', name: '서점', noorLat: '37.6', noorLon: '127.1', frontLat: '37.61', frontLon: '127.11', upperAddrName: '서울', roadName: '길' }] } } }
       : { coordinateInfo: { coordinate: [{ newLat: '37.7', newLon: '127.2', newLatEntr: '37.71', newLonEntr: '127.21', newRoadName: '거리' }] } };

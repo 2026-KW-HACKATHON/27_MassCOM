@@ -6,6 +6,7 @@ import { handleRealWorldHttp } from './real-world-http.js';
 import { RealWorldError } from './real-world-contract.js';
 import type { PostgresRealWorldService } from './postgres/real-world.js';
 import type { TmapProvider } from './tmap-provider.js';
+import type { MapProvider } from './map-provider.js';
 import { realWorldAdminCheck } from './server.js';
 import type { PoolClient } from 'pg';
 import type { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
@@ -177,4 +178,28 @@ test('map configuration and client limiter stop upstream calls', async () => {
   await assert.rejects(make(true, () => { throw new RealWorldError('MAP_CLIENT_RATE_LIMITED', 429); }),
     (error: unknown) => error instanceof RealWorldError && error.status === 429);
   assert.equal(upstream, 0);
+});
+
+test('HTTP accepts NAVER backup for address and places but keeps walking TMAP-only', async () => {
+  let quota = 0, address: unknown, places: unknown;
+  const svc = { profile: async () => ({}) } as unknown as PostgresRealWorldService;
+  const tmap = { configured: () => false } as TmapProvider;
+  const mapProvider = { configuredGeocode: () => true, configuredPlaces: () => true,
+    geocode: async () => [{ provider: 'NAVER' }], places: async () => ({ places: [], attribution: 'NAVER' }),
+  } as unknown as MapProvider;
+  const common = { request: { method: 'POST' } as never, response: {} as never, realWorld: svc, tmap, mapProvider,
+    resolveAccountId: async () => 'account', resolveWebAccountId: async () => 'owner',
+    decode: decodeURIComponent, consumeEvent: () => {}, consumeMap: () => { quota++; } };
+  await handleRealWorldHttp({ ...common, path: '/api/web/v1/merchant/merchants/m1/location-candidates',
+    readBody: async () => ({ address: '서울시청' }), send: (_status, value) => { address = value; } });
+  assert.equal((address as { candidates: { provider: string }[] }).candidates[0]?.provider, 'NAVER');
+  await handleRealWorldHttp({ ...common, path: '/v1/discovery/places/search',
+    readBody: async () => ({ query: '서울시청' }), send: (_status, value) => { places = value; } });
+  assert.equal((places as { attribution: string }).attribution, 'NAVER');
+  assert.equal(quota, 2);
+  await assert.rejects(handleRealWorldHttp({ ...common, path: '/v1/discovery/walking-routes',
+    readBody: async () => ({ origin: { latitude: 37, longitude: 127 }, merchantIds: ['m1'],
+      departureAt: '2026-10-07T00:00:00Z', dwellMinutes: [10] }), send: () => {}, }),
+  (error: unknown) => error instanceof RealWorldError && error.code === 'MAP_NOT_CONFIGURED');
+  assert.equal(quota, 2);
 });

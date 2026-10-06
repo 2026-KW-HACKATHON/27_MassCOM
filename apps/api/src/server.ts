@@ -27,6 +27,8 @@ import { PostgresSocialService } from './postgres/social.js';
 import { PostgresRealWorldService } from './postgres/real-world.js';
 import { PostgresRealWorldMediaStore } from './real-world-media.js';
 import { TmapProvider } from './tmap-provider.js';
+import { NaverProvider } from './naver-provider.js';
+import { MapProvider } from './map-provider.js';
 import { RealWorldError } from './real-world-contract.js';
 import { handleRealWorldHttp } from './real-world-http.js';
 import { ExpoPushGateway } from './expo-push-gateway.js';
@@ -225,6 +227,7 @@ export type ExperienceServices = {
   notifications?: NotificationService | undefined;
   realWorld?: PostgresRealWorldService | undefined;
   tmap?: TmapProvider | undefined;
+  mapProvider?: MapProvider | undefined;
 };
 
 export function realWorldAdminCheck(accountLifecycle: PostgresAccountLifecycle):
@@ -286,7 +289,7 @@ export function createApiServer(
   storeTickets?: StoreTicketService,
   social?: SocialService,
 ) {
-  const { collectionExperience, merchantOperations, notifications, realWorld, tmap } = experienceServices;
+  const { collectionExperience, merchantOperations, notifications, realWorld, tmap, mapProvider } = experienceServices;
   const requireCustomerScan = async (accountId: string, merchantId: string): Promise<void> => {
     if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
     try { await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' }); }
@@ -352,7 +355,7 @@ export function createApiServer(
       }
 
       const path = new URL(request.url ?? '/', 'http://localhost').pathname;
-      if (await handleRealWorldHttp({ request, response, path, realWorld, tmap,
+      if (await handleRealWorldHttp({ request, response, path, realWorld, tmap, mapProvider,
         resolveAccountId: async () => resolveAccountId(request),
         resolveWebAccountId: async channel => {
           const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
@@ -2956,6 +2959,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     ...(adminService && accountLifecycle ? { isAdmin: realWorldAdminCheck(accountLifecycle) } : {}),
     includeDemo: Boolean(showcaseDeployment), mediaStore: new PostgresRealWorldMediaStore(pool),
   }) : undefined;
+  const tmap = pool ? new TmapProvider({ appKey: process.env.TMAP_REST_APP_KEY ?? '' }) : undefined;
+  const naver = pool ? new NaverProvider({
+    mapsId: process.env.NAVER_MAP_CLIENT_ID ?? '', mapsSecret: process.env.NAVER_MAP_CLIENT_SECRET ?? '',
+    searchId: process.env.NAVER_SEARCH_CLIENT_ID ?? '', searchSecret: process.env.NAVER_SEARCH_CLIENT_SECRET ?? '',
+  }) : undefined;
   const server = createApiServer(
     configuredService(bindingStore, challengeStore),
     accountResolver,
@@ -3018,7 +3026,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       merchantOperations: pool && accountLifecycle ? new PostgresMerchantOperations(pool, { accountLifecycle }) : undefined,
       notifications,
       realWorld,
-      tmap: pool ? new TmapProvider({ appKey: process.env.TMAP_REST_APP_KEY ?? '' }) : undefined,
+      tmap,
+      mapProvider: tmap && naver ? new MapProvider(tmap, naver) : undefined,
     },
     pool && accountLifecycle && collection
       ? new PostgresStoreTicketService(pool, collection, accountLifecycle) : undefined,
