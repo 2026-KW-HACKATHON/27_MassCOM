@@ -2,6 +2,8 @@
 
 ## 2026-10-06 요약 홈과 목적별 상세 (Issue #378)
 
+브랜치 `fix/home-overview`, [PR #379](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/379). 소스 `4ee5dd1aca6ab5edfacfe0552739fcf40625245f`의 운영·시연 Android export 및 variant 자산 경계 PASS. 최신 원격 head CI/merge 상태는 PR 기록을 따른다.
+
 Codex가 사용자의 스크롤 불편 제안에 따라 홈을 실제 수치·네 진입으로 줄이고 가게권·미션·전시를 별도 화면에 보존했다. 독립 구현/검토를 분리해 코드 검토 APPROVE, 모바일 1677/1677·타입·전체 lint·접근성 semantics·개인정보 로그 검사 PASS를 확인했다. 실기 라이트 기본 홈/상세/뒤로·200% 홈/전시와 다크384×832 웹을 확인했고, 웹 개봉 ACK·건너뛰기·홈 count refresh를 검증했다. 전체 실기 수용·TalkBack·200% 가게권/미션·실기 다크는 미검증이다. 진동 체감 FAIL은 별도 열린 결과로 유지했다. API·보상·인증·새 의존성·공개 배포 변경은 없다. [홈 QA](HOME_OVERVIEW_QA_2026-10-06.md)에 합성 데이터와 개발 클라이언트 경계를 기록한다.
 
 

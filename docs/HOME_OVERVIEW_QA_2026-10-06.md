@@ -19,7 +19,7 @@
 | 웹 가게권 개봉·취소·홈 갱신 | PASS | 실제 UI에서 카드 표시 후 목록 6→5장, 닫기·홈 복귀 후 5장 반영. 다른 봉투는 개봉 전 건너뛰어 5장 유지. 미션·전시·QR 진입과 홈 복귀 확인. QR 발급·방문 인증은 이번 검사 범위가 아니다. |
 | 실기 200% 글씨 | PASS | 홈 헤더·수치·네 진입이 줄바꿈되고 스크롤 뒤 전시 타일 전체에 접근. 전시의 제목·꾸미기·팩·위시리스트·알림을 겹침 없이 확인. font_scale 1.0 복원. 가게권·미션 상세의 200%와 TalkBack은 NOT_RUN. |
 | 테마 | PASS / NOT_RUN | 브라우저 다크와 실기 라이트를 확인. 실기 다크 전환은 NOT_RUN; 시스템 테마는 바꾸지 않았다. |
-| 운영/시연 Android export | 확인 중 | 실제 소스 커밋 지정 후 번들 검사를 수행하며 서명 APK·공개 배포와 구분한다. |
+| 운영/시연 Android export | PASS | 소스 `4ee5dd1aca6ab5edfacfe0552739fcf40625245f`를 지정해 두 variant export와 자산 경계 검사 통과. 기존 환경 파일 제외, 시연 OAuth는 CI placeholder. 서명 APK·공개 배포는 별도다. |
 
 브라우저 화면은 모바일 실기 판정으로 대체하지 않는다. 실기 스크린샷·계정 식별 정보가 포함된 로그는 공개 증거로 올리기 전에 합성 데이터와 민감 내용 여부를 확인한다. 오디오 청음과 진동 체감은 [실기 QA 문서](PHYSICAL_QA_2026-10-06.md)의 별도 결과를 따른다.
 
@@ -30,3 +30,7 @@
 화면은 [기본 홈](evidence/home-overview-2026-10-06/home-phone.png), [가게권](evidence/home-overview-2026-10-06/tickets-phone.png), [미션](evidence/home-overview-2026-10-06/missions-phone.png), [전시](evidence/home-overview-2026-10-06/exhibit-phone.png), [200% 홈 하단](evidence/home-overview-2026-10-06/home-font2-phone.png), [200% 전시](evidence/home-overview-2026-10-06/exhibit-font2-phone.png), [384×832 다크 웹](evidence/home-overview-2026-10-06/home-dark-browser.png)에 남긴다. 회색 Tools overlay는 검증 환경에 나타나며 제품 UI로 승인하지 않는다.
 
 API·보상·인증·의존성 변경은 없고 공개 설치 안내가 달라지지 않아 README 수정은 없다. 긴 본문을 홈에서 없애 목적별 상세에 재사용했으며 새 탭 상태 관리나 데이터 계층은 추가하지 않았다.
+
+## 통합 기록
+
+[PR #379](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/379), 브랜치 `fix/home-overview`. 로컬 source-only `tools/gate.sh`는 Git 이력과 staged tree를 보존한 별도 검사본에서 PASS다. 개발 서버의 private 합성 세션 파일을 커밋하거나 검사 대상 소스에 섞지 않았다. 원격 CI는 최신 head에서 확인하고 병합한다.

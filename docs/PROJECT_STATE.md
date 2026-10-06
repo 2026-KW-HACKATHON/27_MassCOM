@@ -1,6 +1,12 @@
 # 프로젝트 상태
 
-## 현재 작업: PR #374 병합 복구 (Issue #367, 2026-10-06)
+## 현재 작업: 요약 홈과 목적별 상세 (Issue #378, 2026-10-06)
+
+브랜치 `fix/home-overview`, [PR #379](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/379). 홈은 실제 수치와 네 진입으로 줄이고 가게권·미션·전시는 상세에서 기존 기능을 보존한다. 모바일 1677/1677·타입·전체 lint·접근성·privacy 로그·독립 검토·source-only gate PASS, 소스 `4ee5dd1aca6ab5edfacfe0552739fcf40625245f`의 운영/시연 Android export와 자산 경계 PASS다. 실폰 기본 홈/세 상세/뒤로·200% 홈/전시와 다크 웹/개봉 ACK/취소/홈 수치 갱신을 확인했다. [홈 QA](HOME_OVERVIEW_QA_2026-10-06.md)에 증거와 미검증 범위를 남긴다.
+
+PR #374와 음악 #377은 실제 GitHub에서 병합 확인했다. 재연결 뒤 사용자 소리 청음은 PASS, 진동 체감은 FAIL로 유지한다. 공개 APK 재빌드·운영 배포·Play 완료를 주장하지 않는다. 다음 확인은 PR #379의 최신 head CI→병합과 손에 든 준비 응답 후 진동 비교다.
+
+## PR #374 병합 복구 (Issue #367, 2026-10-06)
 
 브랜치 `fix/pr374-review`에서 PR #374 SHA `dbe8f09e0ac347d0aa08fde80817078648674cd2`와 `origin/main` SHA `57e7746ff8586c60bc5555f731b93ddc789dcbc6`을 통합했다. 리뷰 결함 5건과 PR #375 병합의 충돌 11개를 해결해 소스·시험·양쪽 문서 이력을 함께 보존했다. 자세한 수용 기준과 CUA 증거는 [복구 보고서](PR374_REPAIR.md)에 있다.
 
