@@ -28,8 +28,8 @@ cd apps/api
 1. [신규 Maps 콘솔](https://console.ncloud.com/maps/subscription)에 본인 계정으로 로그인하고 **Services → Application Services → Maps**에서 Application을 등록한다. 구 AI·NAVER API Maps 자격 증명과 신규 Maps 자격 증명을 섞지 않는다.
 서비스 이용 불가 안내가 표시되면 콘솔 안내에 따라 본인이 계정 활성화 조건을 먼저 해결한다. 결제수단 미등록 계정의 결제 정보 등록은 본인이 진행하며 결제 정보를 코드·채팅에 넣지 않는다.
 
-2. **Web Dynamic Map, Mobile Dynamic Map, Geocoding**을 선택한다. 이 구현은 Directions 5/15를 사용하지 않는다.
-3. 웹 서비스 URL에 실제 사용할 출처를 등록한다: `https://demo.masscom.kr`, 운영 웹을 사용할 경우 `https://masscom.kr`, 로컬 확인용 `http://127.0.0.1`. 포트·서브도메인 처리와 허용 형식은 현재 콘솔 안내를 따른다.
+2. **Dynamic Map(웹·Android 공통), Geocoding**만 선택한다. 이 구현은 Directions 5/15를 사용하지 않는다.
+3. 웹 서비스 URL에는 콘솔 안내대로 www와 하위 도메인을 뺀 대표 도메인 `https://masscom.kr`를 등록한다. 이 대표 도메인은 운영·시연 웹에 사용한다. 이번 로컬 검증은 `http://127.0.0.1:4422`, `http://localhost:4422`를 추가한다. 각 입력 뒤 [추가]를 눌러 목록에 들어간 것을 확인한다. 서비스 출처가 바뀌면 실제 출처에 맞게 수정한다.
 4. Android 패키지명을 등록한다: 운영 `kr.masscom.wolgye`, 시연 `kr.masscom.wolgye.demo`, 개발 `kr.masscom.wolgye.dev`. 사용할 환경만 등록하고 각각 실제 설치본과 맞춘다.
 5. 인증 정보의 Client ID와 Client Secret을 로컬 파일에 저장한다. 공개 Client ID만 앱 빌드에 넣고 Secret은 API 서버에만 둔다. 요금·대표 계정 여부·일/월 한도는 콘솔에서 확인하고 신청한다. 자동 유료 전환/한도 확대는 구현하지 않는다.
 

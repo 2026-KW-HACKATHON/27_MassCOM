@@ -27,3 +27,5 @@
 첫 CI [37524867384](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/37524867384)는 테스트와 운영/시연/웹 export를 모두 통과하고 마지막 audit에서 기존 DevTools의 shell-quote1.10.0 권고로 실패했다. [공식 권고](https://github.com/ljharb/shell-quote/security/advisories/GHSA-pqg4-j6r4-53mv)의 수정 버전1.11.0으로 package-lock의 버전·배포 URL·검증값 세 줄만 바꿨다. 새 패키지/override/예외 추가는 없다. 새로운 parse 문법이 추가된 최신1.12.0은 선택하지 않았다.
 
 npm ci와 기존 patch-package postinstall, npm ls 1.11.0, audit:ci, 네 줄 종료자 위험 입력의 TypeError 거부 및 정상 CLI 인자 parse/quote 왕복, 모바일1775/타입/lint가 통과했다. 위 private APK와 실제 지도 기록의 핵심 소스 해시는 동일하다. 이 기록을 최신 HEAD 원격 CI 완료로 대신하지 않는다.
+
+두 번째 CI [37528688262](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/37528688262)는 e1ff5b3b에서 전체 PASS다. 콘솔에서 확인한 신규 서비스 메뉴는 웹/Android 공통 Dynamic Map과 Geocoding이다. URL 입력의 대표 도메인 규칙과 [추가] 버튼, 실제 로컬4422 출처를 설정 문서에 반영했다. 이후 문서 HEAD의 원격 검사와 병합은 별도로 확인한다.
