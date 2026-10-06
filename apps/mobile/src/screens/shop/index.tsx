@@ -274,9 +274,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   }
 
   const header = (
-    <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE}>
+    <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE} compact>
       <View style={styles.hero}>
-        <Mascot interactive pose="gift" size={heroMascotSize(fontScale, 112)} />
+        <Mascot interactive pose="gift" size={heroMascotSize(fontScale, 72)} />
       </View>
     </AppHeader>
   );
@@ -347,7 +347,6 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
           </View>
           {pending ? <BounceButton label="이전 구매 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
-          <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
           <View accessibilityLiveRegion="polite">
             {experience.error ? <Text style={styles.errorMessage}>{experience.error}</Text> : null}
             {notice ? <Text style={notice.tone === 'success' ? styles.successMessage : styles.errorMessage}>{notice.text}</Text> : null}
@@ -356,10 +355,6 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       </Stagger>
 
       <Stagger index={1}>
-        <HistorySection api={api} refreshToken={historyRefreshToken} />
-      </Stagger>
-
-      <Stagger index={2}>
         <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>{shopDrawHeading}</Text>
           <Text style={styles.sectionNote}>{shopDrawIntro}</Text>
@@ -378,15 +373,21 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         </View>
       </Stagger>
 
+      <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
+
       {experience.snapshot ? <ThemePackBoard snapshot={experience.snapshot} /> : null}
 
-      <Stagger index={3}>
+      <Stagger index={2}>
         <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>가게 친구</Text>
           <View style={styles.grid}>
             {grid.map((cell) => <FriendCell key={cell.id} cell={cell} onPress={() => confirmAvatar(cell)} styles={styles} />)}
           </View>
         </View>
+      </Stagger>
+
+      <Stagger index={3}>
+        <HistorySection api={api} refreshToken={historyRefreshToken} />
       </Stagger>
     </>,
     machine,
@@ -404,23 +405,24 @@ function GradeRow({ grade, balance, friends, busy, purchaseBusy, onBuy, styles }
   return (
     <FloatingCard style={styles.card}>
       <View style={styles.gradeHeader}>
-        <PackArt grade={grade.grade} size={100} />
+        <PackArt grade={grade.grade} size={80} />
         <View style={styles.gradeCopy}>
           <Text style={styles.gradeName}>{themePackName(grade.grade)} · {gradeLabel(grade.grade)} 캐릭터</Text>
-          <Text style={styles.gradePrice}>{formatMileage(grade.price)} · 가진 친구 {grade.owned}/{grade.total}</Text>
+          <Text style={styles.gradePrice}>가격 {formatMileage(grade.price)}</Text>
+          <Text style={styles.gradeOwned}>가진 친구 {grade.owned}/{grade.total}</Text>
         </View>
       </View>
-      {friends.length ? <View style={styles.grid}>{friends.map((friend) => <View key={friend.id} style={styles.cell}>
-        <CharacterArt avatar={friend.id} frame="calm" size={72} /><Text style={styles.cellName}>{friend.name}</Text>
-      </View>)}</View> : null}
       <Text style={styles.disclosure}>{rerollDisclosure(grade)}</Text>
       <Text style={styles.disclosure}>{cosmeticSequenceDisclosure}</Text>
-      {button.reason ? <Text style={styles.disabledReason}>{button.reason}</Text> : null}
+      {button.reason || (purchaseBusy && !busy) ? <Text style={styles.disabledReason}>{button.reason ?? '다른 작업을 처리하고 있어요'}</Text> : null}
       <BounceButton
         label={busy ? '뽑는 중…' : '뽑기'}
         disabled={disabled}
         onPress={onBuy}
       />
+      {friends.length ? <View style={styles.grid}>{friends.map((friend) => <View key={friend.id} style={styles.cell}>
+        <CharacterArt avatar={friend.id} frame="calm" size={72} /><Text style={styles.cellName}>{friend.name}</Text>
+      </View>)}</View> : null}
     </FloatingCard>
   );
 }

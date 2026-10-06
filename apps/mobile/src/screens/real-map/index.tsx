@@ -6,6 +6,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { ActivityIndicator, Image, Pressable, ScrollView, RefreshControl, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/ui/app-header';
+import { Fold } from '@/ui/fold';
+import { isLargeText } from '@/ui/large-text';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { StatusBarScrim, useStatusBarScrim } from '@/ui/status-bar-scrim';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
@@ -44,6 +47,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   const styles=useMemo(()=>StyleSheet.create(makeRealMapStyles(palette,world)),[palette,world]);
   const auth = useAuthSession();
   const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
   const scrim=useStatusBarScrim();
   const { fontScale } = useWindowDimensions();
   const state = useSyncExternalStore(discoveryState.subscribe, discoveryState.snapshot, discoveryState.snapshot);
@@ -213,7 +217,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
     } catch(error) {if(current())setRouteMessage(error instanceof DiscoveryApiError&&error.code==='MAP_NOT_CONFIGURED'?'보행 경로 키가 연결되지 않았습니다. 가게 상세의 주소로 외부 지도를 열 수 있습니다.':
       error instanceof DiscoveryApiError&&error.status===404?'코스 가게가 더는 게시되지 않았습니다. 다른 가게로 바꿔 주세요.':'보행 경로를 가져오지 못했습니다. 가게를 바꾸거나 주소로 길찾기를 이용하세요.');}
   }
-  const button=(label:string,onPress:()=>void,selected=false)=><Pressable accessibilityRole="button" accessibilityState={{selected}} onPress={onPress} style={[styles.button,selected&&styles.selected]}><Text style={styles.buttonText}>{label}</Text></Pressable>;
+  const button=(label:string,onPress:()=>void,selected=false)=><Pressable accessibilityRole="button" accessibilityState={{selected}} onPress={onPress} style={[styles.button,selected&&styles.selected]}><Text style={styles.buttonText}>{selected?`✓ ${label}`:label}</Text></Pressable>;
   const row=(merchant:MerchantSummary,source:'list'|'map'|'recommendation')=><Pressable key={merchant.id} accessibilityRole="button" accessibilityLabel={`${merchant.name}, ${merchant.roadAddress}, ${merchant.position?'위치 확인됨':'위치 확인 필요'}, ${businessLabel(merchant.business)}, ${merchant.campaign?`${campaignLabel(merchant.campaign.state)} 캠페인, ${rewardLabel(merchant.campaign.rewardAvailability)}`:'진행 중인 캠페인 없음'}, ${merchant.distance?`${Math.round(merchant.distance.meters)}미터 직선거리`:'거리 정보 없음'}`} accessibilityState={{selected:state.selectedId===merchant.id}} accessibilityHint="상세 보기와 코스 추가 동작이 있습니다" onPress={()=>select(merchant.id,source)} style={styles.row}>
     <View style={styles.photoBox}>{merchant.thumbnail&&publishedPhotoUri(apiUrl,merchant.thumbnail.url)?<Image source={{uri:publishedPhotoUri(apiUrl,merchant.thumbnail.url)!}} style={styles.photo}/>:<Text style={styles.photoPlaceholder}>점주 사진 없음</Text>}</View>
     <View style={{flex:1}}><Text style={styles.name}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text style={styles.muted}>{merchant.roadAddress}{merchant.floor?` · ${merchant.floor}`:''}</Text><Text style={styles.muted}>{merchant.position?'위치 확인됨':'위치 확인 필요'} · {businessLabel(merchant.business)}</Text>
@@ -222,9 +226,9 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       <View style={styles.actions}>{button('상세',()=>openMerchant(merchant.id,source))}{merchant.position?button('코스에 추가',()=>updateCourse([...course.filter(stop=>stop.merchantId!==merchant.id),...(!course.some(stop=>stop.merchantId===merchant.id)&&course.length<5?createCourse([merchant.id]):[])])):null}</View>
     </View></Pressable>;
   const controls=<>
-    <AppHeader title="탐색" subtitle="가게와 코스 찾기" compact /><View style={styles.header}><View style={styles.actions}>{button('지도',()=>discoveryState.setMode('map'),state.mode==='map')}{button('목록',()=>discoveryState.setMode('list'),state.mode==='list')}</View></View>
-    <TextInput value={state.filters.query} onChangeText={query=>discoveryState.setFilters({query})} placeholder="가게 이름·주소 검색" accessibilityLabel="가게 검색" style={styles.input} returnKeyType="search"/>
-    <ScrollView horizontal keyboardShouldPersistTaps="handled" style={{maxHeight:54}} contentContainerStyle={styles.actions}>
+    <AppHeader title="탐색" subtitle="가게와 코스 찾기" compact /><View style={styles.header}><View style={styles.actions}>{button('지도',()=>discoveryState.setMode('map'),state.mode==='map')}{button('목록',()=>discoveryState.setMode('list'),state.mode==='list')}<Pressable accessibilityRole="button" onPress={refresh} style={styles.button}><Text style={styles.buttonText}>새로고침</Text></Pressable></View></View>
+    <TextInput value={state.filters.query} onChangeText={query=>discoveryState.setFilters({query})} placeholder="가게 이름·주소 검색" placeholderTextColor={world.cardMuted} accessibilityLabel="가게 검색" style={[styles.input,styles.searchInput]} returnKeyType="search"/>
+    <ScrollView horizontal keyboardShouldPersistTaps="handled" style={styles.filters} contentContainerStyle={[styles.actions,styles.filterRow]}>
       {button('전체',()=>discoveryState.setFilters({category:null,campaignOnly:false,openOnly:false,unvisitedOnly:false,interestedOnly:false}))}
       {button('영업 중',()=>discoveryState.setFilters({openOnly:!state.filters.openOnly}),state.filters.openOnly)}
       {button('캠페인',()=>discoveryState.setFilters({campaignOnly:!state.filters.campaignOnly}),state.filters.campaignOnly)}
@@ -233,20 +237,22 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       {merchantCategories.map(category=><View key={category}>{button(category,()=>discoveryState.setFilters({category:state.filters.category===category?null:category}),state.filters.category===category)}</View>)}
     </ScrollView>
   </>;
-  const panels=<View style={styles.content}>
+  const panels=<View style={[styles.content,{paddingBottom:state.mode==='map'?20:clearance}]}>
       {state.mode==='map'&&(state.filters.unvisitedOnly||state.filters.interestedOnly)?<Text style={styles.muted}>지도 숫자는 범위의 전체 가게 수입니다. 개인 방문·목표 필터는 불러온 목록과 가게 선택에 적용됩니다.</Text>:null}
       {originMessage?<Text accessibilityRole="alert" style={styles.notice}>{originMessage}</Text>:null}
       {wantedResolution?.status==='unavailable'?<View style={styles.panel}><Text accessibilityRole="alert" style={styles.notice}>{wantedResolution.label}</Text>{button('공간에서 새 목표 고르기',()=>router.push('/studio'))}</View>:null}
       {wantedResolution?.status==='completed'?<Text style={styles.muted}>{wantedResolution.label}</Text>:null}
-      <View style={styles.actions}><Pressable accessibilityRole="button" onPress={refresh} style={styles.button}><Text style={styles.buttonText}>새로고침</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>setGpsPrompt(true)} style={styles.button}><Text style={styles.buttonText}>현재 위치</Text></Pressable>{button('지도 중심을 출발지로',()=>chooseManual(camera,'선택한 지도 중심'))}</View>
+      <Fold title="출발지·위치 선택" summary={state.origin?.basis==='MANUAL'?'직접 선택한 출발지 사용 중':gpsMessage}>
+      <View style={styles.actions}><Pressable accessibilityRole="button" onPress={()=>setGpsPrompt(true)} style={styles.button}><Text style={styles.buttonText}>현재 위치</Text></Pressable>{button('지도 중심을 출발지로',()=>chooseManual(camera,'선택한 지도 중심'))}</View>
       {gpsPrompt?<View style={styles.panel}><Text accessibilityRole="header" style={styles.heading}>이번 한 번 현재 위치 사용</Text><Text style={styles.muted}>선택 사항입니다. 위치를 한 번 확인해 직선거리와 보행 경로 출발지에 사용합니다. 거리 계산을 위해 서비스 서버에 좌표가 전달되고, 보행 경로를 요청할 때만 TMAP에 출발 좌표가 전달됩니다. 백그라운드 위치나 이동 경로를 수집하지 않고, 친구 공유·로그·기기 저장에 남기지 않습니다. 출발지를 직접 고를 수도 있습니다.</Text><View style={styles.actions}><Pressable accessibilityRole="button" onPress={()=>setGpsPrompt(false)} style={styles.button}><Text style={styles.buttonText}>취소</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>{setGpsPrompt(false);void requestGps();}} style={styles.button}><Text style={styles.buttonText}>이번 한 번 위치 확인</Text></Pressable></View></View>:null}
       <Text style={styles.muted}>{gpsMessage}</Text>
-      <View style={styles.actions}><TextInput value={manualText} onChangeText={setManualText} placeholder="출발 주소 직접 검색" accessibilityLabel="출발 주소" style={[styles.input,{flex:1}]} onSubmitEditing={()=>{void findManualOrigin();}}/>{button('찾기',()=>{void findManualOrigin();})}</View>
+      <View style={styles.actions}><TextInput value={manualText} onChangeText={setManualText} placeholder="출발 주소 직접 검색" placeholderTextColor={world.cardMuted} accessibilityLabel="출발 주소" style={[styles.input,{flex:1,minWidth:160}]} onSubmitEditing={()=>{void findManualOrigin();}}/>{button('찾기',()=>{void findManualOrigin();})}</View>
       {places.map(place=><View key={place.id}>{button(`${place.name} · ${place.roadAddress}`,()=>chooseManual(place.point,place.name,place.expiresAt))}</View>)}
+      </Fold>
       {selectedCluster&&clusterPage?.clusterId===selectedCluster.id?<View style={styles.panel}><Text accessibilityRole="header" style={styles.heading}>지도 범위 전체 {selectedCluster.count}곳 · 불러온 {clusterPage.merchants.length}곳</Text><Text style={styles.muted}>개인 방문·목표 필터는 불러온 목록에 적용됩니다.</Text>{clusterPage.error?<Text accessibilityRole="alert" style={styles.notice}>{clusterPage.error} · 다시 확인해 주세요.</Text>:null}{clusterPage.loading?<ActivityIndicator accessibilityLabel="건물 가게 불러오는 중"/>:null}{clusterLeafVisible.map(m=>row(m,'map'))}{clusterPage.nextCursor?<Pressable accessibilityRole="button" onPress={()=>loadClusterPage(selectedCluster,clusterPage.nextCursor!,clusterPage.query)} style={styles.button}><Text style={styles.buttonText}>이 범위 가게 더 보기</Text></Pressable>:null}<Pressable accessibilityRole="button" onPress={()=>{clusterRequest.current?.abort();clusterGeneration.current++;setSelectedCluster(null);setClusterPage(null);}} style={styles.button}><Text style={styles.buttonText}>범위 닫기</Text></Pressable></View>:null}
       {clusterIds.length>1?<View style={styles.panel}><Text style={styles.heading}>같은 건물 가게 {clusterIds.length}곳</Text>{clusterIds.map(id=>state.merchants.find(m=>m.id===id)).filter((m):m is MerchantSummary=>!!m).map(m=>row(m,'map'))}</View>:null}
       {selected?<View style={styles.panel}><Text style={styles.heading}>선택한 가게</Text>{row(selected,state.mode==='map'?'map':'list')}</View>:null}
-      {state.error==='DISCOVERY_ZOOM_REQUIRED'?<View style={styles.panel}><Text accessibilityRole="alert" style={styles.notice}>이 범위에 영업 중인 가게가 너무 많습니다. 지도를 확대하거나 영업 중 필터를 해제하세요.</Text>{state.filters.openOnly?button('영업 중 필터 해제',()=>discoveryState.setFilters({openOnly:false})):null}</View>:state.error?<Text accessibilityRole="alert" style={styles.notice}>{state.error} · 연결을 확인하고 다시 불러와 주세요.</Text>:null}
+      {state.error==='DISCOVERY_ZOOM_REQUIRED'?<View style={styles.panel}><Text accessibilityRole="alert" style={styles.notice}>이 범위에 영업 중인 가게가 너무 많습니다. 지도를 확대하거나 영업 중 필터를 해제하세요.</Text>{state.filters.openOnly?button('영업 중 필터 해제',()=>discoveryState.setFilters({openOnly:false})):null}</View>:state.error?<Text accessibilityRole="alert" style={styles.notice}>가게 정보를 불러오지 못했어요. 연결을 확인하고 새로고침해 주세요.</Text>:null}
       {state.loading?<ActivityIndicator accessibilityLabel="가게 불러오는 중"/>:null}
       <Text accessibilityRole="header" style={styles.heading}>가게 {visible.length}곳{state.unlocatedCount?` · 위치 미확인 ${state.unlocatedCount}곳`:''}</Text>
       {!state.loading&&!visible.length?<Text style={styles.notice}>조건에 맞는 실제 가게가 없습니다. 필터를 조정하거나 지도를 이동해 보세요.</Text>:null}
@@ -272,10 +278,10 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       {controls}{panels}
     </ScrollView>
     <StatusBarScrim scrollY={scrim.scrollY} />
-  </View> : <View style={[styles.screen,{paddingBottom:insets.bottom}]}>
-    {controls}
+  </View> : <View style={[styles.screen,{paddingBottom:clearance}]}>
+    {isLargeText(fontScale)?<ScrollView keyboardShouldPersistTaps="handled" style={styles.largeMapControls}>{controls}</ScrollView>:controls}
     <View style={[styles.mapCanvas,fontScale>=1.8&&{minHeight:100}]}><TmapMap camera={camera} markers={mapMarkers} selectedId={state.selectedId} route={route?.geometry??null} padding={{top:0,right:0,bottom:0,left:0}} active={focused&&foreground} style={{flex:1}}
-      onReady={()=>undefined} onError={(error:{code:string;retryable:boolean})=>setOriginMessage(error.code==='MAP_NOT_CONFIGURED'?'지도 키가 연결되지 않았습니다. 주소 목록은 계속 볼 수 있습니다.':`지도를 열지 못했습니다: ${error.code}`)} onViewport={viewport} onSelect={(id:string)=>{const server=state.clusters.find(item=>clusterMarkerId(item.id)===id);if(server){openServerCluster(server);return;}select(id,'map');const matches=sameBuilding(id);if(matches.length>1)setClusterIds(matches.map(m=>m.id));}} onCluster={cluster}/></View>
+      onReady={()=>undefined} onError={()=>setOriginMessage('지도를 열지 못했어요. 목록에서 가게를 찾아볼 수 있어요.')} onViewport={viewport} onSelect={(id:string)=>{const server=state.clusters.find(item=>clusterMarkerId(item.id)===id);if(server){openServerCluster(server);return;}select(id,'map');const matches=sameBuilding(id);if(matches.length>1)setClusterIds(matches.map(m=>m.id));}} onCluster={cluster}/></View>
     <ScrollView keyboardShouldPersistTaps="handled" style={styles.mapPanel}>{panels}</ScrollView>
   </View>;
 

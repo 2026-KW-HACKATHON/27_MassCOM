@@ -8,10 +8,10 @@ test('list and map use the same v1 discovery state and ID detail navigation',()=
   assert.match(map,/discoveryState\.select\(id\)/);assert.match(map,/api\.search\(token\.query/);
   assert.match(map,/pathname:'\/merchants\/\[merchantId\]'/);
 });
-test('discovery offers actual map, pagination, same-building leaves and honest empty/key states',()=>{
+test('discovery offers actual map, pagination, same-building leaves and honest empty/map recovery states',()=>{
   assert.match(map,/<TmapMap/);assert.match(map,/onCluster=\{cluster\}/);
   assert.match(map,/state\.nextCursor\?<Pressable/);assert.match(map,/같은 건물 가게/);
-  assert.match(map,/실제 가게가 없습니다/);assert.match(map,/지도 키가 연결되지 않았습니다/);
+  assert.match(map,/실제 가게가 없습니다/);assert.match(map,/지도를 열지 못했어요\. 목록에서 가게를 찾아볼 수 있어요/);
 });
 
 

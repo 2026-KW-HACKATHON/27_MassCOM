@@ -11,7 +11,7 @@ export function TabGlyph({ name, color, size }: {
   const stroke = { stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const };
 
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Svg accessible={false} width={size} height={size} viewBox="0 0 24 24" fill="none">
       {name === 'explore' ? <>
         <Circle cx="10.5" cy="10.5" r="6.5" {...stroke} />
         <Path d="M15.5 15.5 21 21" {...stroke} />
