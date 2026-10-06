@@ -1,5 +1,11 @@
 # HANDOFF
 
+## 2026-10-07 Android 주 지도·보행선과 후속 전체 UI
+
+PR #386은 source eb6db635의 CI37535335626 전체 PASS 후 main2bb8491a로 병합됐다. 연결된 Samsung SM-S928N에서 발견한 TMAP 렌더 자식 0×0·초기 제어 카메라·기본 alpha0 보행선을 `fix/tmap-native-layout`에서 수정하고 비공개 실기 수용을 통과했다. 원격 최종 HEAD CI·병합은 PR에서 별도 확인한다. [Issue #387](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/387), [실기/비공개 APK/검증 경계](TMAP_ANDROID_QA_2026-10-07.md)를 따른다. 임시 진단 코드와 자격 증명·APK는 Git에 넣지 않는다. 공개 서버·설치본·Play는 변경하지 않는다.
+
+사용자는 지도 수정 후 홈의 큰 아래 공백과 전체 UX/UI 개선을 요청했다. [Issue #388](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/388): 기존 수채화·다섯 탭을 유지하고 홈의 남은 화면 중앙 배치·큰 행동 아이콘, 탐색·도감·놀이·상점의 행동/상태 우선순위를 정리한다. 실제 API 수치·정직한 빈/로딩/오류와 인증·보상·구매 계약을 유지한다. 지도 구현·실기 검증을 마쳤으므로 별도 UI 브랜치에서 구현·실기 라이트/다크/큰 글씨 검증을 이어간다. 이전 웹 타일·기기 부재 기록을 최신 실기 결과와 혼동하지 않는다.
+
 ## 2026-10-07 NAVER 발급·실제 주소 대체·SDK 준비 복구 (Issue #385)
 
 PR384는 최신0165b865 CI37530995738 전체 PASS 뒤 main73284651로 병합됐다. 사용자 콘솔에서 신규 Maps masscom(Dynamic Map·Geocoding)을 등록하고 대표 계정·웹/패키지3개를 확인했다. 키는 Git 밖의 권한600 파일에만 보관한다. 실제 TMAP403→NAVER 주소200·후보1건 PASS이며 별도 NAVER Developers 지역 검색 키는 아직 없다.

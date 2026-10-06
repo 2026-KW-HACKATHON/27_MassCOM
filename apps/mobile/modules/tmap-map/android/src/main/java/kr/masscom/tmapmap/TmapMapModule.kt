@@ -42,6 +42,8 @@ class TmapMapModule : Module() {
 }
 
 class MapView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
+  // The SDK adds its rendering child after Yoga layout; honor its native requestLayout.
+  override val shouldUseAndroidLayout = true
   private val map = TMapView(context)
   private val onReady by EventDispatcher()
   private val onError by EventDispatcher()
@@ -106,12 +108,19 @@ class MapView(context: Context, appContext: AppContext) : ExpoView(context, appC
     // Camera represents the unobscured part of the map; center offset leaves room for panels.
     val dx = (insets.left - insets.right) / 2f
     val dy = (insets.top - insets.bottom) / 2f
-    map.setZoomLevel(zoom.toInt().coerceIn(1, 19))
-    map.setCenterPoint(lat, lon)
+    val level = zoom.toInt().coerceIn(1, 19)
+    val current = map.centerPoint
+    if (dx == 0f && dy == 0f && current != null &&
+      kotlin.math.abs(current.latitude - lat) < .00001 && kotlin.math.abs(current.longitude - lon) < .00001 &&
+      map.zoomLevel == level) return
+    map.setZoomLevel(level)
+    // Controlled-camera echoes must not restart an unfinished SDK animation.
+    map.setCenterPoint(lat, lon, false)
     if (width > 0 && height > 0 && (dx != 0f || dy != 0f)) {
       val shifted = map.convertPointToGps(width / 2f - dx, height / 2f - dy)
-      map.setCenterPoint(shifted.latitude, shifted.longitude)
+      map.setCenterPoint(shifted.latitude, shifted.longitude, false)
     }
+    post { emitViewport() }
   }
   fun setInsets(value: Map<String, Int>) {
     insets = TMapInsets(value["left"] ?: 0, value["top"] ?: 0, value["right"] ?: 0, value["bottom"] ?: 0)
@@ -178,6 +187,7 @@ class MapView(context: Context, appContext: AppContext) : ExpoView(context, appC
       val line = TMapPolyLine()
       line.setID("walk-$index")
       line.setLineColor(Color.rgb(42, 112, 178))
+      line.setLineAlpha(255)
       line.setLineWidth(5f)
       points.forEach { pair ->
         val coords = pair as? List<*> ?: return@forEach
@@ -202,5 +212,5 @@ class MapView(context: Context, appContext: AppContext) : ExpoView(context, appC
     running = shouldRun
     if (shouldRun) map.onResume() else map.onPause()
   }
-  fun dispose() { if (running) map.onPause(); running = false; map.onDestroy(); iconCache.values.forEach { it.recycle() }; iconCache.clear() }
+  fun dispose() { ready = false; active = false; if (running) map.onPause(); running = false; map.onDestroy(); iconCache.values.forEach { it.recycle() }; iconCache.clear() }
 }

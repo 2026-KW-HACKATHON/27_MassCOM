@@ -1,0 +1,36 @@
+[
+  {
+    "artifact": "maps-private-alpha.apk",
+    "sha256": "f3fcbf4018aa1968cbddc95bb5862829dff74ecfb51e561f6c1dd0dec869d2e3",
+    "package": "kr.masscom.wolgye.dev",
+    "minSdk": 24,
+    "targetSdk": 36,
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "audioBackgroundLocationQueryAllBillingPermissionsAbsent": true,
+    "developmentOverlayPermissionPresent": true,
+    "tmapNaverSdkPresent": true,
+    "temporaryProbeAbsent": true,
+    "nativeLibraryCount": 32,
+    "elf64LibraryCount": 32,
+    "elf64MinLoadAlignment": 16384,
+    "zip16KiBAlignment": true,
+    "publicRelease": false
+  },
+  {
+    "artifact": "maps-private-alpha-fault.apk",
+    "sha256": "e285bd593f5dbdfb8354305daffd223c5c486bd79bdefeddf8e61acf0b591973",
+    "package": "kr.masscom.wolgye.dev",
+    "minSdk": 24,
+    "targetSdk": 36,
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "audioBackgroundLocationQueryAllBillingPermissionsAbsent": true,
+    "developmentOverlayPermissionPresent": true,
+    "tmapNaverSdkPresent": true,
+    "temporaryProbeAbsent": true,
+    "nativeLibraryCount": 32,
+    "elf64LibraryCount": 32,
+    "elf64MinLoadAlignment": 16384,
+    "zip16KiBAlignment": true,
+    "publicRelease": false
+  }
+]

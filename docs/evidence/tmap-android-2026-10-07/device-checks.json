@@ -1,0 +1,38 @@
+{
+  "date": "2026-10-07",
+  "device": "Samsung SM-S928N",
+  "androidApi": 36,
+  "package": "kr.masscom.wolgye.dev",
+  "scope": "isolated synthetic QA database and local server; actual provider tiles and walking API",
+  "userGpsUsed": false,
+  "realGoogleLoginTested": false,
+  "actualMerchantConsentOrRewardTested": false,
+  "validArtifactSha256": "f3fcbf4018aa1968cbddc95bb5862829dff74ecfb51e561f6c1dd0dec869d2e3",
+  "faultArtifactSha256": "e285bd593f5dbdfb8354305daffd223c5c486bd79bdefeddf8e61acf0b591973",
+  "restoredPulledArtifactSha256": "f3fcbf4018aa1968cbddc95bb5862829dff74ecfb51e561f6c1dd0dec869d2e3",
+  "uninstalledOrDataCleared": false,
+  "cleanAlphaSource": {
+    "tmapTiles": "PASS",
+    "wolgyeInitialCamera": "PASS",
+    "serverCluster4": "PASS",
+    "actualWalkingRoute544m8min": "PASS",
+    "visibleBlueWalkingPolyline": "PASS",
+    "invalidTmapNaverActualTiles": "PASS",
+    "restoreValidApkHash": "PASS"
+  },
+  "preAlphaCleanBridge": {
+    "clusterZoomAndRangeList": "PASS",
+    "merchantDetailAndBack": "PASS",
+    "mapListSwitch": "PASS",
+    "dragWithoutSnapback": "PASS",
+    "homeBackgroundAndReturn": "PASS"
+  },
+  "notRun": [
+    "postfix NAVER web tiles because browser control unavailable",
+    "device GPS",
+    "real account or merchant acceptance",
+    "public deployment",
+    "postfix sound and felt haptic",
+    "nonzero native camera padding"
+  ]
+}
