@@ -1,5 +1,10 @@
 # 테스트 상태
 
+## 2026-10-06 요약 홈과 목적별 상세 (Issue #378)
+
+Codex가 사용자의 스크롤 불편 제안에 따라 홈을 실제 수치·네 진입으로 줄이고 가게권·미션·전시를 별도 화면에 보존했다. 독립 구현/검토를 분리해 코드 검토 APPROVE, 모바일 1677/1677·타입·전체 lint·접근성 semantics·개인정보 로그 검사 PASS를 확인했다. 실기 라이트 기본 홈/상세/뒤로·200% 홈/전시와 다크384×832 웹을 확인했고, 웹 개봉 ACK·건너뛰기·홈 count refresh를 검증했다. 전체 실기 수용·TalkBack·200% 가게권/미션·실기 다크는 미검증이다. 진동 체감 FAIL은 별도 열린 결과로 유지했다. API·보상·인증·새 의존성·공개 배포 변경은 없다. [홈 QA](HOME_OVERVIEW_QA_2026-10-06.md)에 합성 데이터와 개발 클라이언트 경계를 기록한다.
+
+
 ## 2026-10-06 Samsung 실기와 음악 로드 복구 (Issue #376)
 
 **PASS — 코드:** 공통 음악 컨트롤러의 지연 로드 재생 복구(`a1b87245`), 수정 전 실패→수정 후 컨트롤러 18/18·모바일 전체 1,678/1,678, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, 독립 검토 차단 결함 0건·두 파일 TypeScript 진단 0건. **PASS — 운영·시연 Android export:** 같은 소스 커밋에서 환경 파일을 읽지 않고 각 API origin으로 `expo export --platform android`를 실행했다. 시연 OAuth 값은 구문 검사용 비실사용 placeholder이며 실제 로그인은 아니다. 처음 production export는 source commit 환경 값 누락으로 설정 검사에서 종료됐고, 실제 소스 커밋을 넣어 두 variant 모두 종료 0을 확인했다. APK/AAB 재빌드·공개 배포는 없다.

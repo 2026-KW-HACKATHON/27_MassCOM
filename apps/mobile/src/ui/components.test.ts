@@ -53,8 +53,9 @@ test('screen copy fits its space and does not repeat the heading below it', () =
   assert.match(list, /placeholder="이름·메뉴·주소로 찾기"/);
   assert.doesNotMatch(list, /어디로 탐험할까요|내 탐험 여권 보기|도감에서 내 도장 보기/);
   const home = readSource('screens/home/index.tsx');
-  assert.match(home, /title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요"/);
-  assert.equal((home.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
+  assert.match(home, /title="홈" subtitle="오늘의 탐험"/);
+  assert.doesNotMatch(home, /<HomeCollectionDisplay/);
+  assert.equal((readSource('screens/home/home-exhibit.tsx').match(/<HomeCollectionDisplay/g) ?? []).length, 1);
   const collection = readSource('screens/collection/index.tsx');
   // #296 Option A: a compact passport strip now sits in the header as a child (replacing the self-closing tag).
   assert.match(collection, /<AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" avatarArt=\{companionArt\}>/);
@@ -69,7 +70,7 @@ test('the header keeps account tools one tap away, and says so under the avatar'
   // A visible "내 정보" label on its own frosted pill sits under the avatar; the 48dp target is the Pressable around both.
   assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
   const home = readSource('screens/home/index.tsx');
-  assert.match(home, /<AppHeader title="홈" subtitle="오늘 받은 가게권과 미션을 확인해요"/);
+  assert.match(home, /<AppHeader title="홈" subtitle="오늘의 탐험"/);
   assert.match(home, /showFriendsEntry showMailEntry/);
 });
 
@@ -82,8 +83,10 @@ test('large text grows freely with reflow while home keeps one exhibit and claim
   assert.doesNotMatch(read('bounce-button.tsx'), /maxFontSizeMultiplier|numberOfLines/);
   const home = readSource('screens/home/index.tsx');
   const exhibit = readSource('experience/home-collection-display.tsx');
-  assert.doesNotMatch(home, /heroMascotSize|<Mascot|<CompanionScene/);
-  assert.equal((home.match(/<HomeCollectionDisplay/g) ?? []).length, 1);
+  assert.doesNotMatch(home, /heroMascotSize|<Mascot/);
+  assert.equal((home.match(/<CompanionScene/g) ?? []).length, 1, 'one small overview companion');
+  assert.doesNotMatch(home, /<HomeCollectionDisplay/);
+  assert.equal((readSource('screens/home/home-exhibit.tsx').match(/<HomeCollectionDisplay/g) ?? []).length, 1);
   assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
   assert.match(exhibit, /showcase: \{[^}]*flexWrap: 'wrap'/);
   assert.match(readSource('screens/claim-redeem/index.tsx'), /size=\{heroMascotSize\(fontScale, 112\)\}/);
@@ -144,7 +147,7 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 14, 'search, home, mail, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status, merchant claim, studio, friend studio');
+  assert.equal(controls, 16, 'search, home, home tickets, home exhibit, mail, collection, merchant detail, recommendations, town map, friends, friend passport, shop, merchant status, merchant claim, studio, friend studio');
   assert.equal((readSource('screens/merchant-home/status.tsx').match(/<RefreshControl/g) ?? []).length, 1, '점주 현황에 하나의 당겨서 새로 고침을 둔다');
   assert.equal((readSource('screens/merchant-claim/staff.tsx').match(/<RefreshControl/g) ?? []).length, 1, '방문 확인에 발급 상태 새로 고침을 둔다');
   // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
@@ -162,7 +165,8 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
 test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
   assert.doesNotMatch(read('sky-backdrop.tsx'), /skyTownHeader|<Image|<SkyArt/);
   assert.match(read('sky-art.tsx'), /skyTownHeader/);
-  assert.match(read('app-header.tsx'), /<SkyArt \/>/);
+  assert.match(read('app-header.tsx'), /<SkyArt compact=\{compact\} \/>/);
+  assert.match(read('app-header.tsx'), /minHeight: compact \? undefined : skyArtHeight\(width\)/);
   assert.match(read('back-header.tsx'), /<SkyArt compact \/>/);
   // The header renders inside the scroll view, before the content, so both scroll away together.
   assert.match(read('sky-scroll-view.tsx'), /<ScrollView[\s\S]*\{header\}[\s\S]*<\/ScrollView>/);
@@ -269,17 +273,18 @@ test('state scenes map to the right mascot', () => {
   assert.match(scene, /loading: 'search'/);
 });
 
-test('mascots are plain images unless asked to be interactive, and home has one accessible exhibit greeting', () => {
+test('mascots are plain images unless asked to be interactive, and the exhibit has one accessible greeting', () => {
   const mascot = read('mascot.tsx');
   assert.match(mascot, /interactive = false/);
   assert.match(mascot, /mascotAccessibility\(accessibilityLabel, interactive\)/);
   // Without `interactive` the mascot is a bare Animated.Image: no Pressable, no wiggle handler.
   assert.match(mascot, /if \(!interactive\) return <Animated\.Image \{\.\.\.picture\} \{\.\.\.a11y\} \/>;/);
   assert.match(mascot, /<Pressable onPress=\{wiggle\} \{\.\.\.a11y\}>/);
-  // Home has one equipped greeting target in its exhibit; the header no longer repeats it.
+  // The overview companion is a small static cue; only the full exhibit greets on tap.
   const home = readSource('screens/home/index.tsx');
   const exhibit = readSource('experience/home-collection-display.tsx');
-  assert.doesNotMatch(home, /<Mascot|<CompanionScene|<AvatarPortrait/);
+  assert.doesNotMatch(home, /<Mascot|<AvatarPortrait|interactive/);
+  assert.equal((home.match(/<CompanionScene/g) ?? []).length, 1);
   assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
   assert.match(exhibit, /<CompanionScene[^>]*interactive/);
   const portrait = readSource('illustration/avatar-portrait.tsx');

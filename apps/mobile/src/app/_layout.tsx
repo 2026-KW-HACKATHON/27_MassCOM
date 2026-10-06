@@ -92,6 +92,8 @@ function Routes() {
         <Stack.Screen name="mail/[mailId]" options={{ headerShown: false }} />
         <Stack.Screen name="meal-merchant" options={{ headerShown: false }} />
         <Stack.Screen name="home/missions" options={{ headerShown: false }} />
+        <Stack.Screen name="home/tickets" options={{ headerShown: false }} />
+        <Stack.Screen name="home/exhibit" options={{ headerShown: false }} />
         <Stack.Screen name="studio" options={{ headerShown: false }} />
         <Stack.Screen name="play" options={{ headerShown: false }} />
         <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
