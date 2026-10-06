@@ -26,5 +26,5 @@ test('list and map detail entry retain their discovery source', () => {
   assert.match(discovery, /function openMerchant\(id:string,source:'map'\|'list'\|'recommendation'\)/);
   assert.match(discovery, /params:\{merchantId:id,from:source\}/);
   assert.match(discovery, /visible\.map\(m=>row\(m,'list'\)\)/);
-  assert.match(discovery, /\{selected\?<View[\s\S]*?\{row\(selected,'map'\)\}/);
+  assert.match(discovery, /\{selected\?<View[\s\S]*?\{row\(selected,state\.mode==='map'\?'map':'list'\)\}/);
 });
