@@ -1,0 +1,14 @@
+#real-world-merchant fieldset { display: grid; gap: .8rem; min-width: 0; border: 1px solid var(--mc-separator); border-radius: var(--mc-radius-control); padding: 1rem; }
+#real-world-merchant legend { font-weight: 700; padding: 0 .3rem; }
+#real-world-merchant label { display: grid; gap: .3rem; min-width: 0; }
+#real-world-merchant label:has(input[type="checkbox"]) { display: flex; align-items: baseline; gap: .5rem; }
+#real-world-merchant input, #real-world-merchant select, #real-world-merchant textarea { max-width: 100%; min-width: 0; }
+#real-world-weekly, #real-world-menu-rows { display: grid; gap: .7rem; }
+.real-world-menu-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: .6rem; padding: .8rem; border: 1px solid var(--mc-separator); border-radius: var(--mc-radius-control); }
+#real-world-photos { display: grid; gap: 1rem; padding-left: 1.2rem; }
+#real-world-photos li { overflow-wrap: anywhere; }
+#real-world-photos img { display: block; max-width: 100%; height: auto; margin-bottom: .4rem; }
+#real-world-engagement { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .5rem 1rem; max-width: 24rem; }
+#real-world-engagement dd { margin: 0; text-align: right; }
+#real-world-preview { overflow-wrap: anywhere; }
+@media (min-width: 38rem) { #real-world-weekly { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

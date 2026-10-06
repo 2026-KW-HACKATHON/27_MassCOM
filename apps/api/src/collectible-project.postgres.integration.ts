@@ -368,7 +368,9 @@ test('operator media removal blanks a publication only through the guarded funct
   const grades = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = $1', [published.publicationId]);
   assert.equal(JSON.stringify(grades.rows).includes('data:'), false);
   assert.equal((await pool.query('SELECT project FROM collectible_projects WHERE id = $1', [draft.id])).rows[0].project, null);
-  assert.equal((await new PostgresCollectionReader(pool).getCollection('customer-removed')).collectibles[0]!.artwork, undefined);
+  const collectedAfterRemoval = (await new PostgresCollectionReader(pool).getCollection('customer-removed')).collectibles[0]!;
+  assert.equal(collectedAfterRemoval.artwork, undefined);
+  assert.equal(collectedAfterRemoval.publicationId, published.publicationId);
   await assert.rejects(projects.getAcquired({ accountId: 'customer-removed', entitlementId }), { code: 'COLLECTIBLE_NOT_FOUND' });
   assert.equal((await pool.query('SELECT 1 FROM reward_entitlements WHERE id = $1', [entitlementId])).rowCount, 1);
   // Only the owning (migration) role may run the removal: PUBLIC has no EXECUTE grant.

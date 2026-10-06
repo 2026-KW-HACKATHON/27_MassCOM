@@ -28,6 +28,7 @@ type CollectibleRow = {
   campaign_id: string;
   campaign_title: string;
   target_visit_count: 1 | 3 | 5;
+  publication_id: string | null;
   display_name: string;
   earned_at: Date;
   entitlement_status: 'GRANTED' | 'MINT_REQUESTED' | 'FULFILLED';
@@ -80,6 +81,7 @@ export class PostgresCollectionReader implements CollectionReader {
            entitlement.campaign_id,
            campaign.title AS campaign_title,
            entitlement.target_visit_count,
+           acquisition.publication_id,
            goal.display_name,
            entitlement.earned_at,
            entitlement.status AS entitlement_status,
@@ -140,6 +142,7 @@ function mapCollectible(row: CollectibleRow): CollectionCollectible {
     campaignId: row.campaign_id,
     campaignTitle: row.campaign_title,
     targetVisitCount: row.target_visit_count,
+    publicationId: row.publication_id,
     displayName: row.display_name,
     earnedAt: row.earned_at.toISOString(),
     appCollectibleStatus: 'COLLECTED',

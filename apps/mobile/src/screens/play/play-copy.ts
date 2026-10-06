@@ -3,9 +3,9 @@ import type { GameKind } from '../../../../api/src/play-rules';
 
 export const gameCopy: Record<GameKind, { title: string; tag: string; rule: string; color: string }> = {
   stack: { title: '가게 포장 쌓기', tag: '타이밍', rule: '움직이는 포장 상자를 아래 상자에 겹쳐 놓아요. 어긋난 부분이 잘리고, 남은 폭으로 여섯 층을 쌓아요.', color: '#DF6D62' },
-  memory: { title: '방문 도감 복원', tag: '기억', rule: '방문한 가게의 수집품 그림을 두 장씩 찾아요. 발견한 여섯 쌍이 도감에 그대로 남아요.', color: '#699CCB' },
-  delivery: { title: '동네 꾸러미 배달', tag: '피하기', rule: '가게 그림이 담긴 꾸러미를 동네 전시대로 운반해요. 세 길에서 공사 상자를 피하세요. 세 번 부딪히면 도전이 끝나요.', color: '#67A989' },
-  orders: { title: '꾸러미 주문 작업대', tag: '조합', rule: '주문표의 그림과 수량을 보고 물건 세 개를 담아 전달해요. 담는 순서는 자유이고 잘못 담으면 고칠 수 있어요. 네 주문을 준비해요.', color: '#D7A14E' },
+  memory: { title: '방문 도감 복원', tag: '기억', rule: '등록된 메뉴·간판·내 수집품과 연습 그림을 두 장씩 찾아요. 발견한 여섯 쌍이 도감에 남아요.', color: '#699CCB' },
+  delivery: { title: '동네 꾸러미 배달', tag: '피하기', rule: '포장 꾸러미를 가게 간판 앞까지 운반해요. 세 길에서 공사 상자를 피하세요. 세 번 부딪히면 도전이 끝나요.', color: '#67A989' },
+  orders: { title: '꾸러미 주문 작업대', tag: '조합', rule: '등록된 메뉴와 연습 그림으로 만든 주문표의 물건 세 개를 담아 전달해요. 순서는 자유이고 잘못 담으면 고칠 수 있어요.', color: '#D7A14E' },
 };
 
 export const themeNames: Record<string, string> = { daylight: '햇살 방', evening: '노을 방', garden: '정원 방' };

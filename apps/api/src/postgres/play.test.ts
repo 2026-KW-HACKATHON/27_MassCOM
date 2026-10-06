@@ -45,6 +45,19 @@ test('studio rejects non-string goal kinds and exact-type violations before data
   }
 });
 
+test('an exact published collectible goal passes shape validation before database lookup', async () => {
+  const pool = { connect: async () => { throw new Error('DB_REACHED'); } } as unknown as Pool;
+  const play = new PostgresPlayService(pool, new PostgresAccountLifecycle({ hmacSecret: secret }));
+  const goal = { kind: 'collectible' as const, merchantId: 'shop', campaignId: 'campaign',
+    publicationId: '00000000-0000-4000-8000-000000000001', targetVisitCount: 3 as const };
+  await assert.rejects(() => play.saveStudio({ accountId: 'viewer', studio: { ...defaultStudio, goal } }), /DB_REACHED/);
+  for (const invalid of [{ ...goal, targetVisitCount: 2 }, { ...goal, publicationId: 'not-a-publication' },
+    { ...goal, extra: true }, { ...goal, campaignId: '' }]) {
+    await assert.rejects(() => play.saveStudio({ accountId: 'viewer', studio: { ...defaultStudio, goal: invalid } as Studio }),
+      (error) => error instanceof PlayError && error.code === 'STUDIO_INVALID');
+  }
+});
+
 for (const deletedAccount of ['viewer', 'friend']) {
   test(`friend studio deletion race reports the deleted ${deletedAccount} correctly`, async () => {
     const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });

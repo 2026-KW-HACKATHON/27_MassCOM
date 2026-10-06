@@ -6,7 +6,8 @@ import { parseCollectibleArtwork, type CollectibleArtwork } from '@/commerce/col
 export type StudioTheme = 'daylight' | 'evening' | 'garden';
 export type StudioLayout = 'shelf' | 'gallery';
 export type StudioAccent = 'mint' | 'rose' | 'sky';
-export type StudioGoal = null | { kind: 'discover' | 'regular' | 'series' | 'play'; merchantId?: string; gameKind?: string };
+export type StudioGoal = null | { kind: 'discover' | 'regular' | 'series' | 'collectible' | 'play'; merchantId?: string;
+  gameKind?: string; campaignId?: string; publicationId?: string; targetVisitCount?: 1 | 3 | 5 };
 export type Studio = { theme: StudioTheme; layout: StudioLayout; accent: StudioAccent; slots: string[]; goal: StudioGoal };
 export type PublicStudio = Omit<Studio, 'slots'>;
 export type StudioItem = { entitlementId?: string; merchantId: string; merchantName: string; campaignTitle: string; displayName: string; artwork?: CollectibleArtwork };
@@ -18,7 +19,7 @@ export const defaultStudio: Studio = { theme: 'daylight', layout: 'shelf', accen
 const themes: readonly string[] = ['daylight', 'evening', 'garden'];
 const layouts: readonly string[] = ['shelf', 'gallery'];
 const accents: readonly string[] = ['mint', 'rose', 'sky'];
-const kinds: readonly string[] = ['discover', 'regular', 'series', 'play'];
+const kinds: readonly string[] = ['discover', 'regular', 'series', 'collectible', 'play'];
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const string = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 const integer = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
@@ -30,7 +31,10 @@ function parseStudio(value: unknown, friend: boolean): Studio | PublicStudio {
   const goal = value.goal;
   if (goal !== null && (!record(goal) || !kinds.includes(goal.kind as string)
     || (goal.merchantId !== undefined && !string(goal.merchantId))
-    || (goal.gameKind !== undefined && !string(goal.gameKind)))) throw new Error('INVALID_STUDIO');
+    || (goal.gameKind !== undefined && !string(goal.gameKind))
+    || (goal.kind === 'collectible' && (!string(goal.campaignId) || !string(goal.publicationId)
+      || ![1, 3, 5].includes(goal.targetVisitCount as number)
+      || Object.keys(goal).sort().join(',') !== 'campaignId,kind,merchantId,publicationId,targetVisitCount')))) throw new Error('INVALID_STUDIO');
   const base: PublicStudio = {
     theme: value.theme as StudioTheme, layout: value.layout as StudioLayout, accent: value.accent as StudioAccent,
     goal: goal as StudioGoal,

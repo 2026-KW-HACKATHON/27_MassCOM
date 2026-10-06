@@ -34,6 +34,7 @@
     "ethers": "6.17.0",
     "pg": "8.23.0",
     "qrcode": "1.5.3",
+    "sharp": "^0.35.5",
     "siwe": "3.0.0"
   },
   "devDependencies": {

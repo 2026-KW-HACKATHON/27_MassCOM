@@ -38,7 +38,7 @@ test('terms page uses the same shell, metadata and accessibility hooks as the ot
 });
 
 test('terms cover the Issue #253 decisions in plain, honest terms', () => {
-  assert.match(terms, /약관 버전 terms-2026-09-30/);
+  assert.match(terms, /약관 버전 terms-2026-10-06/);
   assert.match(terms, /Google Play 일반 공개 전 개발·검증 단계/);
   assert.match(terms, /법률 검토를 마치기 전의 문안/);
   assert.match(terms, /무료/);
@@ -170,8 +170,8 @@ test('the versions named on the two pages are the ones the server, the app and t
   const api = source('apps/api/src/account-consent.ts');
   const serverTerms = api.match(/CURRENT_TERMS_VERSION = '([^']+)'/)?.[1];
   const serverPrivacy = api.match(/CURRENT_PRIVACY_VERSION = '([^']+)'/)?.[1];
-  assert.equal(serverTerms, 'terms-2026-09-30');
-  assert.equal(serverPrivacy, 'privacy-2026-10-05');
+  assert.equal(serverTerms, 'terms-2026-10-06');
+  assert.equal(serverPrivacy, 'privacy-2026-10-06');
   assert.ok(terms.includes(serverTerms));
   assert.ok(privacy.includes(serverPrivacy));
   for (const version of privacy.match(/privacy-\d{4}-\d{2}-\d{2}/g) ?? []) {

@@ -1,5 +1,24 @@
 # 테스트 상태
 
+## 2026-10-06 실사용 지도·가게 정보·방문 복구 전면 연결 (Issue #381)
+
+브랜치 `feat/real-world-experience`, 시작 기준 `b69ebc62`. [수용 보고서](REAL_WORLD_STATUS_2026-10-06.md)와 [합성 화면 증거](evidence/real-world-2026-10-06/README.md)를 따른다. 지도 타일·보행 경로 실연동, 실제 점주 동의·현장 방문, 새로운 공개 APK·배포·실기 판정을 로컬 코드 통과와 섞지 않는다.
+
+| 검사 | 결과 | 실제 범위와 제한 |
+| --- | --- | --- |
+| 모바일 단위 | 1,759/1,759 PASS | 좌표·검색·코스·수집 목표·QR 재시작/경합·게임/자산·설정. 실제 기기 수용 아님 |
+| API 단위·타입·빌드 | 540/540 PASS | 실제 HTTP 요청 계약·권한·게시 준비·이벤트·보행 순서/도착 경고 |
+| PostgreSQL 통합 | 501 중 498 PASS / 3 SKIP / 0 FAIL, 159.6초 | 새 migration 최초·재적용, 역할/버전/동시성, 사진/retention, 5,001개 줌 가드, 정원과 기존 권리 분리. 이전 조건부 SKIP 유지 |
+| 사이트 전체 | 515/515 PASS | 점주 초안 미리보기·JSONB 시간표 비교·동의 버전·기존 웹·테마 회귀 |
+| 정적 검사 | 모바일 타입/lint·접근성 semantics·점주 JS checkJs PASS | 전경 복귀 보완 후 최종 타입/lint도 PASS |
+| 의존성 audit | API PASS, 모바일 PASS | source-map-js 1.2.2 패치. 기존 braces/node-forge 2026-10-31 예외 유지; 새 예외 없음 |
+| CUA 실제 웹 조작 | 합성 DB에서 PASS | 미공개 고객 미리보기/사진·메뉴 7,000원만 수정 저장, 390px 탐색 5곳/위치 미확인 1곳, 지도 키 미설정 주소 대안, 네 게임 부분 진행·서버 결과 저장 |
+| 네이티브 Android | 최종 코드 138d8a41의 운영·시연 private release PASS | 실제 SDK/모듈 DEX·패키지·ABI·금지 권한 제외·31개 ELF/ZIP 16KiB 정렬 PASS. 기존 debug 인증서의 비공개 검증본, 설치/실지도/공개 서명 별도 |
+| 외부 수용 | TMAP 키·연결 휴대폰 부재로 NOT_RUN | 실제 타일/POI/보행/GPS, 새로운 청음·진동·TalkBack/200%·성능. 과거 소리 PASS/진동 체감 FAIL 보존 |
+
+기존 36개 ID와 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 추가 검사로 재번호화하거나 올리지 않는다. 공개 배포 전 API·약관/처리방침 `2026-10-06`·최신 고객 앱/웹의 적용 순서를 확인한다.
+
+
 ## 2026-10-06 요약 홈과 목적별 상세 (Issue #378)
 
 브랜치 `fix/home-overview`, [PR #379](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/379). 소스 `4ee5dd1aca6ab5edfacfe0552739fcf40625245f`의 운영·시연 Android export 및 variant 자산 경계 PASS. 최신 원격 head CI/merge 상태는 PR 기록을 따른다.

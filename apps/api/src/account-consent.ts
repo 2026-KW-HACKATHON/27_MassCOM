@@ -3,8 +3,8 @@
  * 버전은 코드 상수다. 약관 또는 처리방침 본문을 실질적으로 바꿀 때 올리면 모든 계정이 다시 동의해야 한다(required=true).
  * 기존 쓰기 요청은 옛 앱 호환을 유지한다. 새 놀이·공간 API는 현재 버전 동의를 요구한다.
  */
-export const CURRENT_TERMS_VERSION = 'terms-2026-09-30';
-export const CURRENT_PRIVACY_VERSION = 'privacy-2026-10-05';
+export const CURRENT_TERMS_VERSION = 'terms-2026-10-06';
+export const CURRENT_PRIVACY_VERSION = 'privacy-2026-10-06';
 
 export type ConsentSource = 'WEB' | 'ANDROID' | 'SHOWCASE_APP';
 

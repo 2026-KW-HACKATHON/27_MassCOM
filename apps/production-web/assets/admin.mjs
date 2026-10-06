@@ -1,4 +1,5 @@
 import { campaignTiming, extendedCampaignEnd, orderedCampaigns } from './commercial-operation.mjs';
+import { mountRealWorldAdmin } from './real-world-merchant.mjs';
 
 const endpoint = '/api/web/admin/merchants';
 const deletionEndpoint = '/api/web/admin/account-deletion-intakes';
@@ -7,6 +8,11 @@ const campaignEndpoint = '/api/web/admin/campaigns';
 const adminRequests = new WeakMap();
 const funnelRequests = new WeakMap();
 const playMetricRequests = new WeakMap();
+const realWorldCleanups = new WeakMap();
+function clearRealWorld(doc) {
+  realWorldCleanups.get(doc)?.();
+  realWorldCleanups.delete(doc);
+}
 
 // 점포 공개·점주·보상 혜택·캠페인(Issue #246). 참조 번호는 서버(store-go-live-rules.ts)와 같은 규칙을 먼저 알려 주고
 // 최종 판단은 서버가 한다. 동의서·확인 기록 자체와 사업자등록번호·이름·전화번호는 받지 않는다.
@@ -781,6 +787,7 @@ export async function loadAdmin(fetcher, doc) {
   ensurePlayMetricsPanel(doc);
   const requestId = (adminRequests.get(doc) ?? 0) + 1;
   adminRequests.set(doc, requestId);
+  clearRealWorld(doc);
   const status = doc.getElementById('admin-status');
   const login = doc.getElementById('admin-login');
   const logout = doc.getElementById('admin-logout');
@@ -1289,8 +1296,10 @@ export async function loadAdmin(fetcher, doc) {
         deletions.textContent = '계정 삭제 요청 목록을 불러오지 못했습니다.';
       }
     }
+    if (!current()) return;
     status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
     content.hidden = false;
+    realWorldCleanups.set(doc, mountRealWorldAdmin(fetcher, doc, payload.merchants));
     logout.textContent = '로그아웃';
     logout.hidden = false;
     return campaignLoaded;
@@ -1329,6 +1338,7 @@ export function bindAdmin(fetcher, doc) {
   const login = doc.getElementById('admin-login');
   const logout = doc.getElementById('admin-logout');
   const clear = () => {
+    clearRealWorld(doc);
     adminRequests.set(doc, (adminRequests.get(doc) ?? 0) + 1);
     funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
     playMetricRequests.set(doc, (playMetricRequests.get(doc) ?? 0) + 1);

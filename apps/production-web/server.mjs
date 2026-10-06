@@ -22,6 +22,8 @@ for (const prefix of ['/assets/', '/app/assets/', '/admin/assets/', '/merchant/a
   files.set(`${prefix}commercial-operation.mjs`, ['assets/commercial-operation.mjs', 'text/javascript; charset=utf-8']);
   files.set(`${prefix}merchant-profile.mjs`, ['assets/merchant-profile.mjs', 'text/javascript; charset=utf-8']);
   files.set(`${prefix}install-qr.png`, ['assets/install-qr.png', 'image/png']);
+  files.set(`${prefix}real-world-merchant.mjs`, ['assets/real-world-merchant.mjs', 'text/javascript; charset=utf-8']);
+  files.set(`${prefix}real-world-merchant.css`, ['assets/real-world-merchant.css', 'text/css; charset=utf-8']);
 }
 for (const file of ['collectible-model.mjs', 'collectible-errors.mjs', 'collectible-assist.mjs', 'collectible-editor.mjs', 'collectible-studio.mjs', 'collectible-waveform.mjs', 'collectible-renderer.mjs', 'collectible-viewer.mjs', 'collectible-editor.css', 'collectible-viewer.css']) {
   const mime = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';

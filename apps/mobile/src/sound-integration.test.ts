@@ -59,8 +59,8 @@ test('draw music and draw haptics are owned by the gacha modal without changing 
 test('claim and reward success sounds require fresh server results', () => {
   const claim = source('./screens/claim-redeem/index.tsx');
   const redeem = claim.slice(claim.indexOf('async function redeem()'), claim.indexOf('async function findGrantedArtwork'));
-  assert.match(redeem, /await api\.redeemClaim\(target\);\s*if \(!result\.replayed\) playUiSound\('success'\)/);
-  assert.match(redeem, /catch \(error\) \{\s*playUiSound\('error'\)/);
+  assert.match(redeem, /await api\.redeemClaim\(target\);\s*if \(!redeemGate\.isCurrent\(request\)\) return;\s*(?:if \(securePending\) void pendingStore\.clearIfMatches\(accountId, pending\)\.catch\(\(\) => undefined\);\s*)?if \(!result\.replayed\) playUiSound\('success'\)/);
+  assert.match(redeem, /catch \(error\) \{\s*if \(!redeemGate\.isCurrent\(request\)\) return;\s*playUiSound\('error'\)/);
   assert.doesNotMatch(claim.slice(claim.indexOf('function handleScanned'), claim.indexOf('async function inspect')), /playUiSound\('error'\)/);
 
   const box = source('./gamification/reward-box.tsx');

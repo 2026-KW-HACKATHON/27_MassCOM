@@ -46,11 +46,9 @@ test('a pressable card lays out like a static one: layout props on the Pressable
 });
 
 test('screen copy fits its space and does not repeat the heading below it', () => {
-  const list = readSource('screens/merchant-list/index.tsx');
-  // The search tab is now a compact search-only route; home/collection own the reward and passport copy.
-  assert.match(list, /title="가게 검색"/);
-  assert.match(list, /subtitle="이름·메뉴·주소로 찾고 지도로도 볼 수 있어요"/);
-  assert.match(list, /placeholder="이름·메뉴·주소로 찾기"/);
+  const list = readSource('screens/real-map/index.tsx');
+  assert.match(list, /title="탐색" subtitle="가게와 코스 찾기"/);
+  assert.match(list, /placeholder="가게 이름·주소 검색"/);
   assert.doesNotMatch(list, /어디로 탐험할까요|내 탐험 여권 보기|도감에서 내 도장 보기/);
   const home = readSource('screens/home/index.tsx');
   assert.match(home, /title="홈" subtitle="오늘의 탐험"/);
@@ -136,7 +134,8 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
   assert.match(scrim, /scrollY\.get\(\)/);
   // Every scrolling sky screen carries it: the shared scroll view and the explore list.
   assert.match(read('sky-scroll-view.tsx'), /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
-  const list = readSource('screens/merchant-list/index.tsx');
+  const list = readSource('screens/real-map/index.tsx');
+  assert.match(list, /state\.mode==='list' \? <View[\s\S]*?<ScrollView[^>]*onScroll=\{scrim\.onScroll\}[\s\S]*?\{controls\}\{panels\}[\s\S]*?<\/ScrollView>/);
   assert.match(list, /onScroll=\{scrim\.onScroll\}/);
   assert.match(list, /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
   // A pull-to-refresh spinner would otherwise appear behind the status bar.
@@ -183,7 +182,7 @@ test('SkyScrollView forwards refreshControl (and other ScrollView props) to the 
 
 test('no tab screen, the settings page or a stack page pins its header outside the scroll content', () => {
   const screens = [
-    'screens/merchant-list/index.tsx', 'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
+    'screens/collection/index.tsx', 'screens/claim-redeem/index.tsx',
     'screens/account-settings/index.tsx', 'screens/merchant-detail/index.tsx', 'screens/recommendations/index.tsx',
     'screens/town-map/index.tsx', 'screens/friends/index.tsx', 'screens/friends/passport.tsx', 'screens/shop/index.tsx',
   ];
@@ -193,7 +192,7 @@ test('no tab screen, the settings page or a stack page pins its header outside t
     assert.match(source, /header=\{|ListHeaderComponent=\{|<ScrollView[^>]*>\s*<BackHeader/, `${file} puts its header inside the scroll content`);
     assert.doesNotMatch(source, /<SkyBackdrop>\s*<(?:AppHeader|BackHeader)/, `${file} draws its header above the scroller`);
   }
-  assert.match(readSource('screens/merchant-list/index.tsx'), /ListHeaderComponent=\{\s*<>\s*<AppHeader/);
+  assert.match(readSource('screens/merchant-list/index.tsx'), /<RealMapScreen[^>]*initialMode="list"/);
   // Route files only pass a header down; they never sit one above the screen.
   for (const file of ['app/(tabs)/claim.tsx', 'app/(tabs)/collection.tsx', 'app/(tabs)/index.tsx', 'app/(tabs)/map.tsx', 'app/(tabs)/settings.tsx', 'app/(tabs)/shop.tsx', 'app/(tabs)/friends.tsx', 'app/friends/[friendshipId].tsx']) {
     const source = readSource(file)
@@ -213,17 +212,12 @@ test('stack pages use the sky header with a back button instead of the plain nat
   assert.match(layout, /name="friends\/\[friendshipId\]" options=\{\{ headerShown: false \}\}/);
   const detail = readSource('screens/merchant-detail/index.tsx');
   // The loading, error and empty states keep the way back too.
-  assert.ok((detail.match(/<BackHeader title="음식점 상세"/g) ?? []).length >= 2, 'detail page and its state frame');
+  assert.ok((detail.match(/<BackHeader title="가게 상세"/g) ?? []).length >= 2, 'detail page and its state frame');
   assert.match(readSource('screens/recommendations/index.tsx'), /<BackHeader title="다음 가게 추천"/);
-  // A merchant with a picture uses it as the header's own background; one without gets the sky art and no empty banner block.
-  assert.match(detail, /<BackHeader title="음식점 상세" art=\{hero\.source\} artNote=\{hero\.source \? artNote : undefined\} onArtError=\{hero\.onError\} \/>/);
-  // A hero picture that fails to load is dropped for the sky art (the hook sits above the early returns).
-  assert.match(detail, /const hero = useArtFallback\(art\?\.source\);/);
-  // The owner's AI picture says so; the bundled showcase picture keeps its own note (D-048).
-  assert.match(detail, /const artNote = art \? \(art\.fromServer \? '사장님이 고른 AI 그림' : '가상 점포 시연 그림'\) : undefined;/);
-  assert.doesNotMatch(detail, /styles\.banner/);
-  // #354: 헤더와 별개로 수집품 미리보기는 검증된 썸네일을 그린다.
-  assert.match(detail, /<Image source=\{\{ uri: item\.thumbnailDataUrl \}\}/);
+  assert.match(detail, /<BackHeader title="가게 상세"\/>/);
+  assert.match(detail, /photos\.filter\(photo=>publishedPhotoUri\(apiUrl,photo\.url\)\)/);
+  assert.match(detail, /AI 생성 수집품 그림 · 실제 가게 사진과 다릅니다/);
+  assert.match(detail, /<Image source=\{\{uri:goal\.thumbnailDataUrl\}\}/);
   const back = read('back-header.tsx');
   assert.match(back, /art \? <StoreArt source=\{art\}/);
   assert.match(back, /<SkyArt compact \/>/);
@@ -249,8 +243,8 @@ test('every state of the collection measures its header and clears the tab bar',
 });
 
 test('the search header keeps one short task instead of home exploration copy', () => {
-  const list = readSource('screens/merchant-list/index.tsx');
-  assert.match(list, /title="가게 검색"\s*\n\s*subtitle="이름·메뉴·주소로 찾고 지도로도 볼 수 있어요"/);
+  const list = readSource('screens/real-map/index.tsx');
+  assert.match(list, /title="탐색" subtitle="가게와 코스 찾기"/);
   assert.doesNotMatch(list, /어디로 탐험할까요/);
   assert.doesNotMatch(list, /오늘은 어디를 탐험할까요/);
 });
@@ -324,13 +318,15 @@ test('a visited stamp shows the showcase illustration when there is one, else th
 
 test('cards read their story, campaign, reason and progress aloud; the tap is only a hint', () => {
   for (const [file, label, hint] of [
-    ['screens/merchant-list/index.tsx', 'merchantCardLabel(merchant)', 'merchantCardHint()'],
     ['screens/recommendations/index.tsx', 'recommendationLabel(item)', 'recommendationHint()'],
   ] as const) {
     const source = readSource(file);
     assert.ok(source.includes(`accessibilityLabel={${label}}`), `${file} label`);
     assert.ok(source.includes(`accessibilityHint={${hint}}`), `${file} hint`);
   }
+  const discovery = readSource('screens/real-map/index.tsx');
+  assert.match(discovery, /accessibilityLabel=\{`\$\{merchant\.name\}, \$\{merchant\.roadAddress\}/);
+  assert.match(discovery, /accessibilityHint="상세 보기와 코스 추가 동작이 있습니다"/);
   assert.match(read('floating-card.tsx'), /accessibilityHint=\{accessibilityHint\}/);
 });
 

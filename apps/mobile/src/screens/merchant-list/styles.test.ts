@@ -44,11 +44,12 @@ test('merchant cards float on world.card and keep their text readable in light a
   }
 });
 
-test('merchant card keeps the full demo address and gives its story more lines at large text', () => {
-  const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
-  assert.match(source, /numberOfLines=\{isLargeText\(fontScale\) \? 4 : 2\} style=\{styles\.cardStory\}/);
-  assert.match(source, /<Text selectable style=\{styles\.cardAddress\}>\{merchant\.roadAddress\}<\/Text>/);
-  assert.doesNotMatch(source, /numberOfLines=\{\d+\} style=\{styles\.cardAddress\}/);
+test('real discovery rows keep the complete address and reserve photo space', () => {
+  const source = readFileSync(fileURLToPath(new URL('../real-map/index.tsx', import.meta.url)), 'utf8');
+  assert.match(source, /merchant\.roadAddress/);
+  const stylesSource = readFileSync(fileURLToPath(new URL('../real-map/styles.ts', import.meta.url)), 'utf8');
+  assert.match(stylesSource, /photoBox:\{width:72,height:72/);
+  assert.match(source, /점주 제공 실제 사진/);
 });
 
 test('the passport chip and the sky headings stay readable and touchable', () => {
@@ -99,14 +100,13 @@ test('the "지도로 보기" chip is a 48dp secondary control with readable text
   }
 });
 
-test('search keeps map access in the header without bringing home-only chips back', () => {
+test('list offers the same real map view', () => {
   const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
-  assert.match(source, /<Link href="\/map" asChild>/);
-  assert.match(source, /accessibilityLabel="지도로 보기, 동네 그림 지도 열기"/);
-  assert.match(source, /style=\{styles\.chipRow\}[\s\S]*?<MapChip \/>/);
+  const map = readFileSync(fileURLToPath(new URL('../real-map/index.tsx', import.meta.url)), 'utf8');
+  assert.match(source, /<RealMapScreen/);
+  assert.match(map, /<TmapMap/);
+  assert.match(map, /button\('지도'/);
   assert.doesNotMatch(source, /<PassportChip/);
-  assert.match(source, /<TabGlyph name="map"/);
-  assert.match(source, />지도로 보기</);
 });
 
 test('the discovery chips are 48dp buttons that stay readable and bounded, selected or not (#331)', () => {

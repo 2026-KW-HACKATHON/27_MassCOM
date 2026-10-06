@@ -1,358 +1,162 @@
-import { Link, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import * as Crypto from 'expo-crypto';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg from 'react-native-svg';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
 import { recommendMerchant } from '@/friends/recommend-share';
-import { useArtFallback } from '@/merchant-art/use-art-fallback';
 import { fetchCollectiblePreview, type CollectiblePreview } from '@/merchant/collectible-preview-api';
-import { detailViewSource, sendMerchantDetailView } from '@/merchant/detail-view-api';
-import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
-import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
-import { visitorTagLabels } from '@/merchant/visitor-feedback-codes';
+import { sendDiscoveryDetailView } from '@/merchant/discovery-detail-view';
+import { detailViewSource } from '@/merchant/detail-view-api';
+import { businessLabel, campaignLabel, enrollmentLabel, openingPeriodLabel, photoKindLabel, rewardLabel } from '@/merchant/real-world-labels';
+import { discoveryState } from '@/merchant/discovery-state';
+import { useAppForeground } from '@/merchant-art/use-merchant-art';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
-import { BounceButton } from '@/ui/bounce-button';
-import { FloatingCard } from '@/ui/floating-card';
+import { createStudioApiClient } from '@/studio/studio-api';
+import { createDiscoveryApiClient, DiscoveryApiError, publishedPhotoUri, type MerchantDetail } from '@/merchant/discovery-api';
+import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
 import { BackHeader } from '@/ui/back-header';
+import { FloatingCard } from '@/ui/floating-card';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
-import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
-import { isLargeText } from '@/ui/large-text';
-
-import { merchantArt } from '../collection/merchant-art';
-import { buildMerchantGoals } from '../collection/collection-stamps';
-import { CollectibleFaceOutline } from '../collection/collectible-default-back';
-import { gradeMaterialFor, gradeMaterialPresets } from '../collection/grade-material';
-import { GradeMaterialLayer, useGradeMaterialClock } from '../collection/grade-material-layer';
-import { directionsChooserButtons, directionsNotice, directionsTargets, openDirections, type DirectionsProvider } from '../town-map/directions';
-import { useTownCollection } from '../town-map/use-town-collection';
-import { makeMerchantDetailStyles } from './styles';
+import { directionsChooserButtons, directionsTargets, openDirections, type DirectionsProvider } from '../town-map/directions';
+import { coordinateWalkTargets } from './coordinate-directions';
+import { saveCollectibleGoal } from './save-collectible-goal';
 import { VisitorFeedbackForm } from './visitor-feedback-form';
 
-type MerchantDetailStyles = ReturnType<typeof makeMerchantDetailStyles>;
-
-export function MerchantDetailScreen(props: { merchantId: string; apiUrl: string; from?: string }) {
-  const { accountId } = useAuthSession();
-  // 계정이 바뀌면 /collection의 이전 계정 스냅샷을 가진 화면을 즉시 버린다.
-  return <MerchantDetailContent key={`${props.apiUrl}:${accountId ?? 'guest'}`} {...props} />;
+export function MerchantDetailScreen({ merchantId, apiUrl, from }: {merchantId:string;apiUrl:string;from?:string}) {
+  const auth=useAuthSession();
+  return <MerchantDetailContent key={`${apiUrl}:${auth.accountId??'guest'}:${merchantId}`} merchantId={merchantId} apiUrl={apiUrl} from={from} credential={auth.credential} accountId={auth.accountId??null} onSessionInvalid={auth.invalidateSession}/>;
 }
-
-function MerchantDetailContent({ merchantId, apiUrl, from }: { merchantId: string; apiUrl: string; from?: string }) {
-  const scheme = useColorScheme();
-  const palette = colorsForScheme(scheme);
-  const world = worldForScheme(scheme);
-  const styles = useMemo(
-    () => StyleSheet.create(makeMerchantDetailStyles(palette, world, StyleSheet.hairlineWidth)),
-    [palette, world],
-  );
-  const insets = useSafeAreaInsets();
-  const [focused, setFocused] = useState(false);
-  useFocusEffect(useCallback(() => { setFocused(true); return () => setFocused(false); }, []));
-  const materialClock = useGradeMaterialClock(focused);
-  const auth = useAuthSession();
-  const { collection, status: collectionStatus, stale: collectionStale, reload: reloadCollection } = useTownCollection({ apiUrl, credential: auth.credential, onSessionInvalid: auth.invalidateSession });
-  const [preview, setPreview] = useState<CollectiblePreview | null>(null);
-  const [previewErrorFor, setPreviewErrorFor] = useState<string | null>(null);
-  const [previewRetry, setPreviewRetry] = useState(0);
-  const { merchants, loading, refreshing, error, retry, refresh } = useMerchantCatalog(apiUrl);
-  const merchant = merchants.find((item) => item.id === merchantId);
-  const hasVisibleMerchant = merchant !== undefined;
-  const visibleMerchantId = merchant?.id;
-  const goal = merchant && collection ? buildMerchantGoals([merchant], collection.visits, collection.collectibles, new Date().toISOString())[0] : undefined;
-  const visiblePreview = preview && preview.merchantId === visibleMerchantId && preview.campaignId === merchant?.campaign.id ? preview : null;
-  useEffect(() => {
-    if (!visibleMerchantId) return;
-    const controller = new AbortController();
-    void fetchCollectiblePreview(apiUrl, visibleMerchantId, fetch, controller.signal)
-      .then((result) => { if (!controller.signal.aborted) { setPreview(result); setPreviewErrorFor(null); } })
-      .catch(() => { if (!controller.signal.aborted) setPreviewErrorFor(visibleMerchantId); });
-    return () => controller.abort();
-  }, [apiUrl, visibleMerchantId, previewRetry]);
-  useFocusEffect(useCallback(() => {
-    if (!hasVisibleMerchant) return;
-    void sendMerchantDetailView(apiUrl, merchantId, detailViewSource(from)).catch(() => undefined);
-  }, [apiUrl, merchantId, hasVisibleMerchant, from]));
-  // The hero picture; one that fails to load (a stale catalog pointing at art that was reset) is dropped and the sky shows.
-  const art = merchant ? merchantArt(merchant, apiUrl) : undefined;
-  const hero = useArtFallback(art?.source);
-
-  if (loading && !merchant) {
-    return <StateFrame styles={styles}><StateScene kind="loading" title="가게 이야기를 불러오는 중" /></StateFrame>;
-  }
-
-  if (error && !merchant) {
-    return (
-      <StateFrame styles={styles}>
-        <StateScene kind="error" title="가게 정보를 불러오지 못했어요" body={error} action={{ label: '다시 불러오기', onPress: retry }} />
-      </StateFrame>
-    );
-  }
-
-  if (!merchant) {
-    return (
-      <StateFrame styles={styles}>
-        <StateScene kind="empty" title="찾을 수 없는 음식점입니다" body="목록에서 공개 중인 음식점을 다시 선택해 주세요." />
-      </StateFrame>
-    );
-  }
-
-  const artNote = art ? (art.fromServer ? '사장님이 고른 AI 그림' : '가상 점포 시연 그림') : undefined;
-
-  return (
-    <SkyBackdrop>
-      <SkyScrollView
-        header={<BackHeader title="음식점 상세" art={hero.source} artNote={hero.source ? artNote : undefined} onArtError={hero.onError} />}
-        contentContainerStyle={{ paddingBottom: 48 + insets.bottom }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void refresh(); void reloadCollection(); setPreviewRetry((value) => value + 1); }} progressViewOffset={insets.top} />}
-      >
-        <View style={styles.content}>
-          <Stagger index={0}>
-            <FloatingCard style={styles.hero}>
-              <View style={styles.heroTopline}>
-                <Text style={styles.heroEyebrow}>월계 동네 식탁</Text>
-                {merchant.demo ? <Text style={styles.demoBadge}>DEMO DATA</Text> : null}
-              </View>
-              <Text selectable accessibilityRole="header" style={styles.title}>{merchant.name}</Text>
-              {merchant.story ? <Text selectable style={styles.story}>{merchant.story}</Text> : null}
-              <BounceButton
-                label="친구에게 추천"
-                variant="secondary"
-                onPress={() => { void recommendMerchant({ id: merchant.id, name: merchant.name, demo: merchant.demo }); }}
-              />
-            </FloatingCard>
-          </Stagger>
-
-          {error ? (
-            <Pressable accessibilityRole="button" onPress={retry} style={styles.inlineError}>
-              <Text style={styles.inlineErrorText}>최신 정보 갱신에 실패했습니다. 눌러서 다시 시도</Text>
-            </Pressable>
-          ) : null}
-
-          <Stagger index={1}>
-            <FloatingCard style={styles.rewardCard}>
-              <Text accessibilityRole="header" style={styles.rewardHeading}>이 가게에서 모을 수 있는 수집품</Text>
-              <Text selectable style={styles.campaignTitle}>{merchant.campaign.title}</Text>
-              <Text selectable style={styles.period}>
-                {formatDate(merchant.campaign.startsAt)} — {formatDate(merchant.campaign.endsAt)}
-              </Text>
-              <View style={styles.previewList}>
-                {visiblePreview?.goals.length ? visiblePreview.goals.map((item) => {
-                  const state = goal ? goal.earnedGoals.includes(item.visitCount) ? '소장' : goal.nextGoal?.targetVisitCount === item.visitCount ? '다음 목표' : '잠김' : undefined;
-                  const material = gradeMaterialFor(item.gradeId, item.gradeName);
-                  return <View key={`${item.visitCount}-${item.gradeId}`} style={styles.previewRow}
-                    accessible accessibilityLabel={`${item.visitCount}번 방문, ${item.gradeName} 수집품${state ? `, ${state}` : ''}`}>
-                    <View style={styles.previewArt}>
-                      {item.thumbnailDataUrl ? <Image source={{ uri: item.thumbnailDataUrl }} resizeMode="contain" style={styles.previewImage} accessible={false} />
-                        : <Svg width={72} height={72} viewBox="0 0 100 100" accessible={false}>
-                          <CollectibleFaceOutline shape={item.shape} fill={gradeMaterialPresets[material].tint} />
-                        </Svg>}
-                      <GradeMaterialLayer material={material} size={72} clock={materialClock}
-                        faceUri={item.thumbnailDataUrl ?? undefined} shape={item.shape} variant="card" active={focused} />
-                    </View>
-                    <View style={styles.previewCopy}>
-                      <Text style={styles.previewLabel}>{item.visitCount}번 방문 · {item.gradeName}</Text>
-                      {state ? <Text style={styles.previewState}>{state}</Text> : null}
-                    </View>
-                  </View>;
-                }) : merchant.campaign.rewardGoals.map((item) => (
-                  <Text key={item.targetVisitCount} style={styles.fallbackGoal}>{item.targetVisitCount}번 방문 · {item.displayName}</Text>
-                ))}
-              </View>
-              {previewErrorFor === merchant.id ? <Pressable accessibilityRole="button" accessibilityLabel="수집품 미리보기 다시 불러오기"
-                onPress={() => setPreviewRetry((value) => value + 1)} style={styles.previewRetry}>
-                <Text style={styles.previewRetryText}>수집품 그림을 불러오지 못했어요 · 다시 시도</Text>
-              </Pressable> : null}
-              {goal ? <Text style={styles.progressLine}>{collectionStale ? '이전 방문 기록' : '내 진행 · 지금'} {goal.progressCount}번 방문{goal.nextGoal && goal.remainingVisits !== null
-                ? ` · ${visiblePreview?.goals.find((item) => item.visitCount === goal.nextGoal?.targetVisitCount)?.gradeName ?? goal.nextGoal.displayName}까지 ${goal.remainingVisits}번`
-                : ' · 수집품 목표 완료'}</Text> : null}
-              {collectionStale || collectionStatus === 'error' ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="내 방문 진행 다시 불러오기"
-                  accessibilityHint={collectionStale ? '이전 방문 기록이에요. 최신 진행을 확인하지 못했어요.' : '내 방문 진행을 불러오지 못했어요.'}
-                  onPress={() => { void reloadCollection(); }} style={styles.previewRetry}>
-                  <Text style={styles.previewRetryText}>{collectionStale
-                    ? '이전 방문 기록이에요. 최신 진행을 확인하지 못했어요 · 다시 불러오기'
-                    : '내 방문 진행을 불러오지 못했어요 · 다시 불러오기'}</Text>
-                </Pressable>
-              ) : null}
-            </FloatingCard>
-          </Stagger>
-
-          <Stagger index={2}>
-            <FloatingCard style={styles.infoCard}>
-              <InfoRow styles={styles} label="주소" value={merchant.roadAddress} />
-              {directionsTargets(merchant) ? <Pressable accessibilityRole="button" accessibilityLabel={`${merchant.name} 길찾기`}
-                onPress={() => chooseDirections(merchant)} style={styles.directionsAction}>
-                <Text style={styles.directionsText}>길찾기</Text>
-              </Pressable> : <Text style={styles.directionsNotice}>{directionsNotice(merchant)}</Text>}
-              <InfoRow styles={styles} label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`} />
-              <InfoRow styles={styles} label="참여 상태" value="방문하면 누구나 적립" />
-            </FloatingCard>
-          </Stagger>
-
-          <Stagger index={3}>
-            <FloatingCard style={styles.infoCard}>
-              <InfoRow styles={styles} label="점포 제공 영업시간" value={merchant.businessHours || '영업시간 정보가 아직 없습니다.'} />
-            </FloatingCard>
-          </Stagger>
-          <Stagger index={4}>
-            <FloatingCard style={styles.infoCard}>
-              <Text accessibilityRole="header" style={[styles.sectionEyebrow, styles.menuHeading]}>메뉴·가격</Text>
-              {merchant.menuItems.length ? merchant.menuItems.map((item, index) =>
-                <InfoRow key={index} styles={styles} label={item.name} value={`${item.priceWon.toLocaleString('ko-KR')}원`} />)
-                : <Text style={styles.infoValue}>메뉴 정보가 아직 없습니다.</Text>}
-            </FloatingCard>
-          </Stagger>
-
-          <Stagger index={5}>
-            <FloatingCard style={styles.feedbackCard}>
-              <Text accessibilityRole="header" style={styles.feedbackHeading}>방문자들이 고른 특징</Text>
-              {merchant.visitorTags.length > 0 ? (
-                <View style={styles.feedbackTags}>
-                  {merchant.visitorTags.map(({ code, count }) => (
-                    <View key={code} style={styles.feedbackTag}>
-                      <Text style={styles.feedbackTagText}>{visitorTagLabels[code]} · {count}명</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : <Text style={styles.feedbackEmpty}>{merchant.demo ? '아직 고른 손님이 없어요' : '아직 충분히 모이지 않았어요(같은 특징을 3명 이상 고르면 보여요)'}</Text>}
-              {auth.credential && auth.accountId ? (
-                <MyVisitorFeedback
-                  key={`${merchant.id}:${auth.accountId}`}
-                  merchantId={merchant.id}
-                  apiUrl={apiUrl}
-                  credential={auth.credential}
-                  onSessionInvalid={auth.invalidateSession}
-                  styles={styles}
-                />
-              ) : null}
-            </FloatingCard>
-          </Stagger>
-
-          <Stagger index={6}>
-            <FloatingCard style={styles.nextStep}>
-              <Text style={styles.nextStepLabel}>이용했다면</Text>
-              <Text style={styles.nextStepText}>점주가 만든 1회 코드로 방문과 보상권을 안전하게 받습니다.</Text>
-              <Link href={{ pathname: '/claim', params: { merchantId } }} asChild>
-                <Pressable accessibilityRole="button" style={styles.walletAction}>
-                  <Text style={styles.walletActionText}>방문 코드 받기</Text>
-                </Pressable>
-              </Link>
-            </FloatingCard>
-          </Stagger>
-          <Stagger index={7}>
-            <FloatingCard style={styles.boundaryCard}>
-              <Text style={styles.boundaryTitle}>지갑 연결은 나중에</Text>
-              <Text style={styles.boundaryBody}>방문 인증과 앱 도감은 외부 지갑 없이 이용할 수 있어요.</Text>
-              <Link href={{ pathname: '/wallet', params: { merchantId } }} asChild>
-                <Pressable accessibilityRole="button" style={styles.walletLink}>
-                  <Text style={styles.walletLinkText}>외부 지갑 연결 보기</Text>
-                </Pressable>
-              </Link>
-            </FloatingCard>
-          </Stagger>
-        </View>
-      </SkyScrollView>
-    </SkyBackdrop>
-  );
-}
-
-function MyVisitorFeedback({ merchantId, apiUrl, credential, onSessionInvalid, styles }: {
-  merchantId: string;
-  apiUrl: string;
-  credential: AccountCredential;
-  onSessionInvalid: () => Promise<void>;
-  styles: MerchantDetailStyles;
-}) {
-  const client = useMemo(
-    () => createVisitorFeedbackApiClient({ apiUrl, credential, onSessionInvalid }),
-    [apiUrl, credential, onSessionInvalid],
-  );
-  const [selection, setSelection] = useState<VisitorFeedbackSelection | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const requestVersion = useRef(0);
-  useEffect(() => () => { requestVersion.current += 1; }, [client, merchantId]);
-
-  async function openFeedbackForm() {
-    if (loading) return;
-    const version = ++requestVersion.current;
-    setLoading(true);
-    setMessage(null);
+function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSessionInvalid}: {merchantId:string;apiUrl:string;from?:string;credential?:AccountCredential;accountId:string|null;onSessionInvalid:()=>Promise<void>}) {
+  const insets=useSafeAreaInsets();
+  const router=useRouter();
+  const ds=useRealDetailStyles();
+  const api=useMemo(()=>createDiscoveryApiClient({apiUrl,credential,onSessionInvalid}),[apiUrl,credential,onSessionInvalid]);
+  const studioApi=useMemo(()=>credential?createStudioApiClient({apiUrl,credential,onSessionInvalid}):null,[apiUrl,credential,onSessionInvalid]);
+  const [merchant,setMerchant]=useState<MerchantDetail|null>(null);
+  const [preview,setPreview]=useState<CollectiblePreview|null>(null);
+  const [loading,setLoading]=useState(true);
+  const [refreshing,setRefreshing]=useState(false);
+  const foreground=useAppForeground();
+  const [error,setError]=useState<string|null>(null);
+  const generation=useRef(0);
+  const goalGeneration=useRef(0);
+  const [goalBusy,setGoalBusy]=useState(false);
+  const [goalMessage,setGoalMessage]=useState<string|null>(null);
+  const refresh=useCallback(async (quiet=false)=>{
+    const current=++generation.current;
+    if(quiet)setRefreshing(true);else setLoading(true);
     try {
-      const mine = await client.getMine(merchantId);
-      if (requestVersion.current === version) setSelection(mine);
-    } catch (cause) {
-      if (requestVersion.current === version) setMessage(cause instanceof VisitorFeedbackApiError && cause.code === 'NOT_ELIGIBLE'
-        ? '방문 인증한 가게에서만 고를 수 있어요.'
-        : '내 선택을 불러오지 못했어요. 다시 시도해 주세요.');
-    } finally {
-      if (requestVersion.current === version) setLoading(false);
-    }
-  }
-
-  return selection ? (
-    <VisitorFeedbackForm
-      merchantId={merchantId}
-      client={client}
-      initialSelection={selection}
-      editContext
-      onClose={() => setSelection(null)}
-      onSaved={() => { setSelection(null); setMessage('고마워요! 다른 손님이 가게를 고를 때 도움이 돼요.'); }}
-      onNotEligible={() => { setSelection(null); setMessage('방문 인증한 가게에서만 고를 수 있어요.'); }}
-    />
-  ) : (
-    <View>
-      <Pressable accessibilityRole="button" accessibilityLabel="내 선택 남기기 또는 바꾸기" accessibilityState={{ disabled: loading }} disabled={loading} onPress={() => { void openFeedbackForm(); }} style={styles.feedbackAction}>
-        <Text style={styles.feedbackActionText}>{loading ? '내 선택 불러오는 중' : '내 선택 남기기/바꾸기'}</Text>
-      </Pressable>
-      {message ? <Text accessibilityRole="alert" style={styles.feedbackMessage}>{message}</Text> : null}
-    </View>
-  );
-}
-
-function InfoRow({ styles, label, value }: { styles: MerchantDetailStyles; label: string; value: string }) {
-  const { fontScale, width } = useWindowDimensions();
-  const [wrappedAtWidth, setWrappedAtWidth] = useState<number | null>(null);
-  const stacked = isLargeText(fontScale) || wrappedAtWidth === width;
-  return (
-    <View style={[styles.infoRow, stacked && styles.infoRowStacked]}>
-      <Text style={[styles.infoLabel, stacked && styles.infoLabelStacked]}
-        onTextLayout={(event) => { if (!stacked && event.nativeEvent.lines.length > 1) setWrappedAtWidth(width); }}>{label}</Text>
-      <Text selectable style={[styles.infoValue, stacked && styles.infoValueStacked]}>{value}</Text>
-    </View>
-  );
-}
-
-function chooseDirections(merchant: { name: string; roadAddress: string; demo: boolean }) {
-  const targets = directionsTargets(merchant);
-  if (!targets) return;
-  const go = async (provider: DirectionsProvider) => {
-    if (!(await openDirections(targets, provider))) Alert.alert('지도를 열지 못했어요', '지도 앱이나 인터넷 연결을 확인하고 다시 눌러 주세요.');
+      const detail=await api.merchant(merchantId);
+      if(current!==generation.current)return;
+      setMerchant(detail);setError(null);
+      void sendDiscoveryDetailView(api,merchantId,detailViewSource(from),()=>Crypto.randomUUID()).catch(()=>undefined);
+      if(detail.campaign?.state==='ACTIVE')void fetchCollectiblePreview(apiUrl,merchantId).then(value=>{if(current===generation.current)setPreview(value);}).catch(()=>{if(current===generation.current)setPreview(null);});
+      else setPreview(null);
+    } catch(cause) {if(current===generation.current){if(cause instanceof DiscoveryApiError&&cause.status===404)setMerchant(null);setError(cause instanceof DiscoveryApiError&&cause.status===404?'이 가게는 게시되지 않았거나 찾을 수 없습니다.':'최신 가게 정보를 가져오지 못했습니다.');}}
+    finally {if(current===generation.current){setLoading(false);setRefreshing(false);}}
+  },[api,apiUrl,merchantId,from]);
+  useFocusEffect(useCallback(()=>{if(!foreground)return;void refresh();return()=>{generation.current++;goalGeneration.current++;setGoalBusy(false);};},[refresh,foreground]));
+  if(loading&&!merchant)return <Frame><StateScene kind="loading" title="실제 가게 정보 확인 중"/></Frame>;
+  if(error&&!merchant)return <Frame><StateScene kind="error" title="가게 정보를 표시할 수 없습니다" body={error} action={{label:'다시 확인',onPress:()=>{void refresh();}}}/></Frame>;
+  if(!merchant)return <Frame><StateScene kind="empty" title="가게 정보 없음"/></Frame>;
+  const photos=merchant.photos;
+  const campaign=merchant.campaign;
+  const source=detailViewSource(from);
+  const saveGoal=async(targetVisitCount:1|3|5)=>{
+    if(!studioApi||!campaign||campaign.state!=='ACTIVE'||campaign.rewardAvailability!=='AVAILABLE'||!preview?.publicationId||preview.campaignId!==campaign.id||!preview.goals.some(goal=>goal.visitCount===targetVisitCount))return;
+    const current=++goalGeneration.current;setGoalBusy(true);setGoalMessage(null);
+    try{const saved=await saveCollectibleGoal(studioApi,{merchantId:merchant.id,campaignId:campaign.id,publicationId:preview.publicationId,targetVisitCount},()=>goalGeneration.current===current);
+      if(saved){void api.event({eventId:Crypto.randomUUID(),merchantId:merchant.id,event:'GOAL_SAVE',source:detailViewSource(from)}).catch(()=>undefined);setGoalMessage('목표 수집품을 저장했습니다.');router.push('/studio');}}
+    catch{if(goalGeneration.current===current)setGoalMessage('목표를 저장하지 못했습니다. 최신 캠페인과 로그인을 확인해 주세요.');}
+    finally{if(goalGeneration.current===current)setGoalBusy(false);}
   };
-  Alert.alert('길찾기', `${merchant.name}\n${merchant.roadAddress}\n\n어느 지도로 열까요? 지도 앱에는 가게 도로명 주소만 넘기고, 이 앱은 내 위치를 읽지 않아요.`,
-    directionsChooserButtons((provider) => void go(provider)), { cancelable: true });
+  const openRoute=()=>{
+    const destination=merchant.demo?null:merchant.location?.entrance??merchant.position;
+    const exact=destination?coordinateWalkTargets({name:merchant.name,destination,origin:discoveryState.snapshot().origin}):null;
+    const fallback=directionsTargets({roadAddress:merchant.roadAddress,demo:merchant.demo});
+    if(!exact&&!fallback){Alert.alert('길찾기 불가','확인된 위치나 검색할 주소가 없습니다.');return;}
+    const go=(provider:DirectionsProvider)=>{
+      const targets=exact?{naver:exact.naver,kakao:exact.kakao??exact.naver}:fallback!;
+      void openDirections(targets,provider).then(ok=>{if(!ok)Alert.alert('지도를 열지 못했어요');});
+      void api.event({eventId:Crypto.randomUUID(),merchantId:merchant.id,event:'DIRECTIONS_OPEN',source}).catch(()=>undefined);
+    };
+    if(exact){
+      Alert.alert('좌표로 도보 길찾기',`${merchant.name} · ${merchant.location?.entrance?'확인된 입구':'확인된 건물 위치'}\n${discoveryState.snapshot().origin?'선택한 출발지를 사용합니다.':'지도 앱이 현재 위치를 출발지로 사용할 수 있습니다.'} 지도 앱이 없으면 정확한 목적지 표시로 열립니다.`,
+        [{text:'취소',style:'cancel'},{text:'네이버 지도 도보',onPress:()=>go('naver')},...(exact.kakao?[{text:'카카오맵 도보',onPress:()=>go('kakao')}]:[])]);
+    } else Alert.alert('주소로 지도 검색',`${merchant.name}\n${merchant.roadAddress}\n위치가 확인되지 않아 지도 앱에서 목적지를 직접 확인해 주세요.`,directionsChooserButtons(go));
+  };
+  return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 상세"/>} contentContainerStyle={{paddingBottom:48+insets.bottom}} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void refresh(true);}} progressViewOffset={insets.top}/>}>
+    <View style={{padding:16,gap:14}}>
+      <FloatingCard><Text accessibilityRole="header" style={ds.heading}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text selectable style={ds.body}>{merchant.story}</Text><Text style={ds.muted}>{merchant.category??'업종 정보 없음'}</Text>
+        <Pressable accessibilityRole="button" onPress={()=>{void recommendMerchant({id:merchant.id,name:merchant.name,demo:merchant.demo});}} style={ds.action}><Text style={ds.actionText}>친구에게 추천</Text></Pressable></FloatingCard>
+      {error?<Text accessibilityRole="alert" style={ds.muted}>{error} 화면을 아래로 당겨 다시 확인하세요.</Text>:null}
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>실제 가게 사진</Text>
+        {photos.some(photo=>publishedPhotoUri(apiUrl,photo.url))?<View style={{gap:10}}>{photos.filter(photo=>publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View>:<View style={ds.photoEmpty}><Text style={ds.muted}>점주 제공 사진이 아직 없습니다</Text></View>}
+      </FloatingCard>
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 준비</Text><Line label="주소" value={merchant.roadAddress}/><Line label="위치" value={merchant.position?'확인된 위치':'위치 확인 필요 · 지도로 표시하지 않습니다'}/>
+        {merchant.floor?<Line label="층·호수" value={`${merchant.floor}${merchant.location?.unit?` · ${merchant.location.unit}`:''}`}/>:null}
+        {merchant.entranceNote?<Line label="입구" value={merchant.entranceNote}/>:null}
+        <Line label="영업" value={`${businessLabel(merchant.business)}${merchant.business.informationUpdatedAt?` · ${new Date(merchant.business.informationUpdatedAt).toLocaleString('ko-KR')} 확인`:''}`}/>
+        {merchant.business.lastOrderAt?<Line label="마지막 주문 시각" value={new Date(merchant.business.lastOrderAt).toLocaleString('ko-KR')}/>:null}
+        {merchant.business.nextChangeAt?<Line label="다음 변경" value={new Date(merchant.business.nextChangeAt).toLocaleString('ko-KR')}/>:null}
+        {merchant.todayOverride?<Line label="임시 영업 안내" value={`${merchant.todayOverride.state==='OPEN'?'임시 영업':'임시 휴업'} · ${merchant.todayOverride.note}`}/>:null}
+        {merchant.schedule?<View style={{gap:3}}><Text style={ds.section}>요일별 시간 · 한국 시간</Text>{merchant.schedule.weekly.map(day=><Text key={day.weekday} style={ds.body}>{'월화수목금토일'[day.weekday-1]}요일 · {day.periods.length?day.periods.map(openingPeriodLabel).join(', '):'휴무'}</Text>)}{merchant.schedule.exceptions.filter(exception=>Date.parse(exception.date)>=Date.parse(merchant.business.evaluatedAt)-86400000).slice(0,5).map(exception=><Text key={exception.date} style={ds.body}>{exception.date} 예외 · {exception.periods.length?exception.periods.map(openingPeriodLabel).join(', '):'휴무'}{exception.note?` · ${exception.note}`:''}</Text>)}</View>:<Text style={ds.muted}>정형 영업시간은 아직 확인되지 않았습니다. {merchant.legacyBusinessHours}</Text>}
+        {merchant.contact.phone?<Line label="전화" value={merchant.contact.phone}/>:null}{merchant.contact.website?<Line label="웹사이트" value={merchant.contact.website}/>:null}
+        <Line label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`}/><Text style={ds.muted}>{merchant.visitInstructions||'방문 전에 가게의 최신 조건을 확인하세요.'}</Text>
+        <Pressable accessibilityRole="button" accessibilityState={{disabled:merchant.demo}} disabled={merchant.demo} onPress={()=>{void openRoute();}} style={ds.action}><Text style={ds.actionText}>{merchant.demo?'시연 점포 길찾기 없음':merchant.position?'좌표로 도보 길찾기':'주소로 지도 검색'}</Text></Pressable>
+      </FloatingCard>
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>메뉴·가격</Text>{merchant.menuItems.length?merchant.menuItems.map(item=><Line key={item.id} label={item.name} value={item.priceWon===null?(item.priceNote??'가격 문의'):`${item.priceWon.toLocaleString('ko-KR')}원${item.priceNote?` · ${item.priceNote}`:''}`}/>):<Text style={ds.muted}>등록된 메뉴가 없습니다.</Text>}</FloatingCard>
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>수집품과 캠페인</Text>
+        {campaign?<><Text style={ds.body}>{campaign.title} · {campaignLabel(campaign.state)}</Text><Text style={ds.muted}>{new Date(campaign.startsAt).toLocaleDateString('ko-KR')} – {new Date(campaign.endsAt).toLocaleDateString('ko-KR')} · {enrollmentLabel(campaign.enrollment)} · {rewardLabel(campaign.rewardAvailability)}</Text>
+          {campaign.goals.map(goal=><View key={goal.targetVisitCount}><Text style={ds.body}>{goal.targetVisitCount}회 방문 · {goal.displayName}</Text>{studioApi&&campaign.state==='ACTIVE'&&campaign.rewardAvailability==='AVAILABLE'&&preview?.campaignId===campaign.id&&preview.publicationId&&preview.goals.some(item=>item.visitCount===goal.targetVisitCount)?<Pressable accessibilityRole="button" accessibilityState={{disabled:goalBusy}} disabled={goalBusy} onPress={()=>{void saveGoal(goal.targetVisitCount);}} style={ds.action}><Text style={ds.actionText}>{goalBusy?'저장 중':`${goal.displayName} 목표로 저장`}</Text></Pressable>:null}</View>)}</>:<Text style={ds.muted}>현재 진행 중인 캠페인이 없습니다. 기존 방문·수집 권리는 도감에서 확인할 수 있습니다.</Text>}
+        {campaign&&campaign.state!=='ACTIVE'?<Text style={ds.muted}>현재 캠페인이 진행 중이지 않아 새 수집품 목표를 저장할 수 없습니다.</Text>:null}
+        {goalMessage?<Text accessibilityRole="alert" style={ds.muted}>{goalMessage}</Text>:null}
+        {preview?.goals.length?<View style={{gap:8}}><Text style={ds.muted}>AI 생성 수집품 그림 · 실제 가게 사진과 다릅니다</Text>{preview.goals.map(goal=><View key={goal.visitCount} style={{flexDirection:'row',alignItems:'center',gap:8}}>{goal.thumbnailDataUrl?<Image source={{uri:goal.thumbnailDataUrl}} style={{width:64,height:64}}/>:<View style={ds.previewEmpty}/>}<Text style={ds.body}>{goal.visitCount}회 · {goal.gradeName}</Text></View>)}</View>:null}
+        <Link href="/collection" asChild><Pressable accessibilityRole="button" style={ds.action}><Text style={ds.actionText}>내 방문과 수집품 확인</Text></Pressable></Link>
+      </FloatingCard>
+      {credential&&accountId?<FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 후 의견</Text><MyVisitorFeedback key={`${merchant.id}:${accountId}`} merchantId={merchant.id} apiUrl={apiUrl} credential={credential} onSessionInvalid={onSessionInvalid}/></FloatingCard>:null}
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>이용했다면</Text><Text style={ds.body}>점주가 만든 1회 코드로 방문과 보상권을 확인합니다. 실제 지급 여부는 방문 인증 결과로 결정됩니다.</Text>
+        <Link href={{pathname:'/claim',params:{merchantId:merchant.id}}} asChild><Pressable accessibilityRole="button" style={ds.action}><Text style={ds.actionText}>방문 코드 받기</Text></Pressable></Link></FloatingCard>
+    </View></SkyScrollView></SkyBackdrop>;
 }
 
-function StateFrame({ styles, children }: { styles: MerchantDetailStyles; children: React.ReactNode }) {
-  return (
-    <SkyBackdrop>
-      <SkyScrollView header={<BackHeader title="음식점 상세" />}>
-        <View style={styles.stateWrap}>{children}</View>
-      </SkyScrollView>
-    </SkyBackdrop>
-  );
+function Frame({children}:{children:React.ReactNode}) {return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 상세"/>}><View style={{padding:16}}>{children}</View></SkyScrollView></SkyBackdrop>;}
+function Line({label,value}:{label:string;value:string}) {const ds=useRealDetailStyles();return <View style={ds.line}><Text style={ds.muted}>{label}</Text><Text selectable style={ds.body}>{value}</Text></View>;}
+function useRealDetailStyles() {
+  const scheme=useColorScheme();
+  const palette=colorsForScheme(scheme);
+  const world=worldForScheme(scheme);
+  return useMemo(()=>({
+    heading:{fontSize:24,fontWeight:'800' as const,color:world.cardInk},
+    section:{fontSize:18,fontWeight:'800' as const,color:world.cardInk},
+    body:{fontSize:15,lineHeight:23,color:world.cardInk},
+    muted:{fontSize:13,lineHeight:20,color:world.cardMuted},
+    action:{minHeight:48,marginTop:8,borderRadius:12,backgroundColor:palette.primaryContainer,justifyContent:'center' as const,paddingHorizontal:14},
+    actionText:{fontSize:15,fontWeight:'700' as const,color:palette.onPrimaryContainer},
+    photoFrame:{height:170,backgroundColor:world.paper,borderRadius:12,overflow:'hidden' as const},
+    photoEmpty:{height:120,backgroundColor:world.paper,borderRadius:12,justifyContent:'center' as const,alignItems:'center' as const},
+    previewEmpty:{width:64,height:64,backgroundColor:world.paper},
+    line:{paddingVertical:7,borderBottomWidth:1,borderColor:palette.separator},
+  }),[palette,world]);
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(value));
+function MyVisitorFeedback({merchantId,apiUrl,credential,onSessionInvalid}:{merchantId:string;apiUrl:string;credential:AccountCredential;onSessionInvalid:()=>Promise<void>}) {
+  const ds=useRealDetailStyles();
+  const client=useMemo(()=>createVisitorFeedbackApiClient({apiUrl,credential,onSessionInvalid}),[apiUrl,credential,onSessionInvalid]);
+  const [selection,setSelection]=useState<VisitorFeedbackSelection|null>(null);
+  const [loading,setLoading]=useState(false);
+  const [message,setMessage]=useState<string|null>(null);
+  const requestVersion=useRef(0);
+  async function openForm(){if(loading)return;const version=++requestVersion.current;setLoading(true);setMessage(null);
+    try {const mine=await client.getMine(merchantId);if(requestVersion.current===version)setSelection(mine);}
+    catch(cause){if(requestVersion.current===version)setMessage(cause instanceof VisitorFeedbackApiError&&cause.code==='NOT_ELIGIBLE'?'방문 인증한 가게에서만 고를 수 있어요.':'내 선택을 불러오지 못했어요. 다시 시도해 주세요.');}
+    finally{if(requestVersion.current===version)setLoading(false);}}
+  return selection?<VisitorFeedbackForm merchantId={merchantId} client={client} initialSelection={selection} editContext onClose={()=>setSelection(null)} onSaved={()=>{setSelection(null);setMessage('고마워요!');}} onNotEligible={()=>{setSelection(null);setMessage('방문 인증한 가게에서만 고를 수 있어요.');}}/>:
+    <View><Pressable accessibilityRole="button" onPress={()=>{void openForm();}} style={ds.action}><Text style={ds.actionText}>{loading?'확인 중':'내 선택 남기기/바꾸기'}</Text></Pressable>{message?<Text accessibilityRole="alert" style={ds.muted}>{message}</Text>:null}</View>;
 }

@@ -10,6 +10,7 @@ export type CollectiblePreviewGoal = {
 export type CollectiblePreview = {
   merchantId: string;
   campaignId: string;
+  publicationId?: string;
   name: string;
   goals: readonly CollectiblePreviewGoal[];
 };
@@ -29,6 +30,7 @@ export async function fetchCollectiblePreview(
   const payload: unknown = await response.json();
   if (!isRecord(payload) || payload.merchantId !== merchantId ||
     typeof payload.campaignId !== 'string' || typeof payload.name !== 'string' ||
+    (payload.publicationId !== undefined && (typeof payload.publicationId !== 'string' || !payload.publicationId)) ||
     !Array.isArray(payload.goals) || !payload.goals.every(isGoal)) {
     throw new Error('수집품 미리보기 응답 형식이 올바르지 않습니다.');
   }

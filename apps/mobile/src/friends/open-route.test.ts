@@ -33,7 +33,8 @@ test('the open route forgets the delivered link once handled, so iOS cannot hand
 
 test('a friend link opened while signed out continues at the friends tab after sign-in, next to the merchant return', () => {
   const layout = read('../app/_layout.tsx');
-  assert.match(layout, /consumeMerchantReturn\(\)/);
+  assert.match(layout, /consumeInternalAuthReturn\(\)/);
+  assert.match(layout, /if \(target\) router\.replace\(target\)/);
   assert.match(layout, /else if \(hasPendingFriendLink\(\)\) router\.replace\('\/friends'\)/);
   const screen = read('../screens/friends/index.tsx');
   assert.match(screen, /const pending = consumePendingFriendCode\(\);/);

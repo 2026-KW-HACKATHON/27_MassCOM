@@ -16,10 +16,12 @@ import { Companion, FoodToken, GameToken, type OwnedArt } from './play-art';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
 import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { gameCopy, skillCopy, skillRewardArt, rewardState, themeNames, tokenName } from './play-copy';
+import type { PlayContent } from './play-content';
 
 export type GameSessionProps = {
   run: PlayRun;
   art: readonly OwnedArt[];
+  content?: PlayContent;
   avatar: string | null;
   equipment?: DisplayExperienceProfile;
   clothing?: EquippedClothingArt | null;

@@ -33,6 +33,7 @@ const baseForbidden = new Set([
   'accountId', 'customerAccountId', 'createdByAccountId', 'merchantReference',
   'claim', 'claimToken', 'token', 'signature', 'password', 'secret', 'privateKey',
   'mnemonic', 'recoveryPhrase', 'address',
+  'latitude', 'longitude', 'currentLocation', 'locationHistory', 'routeGeometry', 'locationAccuracy',
 ]);
 const apiForbidden = new Set(['error', 'caught', 'message', 'stack', 'cause']);
 const loggerMethods = new Set(['log', 'error', 'warn', 'info', 'debug']);

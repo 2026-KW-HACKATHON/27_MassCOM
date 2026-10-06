@@ -90,3 +90,22 @@ test('regular and collection goals complete only at their existing thresholds', 
   assert.equal(resolveStudioGoal({ kind: 'series', merchantId: merchant.id }, [merchant], complete, now)?.status, 'completed');
   assert.equal(resolveStudioGoal({ kind: 'regular', merchantId: merchant.id }, [merchant], { visits: [], collectibles: [] }, now)?.status, 'unavailable');
 });
+
+test('a wanted collectible tracks the exact publication and milestone, never another campaign or edition', () => {
+  const goal = { kind: 'collectible', merchantId: merchant.id, campaignId: merchant.campaign.id,
+    publicationId: 'publication-a', targetVisitCount: 3 } as const;
+  const preview = { campaignId: merchant.campaign.id, publicationId: 'publication-a', goals: [{ visitCount: 3 }] };
+  const before = resolveStudioGoal(goal, [merchant], collection, now, preview);
+  assert.equal(before?.status, 'active');
+  assert.equal(resolveStudioGoal(goal, [{ ...merchant, campaign: { ...merchant.campaign, enrollmentStatus: 'FULL' } }], collection, now, preview)?.status, 'active');
+  assert.match(before?.label ?? '', /3회/);
+  const exact = { ...collection, collectibles: [...collection.collectibles,
+    { merchantId: merchant.id, campaignId: merchant.campaign.id, targetVisitCount: 3 as const, artwork: { publicationId: 'publication-a' } }] };
+  assert.equal(resolveStudioGoal(goal, [merchant], exact, now, preview)?.status, 'completed');
+  const withdrawnMedia = { ...collection, collectibles: [{ merchantId: merchant.id, campaignId: merchant.campaign.id,
+    targetVisitCount: 3 as const, publicationId: 'publication-a' }] };
+  assert.equal(resolveStudioGoal(goal, [merchant], withdrawnMedia, Date.parse(merchant.campaign.endsAt))?.status, 'completed');
+  assert.equal(resolveStudioGoal(goal, [merchant], collection, now, { ...preview, publicationId: 'publication-b' })?.status, 'unavailable');
+  assert.equal(resolveStudioGoal(goal, [merchant], collection, Date.parse(merchant.campaign.endsAt), preview)?.status, 'unavailable');
+  assert.equal(resolveStudioGoal(goal, [merchant], collection, now)?.status, 'unavailable');
+});

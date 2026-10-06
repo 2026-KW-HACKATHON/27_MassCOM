@@ -2,9 +2,10 @@ import { getAppPackageId } from '@/config/app-identity';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BackHandler, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { platformSecureStore } from '@/auth/platform-secure-store';
 import {
   CommerceApiError,
   createCommerceApiClient,
@@ -14,7 +15,8 @@ import {
 } from '@/commerce/commerce-api';
 import { createScanGate, parseScannedClaimCode } from '@/commerce/claim-code';
 import { ClaimQr } from '@/commerce/claim-qr';
-import { acceptInspection, redeemTarget } from '@/commerce/claim-inspect';
+import { acceptInspection, redeemTarget, selectedMerchantMismatch } from '@/commerce/claim-inspect';
+import { createClaimPendingStore, isTerminalPendingClaimCode } from '@/commerce/claim-pending';
 import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
 import {
   claimFailureAction,
@@ -63,11 +65,13 @@ export function ClaimRedeemScreen({
   accountId,
   credential,
   onSessionInvalid,
+  selectedMerchantId,
 }: {
   apiUrl: string;
   accountId: string;
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
+  selectedMerchantId?: string;
 }) {
   const scrollView = useRef<ScrollView>(null);
   const clearance = useTabBarClearance();
@@ -80,6 +84,8 @@ export function ClaimRedeemScreen({
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
+  const pendingStore = useMemo(() => createClaimPendingStore(platformSecureStore, Date.now, 'customer'), []);
+  const securePending = Platform.OS !== 'web';
   const feedbackApi = useMemo(
     () => createVisitorFeedbackApiClient({ apiUrl, credential }),
     [apiUrl, credential],
@@ -123,6 +129,7 @@ export function ClaimRedeemScreen({
   const scanGate = useRef(createScanGate()).current;
   // 코드 확인 응답이 입력이 바뀐 뒤에 도착해도 이전 코드의 미리보기가 덮어쓰지 못하게 한다.
   const inspectGate = useRef(createIdentityRequestGate()).current;
+  const redeemGate = useRef(createIdentityRequestGate()).current;
   const router = useRouter();
   const badgeApi = useMemo(
     () => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }),
@@ -142,6 +149,37 @@ export function ClaimRedeemScreen({
     { claimSlotId: string; status: 'ready'; goals: readonly VisitGoal[] } | { claimSlotId: string; status: 'error' }
   >();
   const [campaignGoalsRetry, setCampaignGoalsRetry] = useState(0);
+
+  useEffect(() => () => { inspectGate.cancel(); redeemGate.cancel(); }, [selectedMerchantId, inspectGate, redeemGate]);
+
+  useEffect(() => {
+    if (!securePending) return;
+    let current = true;
+    const restoreRequest = redeemGate.start();
+    const isCurrent = () => current && redeemGate.isCurrent(restoreRequest);
+    void pendingStore.loadState(accountId, selectedMerchantId).then(async (saved) => {
+      if (!isCurrent() || saved.state === 'none') return;
+      const pending = saved.pending;
+      setMessage(saved.state === 'expired'
+        ? '이전 방문 코드의 표시 시각이 지났지만 수령 결과를 서버에서 확인합니다.'
+        : '이전 방문 수령 결과를 서버에서 확인하고 있습니다.');
+      try {
+        const result = await api.redeemClaim(pending.token);
+        if (!isCurrent()) return;
+        activeClaimSlot.current = result.claimSlotId;
+        setRedeemed(result);
+        setMessage(claimSuccessCopy(result).body);
+        void pendingStore.clearIfMatches(accountId, pending).catch(() => undefined);
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (error instanceof CommerceApiError && isTerminalPendingClaimCode(error.code)) {
+          await pendingStore.clearIfMatches(accountId, pending);
+          if (isCurrent()) setMessage('이전 코드는 더 이상 사용할 수 없습니다. 새 방문 코드를 확인해 주세요.');
+        } else setMessage('이전 방문 결과를 확인하지 못했습니다. 연결을 확인하고 같은 코드를 다시 시도해 주세요.');
+      }
+    }).catch(() => { if (isCurrent()) setMessage('이전 방문 확인 정보를 읽지 못했습니다. 같은 코드를 다시 확인해 주세요.'); });
+    return () => { current = false; redeemGate.cancel(); };
+  }, [accountId, selectedMerchantId, api, pendingStore, securePending, redeemGate]);
 
   useFocusEffect(useCallback(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -277,6 +315,8 @@ export function ClaimRedeemScreen({
   }
 
   function changeToken(value: string) {
+    redeemGate.cancel();
+    setBusy(false);
     inspectGate.cancel();
     badgeBookGate.cancel();
     setOpenableBoxClaimSlot(undefined);
@@ -337,7 +377,8 @@ export function ClaimRedeemScreen({
       setPreview(accepted.preview);
       setPendingRedeemToken(accepted.pendingRedeemToken);
       setRecoveryAction(undefined);
-      setMessage(accepted.message);
+      setMessage(selectedMerchantMismatch(selectedMerchantId, accepted.preview)
+        ? '선택한 가게와 직원 코드의 가게가 다릅니다. 매장과 코드를 다시 확인해 주세요.' : accepted.message);
       requestAnimationFrame(() => scrollView.current?.scrollToEnd({ animated: true }));
     } catch (error) {
       if (inspectGate.isCurrent(request)) {
@@ -353,14 +394,26 @@ export function ClaimRedeemScreen({
   async function redeem() {
     // 지금 입력칸의 코드로 확인한 미리보기일 때만 확정한다.
     const target = redeemTarget(token, pendingRedeemToken, preview);
-    if (!target || !preview || busy) return;
+    if (!target || !preview || busy || selectedMerchantMismatch(selectedMerchantId, preview)) return;
+    if (Date.parse(preview.expiresAt) <= Date.now() && recoveryAction?.kind !== 'retry') {
+      setPreview(undefined);
+      setMessage('방문 코드가 만료됐습니다. 직원에게 새 코드를 요청해 주세요.');
+      return;
+    }
+    const request = redeemGate.start();
     setBusy(true);
     setMessage(undefined);
     try {
       // 방문이 먼저 반영된 뒤의 값을 "이전"으로 읽지 않도록, 요청을 보내기 전에 스냅샷이 끝났는지(또는 시간 안에 못 끝냈는지) 확인한다.
       const mileageBefore = await settleWithin(mileageBeforeClaim.current, mileageSnapshotWaitMs);
+      if (!redeemGate.isCurrent(request)) return;
       mileageBeforeClaim.current = undefined;
+      const pending = { accountId, merchantId: preview.merchantId, token: target, expiresAt: preview.expiresAt };
+      if (securePending) await pendingStore.save(pending);
+      if (!redeemGate.isCurrent(request)) { if (securePending) await pendingStore.clearIfMatches(accountId, pending); return; }
       const result = await api.redeemClaim(target);
+      if (!redeemGate.isCurrent(request)) return;
+      if (securePending) void pendingStore.clearIfMatches(accountId, pending).catch(() => undefined);
       if (!result.replayed) playUiSound('success');
       activeClaimSlot.current = result.claimSlotId;
       setCampaignGoals(undefined);
@@ -378,16 +431,19 @@ export function ClaimRedeemScreen({
       badgesBeforeClaim.current = undefined;
       if (!result.replayed) void celebrate(result, before);
     } catch (error) {
+      if (!redeemGate.isCurrent(request)) return;
       playUiSound('error');
       const action = claimFailureAction(error, preview);
       setRecoveryAction(action);
-      setMessage(action.message);
+      setMessage(Platform.OS === 'web' && action.kind === 'retry'
+        ? `${action.message} 이 페이지를 닫으면 코드를 다시 입력해야 합니다.` : action.message);
       if (!action.keepPreview) {
+        if (securePending && error instanceof CommerceApiError && isTerminalPendingClaimCode(error.code)) void pendingStore.clearIfMatches(accountId, { merchantId: preview.merchantId, token: target }).catch(() => undefined);
         setPreview(undefined);
         setPendingRedeemToken(undefined);
       }
     } finally {
-      setBusy(false);
+      if (redeemGate.isCurrent(request)) setBusy(false);
     }
   }
 
@@ -652,8 +708,8 @@ export function ClaimRedeemScreen({
                 </Pressable>
               </Link>
             ) : (
-              <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy} onPress={redeem} style={[styles.button, { backgroundColor: preview.status !== 'AVAILABLE' || busy ? palette.primaryContainer : palette.primary }]}>
-                <Text style={[styles.buttonText, { color: preview.status !== 'AVAILABLE' || busy ? palette.onPrimaryContainer : palette.onPrimary }]}>
+              <Pressable accessibilityRole="button" disabled={preview.status !== 'AVAILABLE' || busy || selectedMerchantMismatch(selectedMerchantId, preview)} onPress={redeem} style={[styles.button, { backgroundColor: preview.status !== 'AVAILABLE' || busy || selectedMerchantMismatch(selectedMerchantId, preview) ? palette.primaryContainer : palette.primary }]}>
+                <Text style={[styles.buttonText, { color: preview.status !== 'AVAILABLE' || busy || selectedMerchantMismatch(selectedMerchantId, preview) ? palette.onPrimaryContainer : palette.onPrimary }]}>
                   {recoveryAction?.kind === 'retry' ? recoveryAction.label : '방문 수령 확정'}
                 </Text>
               </Pressable>

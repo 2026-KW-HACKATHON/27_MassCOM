@@ -23,6 +23,14 @@ test('연결된 공개 수집품이 없으면 기존 캠페인 목표를 보여 
   assert.equal(await fetchCollectiblePreview('https://api.example', 'm1', fake), null);
 });
 
+test('new preview exposes publication identity while older preview remains readable', async () => {
+  const base = { merchantId: 'm1', campaignId: 'c1', name: '방문', goals: [] };
+  const fake = (body: object): typeof fetch => async () => Response.json(body);
+  assert.equal((await fetchCollectiblePreview('https://api.example', 'm1', fake({ ...base, publicationId: 'pub-1' })))?.publicationId, 'pub-1');
+  assert.equal((await fetchCollectiblePreview('https://api.example', 'm1', fake(base)))?.publicationId, undefined);
+  await assert.rejects(fetchCollectiblePreview('https://api.example', 'm1', fake({ ...base, publicationId: 42 })), /응답 형식/);
+});
+
 test('서버 오류는 404와 구분해 다시 시도할 수 있게 전달한다', async () => {
   const fake: typeof fetch = async () => new Response(null, { status: 503 });
   await assert.rejects(fetchCollectiblePreview('https://api.example', 'm1', fake), /불러오지 못했습니다/);

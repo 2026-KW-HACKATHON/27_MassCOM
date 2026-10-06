@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useAuthSession } from '@/auth/auth-provider';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { ClaimRedeemScreen } from '@/screens/claim-redeem';
@@ -9,6 +10,8 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 
 export default function ClaimRedeemRoute() {
   const auth = useAuthSession();
+  const params = useLocalSearchParams<{ merchantId?: string | string[] }>();
+  const selectedMerchantId = typeof params.merchantId === 'string' ? params.merchantId : undefined;
   // Signed-out and set-up states draw the same sky header as the screen itself, inside their own scroll content.
   const header = <AppHeader title="방문 인증" subtitle="가게에서 도장을 받아요" />;
   if (!auth.credential || !auth.accountId) return <SkyBackdrop><AuthRequiredRoute header={header} /></SkyBackdrop>;
@@ -31,6 +34,7 @@ export default function ClaimRedeemRoute() {
         key={auth.accountId}
         apiUrl={publicApiConfig.apiUrl}
         accountId={auth.accountId}
+        selectedMerchantId={selectedMerchantId}
         credential={auth.credential}
         onSessionInvalid={auth.invalidateSession}
       />

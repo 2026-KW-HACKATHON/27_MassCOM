@@ -1,0 +1,38 @@
+[
+  {
+    "origin": "https://api.masscom.kr",
+    "checkedAt": "2026-10-06T10:11:56.647Z",
+    "/health": {
+      "status": 200,
+      "body": {
+        "status": "ok"
+      },
+      "sourceHeader": null
+    },
+    "/v1/discovery/merchants/__readonly_probe__": {
+      "status": 404,
+      "body": {
+        "code": "NOT_FOUND"
+      },
+      "sourceHeader": null
+    }
+  },
+  {
+    "origin": "https://demo-api.masscom.kr",
+    "checkedAt": "2026-10-06T10:11:56.782Z",
+    "/health": {
+      "status": 200,
+      "body": {
+        "status": "ok"
+      },
+      "sourceHeader": null
+    },
+    "/v1/discovery/merchants/__readonly_probe__": {
+      "status": 404,
+      "body": {
+        "code": "NOT_FOUND"
+      },
+      "sourceHeader": null
+    }
+  }
+]

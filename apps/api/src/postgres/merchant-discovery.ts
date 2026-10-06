@@ -12,6 +12,7 @@ import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-c
 type PreviewRow = {
   merchant_id: string;
   campaign_id: string;
+  publication_id: string | null;
   name: string;
   goals: CollectiblePreview['goals'];
 };
@@ -22,6 +23,8 @@ export class PostgresCollectiblePreviewService implements CollectiblePreviewServ
   async preview(merchantId: string): Promise<CollectiblePreview> {
     const result = await this.pool.query<PreviewRow>(
       `SELECT m.id AS merchant_id, c.id AS campaign_id,
+         CASE WHEN publication.media_removed_at IS NULL AND count(grade.grade_id) > 0
+           THEN publication.id::text ELSE NULL END AS publication_id,
          coalesce(min(grade.summary->>'name'),
            (SELECT min(named_grade.summary->>'name') FROM collectible_publication_grades named_grade
             WHERE named_grade.publication_id = publication.id),
@@ -51,7 +54,8 @@ export class PostgresCollectiblePreviewService implements CollectiblePreviewServ
     );
     const row = result.rows[0];
     if (!row) throw new MerchantDiscoveryError('COLLECTIBLE_PREVIEW_NOT_FOUND');
-    return { merchantId: row.merchant_id, campaignId: row.campaign_id, name: row.name, goals: row.goals };
+    return { merchantId: row.merchant_id, campaignId: row.campaign_id,
+      ...(row.publication_id ? { publicationId: row.publication_id } : {}), name: row.name, goals: row.goals };
   }
 }
 

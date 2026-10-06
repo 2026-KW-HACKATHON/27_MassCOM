@@ -14,14 +14,14 @@ function sources(directory: string): string[] {
   });
 }
 
-// Every customer surface asks the art bridge with the merchant's own art path and the API origin; the bridge decides the order
-// (owner's AI picture, then the bundled showcase picture, then the glyph), which art-source.test.ts checks by behavior.
-test('list crest, map pin, detail hero, stamp page and collection card all draw through the art bridge with the merchant art path and API origin', () => {
+// Legacy collectible art retains its fallback bridge; discovery renders separately labelled owner photos.
+test('legacy collectible art uses the fallback bridge while discovery only renders published owner photos', () => {
   assert.match(read('screens/merchant-list/merchant-crest.tsx'), /merchantArtSource\(merchant, apiUrl\)/);
-  assert.match(read('screens/merchant-list/index.tsx'), /<MerchantCrest merchant=\{merchant\} apiUrl=\{apiUrl\} \/>/);
+  assert.match(read('screens/merchant-list/index.tsx'), /<RealMapScreen[^>]*initialMode="list"/);
+  assert.match(read('screens/real-map/index.tsx'), /merchant\.thumbnail&&publishedPhotoUri\(apiUrl,merchant\.thumbnail\.url\)/);
   assert.match(read('screens/town-map/town-pin.tsx'), /merchantArtSource\(\{ id: pin\.merchantId, artUrl: pin\.artUrl \}, apiUrl\)/);
   assert.match(read('screens/town-map/index.tsx'), /<TownPinButton[\s\S]*?apiUrl=\{apiUrl\}[\s\S]*?\/>/);
-  assert.match(read('screens/merchant-detail/index.tsx'), /merchantArt\(merchant, apiUrl\)/);
+  assert.match(read('screens/merchant-detail/index.tsx'), /photos\.filter\(photo=>publishedPhotoUri\(apiUrl,photo\.url\)\)/);
   assert.match(read('ui/passport-stamp-page.tsx'), /merchantArtSource\(\{ id: stamp\.merchantId, artUrl: stamp\.artUrl \}, apiUrl\)/);
   const collection = read('screens/collection/index.tsx');
   assert.match(collection, /<PassportStampPage apiUrl=\{apiUrl\}/);
@@ -57,6 +57,8 @@ test('customer screens use the art bridge except for validated collectible inlin
     'screens/collection/collection-share.tsx',
     // 게임 카드도 commerce-api가 검증한 보유 수집품 인라인 그림만 사용한다.
     'screens/play/play-art.tsx',
+    'screens/play/quality-session.tsx',
+    'screens/real-map/index.tsx',
   ]);
   const offenders = [...sources(join(src, 'screens')), ...sources(join(src, 'ui'))]
     .map((path) => ({ path, name: relative(src, path).replaceAll('\\', '/') }))
@@ -65,6 +67,9 @@ test('customer screens use the art bridge except for validated collectible inlin
   assert.match(read('commerce/commerce-api.ts'), /parsePublishedCollectible/);
   assert.match(read('commerce/collectible-artwork.ts'), /data:image/);
   assert.match(read('merchant/collectible-preview-api.ts'), /data:image/);
+  assert.match(read('screens/play/quality-session.tsx'), /if \(item\.uri\) return <Image source=\{\{ uri: item\.uri \}\}/);
+  assert.match(read('screens/play/play-content.ts'), /url\.origin === base\.origin \? url\.toString\(\) : undefined/);
+  assert.match(read('screens/real-map/index.tsx'), /merchant\.thumbnail&&publishedPhotoUri\(apiUrl,merchant\.thumbnail\.url\)/);
   assert.doesNotMatch(read('screens/merchant-detail/index.tsx'), /https?:\/\//);
   assert.doesNotMatch(read('screens/collection/collectible-detail.tsx'), /https?:\/\//);
   assert.doesNotMatch(read('screens/collection/grade-material-layer.tsx'), /https?:\/\/|fetch\(/);

@@ -22,7 +22,8 @@ const glyphByRoute: Record<string, GlyphName> = {
   shop: 'shop',
   collection: 'collection',
   index: 'home',
-  search: 'explore',
+  search: 'map',
+  'play-tab': 'play',
   'shop-again': 'shop',
   map: 'map',
   claim: 'claim',
@@ -45,7 +46,7 @@ function useKeyboardShown(): boolean {
   return shown;
 }
 
-/** Floating five-slot bar: 상점 · 도감 · (raised 홈) · 검색 · 상점. Routes hidden with `href: null` get no slot. */
+/** Floating five-slot bar: 탐색 · 도감 · (raised 홈) · 놀이 · 상점. Routes hidden with `href: null` get no slot. */
 export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const world = worldForScheme(useColorScheme());
   const { fontScale } = useWindowDimensions();
@@ -56,7 +57,8 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
   const visible = state.routes.filter((route) => !isHidden(descriptors[route.key]?.options));
   const focusedKey = state.routes[state.index]?.key;
   // A screen reached through a hidden route (내 정보) reads as its own page, so the bar steps aside.
-  const away = keyboardShown || !visible.some((route) => route.key === focusedKey);
+  const runningGame = Boolean((state.routes[state.index]?.params as { runningGame?: boolean } | undefined)?.runningGame);
+  const away = keyboardShown || runningGame || !visible.some((route) => route.key === focusedKey);
   const footprint = away ? 0 : height + LIFT + GAP + insets.bottom;
   useEffect(() => { reportFootprint?.(footprint); }, [reportFootprint, footprint]);
   if (away) return null;

@@ -62,6 +62,7 @@ services:
       GOOGLE_OAUTH_CLIENT_IDS: ${SHOWCASE_GOOGLE_WEB_CLIENT_ID:?dedicated Google Web client is required}
       ALLOW_INSECURE_DEMO_ACCOUNT: "false"
       AUTH_TRUST_CADDY_FORWARDED_FOR: "true"
+      TMAP_REST_APP_KEY: ${TMAP_REST_APP_KEY:-}
       SIWE_DOMAIN: demo-api.masscom.kr
       SIWE_URI: https://demo-api.masscom.kr/wallet/verify
       WALLET_CHAIN_ID: "84532"

@@ -16,7 +16,7 @@ const { loadMerchants } = productionWeb;
 
 // 도감은 동의를 확인한 뒤에만 읽는다(Issue #253). 아래 기존 시험은 이미 동의한 계정을 전제로 하므로 동의 조회에 "동의함"으로 답하는 fetcher로 감싼다.
 // 동의 화면 자체의 시험은 이 파일 끝의 "웹 첫 로그인 동의" 시험이 감싸지 않은 productionWeb.loadCollection으로 한다.
-const consentAccepted = { required: false, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05' };
+const consentAccepted = { required: false, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06' };
 const withConsent = (fetcher) => (url, options) => (url === '/api/web/consent'
   ? Promise.resolve({ ok: true, status: 200, json: async () => consentAccepted })
   : fetcher(url, options));
@@ -690,6 +690,17 @@ test('점포 화면은 별도 경로에서 제공하고 검색 색인 및 캐시
   assert.equal(script.status, 200);
   assert.match(script.headers.get('content-type'), /javascript/);
   assert.equal(script.headers.get('x-robots-tag'), 'noindex, nofollow');
+});
+
+test('실제 정보 편집 자산은 점주·관리자 경로에서 모듈과 테마 CSS로 제공된다', async () => {
+  for (const prefix of ['/merchant/assets/', '/admin/assets/']) {
+    for (const [file, mime] of [['real-world-merchant.mjs', /javascript/], ['real-world-merchant.css', /text\/css/]]) {
+      const response = await fetch(`${base}${prefix}${file}`);
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type'), mime);
+      assert.equal(response.headers.get('x-robots-tag'), 'noindex, nofollow');
+    }
+  }
 });
 
 test('관리 화면은 로그인·권한 거부·실제 상점 목록을 구분하고 상점 이름을 텍스트로 표시한다', async () => {
@@ -3009,9 +3020,9 @@ function consentDocument() {
   return fixture;
 }
 
-const consentRequired = { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05' };
+const consentRequired = { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06' };
 const consentBodySent = {
-  termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05',
+  termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06',
   ageConfirmed: true, termsAccepted: true, privacyAccepted: true,
 };
 
@@ -3175,7 +3186,7 @@ test('웹 동의: 기록이 거절되거나 실패하면 화면과 체크를 그
     [{ ok: false, status: 409, body: { code: 'CONSENT_VERSION_MISMATCH' } }, /새로 바뀌었어요/],
     [{ ok: false, status: 400, body: { code: 'CONSENT_INCOMPLETE' } }, /기록하지 못했어요/],
     [{ ok: false, status: 500, body: {} }, /기록하지 못했어요/],
-    [{ ok: true, status: 200, body: { required: true, termsVersion: 'terms-2026-09-30', privacyVersion: 'privacy-2026-10-05' } }, /기록하지 못했어요/],
+    [{ ok: true, status: 200, body: { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06' } }, /기록하지 못했어요/],
     [{ ok: true, status: 200, body: null }, /기록하지 못했어요/],
   ]) {
     const { nodes, doc } = consentDocument();

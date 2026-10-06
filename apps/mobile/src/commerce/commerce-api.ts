@@ -111,6 +111,7 @@ export type CollectionSnapshot = {
     campaignId: string;
     campaignTitle: string;
     targetVisitCount: 1 | 3 | 5;
+    publicationId?: string | null;
     displayName: string;
     /** 보상을 받은 시각. 같은 게시 수집품을 여러 번 받았을 때 구분하는 근거다. */
     earnedAt: string;
@@ -674,6 +675,7 @@ function parseCollectible(value: unknown): CollectionSnapshot['collectibles'][nu
     !isString(value.campaignId) ||
     !isString(value.campaignTitle) ||
     !isGoal(value.targetVisitCount) ||
+    (value.publicationId !== undefined && value.publicationId !== null && !isString(value.publicationId)) ||
     !isString(value.displayName) ||
     !isDate(value.earnedAt) ||
     value.appCollectibleStatus !== 'COLLECTED' ||
@@ -691,6 +693,7 @@ function parseCollectible(value: unknown): CollectionSnapshot['collectibles'][nu
     campaignId: value.campaignId,
     campaignTitle: value.campaignTitle,
     targetVisitCount: value.targetVisitCount,
+    ...(value.publicationId !== undefined ? { publicationId: value.publicationId as string | null } : {}),
     displayName: value.displayName,
     earnedAt: value.earnedAt,
     ...(parseCollectibleArtwork(value.artwork) ? { artwork: parseCollectibleArtwork(value.artwork) } : {}),

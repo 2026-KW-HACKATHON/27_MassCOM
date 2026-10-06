@@ -1,0 +1,11 @@
+{
+  "environment": "Chrome desktop / synthetic local QA / map key absent",
+  "scenario": "orders result screen idle after finished game",
+  "seconds": 443.7209729999886,
+  "taskSeconds": 0.520644,
+  "scriptSeconds": 0.427438,
+  "jsHeapBytesBefore": 22265072,
+  "jsHeapBytesAfter": 21974556,
+  "layoutCount": 0,
+  "measuredAt": "2026-10-06T09:14:53.200Z"
+}

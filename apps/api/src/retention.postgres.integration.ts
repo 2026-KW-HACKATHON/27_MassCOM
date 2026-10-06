@@ -22,6 +22,8 @@ const around = (boundary: number) => ({ before: at(boundary - 1), exactly: at(bo
 const oneYear = around(cutoffMs);
 const threeYears = around(threeYearMs);
 const oneDay = around(dayMs);
+const twentyThreeHours = around(now.getTime() - 23 * 3_600_000);
+const ninetyDays = around(now.getTime() - 90 * 86_400_000);
 const { before, exactly, after } = oneYear;
 
 async function setup(t: TestContext) {
@@ -36,7 +38,9 @@ async function setup(t: TestContext) {
     `TRUNCATE auth_sessions, web_sessions, account_deletion_intake_requests, account_deletion_requests,
               platform_admin_audit, platform_admin_role_audit, staff_registration_audit, staff_registration_requests,
               badge_coupon_audit, badge_coupons, badge_reward_offers, platform_admins, customer_identity_tokens,
-              wallet_challenges, web_oauth_states, showcase_access_requests, merchants,
+              wallet_challenges, web_oauth_states, showcase_access_requests,
+              merchant_real_world_media, merchant_real_world_photos, merchant_real_world_reports,
+              discovery_event_dedupe, merchants,
               play_runs, play_records, studios, retention_scan_progress CASCADE`,
   );
   await pool.query(
@@ -56,6 +60,67 @@ const deletedPlayPosition = async (pool: Pool) => {
   assert.equal(result.rows.length, 1);
   return Number(result.rows[0]!.position);
 };
+
+test('discovery event dedupe keeps the exact 23-hour boundary', async (t) => {
+  const { pool, service } = await setup(t);
+  const ids = [randomUUID(), randomUUID(), randomUUID()];
+  for (const [index, createdAt] of [twentyThreeHours.before, twentyThreeHours.exactly, twentyThreeHours.after].entries()) {
+    await pool.query('INSERT INTO discovery_event_dedupe (event_id, merchant_id, created_at) VALUES ($1, $2, $3)',
+      [ids[index], 'shop-1', createdAt]);
+  }
+  assert.equal(counts(await service.report()).discovery_event_dedupe, 1);
+  const result = await service.run();
+  assert.deepEqual(result.failed, []);
+  assert.equal(counts(result.counts).discovery_event_dedupe, 1);
+  assert.deepEqual(await idsOf(pool, 'SELECT event_id AS id FROM discovery_event_dedupe'), ids.slice(1).sort());
+});
+
+test('private merchant reports keep the exact 90-day boundary', async (t) => {
+  const { pool, service } = await setup(t);
+  const ids = [randomUUID(), randomUUID(), randomUUID()];
+  for (const [index, createdAt] of [ninetyDays.before, ninetyDays.exactly, ninetyDays.after].entries()) {
+    await pool.query(`INSERT INTO merchant_real_world_reports
+      (id, merchant_id, reporter_account_id, kind, note, created_at, updated_at)
+      VALUES ($1, 'shop-1', 'acct_reporter', 'HOURS', 'private report', $2, $2)`, [ids[index], createdAt]);
+  }
+  assert.equal(counts(await service.report()).merchant_real_world_reports, 1);
+  const result = await service.run();
+  assert.deepEqual(result.failed, []);
+  assert.equal(counts(result.counts).merchant_real_world_reports, 1);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM merchant_real_world_reports'), ids.slice(1).sort());
+});
+
+test('retention drops old soft-deleted photos before orphan media but keeps shared and boundary media', async (t) => {
+  const { pool, service } = await setup(t);
+  const digests = ['a', 'b', 'c', 'd', 'e'].map((letter) => letter.repeat(64));
+  for (const [index, digest] of digests.entries()) {
+    const createdAt = index === 4 ? oneDay.exactly : oneDay.before;
+    await pool.query(`INSERT INTO merchant_real_world_media (digest, width, height, image_bytes, created_at)
+      VALUES ($1, 1, 1, $2, $3)`, [digest, Buffer.from([1]), createdAt]);
+  }
+  const insertPhoto = async (digest: string, deletedAt: Date | null) => {
+    const id = randomUUID();
+    await pool.query(`INSERT INTO merchant_real_world_photos
+      (id, merchant_id, digest, width, height, kind, deleted_at, created_at, updated_at)
+      VALUES ($1, 'shop-1', $2, 1, 1, 'STORE', $3, $4, $4)`, [id, digest, deletedAt, oneDay.before]);
+    return id;
+  };
+  await insertPhoto(digests[0]!, oneDay.before); // becomes an orphan
+  await insertPhoto(digests[1]!, oneDay.before); // shares media with an active photo
+  const active = await insertPhoto(digests[1]!, null);
+  const boundary = await insertPhoto(digests[2]!, oneDay.exactly);
+  // d is already orphaned; e is unreferenced but exactly at the media age boundary.
+  const reported = counts(await service.report());
+  assert.equal(reported.merchant_real_world_photos, 2);
+  assert.equal(reported.merchant_real_world_media, 1, 'report sees only pre-run orphans');
+  const result = await service.run();
+  assert.deepEqual(result.failed, [], 'photo FK must be released before media deletion');
+  assert.equal(counts(result.counts).merchant_real_world_photos, 2);
+  assert.equal(counts(result.counts).merchant_real_world_media, 2);
+  assert.deepEqual(await idsOf(pool, 'SELECT id FROM merchant_real_world_photos'), [active, boundary].sort());
+  assert.deepEqual((await pool.query<{ digest: string }>('SELECT digest FROM merchant_real_world_media ORDER BY digest')).rows.map((row) => row.digest),
+    [digests[1], digests[2], digests[4]]);
+});
 
 test('scan progress stores no account identifier and enforces its nonnegative position', async (t) => {
   const { pool, service } = await setup(t);
@@ -368,6 +433,8 @@ test('run deletes exactly the rows older than each period in every table and not
 
   const reported = counts(await service.report());
   assert.deepEqual(reported, {
+    discovery_event_dedupe: 0, merchant_real_world_reports: 0,
+    merchant_real_world_photos: 0, merchant_real_world_media: 0,
     auth_sessions: 3, web_sessions: 2, deletion_intake: 3, admin_audit: 1, admin_owner_audit: 2,
     admin_role_audit: 1, staff_registration_audit: 1, merchant_campaign_extension_audit: 0, merchant_staff_action_audit: 0,
     coupon_audit: 1, customer_identity_tokens: 1,
@@ -414,7 +481,7 @@ test('run deletes exactly the rows older than each period in every table and not
   );
 
   // A second run has nothing left to delete.
-  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(16).fill(0));
+  assert.deepEqual(Object.values(counts((await service.run()).counts)), Array(Object.keys(reported).length).fill(0));
 });
 
 test('play run retention removes old expired and finished runs but preserves boundary runs and best records', async (t) => {
@@ -847,6 +914,8 @@ test('the command prints counts only and leaves the exit code at zero when every
   const lines = output.trim().split('\n');
   assert.equal(lines[0], 'RETENTION_RUN');
   assert.deepEqual(lines.slice(1), [
+    'discovery_event_dedupe\t0', 'merchant_real_world_reports\t0',
+    'merchant_real_world_photos\t0', 'merchant_real_world_media\t0',
     'auth_sessions\t2', 'web_sessions\t0', 'deletion_intake\t1', 'admin_audit\t0', 'admin_owner_audit\t0',
     'admin_role_audit\t1', 'staff_registration_audit\t0', 'merchant_campaign_extension_audit\t0', 'merchant_staff_action_audit\t0',
     'coupon_audit\t0', 'customer_identity_tokens\t0',

@@ -9,6 +9,31 @@ import { PostgresRetentionService } from './retention.js';
 const now = new Date('2026-10-04T12:00:00.000Z');
 const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
 
+function reportedSql() {
+  const statements: string[] = [];
+  const pool = { query: async (sql: string) => { statements.push(sql); return { rows: [{ count: 0 }] }; } } as unknown as Pool;
+  return { statements, report: () => new PostgresRetentionService(pool, { now: () => now }).report() };
+}
+
+test('discovery event dedupe expires after 23 hours', async () => {
+  const { statements, report } = reportedSql();
+  await report();
+  assert.match(statements[0]!, /FROM discovery_event_dedupe WHERE created_at < .*interval '23 hours'/);
+});
+
+test('merchant reports expire after 90 days', async () => {
+  const { statements, report } = reportedSql();
+  await report();
+  assert.match(statements[1]!, /FROM merchant_real_world_reports WHERE created_at < .*interval '90 days'/);
+});
+
+test('soft-deleted photo rows are pruned before unreferenced media', async () => {
+  const { statements, report } = reportedSql();
+  await report();
+  assert.match(statements[2]!, /FROM merchant_real_world_photos WHERE deleted_at < .*interval '1 day'/);
+  assert.match(statements[3]!, /FROM merchant_real_world_media WHERE .*NOT EXISTS \(SELECT 1 FROM merchant_real_world_photos photo WHERE photo.digest = merchant_real_world_media.digest\)/);
+});
+
 // Keep the database boundary fake, including OFFSET/keyset, candidate disappearance and transactional progress.
 function candidatePool(records: string[], deletedAccounts: string[] = []) {
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });

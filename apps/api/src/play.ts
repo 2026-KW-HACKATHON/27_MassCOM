@@ -3,6 +3,7 @@ import type { GameAction, GameKind, GameSkill, PlayRun } from './play-rules.js';
 
 export type StudioGoal =
   | { kind: 'discover' | 'regular' | 'series'; merchantId: string }
+  | { kind: 'collectible'; merchantId: string; campaignId: string; publicationId: string; targetVisitCount: 1 | 3 | 5 }
   | { kind: 'play'; gameKind: GameKind };
 export type Studio = {
   theme: 'daylight' | 'evening' | 'garden';

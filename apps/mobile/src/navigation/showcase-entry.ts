@@ -4,16 +4,31 @@ import { canOpenMerchantDemo, isDevelopmentDemoBuild, type DemoRuntimeConfig } f
 export type ShowcaseRole = 'customer' | 'merchant';
 export type ShowcaseRoleState = { role?: ShowcaseRole; accountId?: string };
 
-let pendingMerchantReturn: string | undefined;
+export type InternalAuthReturn = {
+  pathname: '/claim' | '/merchants/[merchantId]'; params: { merchantId: string };
+};
+let pendingMerchantReturn: InternalAuthReturn | undefined;
 
 export function rememberMerchantReturn(merchantId: string | undefined): void {
-  pendingMerchantReturn = merchantId;
+  pendingMerchantReturn = merchantId ? { pathname: '/merchants/[merchantId]', params: { merchantId } } : undefined;
 }
 
 export function consumeMerchantReturn(): string | undefined {
-  const merchantId = pendingMerchantReturn;
+  const merchantId = pendingMerchantReturn?.params.merchantId;
   pendingMerchantReturn = undefined;
   return merchantId;
+}
+
+export function rememberInternalAuthReturn(pathname: string, merchantId: string | undefined): void {
+  pendingMerchantReturn = merchantId ? {
+    pathname: pathname === '/claim' ? '/claim' : '/merchants/[merchantId]', params: { merchantId },
+  } : undefined;
+}
+
+export function consumeInternalAuthReturn(): InternalAuthReturn | undefined {
+  const target = pendingMerchantReturn;
+  pendingMerchantReturn = undefined;
+  return target;
 }
 
 export function showShowcaseRoleEntry(

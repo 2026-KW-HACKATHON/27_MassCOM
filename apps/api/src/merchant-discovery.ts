@@ -8,6 +8,7 @@ export function isDetailViewSource(value: unknown): value is DetailViewSource {
 export type CollectiblePreview = {
   merchantId: string;
   campaignId: string;
+  publicationId?: string;
   name: string;
   goals: {
     visitCount: number;

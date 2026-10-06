@@ -99,3 +99,12 @@ test('the test-visit section (#295) opens in the showcase app and the local deve
     assert.equal(canShowTestVisitSection(packageId), false, String(packageId));
   }
 });
+
+test('sign-in returns to the requested internal claim action and cannot open an external path', async () => {
+  const { rememberInternalAuthReturn, consumeInternalAuthReturn } = await import('./showcase-entry');
+  rememberInternalAuthReturn('/claim', 'store-a');
+  assert.deepEqual(consumeInternalAuthReturn(), { pathname: '/claim', params: { merchantId: 'store-a' } });
+  assert.equal(consumeInternalAuthReturn(), undefined);
+  rememberInternalAuthReturn('https://untrusted.example', 'store-b');
+  assert.deepEqual(consumeInternalAuthReturn(), { pathname: '/merchants/[merchantId]', params: { merchantId: 'store-b' } });
+});

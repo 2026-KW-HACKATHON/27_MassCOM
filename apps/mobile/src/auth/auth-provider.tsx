@@ -10,6 +10,7 @@ import { createAuthController } from './auth-controller';
 import { resolveAuthStartup, type AuthSessionState } from './auth-startup';
 import { nativeGoogleSignIn } from './google-sign-in-runtime';
 import { platformSecureStore } from './platform-secure-store';
+import { clearClaimPendingIntent } from '@/commerce/claim-pending';
 import { createSessionStore, type StoredAuthSessionV1 } from './session-store';
 import { demoRuntimeConfig, isDevelopmentDemoBuild } from '@/config/demo-runtime';
 import { isApprovedGuestTrialOrigin } from '@/config/guest-trial-origin';
@@ -202,6 +203,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       }
       clearPendingFriendLink();
       consumeMerchantReturn();
+      if (accountId) await clearClaimPendingIntent(platformSecureStore, accountId);
       await controllerRef.current.restartGuestTrial();
     },
     async logout() {
@@ -209,6 +211,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       clearPendingFriendLink();
       const previousAccountId = accountId;
       const previousCredential = credential;
+      if (previousAccountId) await clearClaimPendingIntent(platformSecureStore, previousAccountId);
       await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (state.status === 'demo') {
         await forgetWalletSession({
@@ -229,6 +232,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       clearPendingFriendLink();
       const previousAccountId = accountId;
       const previousCredential = credential;
+      if (previousAccountId) await clearClaimPendingIntent(platformSecureStore, previousAccountId);
       await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       if (publicApiConfiguration.available && credential?.kind === 'bearer') {
@@ -244,6 +248,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       clearPendingFriendLink();
       const previousAccountId = accountId;
       const previousCredential = credential;
+      if (previousAccountId) await clearClaimPendingIntent(platformSecureStore, previousAccountId);
       await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       await controller.invalidateSession(session.sessionToken);
     },

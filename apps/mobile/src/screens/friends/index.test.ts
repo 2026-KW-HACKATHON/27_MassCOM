@@ -52,7 +52,7 @@ test('#298: returning from a friend passport lands back on 친구, where the flo
   // plain router.back(), which refocuses the hidden 친구 route. floating-tab-bar.tsx already hides the bar away from any
   // route not in its visible list and shows it again once the focused route is visible — the same mechanism 내 정보 relies on.
   const bar = read('../../navigation/floating-tab-bar.tsx');
-  assert.match(bar, /away = keyboardShown \|\| !visible\.some\(\(route\) => route\.key === focusedKey\)/);
+  assert.match(bar, /away = keyboardShown \|\| runningGame \|\| !visible\.some\(\(route\) => route\.key === focusedKey\)/);
   assert.match(screen, /router\.push\(\{ pathname: '\/friends\/\[friendshipId\]'/);
 });
 

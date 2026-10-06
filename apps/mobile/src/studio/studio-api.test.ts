@@ -13,6 +13,15 @@ test('self studio keeps only selected entitlement identity and chosen display', 
   assert.equal(parsed.avatar, 'cook-cat');
 });
 
+test('studio parses an exact wanted collectible and rejects an incomplete target', () => {
+  const goal = { kind: 'collectible', merchantId: 'shop-1', campaignId: 'campaign-1',
+    publicationId: 'publication-1', targetVisitCount: 3 };
+  assert.deepEqual(parseStudioSnapshot({ studio: { ...studio, goal }, items: [item], avatar: null, records: [], unlockedThemes: [] }).studio.goal, goal);
+  for (const invalid of [{ ...goal, publicationId: '' }, { ...goal, campaignId: undefined }, { ...goal, targetVisitCount: 2 }]) {
+    assert.throws(() => parseStudioSnapshot({ studio: { ...studio, goal: invalid }, items: [item], avatar: null, records: [], unlockedThemes: [] }));
+  }
+});
+
 test('friend studio drops accidental entitlement IDs even if present in response', () => {
   const parsed = parseFriendStudioSnapshot({ nickname: '친구', studio, items: [item], avatar: null });
   assert.equal('slots' in parsed.studio, false);
