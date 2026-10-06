@@ -20,3 +20,10 @@
 수정 전 실제 도로명 요청은 지번 전용 F01 때문에 HTTP400[A2C500]이었다. F00 회귀 RED→GREEN과 실제 응답을 확인했다. 웹은 HTTP200 bootstrap 안의 document.write 때문에 기존 동적 로더가 실패했다. bootstrap을 실행하지 않고 auth/data로 읽고 allowlist의 공식 CSS/JS를 비동기로 로드해 실제 타일까지 확인했다.
 
 초기 전체 Gradle assembleRelease는 library AAR 생성 단계에서 직접 local AAR 의존성을 거절했다. 앱을 패키징하는 :app:assembleRelease로 바로잡아 성공했다. test.10/Preview19 공개 APK나 PR382의 이전 운영/시연 빌드를 이번 개발 APK로 교체해 기록하지 않는다. 사용자 실제 영업점/로그인/동의/방문·쿠폰·보상 수용과 합성 QA를 구분한다.
+
+
+## 원격 CI의 보안 검사 복구
+
+첫 CI [37524867384](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/37524867384)는 테스트와 운영/시연/웹 export를 모두 통과하고 마지막 audit에서 기존 DevTools의 shell-quote1.10.0 권고로 실패했다. [공식 권고](https://github.com/ljharb/shell-quote/security/advisories/GHSA-pqg4-j6r4-53mv)의 수정 버전1.11.0으로 package-lock의 버전·배포 URL·검증값 세 줄만 바꿨다. 새 패키지/override/예외 추가는 없다. 새로운 parse 문법이 추가된 최신1.12.0은 선택하지 않았다.
+
+npm ci와 기존 patch-package postinstall, npm ls 1.11.0, audit:ci, 네 줄 종료자 위험 입력의 TypeError 거부 및 정상 CLI 인자 parse/quote 왕복, 모바일1775/타입/lint가 통과했다. 위 private APK와 실제 지도 기록의 핵심 소스 해시는 동일하다. 이 기록을 최신 HEAD 원격 CI 완료로 대신하지 않는다.

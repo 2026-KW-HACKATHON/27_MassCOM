@@ -26,6 +26,8 @@ cd apps/api
 ## NAVER 신규 Maps 등록
 
 1. [신규 Maps 콘솔](https://console.ncloud.com/maps/subscription)에 본인 계정으로 로그인하고 **Services → Application Services → Maps**에서 Application을 등록한다. 구 AI·NAVER API Maps 자격 증명과 신규 Maps 자격 증명을 섞지 않는다.
+서비스 이용 불가 안내가 표시되면 콘솔 안내에 따라 본인이 계정 활성화 조건을 먼저 해결한다. 결제수단 미등록 계정의 결제 정보 등록은 본인이 진행하며 결제 정보를 코드·채팅에 넣지 않는다.
+
 2. **Web Dynamic Map, Mobile Dynamic Map, Geocoding**을 선택한다. 이 구현은 Directions 5/15를 사용하지 않는다.
 3. 웹 서비스 URL에 실제 사용할 출처를 등록한다: `https://demo.masscom.kr`, 운영 웹을 사용할 경우 `https://masscom.kr`, 로컬 확인용 `http://127.0.0.1`. 포트·서브도메인 처리와 허용 형식은 현재 콘솔 안내를 따른다.
 4. Android 패키지명을 등록한다: 운영 `kr.masscom.wolgye`, 시연 `kr.masscom.wolgye.demo`, 개발 `kr.masscom.wolgye.dev`. 사용할 환경만 등록하고 각각 실제 설치본과 맞춘다.
