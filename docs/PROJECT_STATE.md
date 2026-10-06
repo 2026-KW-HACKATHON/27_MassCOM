@@ -2,15 +2,17 @@
 
 ## 현재 구현: 실제 가게 탐색·방문 연결 (Issue #381, 2026-10-06)
 
-브랜치 `feat/real-world-experience`, 시작 기준 `b69ebc62`, 설계 커밋 `4ef34a47`. 실제 지도/가게 흐름, 점주 프로필·시간표·사진·미리보기, 보행 코스, 5개 탭(`탐색 · 도감 · 홈 · 놀이 · 상점`), 점포 기반 네 게임 콘텐츠, QR 결과 복구, 위치·지표 개인정보 경계를 구현했다. [수용 보고서](REAL_WORLD_STATUS_2026-10-06.md)에는 16개 기준별 결과와 합성 브라우저 캡처가 있다.
+검증 앱 소스는 `138d8a414d65964b3b85724ac453b80bf6930625`이며 [PR #382](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/382)로 통합한다. 후속 문서 HEAD의 `apps/`·`scripts/`는 이 소스와 같다. 공개 API·APK·Play는 갱신하지 않았다.
 
-로컬 자동검사는 모바일 1,759/1,759·API 540/540, 모바일 typecheck/lint, API typecheck/build PASS. 기준 위치/카메라 확대 관련 별도 focused 6개도 PASS(모바일 전체 합계에 더하지 않음). PG는 501 중 498 PASS·3 SKIP·0 FAIL, 159.6초 (`.tmp/real-world-pg-final.txt`) 완료. Site 514/514는 새 JSONB focused 회귀 6/6 추가 전 값이며 재통합 카운트는 미실행이다. 독립 검토 blocker 0, LSP 11개 대상 0 diagnostics, 24개 focused PASS; 마지막 UI 수리 2건의 집중 재검토 대기.
+모바일 1,759/1,759·타입/lint, API 540/540·타입/build, PostgreSQL 498 PASS·3 SKIP·0 FAIL(159.6초), 사이트 전체 515/515, 개인정보/비밀값·의존성 audit·접근성 semantics·소스 gate·독립 최종 APPROVE가 통과했다. 집중 검사는 전체 숫자에 중복 합산하지 않는다.
 
-합성 390px 브라우저에서 탐색 5개 가게, 위치 누락 표시, 키 없는 목록 fallback, 비공개 점주 사진/정보 미리보기, 7,000원 메뉴 저장, 미게시 public 404, staff 403, stale version 409, foreign Origin 403을 확인했다. 실제 지도 provider 응답은 키 부재로 `NOT_RUN`; private SDK 재배포 조건·실제 점주동의/가게·쿠폰은 검증되지 않았다. 이전 공식 TMAP SDK debug build만 PASS이며 최신 Kotlin/QR/DTS native build와 지정 Android 실기 설치도 `NOT_RUN`이다. 정상사용자 네 게임의 PostgreSQL browser harness acceptance 진행을 남겼다.
+합성 실제 CUA에서 미공개 점주 정보/사진 미리보기·메뉴 가격 7,000원 저장, 390px 빈 홈/탐색과 수동 출발지, 320px 상세·키보드 뒤로 복원, 네 게임의 부분 결과 저장을 확인했다. 쌓기195·기억0·배달625·주문810점은 실제 PG 기록과 일치하며 완주/실제 방문/보상/쿠폰/마일리지 거래는 0이다. 실제 Google 인증이나 점주 동의로 해석하지 않는다.
 
-PR·merge·deploy는 아직 없다. 다음은 site whole-suite·집중 reviewer·최신 Android build/export·네 게임 합성 QA를 마치고 최종 SHA와 증거를 확정해 PR을 만드는 것이다. 일반 소스 완료와 live/provider/현장·실기 gate를 혼동하지 않는다. Migration 0056–0058의 저장 자료와 기존 수집 권리는 UI rollback으로 삭제하지 않는다.
+운영 `kr.masscom.wolgye`와 시연 `kr.masscom.wolgye.demo`의 공식 SDK 3.7 포함 private `assembleRelease`가 각각96초/97초에 통과했다. min24/target36/arm64, 내장 소스·DEX/모듈·금지 권한 제외·31개 ELF/ZIP 16KiB 정렬을 확인했다. 기존 Expo debug 인증서의 비공개 검증본이며 실제 배포 서명/설치/공개 릴리스가 아니다.
 
-최종 빌드·검증 기준: 앱 소스 `138d8a414d65964b3b85724ac453b80bf6930625`, [PR #382](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/382). 모바일1759/API540/PG498+3SKIP/site515, type/lint/checkJs·audit·독립 APPROVE·소스 gate PASS. 운영/시연 실제 SDK 포함 private APK는 각각96초/97초 PASS이며 기존 debug 인증서를 재사용한 검증본이다. 공개 설치본/운영 서버는 갱신하지 않았다. 마지막 문서 HEAD의 원격 CI·merge 상태는 PR 기록을 따른다.
+남은 수용은 환경별 TMAP SDK/REST 키·계정/무료 한도/제한/배포 권리, 지정 Android 기기, 실제 점주 동의/현장 방문, 공개 출시다. 공급자 타일·POI·보행/GPS, 새 빌드 청음·진동/TalkBack/200%·실기 성능은 미검증이며 이전 진동 체감 FAIL을 보존한다. 앱 소스 완료와 실사용/공개 수용을 구분한다. 마지막 문서 HEAD의 CI와 병합 상태는 PR 기록을 따른다.
+
+새 구조·코드·검증·설정·복구는 [수용 보고서](REAL_WORLD_STATUS_2026-10-06.md)와 [증거](evidence/real-world-2026-10-06/README.md)를 따른다. 0056~0058과 기존 지급 권리를 임의로 삭제하지 않고 API·새 정책·앱/웹의 적용 순서를 맞춘다.
 
 ## 현재 작업: 요약 홈과 목적별 상세 (Issue #378, 2026-10-06)
 
