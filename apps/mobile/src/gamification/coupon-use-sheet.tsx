@@ -9,7 +9,7 @@ import type { CustomerIdentity } from '@/commerce/commerce-api';
 import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
 
 import type { BadgeBook, Coupon } from './badge-api';
-import { couponAfterPoll, couponExpiryLabel, couponQrSize, remainingLabel, type ShareVariant } from './badge-rules';
+import { couponExpiryLabel, couponForUse, couponQrSize, remainingLabel, type ShareVariant } from './badge-rules';
 import { InkStamp } from './coupon-ticket';
 import { CloseGlyph, GiftGlyph } from './glyphs';
 import { successHaptic } from './native-effects';
@@ -50,29 +50,36 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
   const [identity, setIdentity] = useState<CustomerIdentity>();
   const [identityBusy, setIdentityBusy] = useState(true);
   const [identityError, setIdentityError] = useState<string>();
+  const [fresh, setFresh] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const gate = useRef(createIdentityRequestGate()).current;
   const latestToken = useRef<string | undefined>(undefined);
+  const identityRequestPending = useRef(false);
+  const reportedStatus = useRef<Coupon['status'] | undefined>(undefined);
   const heading = useRef<Text>(null);
-  const done = coupon.status !== 'ISSUED';
+  const done = coupon.status !== 'ISSUED' || Date.parse(coupon.expiresAt) <= now;
   const identityValid = identity !== undefined && !isCustomerIdentityExpired(identity.expiresAt, now);
 
   // Only touches state after the request settles, so the mount effect can start it directly.
   async function requestIdentity(request: number) {
+    identityRequestPending.current = true;
     try {
       const next = await createIdentity();
-      if (!gate.isCurrent(request)) return;
+      if (!gate.isCurrent(request)) { void revokeIdentity(next.token).catch(() => undefined); return; }
       latestToken.current = next.token;
       setIdentity(next);
       setNow(Date.now());
     } catch {
       if (gate.isCurrent(request)) setIdentityError('QR을 만들지 못했어요. 연결을 확인하고 다시 시도해 주세요.');
     } finally {
+      identityRequestPending.current = false;
       if (gate.isCurrent(request)) setIdentityBusy(false);
     }
   }
 
   function issueAgain() {
+    if (!fresh || done) return;
     const request = gate.start();
     setIdentityBusy(true);
     setIdentityError(undefined);
@@ -80,9 +87,8 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
     void requestIdentity(request);
   }
 
-  // Issue on open; revoke whatever is still live when the sheet goes away.
+  // Only a fresh server coupon state can expose a customer QR.
   useEffect(() => {
-    void requestIdentity(gate.start());
     const focus = setTimeout(() => {
       if (heading.current) focusForAccessibility(heading.current);
     }, 350);
@@ -98,6 +104,49 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
   }, []);
 
   useEffect(() => {
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const book = await loadBadgeBook();
+        if (!active) return;
+        const current = couponForUse(initial, book);
+        if (current.status !== 'ISSUED' || Date.parse(current.expiresAt) <= Date.now()) {
+          gate.cancel();
+          const token = latestToken.current;
+          latestToken.current = undefined;
+          if (token) void revokeIdentity(token).catch(() => undefined);
+          setIdentity(undefined);
+        }
+        setCoupon(current);
+        setFresh(true);
+        setRefreshError(false);
+        if (current.status !== 'ISSUED' && current.status !== reportedStatus.current) {
+          reportedStatus.current = current.status;
+          onBadgeBook(book);
+          if (current.status === 'REDEEMED') void successHaptic();
+        }
+        if (current.status === 'ISSUED' && Date.parse(current.expiresAt) > Date.now() && !latestToken.current && !identityRequestPending.current) {
+          void requestIdentity(gate.start());
+        }
+      } catch {
+        if (active) {
+          gate.cancel();
+          const token = latestToken.current;
+          latestToken.current = undefined;
+          if (token) void revokeIdentity(token).catch(() => undefined);
+          setRefreshError(true); setFresh(false); setIdentity(undefined);
+        }
+      }
+      if (active) timer = setTimeout(() => void poll(), pollMs);
+    }
+    void poll();
+    return () => { active = false; clearTimeout(timer); };
+    // Keep polling one coupon and one account while this sheet is mounted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!identity || done) return;
     const timer = setInterval(() => {
       const current = Date.now();
@@ -106,34 +155,6 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
     }, 1000);
     return () => clearInterval(timer);
   }, [identity, done]);
-
-  useEffect(() => {
-    if (done) return;
-    let active = true;
-    let timer: ReturnType<typeof setTimeout>;
-    async function poll() {
-      try {
-        const book = await loadBadgeBook();
-        if (!active) return;
-        const next = couponAfterPoll(initial, book);
-        if (next) {
-          // Hand the book to the collection only on a change, so the screen behind does not re-render every poll.
-          onBadgeBook(book);
-          setCoupon(next);
-          if (next.status === 'REDEEMED') void successHaptic();
-          return;
-        }
-      } catch {
-        // Keep polling quietly; the QR is still valid and the staff side decides.
-      }
-      if (active) timer = setTimeout(() => void poll(), pollMs);
-    }
-    timer = setTimeout(() => void poll(), pollMs);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-  }, [done, initial, loadBadgeBook, onBadgeBook]);
 
   return (
     <View style={styles.backdrop}>
@@ -154,27 +175,29 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
             <View style={styles.couponSummaryCopy}>
               <Text style={styles.ticketMerchant}>{coupon.merchantName}</Text>
               <Text style={styles.ticketTitle}>{coupon.title}</Text>
+              {coupon.detail.trim() ? <Text style={styles.ticketExpiry}>사용 조건 · {coupon.detail}</Text> : null}
               {coupon.status === 'VOIDED' ? null : <Text style={styles.ticketExpiry}>{couponExpiryLabel(coupon.expiresAt)}</Text>}
             </View>
           </View>
 
           {coupon.status === 'REDEEMED' ? (
             <RedeemedPanel merchantName={coupon.merchantName} onClose={onClose} />
-          ) : coupon.status === 'EXPIRED' ? (
-            <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 사용 기간이 끝났어요.</Text>
           ) : coupon.status === 'VOIDED' ? (
             <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 더 이상 사용할 수 없어요. 방문 기록이 바뀌었거나 운영팀이 무효로 했어요.</Text>
+          ) : coupon.status === 'EXPIRED' || Date.parse(coupon.expiresAt) <= now ? (
+            <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 사용 기간이 끝났어요.</Text>
           ) : (
             <>
+              {!fresh ? <Text accessibilityLiveRegion="polite" style={styles.qrHint}>{refreshError ? '최신 쿠폰 상태를 확인하지 못했습니다. 연결 후 다시 열어 주세요.' : '최신 쿠폰 상태 확인 중…'}</Text> : null}
               <View style={styles.qrCard}>
-                {identityValid && identity ? (
+                {fresh && identityValid && identity ? (
                   <>
                     <ClaimQr code={identity.token} size={qrSize} accessibilityLabel="직원에게 보여줄 쿠폰 사용 QR 코드" />
                     <Text style={styles.qrCodeLabel}>확인 코드</Text>
                     <Text selectable style={styles.qrCode}>{customerIdentityCode(identity.token)}</Text>
                     <Text style={styles.qrTimer}>{remainingLabel(identity.expiresAt, now)}</Text>
                   </>
-                ) : identityBusy ? (
+                ) : identityBusy || !fresh ? (
                   <View style={[styles.qrPlaceholder, { width: qrSize, height: qrSize }]}>
                     <ActivityIndicator color="#2456D6" />
                     <Text style={styles.qrCodeLabel}>QR을 만드는 중…</Text>

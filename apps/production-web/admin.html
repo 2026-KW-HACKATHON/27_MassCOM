@@ -7,6 +7,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
   <title>월계 마스코트 · 관리자</title>
   <link rel="stylesheet" href="/app/assets/production.css">
+  <link rel="stylesheet" href="/admin/assets/real-world-merchant.css">
   <script type="module" src="/admin/assets/admin.mjs"></script>
 </head>
 <body>
@@ -124,6 +125,89 @@
         <h3 id="deletion-heading">계정 삭제 요청</h3>
         <p>웹 Google 로그인으로 접수된 요청입니다. 접수 뒤 24시간 취소 기간이 지나야 처리할 수 있고 처리 기한은 접수 뒤 7일입니다. 계정은 마스킹한 표지만 보이며 이메일은 표시하지 않습니다. 본인 요청은 처리할 수 없습니다. 접수번호가 없는 옛 접수는 처리할 수 없으므로 접수한 사람이 다시 접수하거나 사유를 적어 거절해야 합니다. 거절 사유는 요청자가 접수번호로 그대로 봅니다.</p>
         <div id="admin-deletions" role="status" aria-live="polite"></div>
+      </section>
+      <section id="real-world-merchant" class="admin-panel" aria-labelledby="real-world-title" hidden>
+        <h2 id="real-world-title">실제 점포 정보 검토·수정</h2>
+        <label>점포 <select id="real-world-store"></select></label>
+        <p id="real-world-status" class="status" role="status" aria-live="polite"></p>
+        <button id="real-world-refresh" type="button" class="collection-action secondary">정보 다시 불러오기</button>
+        <section aria-labelledby="real-world-readiness-title">
+          <h3 id="real-world-readiness-title">공개 정보 준비</h3>
+          <p>아래 항목은 실제 정보의 준비 상태입니다. 기존 점포 공개·점주 동의·캠페인 권한은 별도로 확인합니다.</p>
+          <ul id="real-world-readiness"></ul>
+          <a id="real-world-preview-link" href="#real-world-preview">고객 미리보기 보기</a>
+          <div id="real-world-preview" role="status" aria-live="polite"></div>
+        </section>
+        <form id="real-world-form">
+          <fieldset id="real-world-location">
+            <legend>독립 확인 위치와 입구</legend>
+            <p>지도 검색 후보는 참고용입니다. 검색 결과나 확인 클릭만으로 점포 위치가 검증되지 않습니다. 운영자가 독립 자료로 확인한 실제 위치만 직접 입력하세요.</p>
+            <label>위도 <input name="latitude" inputmode="decimal" type="number" min="-90" max="90" step="any"></label>
+            <label>경도 <input name="longitude" inputmode="decimal" type="number" min="-180" max="180" step="any"></label>
+            <label>입구 위도 <input name="entranceLatitude" inputmode="decimal" type="number" min="-90" max="90" step="any"></label>
+            <label>입구 경도 <input name="entranceLongitude" inputmode="decimal" type="number" min="-180" max="180" step="any"></label>
+            <label>층 <input name="floor" maxlength="80"></label>
+            <label>호수 <input name="unit" maxlength="80"></label>
+            <label>입구 안내 <textarea name="entranceNote" maxlength="500"></textarea></label>
+            <label>독립 확인 근거 <textarea name="verificationNote" maxlength="500" placeholder="예: 점주가 매장 앞에서 직접 확인"></textarea></label>
+            <label><input name="locationConfirmed" type="checkbox"> 지도 검색 결과와 별개인 독립 자료로 실제 건물·입구를 확인했습니다.</label>
+            <button id="real-world-clear-location" type="button" class="collection-action secondary">위치 정보 지우기</button>
+          </fieldset>
+          <fieldset id="real-world-schedule">
+            <legend>실제 영업시간 · 한국 시간</legend>
+            <p>요일별 여러 구간은 쉼표로 나눕니다. 예: 09:00-14:00,17:00-22:00. 다음 날 종료는 02:00+1, 마지막 주문은 /01:30+1로 적습니다. 빈 칸은 휴무입니다.</p>
+            <div id="real-world-weekly"></div>
+            <label>특정일 변경 (한 줄에 날짜 | 영업 구간 | 안내) <textarea name="exceptions" rows="4" placeholder="2026-10-09 | 10:00-15:00 | 단축 영업"></textarea></label>
+            <p>특정일의 빈 영업 구간은 휴무이며 그날 전체 일정을 대체합니다.</p>
+            <label><input name="scheduleConfirmed" type="checkbox"> 점포의 실제 영업시간을 독립적으로 확인했습니다.</label>
+            <button id="real-world-clear-schedule" type="button" class="collection-action secondary">구조화 영업시간 지우기</button>
+          </fieldset>
+          <fieldset id="real-world-override">
+            <legend>오늘만 빠르게 변경</legend>
+            <label>임시 상태 <select name="overrideState"><option value="">일정대로</option><option value="CLOSED">임시 휴무</option><option value="OPEN">임시 영업</option></select></label>
+            <label>시작 <input name="overrideStartsAt" type="datetime-local"></label>
+            <label>종료 <input name="overrideExpiresAt" type="datetime-local"></label>
+            <label>안내 <input name="overrideNote" maxlength="300"></label>
+          </fieldset>
+          <fieldset id="real-world-menu">
+            <legend>메뉴와 가격</legend>
+            <div id="real-world-menu-rows"></div>
+            <button id="real-world-add-menu" type="button" class="collection-action secondary">메뉴 추가</button>
+          </fieldset>
+          <label>방문·포장 안내 <textarea name="visitInstructions" maxlength="1000"></textarea></label>
+          <label>점포 전화 <input name="phone" type="tel" maxlength="40"></label>
+          <label>공식 웹사이트 (https) <input name="website" type="url" maxlength="300"></label>
+          <button id="real-world-save" type="submit" class="collection-action">실제 정보 저장</button>
+        </form>
+        <section aria-labelledby="real-world-candidates-title">
+          <h3 id="real-world-candidates-title">지도 검색 후보 참고</h3>
+          <form id="real-world-candidates-form"><label>주소 <input name="address" maxlength="500" required></label><button type="submit">후보 찾기</button></form>
+          <p id="real-world-candidates-status" role="status" aria-live="polite"></p>
+          <ul id="real-world-candidates-list"></ul>
+        </section>
+        <section aria-labelledby="real-world-photos-title">
+          <h3 id="real-world-photos-title">실제 점포 사진</h3>
+          <p>직접 촬영하고 사용 권리를 확인한 사진만 등록합니다. 수집품 그림은 실제 사진으로 표시하지 않습니다.</p>
+          <ul id="real-world-photos"></ul>
+          <form id="real-world-photo-form">
+            <label>사진 종류 <select name="kind"><option value="STORE">매장</option><option value="MENU">메뉴</option><option value="ENTRANCE">입구</option><option value="PACKAGING">포장</option><option value="SIGN">간판</option></select></label>
+            <label>사진 <input name="photo" type="file" accept="image/jpeg,image/png,image/webp" required></label>
+            <label>설명 <input name="caption" maxlength="300"></label>
+            <label><input name="rightsConfirmed" type="checkbox" required> 직접 촬영·게시 권리를 확인했습니다.</label>
+            <button type="submit">실제 사진 등록</button>
+          </form>
+        </section>
+        <section aria-labelledby="real-world-engagement-title">
+          <h3 id="real-world-engagement-title">익명 탐색 반응</h3>
+          <p>횟수 집계이며 방문자 수·매출이 아닙니다.</p>
+          <dl id="real-world-engagement"></dl>
+        </section>
+      </section>
+      <section id="real-world-admin-reports" class="admin-panel" aria-labelledby="real-world-admin-reports-title" hidden>
+        <h3 id="real-world-admin-reports-title">정보 정정 제보</h3>
+        <p>제보를 해결 처리해도 점포 정보가 자동으로 바뀌지 않습니다. 검증한 내용은 위의 실제 정보에서 따로 저장하세요.</p>
+        <p id="real-world-reports-status" role="status" aria-live="polite"></p>
+        <ul id="real-world-reports"></ul>
       </section>
     </section>
   </main>

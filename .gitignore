@@ -12,6 +12,7 @@ build/
 /site/
 coverage/
 .expo/
+apps/mobile/dist-real-world-web-qa/
 .gradle/
 android/.cxx/
 android/app/build/

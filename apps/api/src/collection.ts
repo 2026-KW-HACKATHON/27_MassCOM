@@ -18,6 +18,8 @@ export type CollectionCollectible = {
   campaignId: string;
   campaignTitle: string;
   targetVisitCount: 1 | 3 | 5;
+  /** Immutable acquisition publication identity, even when its media is no longer shown. */
+  publicationId?: string | null;
   displayName: string;
   appCollectibleStatus: 'COLLECTED';
   /** 보상을 받은 시각(entitlement.earned_at). 같은 게시 수집품을 여러 번 받았을 때 구분하는 유일한 근거다. */

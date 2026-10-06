@@ -17,7 +17,7 @@ import { shouldAskConsent } from '@/privacy/consent-flow';
 import { ConsentRecheckProvider } from '@/privacy/consent-recheck';
 import { hasPendingFriendLink } from '@/friends/pending-friend-link';
 import { initializeUiSounds } from '@/sound/ui-sounds';
-import { consumeMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
+import { consumeInternalAuthReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
 import { SocialPushProvider } from '@/social/push-runtime';
@@ -45,8 +45,8 @@ function Routes() {
   }, [auth.accountId, auth.credential, router]);
   useEffect(() => {
     if (auth.state.status !== 'signedIn') return;
-    const merchantId = consumeMerchantReturn();
-    if (merchantId) router.replace({ pathname: '/merchants/[merchantId]', params: { merchantId } });
+    const target = consumeInternalAuthReturn();
+    if (target) router.replace(target);
     // A friend link opened while signed out continues at the friends tab, which asks about the code or says why it cannot be used
     // (it consumes it there).
     else if (hasPendingFriendLink()) router.replace('/friends');

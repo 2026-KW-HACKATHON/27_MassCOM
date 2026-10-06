@@ -4,7 +4,7 @@ import { Pressable, Text } from 'react-native';
 import { useAuthSession } from '@/auth/auth-provider';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { DemoConfigurationRequired } from '@/screens/demo-configuration-required';
-import { TownMapScreen } from '@/screens/town-map';
+import { RealMapScreen } from '@/screens/real-map';
 import { TOWN_MAP_DISCLOSURE, TOWN_MAP_TITLE } from '@/screens/town-map/copy';
 import { useTownMapStyles } from '@/screens/town-map/use-town-map-styles';
 import { AppHeader } from '@/ui/app-header';
@@ -35,7 +35,7 @@ export default function TownMapRoute() {
 
   // The public shop list needs no sign-in; stamps appear when there is an account.
   return (
-    <TownMapScreen
+    <RealMapScreen
       key={auth.accountId}
       apiUrl={publicApiConfig.apiUrl}
       credential={auth.credential}

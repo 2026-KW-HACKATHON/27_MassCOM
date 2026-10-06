@@ -28,3 +28,15 @@ test('the equipped garment reaches game sessions and both share capture layers',
   assert.match(share, /<StudioScene[^>]*clothing=\{clothing\}/);
   assert.match(share, /<CompanionScene avatar=\{target\.avatar\} clothing=\{target\.clothing\}/);
 });
+
+test('live coin and PNG/MP4 capture share the same grade face with a static capture frame', () => {
+  const scene = read('./studio-scene.tsx');
+  const share = read('./studio-share.tsx');
+  const video = read('./studio-video.ts');
+  assert.match(scene, /<GradeMaterialLayer material=\{grade\} size=\{size\} faceUri=\{item\.artwork\?\.thumbnailDataUrl\} shape=\{shape\}/);
+  assert.match(scene, /variant="card" active=\{active && focused\}/);
+  assert.match(scene, /<StudioCoin item=\{representative!\} apiUrl=\{apiUrl\} size=\{coinWidth\} active=\{!onAssetsReady\}/);
+  assert.match(share, /<StudioScene[\s\S]*?onAssetsReady=/);
+  assert.match(share, /<StudioCoin item=\{face!\} apiUrl=\{apiUrl\} size=\{170\} onLoad=/);
+  assert.match(video, /coinUri: layers\.coinUri/);
+});

@@ -15,6 +15,7 @@ type Tab = 'visit' | 'status' | 'decorate';
 
 type Props = {
   apiUrl: string;
+  accountId: string;
   merchantId: string;
   merchantName: string;
   role: 'OWNER' | 'STAFF';
@@ -95,7 +96,7 @@ export function MerchantHomeScreen(props: Props) {
     </View>
 
     <View style={{ flex: 1, display: tab === 'visit' ? 'flex' : 'none' }} accessibilityElementsHidden={tab !== 'visit'} importantForAccessibility={tab === 'visit' ? 'auto' : 'no-hide-descendants'}>
-      <StaffClaimScreen apiUrl={props.apiUrl} merchantId={props.merchantId} merchantName={props.merchantName} credential={props.credential} onSessionInvalid={props.onSessionInvalid} active={tab === 'visit'} onVisitReversal={showVisitReversal} />
+      <StaffClaimScreen apiUrl={props.apiUrl} accountId={props.accountId} merchantId={props.merchantId} merchantName={props.merchantName} credential={props.credential} onSessionInvalid={props.onSessionInvalid} active={tab === 'visit'} onVisitReversal={showVisitReversal} />
     </View>
     {tab === 'status' ? <MerchantStatusScreen apiUrl={props.apiUrl} merchantId={props.merchantId} credential={props.credential} onSessionInvalid={props.onSessionInvalid} selectedVisit={selectedVisit} /> : null}
     {tab === 'decorate' ? <ScrollView contentContainerStyle={{ gap: 16, padding: 20, paddingBottom: 28 }}>

@@ -5,6 +5,8 @@ import { Alert, AppState, Modal, Platform, Pressable, RefreshControl, ScrollView
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { platformSecureStore } from '@/auth/platform-secure-store';
+import { createClaimPendingStore } from '@/commerce/claim-pending';
 import { createScanGate } from '@/commerce/claim-code';
 import { ClaimQr } from '@/commerce/claim-qr';
 import { CommerceApiError, createCommerceApiClient, type RecentCouponRedemption, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
@@ -17,10 +19,12 @@ import { canUndoNow, createCouponMutationGate, redeemedCouponTarget } from './im
 import { undoConfirmText, undoFailureMessage, undoSuccessMessage } from './reversal-copy';
 import { makeMerchantClaimStyles } from './styles';
 import { claimQrSizeForArea, minimumClaimQrSize } from './qr-layout';
+import { restoreStaffClaim, terminalStaffClaimError } from './restore-staff-claim';
 import { createIssuedVisitController, issuedVisitNotice, type IssuedVisitState, type VisitSelection } from './issued-visit';
 
 type StaffClaimProps = {
   apiUrl: string;
+  accountId: string;
   merchantId: string;
   credential: AccountCredential;
   onSessionInvalid: () => void | Promise<void>;
@@ -30,7 +34,7 @@ type StaffClaimProps = {
 };
 
 export function StaffClaimScreen(props: StaffClaimProps) {
-  const identity = JSON.stringify([props.apiUrl, props.merchantId, props.credential]);
+  const identity = JSON.stringify([props.apiUrl, props.accountId, props.merchantId, props.credential]);
   const [scope, setScope] = useState({ identity, credential: props.credential, callback: props.onSessionInvalid, version: 0 });
   // 점포·세션·클라이언트가 바뀌면 대기 상태도 새로 시작한다. 인증 값은 렌더링 키에 넣지 않는다.
   if (scope.identity !== identity || scope.credential !== props.credential || scope.callback !== props.onSessionInvalid) {
@@ -39,7 +43,7 @@ export function StaffClaimScreen(props: StaffClaimProps) {
   return <StaffClaimSession key={scope.version} {...props} />;
 }
 
-function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, merchantName, active = true, onVisitReversal }: StaffClaimProps) {
+function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessionInvalid, merchantName, active = true, onVisitReversal }: StaffClaimProps) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
@@ -50,6 +54,8 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   const [requestGate] = useState(createIdentityRequestGate);
   const [, requestCameraPermission] = useCameraPermissions();
   const api = useMemo(() => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const pendingStore = useMemo(() => createClaimPendingStore(platformSecureStore), []);
+  const securePending = Platform.OS !== 'web';
   const [scanning, setScanning] = useState(false);
   const [token, setToken] = useState<string>();
   const [resolved, setResolved] = useState<ResolvedCustomerIdentity>();
@@ -78,6 +84,37 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
   const compact = width > height;
   const qrSize = claimQrSizeForArea(qrArea.width, qrArea.height);
   const visitNotice = issuedVisitNotice(issuedVisit, now);
+
+  useEffect(() => {
+    if (!securePending) return;
+    let current = true;
+    const restoreRequest = requestGate.start();
+    const isCurrent = () => current && requestGate.isCurrent(restoreRequest);
+    void pendingStore.loadState(accountId, merchantId).then(async (saved) => {
+      if (!isCurrent() || saved.state === 'none') return;
+      if (saved.state === 'expired') setMessage('이전 고객 QR의 표시 시각이 지났지만 발급 결과를 서버에서 확인합니다.');
+      const pending = saved.pending;
+      try {
+        const recovered = await restoreStaffClaim(api, pending, isCurrent);
+        if (!isCurrent() || !recovered) return;
+        setToken(pending.token);
+        setIssueAttempted(true);
+        setNow(Date.now());
+        setIssued(recovered);
+        void issuedVisitController.current?.issued(recovered);
+        setQrVisible(true);
+        setResolved(undefined);
+        setMessage('기존 고객의 방문 발급을 복구했습니다. 현재 QR로 수령 상태를 확인하세요.');
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (terminalStaffClaimError(error)) {
+          await pendingStore.clearIfMatches(accountId, pending);
+          if (isCurrent()) setMessage('이전 고객 QR을 더 이상 사용할 수 없습니다. 새 QR을 받아 주세요.');
+        } else setMessage('이전 발급 결과를 확인할 수 없습니다. 연결을 확인한 뒤 다시 열어 주세요.');
+      }
+    }).catch(() => { if (isCurrent()) setMessage('발급 복구 정보를 읽지 못했습니다. 고객에게 새 QR을 요청해 주세요.'); });
+    return () => { current = false; requestGate.cancel(); };
+  }, [accountId, merchantId, api, pendingStore, securePending, requestGate]);
 
   useEffect(() => {
     const next = createIssuedVisitController(api, merchantId, setIssuedVisit);
@@ -343,6 +380,8 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
     setMessage(undefined);
     setIssueAttempted(true);
     try {
+      if (securePending) await pendingStore.save({ accountId, merchantId, token, expiresAt: resolved.expiresAt });
+      if (!requestGate.isCurrent(current)) { if (securePending) await pendingStore.clearIfMatches(accountId, { merchantId, token }); return; }
       const next = await api.issueOrReissueIdentityClaim({ merchantId, customerIdentityToken: token });
       if (!requestGate.isCurrent(current)) return;
       setNow(Date.now());
@@ -354,11 +393,15 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
       setMessage('방문 코드를 발급했습니다. 고객이 아래 QR을 촬영해 수령을 확정합니다.');
     } catch (error) {
       if (!requestGate.isCurrent(current)) return;
+      if (terminalStaffClaimError(error) && securePending) await pendingStore.clearIfMatches(accountId, { merchantId, token });
+      if (!requestGate.isCurrent(current)) return;
       if (error instanceof CommerceApiError && error.code === 'CUSTOMER_IDENTITY_EXPIRED') {
         setResolved(undefined);
         setToken(undefined);
       }
-      setMessage(messageFor(error));
+      setMessage(Platform.OS === 'web' && !(error instanceof CommerceApiError)
+        ? '발급 응답을 확인하지 못했습니다. 이 페이지를 닫지 말고 같은 고객 QR로 발급 결과 확인·복구를 눌러 주세요.'
+        : messageFor(error));
     } finally {
       if (requestGate.isCurrent(current)) setBusy(false);
     }
@@ -399,6 +442,8 @@ function StaffClaimSession({ apiUrl, merchantId, credential, onSessionInvalid, m
       setIssuedUncertain(false);
       setMessage('현재 방문 코드를 복구했습니다. 고객에게 아래 QR을 보여주세요.');
     } catch (error) {
+      if (!requestGate.isCurrent(current)) return;
+      if (terminalStaffClaimError(error) && securePending) await pendingStore.clearIfMatches(accountId, { merchantId, token });
       if (!requestGate.isCurrent(current)) return;
       setMessage(`${messageFor(error)} 현재 코드를 확인하지 못했습니다. 다시 시도하거나 고객에게 새 QR을 요청해 주세요.`);
     } finally {

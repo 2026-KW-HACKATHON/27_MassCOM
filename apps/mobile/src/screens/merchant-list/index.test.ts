@@ -1,94 +1,57 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-
-// Source checks (not a renderer) for the same reason as collection/index.test.ts: this screen renders
-// react-native views, which the node:test/esbuild runner cannot load.
-const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
-
-test('pull-to-refresh refreshes the store list and progress filters on the search tab', () => {
-  const pullToRefresh = screen.slice(screen.indexOf('refreshControl={'), screen.indexOf('ListHeaderComponent={'));
-  assert.doesNotMatch(pullToRefresh, /onRefresh=\{refresh\}/);
-  assert.match(pullToRefresh, /onRefresh=\{refreshAll\}/);
-  const refreshAll = screen.slice(screen.indexOf('const refreshAll = useCallback'), screen.indexOf('}, [refresh]);'));
-  assert.match(refreshAll, /void refresh\(\);/);
-  assert.match(refreshAll, /setBadgeRefreshToken/);
-  assert.match(screen, /refreshToken: badgeRefreshToken/);
+const list = readFileSync(new URL('./index.tsx',import.meta.url),'utf8');
+const map = readFileSync(new URL('../real-map/index.tsx',import.meta.url),'utf8');
+test('list and map use the same v1 discovery state and ID detail navigation',()=>{
+  assert.match(list,/RealMapScreen/);assert.match(list,/initialMode="list"/);
+  assert.match(map,/discoveryState\.select\(id\)/);assert.match(map,/api\.search\(token\.query/);
+  assert.match(map,/pathname:'\/merchants\/\[merchantId\]'/);
 });
-
-// Issue #331: 탐색 목록의 메뉴 검색·업종 칩·진행 칩. 화면은 렌더러로 못 읽으니 소스를 검사하고, 규칙은 discovery-filters.test.ts가 맡는다.
-const chips = readFileSync(new URL('./discovery-chips.tsx', import.meta.url), 'utf8');
-const progressHook = readFileSync(new URL('./use-discovery-progress.ts', import.meta.url), 'utf8');
-
-test('the search box names menus, and the list is filtered by search, category and progress together (#331)', () => {
-  assert.match(screen, /title="가게 검색"/);
-  assert.match(screen, /placeholder="이름·메뉴·주소로 찾기"/);
-  assert.doesNotMatch(screen, /이름·주소·이야기로 찾기/);
-  assert.match(screen, /applyMerchantFilters\(merchants, filters, filterContext\)/);
-  assert.doesNotMatch(screen, /filterMerchants/);
-  assert.match(screen, /const filtering = hasActiveFilters\(filters\);/);
-});
-
-test('the search tab keeps map access but does not render home-only cards', () => {
-  assert.match(screen, /<MapChip \/>/);
-  assert.match(screen, /href="\/map"/);
-  for (const homeOnly of ['HomeRewardCard', 'RewardReveal', 'ExperienceEntry', 'HomeExploration', 'SignedInRewardCard', 'PassportChip', 'createRecommendationApiClient']) {
-    assert.doesNotMatch(screen, new RegExp(homeOnly));
-  }
-  assert.doesNotMatch(screen, /href="\/friends"/);
-});
-
-test('progress chips need a signed-in account and loaded data, and a choice whose chip vanished is cleared (#331)', () => {
-  assert.match(screen, /const signedIn = Boolean\(auth\.credential && auth\.accountId\);/);
-  assert.match(screen, /progressChipOptions\(\{ signedIn, collectionReady: discovery\.collection !== undefined, badgesReady: discovery\.book !== undefined \}\)/);
-  assert.match(screen, /keepAvailableFilters\(\{ query, category, progress \}, \{ categories: categoryOptions, progressOptions \}\)/);
-  assert.match(screen, /if \(filters\.category !== category\) setCategory\(filters\.category\);/);
-  assert.match(screen, /if \(filters\.progress !== progress\) setProgress\(filters\.progress\);/);
-  assert.match(screen, /onProgress=\{\(next\) => setProgress\(toggleProgress\(filters\.progress, next\)\)\}/);
-  // The chips live with the search field, so they only exist once the catalog has loaded.
-  assert.match(screen, /merchants\.length > 0 \? \(\s*<View style=\{styles\.discoveryTools\}>[\s\S]*?<DiscoveryChips[\s\S]*?<View style=\{styles\.sectionHeading\}>/);
-});
-
-test('an empty result names the active filters and clears all of them (#331)', () => {
-  assert.match(screen, /title=\{emptyCopy\.title\}/);
-  assert.match(screen, /body=\{emptyCopy\.body\}/);
-  assert.match(screen, /action=\{\{ label: emptyCopy\.actionLabel, onPress: clearFilters \}\}/);
-  const clear = screen.slice(screen.indexOf('const clearFilters = useCallback'), screen.indexOf('}, []);', screen.indexOf('const clearFilters = useCallback')));
-  assert.match(clear, /setQuery\(''\);/);
-  assert.match(clear, /setCategory\(null\);/);
-  assert.match(clear, /setProgress\(null\);/);
-});
-
-test('the chips are buttons that announce selection, with a 전체 category chip (#331)', () => {
-  assert.match(chips, /accessibilityRole="button"/);
-  assert.match(chips, /accessibilityState=\{\{ selected \}\}/);
-  assert.match(chips, /accessibilityLabel=\{accessibilityLabel\}/);
-  assert.match(chips, /label="전체" accessibilityLabel="업종 전체" selected=\{category === null\}/);
-  assert.match(chips, /ScrollView horizontal/);
-  assert.match(chips, /categories\.length > 0/);
-  assert.match(chips, /progressOptions\.length > 0/);
-  // Selection is shown by a mark as well as by colour.
-  assert.match(chips, /selected \? `✓ \$\{label\}` : label/);
-  assert.match(chips, /styles\.discoveryChip,/);
-});
-
-test('discovery data reuses the collection and badge-book reads: no new endpoint, and it refreshes with the pull-to-refresh (#331)', () => {
-  assert.match(progressHook, /useTownCollection\(\{ apiUrl, credential, onSessionInvalid \}\)/);
-  assert.match(progressHook, /useBadgeBook\(badgeApi\)/);
-  assert.match(progressHook, /credential \? createBadgeApiClient\(\{ apiUrl, credential, onSessionInvalid \}\) : undefined/);
-  assert.doesNotMatch(progressHook, /fetch\(|createCommerceApiClient/);
-  assert.match(progressHook, /void reload\(\);\s*void refreshQuietly\(\);/);
-  assert.match(screen, /refreshToken: badgeRefreshToken/);
-  assert.match(progressHook, /book: credential \? book : undefined/);
+test('discovery offers actual map, pagination, same-building leaves and honest empty/key states',()=>{
+  assert.match(map,/<TmapMap/);assert.match(map,/onCluster=\{cluster\}/);
+  assert.match(map,/state\.nextCursor\?<Pressable/);assert.match(map,/같은 건물 가게/);
+  assert.match(map,/실제 가게가 없습니다/);assert.match(map,/지도 키가 연결되지 않았습니다/);
 });
 
 
-test('검색 필터는 배지 책을 한 번 읽고 같은 갱신을 쓴다 (#354)', () => {
-  assert.doesNotMatch(screen, /useBadgeBook\(|createBadgeApiClient\(/);
-  assert.equal((progressHook.match(/useBadgeBook\(badgeApi\)/g) ?? []).length, 1);
-  assert.match(progressHook, /badgeApi, refreshQuietly, applyOpened/);
+test('oversized open-only search offers a changed-query recovery',()=>{
+  assert.match(map,/DISCOVERY_ZOOM_REQUIRED/);
+  assert.match(map,/지도를 확대하거나 영업 중 필터를 해제하세요/);
+  assert.match(map,/discoveryState\.setFilters\(\{openOnly:false\}\)/);
 });
 
-test('가게 카드는 검색 목록 출처를 넘긴다 (#354)', () => {
-  assert.match(screen, /params: \{ merchantId, from: 'list' \}/);
+test('real rows announce verified status, campaign and straight-line distance at large text',()=>{
+  assert.match(map,/accessibilityLabel=\{`\$\{merchant\.name\}/);
+  assert.match(map,/businessLabel\(merchant\.business\)/);
+  assert.match(map,/Math\.round\(merchant\.distance\.meters\)/);
+  assert.match(map,/accessibilityState=\{\{selected:state\.selectedId===merchant\.id\}\}/);
+  assert.match(map,/fontScale>=1\.8&&\{minHeight:100\}/);
+});
+
+
+test('wanted filter reads the saved collectible target with account isolation and current preview',()=>{
+  assert.match(map,/studioApi\.getMine\(\)/);assert.match(map,/fetchCollectiblePreview\(apiUrl,goal\.merchantId\)/);
+  assert.match(map,/resolveStudioGoal\(wanted\.goal,goalMerchants,progress\.collection/);
+  assert.match(map,/auth\.accountId===wantedState\?\.accountId/);
+  assert.doesNotMatch(map,/readFavorites|wishlist/);
+});
+
+
+test('list scrolls its avatar/header and filters under the status bar with pull refresh',()=>{
+  const listBranch=map.slice(map.indexOf("return state.mode==='list'"),map.indexOf("</View> : <View",map.indexOf("return state.mode==='list'")));
+  assert.match(listBranch,/onScroll=\{scrim\.onScroll\}/);
+  assert.match(listBranch,/refreshControl=\{<RefreshControl refreshing=\{state\.loading\} onRefresh=\{refresh\}/);
+  assert.match(listBranch,/\{controls\}\{panels\}/);
+  assert.match(listBranch,/<StatusBarScrim scrollY=\{scrim\.scrollY\}/);
+  assert.match(map,/const controls=<>[\s\S]*?<AppHeader/);
+  assert.match(map,/const refresh=\(\)=>\{setFilterToken\(value=>value\+1\);load\(\);\}/);
+});
+
+test('map keeps native gesture canvas outside a vertical ScrollView and bounds its panel',()=>{
+  const mapBranch=map.slice(map.indexOf("</View> : <View",map.indexOf("return state.mode==='list'")));
+  assert.match(mapBranch,/<View style=\{\[styles\.mapCanvas/);
+  assert.match(mapBranch,/<TmapMap/);
+  assert.match(mapBranch,/<ScrollView keyboardShouldPersistTaps="handled" style=\{styles\.mapPanel\}>/);
+  assert.ok(mapBranch.indexOf('<TmapMap')<mapBranch.indexOf('<ScrollView keyboardShouldPersistTaps="handled" style={styles.mapPanel}>'));
 });

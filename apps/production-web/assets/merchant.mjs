@@ -1,6 +1,7 @@
 import { clearCollectibleDrafts } from './collectible-assist.mjs';
 import { campaignEndingNotice } from './commercial-operation.mjs';
 import { profileReadOnlyReason, serializeMerchantProfile } from './merchant-profile.mjs';
+import { mountRealWorldMerchant } from './real-world-merchant.mjs';
 
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
@@ -18,6 +19,11 @@ const creatorScopes = new WeakMap();
 const creatorStores = new WeakMap();
 const merchantMemberships = new WeakMap();
 const operationBindings = new WeakMap();
+const realWorldCleanups = new WeakMap();
+function clearRealWorld(doc) {
+  realWorldCleanups.get(doc)?.();
+  realWorldCleanups.delete(doc);
+}
 
 // reason은 제작기의 dispose(reason)에 그대로 전달된다: 'discard'(사용자가 지금 초안을 명시적으로 버림),
 // 생략(평범한 이동 — 미디어 없는 편집 값만 기기에 남겨 둔다). 로그아웃·계정 전환으로 그 계정의 모든 점포 보관본을
@@ -461,6 +467,7 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
 export async function loadMerchant(fetcher, doc) {
   const requestId = (merchantRequests.get(doc) ?? 0) + 1;
   merchantRequests.set(doc, requestId);
+  clearRealWorld(doc);
   merchantMemberships.delete(doc);
   merchantClaimResolutions.delete(doc);
   merchantClaimSlots.delete(doc);
@@ -580,6 +587,7 @@ export async function loadMerchant(fetcher, doc) {
     content.hidden = false;
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';
+    realWorldCleanups.set(doc, mountRealWorldMerchant(fetcher, doc, mine.merchants));
     // 구역이 열리면 가게 현황과 최근 방문·쿠폰 사용을 바로 읽는다(실패해도 점포 화면은 그대로다).
     if (mine.merchants.length > 0) await Promise.all([
       overviewRefreshers.get(doc)?.(), profileRefreshers.get(doc)?.(), feedbackRefreshers.get(doc)?.(), reversalRefreshers.get(doc)?.(),
@@ -1654,6 +1662,7 @@ export function bindMerchant(fetcher, doc) {
     }
   });
   doc.getElementById('merchant-logout')?.addEventListener('click', async () => {
+    clearRealWorld(doc);
     // 로그아웃: 같은 기기를 다른 계정이 바로 이어 쓸 수 있으므로, 이 계정이 기기에 남긴 자동 저장 보관본을 지운다.
     closeCreator(doc);
     clearDrafts(creatorScopes.get(doc));
@@ -1679,6 +1688,7 @@ export function bindMerchant(fetcher, doc) {
     } catch { status.textContent = '로그아웃을 확인하지 못했습니다.'; }
   });
   const clear = () => {
+    clearRealWorld(doc);
     stopCamera();
     merchantRequests.set(doc, (merchantRequests.get(doc) ?? 0) + 1);
     doc.getElementById('merchant-content').hidden = true;

@@ -1,0 +1,110 @@
+{
+  "source": "dedicated synthetic showcase QA database before reset",
+  "matchedBrowserAccountCount": 1,
+  "runs": [
+    {
+      "kind": "stack",
+      "rulesVersion": 2,
+      "stored": true,
+      "score": 0,
+      "completed": false,
+      "correct": 0,
+      "total": 6,
+      "skillProgress": 0,
+      "skillAchieved": false
+    },
+    {
+      "kind": "stack",
+      "rulesVersion": 2,
+      "stored": true,
+      "score": 195,
+      "completed": false,
+      "correct": 3,
+      "total": 6,
+      "skillProgress": 0,
+      "skillAchieved": false
+    },
+    {
+      "kind": "memory",
+      "rulesVersion": 2,
+      "stored": true,
+      "score": 0,
+      "completed": false,
+      "correct": 0,
+      "total": 6,
+      "skillProgress": 0,
+      "skillAchieved": false
+    },
+    {
+      "kind": "delivery",
+      "rulesVersion": 2,
+      "stored": true,
+      "score": 625,
+      "completed": false,
+      "correct": 8,
+      "total": 12,
+      "skillProgress": 8,
+      "skillAchieved": false
+    },
+    {
+      "kind": "orders",
+      "rulesVersion": 2,
+      "stored": true,
+      "score": 810,
+      "completed": false,
+      "correct": 9,
+      "total": 12,
+      "skillProgress": 8,
+      "skillAchieved": false
+    }
+  ],
+  "records": [
+    {
+      "kind": "delivery",
+      "bestScore": 0,
+      "plays": 0,
+      "version2BestScore": 0,
+      "version2Plays": 0,
+      "skillProgress": 8,
+      "skillAchieved": false
+    },
+    {
+      "kind": "memory",
+      "bestScore": 0,
+      "plays": 0,
+      "version2BestScore": 0,
+      "version2Plays": 0,
+      "skillProgress": 0,
+      "skillAchieved": false
+    },
+    {
+      "kind": "orders",
+      "bestScore": 0,
+      "plays": 0,
+      "version2BestScore": 0,
+      "version2Plays": 0,
+      "skillProgress": 8,
+      "skillAchieved": false
+    },
+    {
+      "kind": "stack",
+      "bestScore": 0,
+      "plays": 0,
+      "version2BestScore": 0,
+      "version2Plays": 0,
+      "skillProgress": 0,
+      "skillAchieved": false
+    }
+  ],
+  "ledgers": {
+    "visits": 0,
+    "reward_entitlements": 0,
+    "coupons": 0,
+    "mileage_spends": 0,
+    "mileage_credits": 0
+  },
+  "rawActionEventsStored": false,
+  "mismatchCount": null,
+  "invalidActionCount": null,
+  "note": "The play ledger stores scored results and progress, not raw actions or mismatch counts. The two null counts are unmeasured."
+}

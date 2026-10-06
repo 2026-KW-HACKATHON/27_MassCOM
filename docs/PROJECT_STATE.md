@@ -1,5 +1,15 @@
 # 프로젝트 상태
 
+## 현재 구현: 실제 가게 탐색·방문 연결 (Issue #381, 2026-10-06)
+
+브랜치 `feat/real-world-experience`, 시작 기준 `b69ebc62`, 설계 커밋 `4ef34a47`. 실제 지도/가게 흐름, 점주 프로필·시간표·사진·미리보기, 보행 코스, 5개 탭(`탐색 · 도감 · 홈 · 놀이 · 상점`), 점포 기반 네 게임 콘텐츠, QR 결과 복구, 위치·지표 개인정보 경계를 구현했다. [수용 보고서](REAL_WORLD_STATUS_2026-10-06.md)에는 16개 기준별 결과와 합성 브라우저 캡처가 있다.
+
+로컬 자동검사는 모바일 1,759/1,759·API 540/540, 모바일 typecheck/lint, API typecheck/build PASS. 기준 위치/카메라 확대 관련 별도 focused 6개도 PASS(모바일 전체 합계에 더하지 않음). PG는 501 중 498 PASS·3 SKIP·0 FAIL, 159.6초 (`.tmp/real-world-pg-final.txt`) 완료. Site 514/514는 새 JSONB focused 회귀 6/6 추가 전 값이며 재통합 카운트는 미실행이다. 독립 검토 blocker 0, LSP 11개 대상 0 diagnostics, 24개 focused PASS; 마지막 UI 수리 2건의 집중 재검토 대기.
+
+합성 390px 브라우저에서 탐색 5개 가게, 위치 누락 표시, 키 없는 목록 fallback, 비공개 점주 사진/정보 미리보기, 7,000원 메뉴 저장, 미게시 public 404, staff 403, stale version 409, foreign Origin 403을 확인했다. 실제 지도 provider 응답은 키 부재로 `NOT_RUN`; private SDK 재배포 조건·실제 점주동의/가게·쿠폰은 검증되지 않았다. 이전 공식 TMAP SDK debug build만 PASS이며 최신 Kotlin/QR/DTS native build와 지정 Android 실기 설치도 `NOT_RUN`이다. 정상사용자 네 게임의 PostgreSQL browser harness acceptance 진행을 남겼다.
+
+PR·merge·deploy는 아직 없다. 다음은 site whole-suite·집중 reviewer·최신 Android build/export·네 게임 합성 QA를 마치고 최종 SHA와 증거를 확정해 PR을 만드는 것이다. 일반 소스 완료와 live/provider/현장·실기 gate를 혼동하지 않는다. Migration 0056–0058의 저장 자료와 기존 수집 권리는 UI rollback으로 삭제하지 않는다.
+
 ## 현재 작업: 요약 홈과 목적별 상세 (Issue #378, 2026-10-06)
 
 브랜치 `fix/home-overview`, [PR #379](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/379). 홈은 실제 수치와 네 진입으로 줄이고 가게권·미션·전시는 상세에서 기존 기능을 보존한다. 모바일 1677/1677·타입·전체 lint·접근성·privacy 로그·독립 검토·source-only gate PASS, 소스 `4ee5dd1aca6ab5edfacfe0552739fcf40625245f`의 운영/시연 Android export와 자산 경계 PASS다. 실폰 기본 홈/세 상세/뒤로·200% 홈/전시와 다크 웹/개봉 ACK/취소/홈 수치 갱신을 확인했다. [홈 QA](HOME_OVERVIEW_QA_2026-10-06.md)에 증거와 미검증 범위를 남긴다.

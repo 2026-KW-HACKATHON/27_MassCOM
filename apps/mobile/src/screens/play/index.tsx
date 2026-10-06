@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { gameKinds, gameSkills, type GameAction, type GameKind, type PlayRun } from '../../../../api/src/play-rules';
 import type { AccountCredential } from '@/auth/account-credential';
 import { useExperience } from '@/experience/use-experience';
@@ -13,6 +14,7 @@ import { createShopApiClient } from '@/shop/shop-api';
 import { equippedClothingArt, type EquippedClothingArt } from '@/shop/wardrobe';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
+import { AppHeader } from '@/ui/app-header';
 import { BounceButton } from '@/ui/bounce-button';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
@@ -22,6 +24,7 @@ import { Companion, GameToken, ownedGameArt, type OwnedArt } from './play-art';
 import { gameCopy, playRecordLabel, skillCopy, skillRewardArt, themeNames } from './play-copy';
 import { GameSession } from './game-session';
 import { QualityGameSession } from './quality-session';
+import { fetchPlayContent, playContent, PlayContentLoadError, startWithCurrentContent, type PlayContent } from './play-content';
 
 const roomGoals = [
   { theme: 'daylight', required: 0, image: require('../../../assets/images/play/room-daylight.png') },
@@ -46,13 +49,15 @@ function UnlockPreview({ snapshot, label, muted }: { snapshot: PlaySnapshot | un
   </View>;
 }
 
-export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
+export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = false, onGamePlayingChanged }: {
   apiUrl: string; credential: AccountCredential; onSessionInvalid: () => Promise<void>;
+  tabRoot?: boolean; onGamePlayingChanged?: (playing: boolean) => void;
 }) {
   const palette = colorsForScheme(useColorScheme());
   const recheckConsent = useConsentRecheck();
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const insets = useSafeAreaInsets();
+  const clearance = useTabBarClearance();
   const playApi = useMemo(() => createPlayApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shopApi = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const commerceApi = useMemo(() => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
@@ -67,12 +72,19 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
   const [loadNeedsConsent, setLoadNeedsConsent] = useState(false);
   const [selection, setSelection] = useState<GameKind>();
   const [run, setRun] = useState<PlayRun>();
+  const gamePlaying = !!run;
+  const [content, setContent] = useState<PlayContent>(() => playContent([], [], apiUrl));
   const [startBusy, setStartBusy] = useState(false);
   const [startError, setStartError] = useState<string>();
   const [startNeedsConsent, setStartNeedsConsent] = useState(false);
   const requests = useRef(createPlayRequests());
   const startLock = useRef(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    onGamePlayingChanged?.(gamePlaying);
+    return () => { if (gamePlaying) onGamePlayingChanged?.(false); };
+  }, [gamePlaying, onGamePlayingChanged]);
 
   const load = useCallback(async () => {
     const signal = requests.current.beginLoad();
@@ -111,13 +123,24 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
     setStartNeedsConsent(false);
     const signal = requests.current.beginStart();
     try {
-      const issued = await playApi.start(kind, signal);
+      const prepared = await startWithCurrentContent(
+        () => commerceApi.getCollection().then(ownedGameArt),
+        (ids) => fetchPlayContent(apiUrl, ids, signal),
+        () => playApi.start(kind, signal), apiUrl, signal,
+      );
       if (!signal.aborted) {
-        setRun(issued);
+        setArt(prepared.art);
+        setContent(prepared.content);
+        setRun(prepared.run);
         scrollRef.current?.scrollTo({ y: 0, animated: false });
       }
     } catch (caught) {
-      if (!signal.aborted) { setStartError(playErrorMessage(caught)); setStartNeedsConsent(needsConsentRecheck(caught)); }
+      if (!signal.aborted) {
+        setStartError(caught instanceof PlayContentLoadError
+          ? caught.code === 'COLLECTION_UNAVAILABLE' ? '보유 수집품을 확인하지 못했어요. 다시 시도해 주세요.' : '가게 콘텐츠를 불러오지 못했어요. 다시 시도해 주세요.'
+          : playErrorMessage(caught));
+        setStartNeedsConsent(needsConsentRecheck(caught instanceof PlayContentLoadError ? caught.cause : caught));
+      }
     } finally {
       if (!signal.aborted) setStartBusy(false);
       startLock.current = false;
@@ -148,9 +171,9 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid }: {
   const header = run ? <View style={[styles.activeHeader, { paddingTop: insets.top + 8 }]}>
     <Pressable accessibilityRole="button" accessibilityLabel="게임 나가서 놀이 마당으로" onPress={exitToHub} style={styles.activeBack}><Text style={styles.activeBackText}>‹</Text></Pressable>
     <Text style={[styles.activeHeaderTitle, { color: palette.label }]}>놀이 마당</Text>
-  </View> : <BackHeader title="놀이 마당" />;
-  return <SkyBackdrop><SkyScrollView ref={scrollRef} header={header} contentContainerStyle={[styles.content, { paddingBottom: 44 + insets.bottom }]}>
-    {run ? <ActiveSession key={run.id} run={run} art={art} avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} previouslyEarned={snapshot?.achievements?.some(entry => entry.id === gameSkills[run.kind].id && entry.achieved)} previousBest={run.rulesVersion === 2 ? record?.version2BestScore : record?.bestScore}
+  </View> : tabRoot ? <AppHeader title="놀이" subtitle="네 가지 놀이를 골라요" avatarClothing={clothing} compact /> : <BackHeader title="놀이 마당" />;
+  return <SkyBackdrop><SkyScrollView ref={scrollRef} header={header} contentContainerStyle={[styles.content, { paddingBottom: tabRoot ? clearance : 44 + insets.bottom }]}>
+    {run ? <ActiveSession key={run.id} run={run} art={art} content={content} avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} previouslyEarned={snapshot?.achievements?.some(entry => entry.id === gameSkills[run.kind].id && entry.achieved)} previousBest={run.rulesVersion === 2 ? record?.version2BestScore : record?.bestScore}
       onFinish={(issued, actions: readonly GameAction[], signal) => playApi.finish(issued, actions, signal)}
       onResult={applyResult} onRetry={() => { setRun(undefined); void start(run.kind); }}
       onExit={exitToHub} /> : selection ? <>

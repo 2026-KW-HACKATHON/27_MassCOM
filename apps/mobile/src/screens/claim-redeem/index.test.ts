@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { URL } from 'node:url';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -87,7 +88,7 @@ test('방문 인증 헤더는 성공 전에도 숨은 탭에서 홈으로 나갈
 });
 
 test('Android 뒤로가기도 숨은 방문 인증 탭에서 홈으로 돌아간다', () => {
-  assert.match(screen, /import \{ BackHandler, Pressable,/);
+  assert.match(screen, /import \{ BackHandler, Platform, Pressable,/);
   assert.match(screen, /BackHandler\.addEventListener\('hardwareBackPress', \(\) => \{\s*router\.replace\('\/'\);\s*return true;\s*\}\)/);
 });
 
@@ -96,4 +97,32 @@ test('방문 완료 카드는 QR 방문과 테스트 방문 모두 홈으로 돌
   assert.match(card, /accessibilityLabel="홈으로"/);
   assert.match(card, /onPress=\{\(\) => router\.replace\('\/'\)\}/);
   assert.match(card, />홈으로</);
+});
+
+test('cold restore and pending cleanup use the redemption gate and exact token, including expired replay', async () => {
+  const { createIdentityRequestGate } = await import('../../commerce/customer-identity');
+  const gate = createIdentityRequestGate();
+  const oldRestore = gate.start();
+  let finish!: (value: string) => void;
+  const deferred = new Promise<string>((resolve) => { finish = resolve; });
+  let applied = false;
+  const attempt = deferred.then(() => { if (gate.isCurrent(oldRestore)) applied = true; });
+  gate.cancel(); // a new scan or input edit wins
+  finish('old-claim');
+  await attempt;
+  assert.equal(applied, false);
+  const restore = between('useEffect(() => {\n    if (!securePending) return;', 'useFocusEffect(useCallback');
+  assert.match(restore, /const restoreRequest = redeemGate.start\(\)/);
+  assert.match(restore, /saved.state === 'expired'[\s\S]*?api.redeemClaim\(pending.token\)/);
+  assert.match(restore, /if \(!isCurrent\(\)\) return;[\s\S]*?setRedeemed\(result\)/);
+  assert.match(restore, /pendingStore.clearIfMatches\(accountId, pending\)/);
+  assert.doesNotMatch(restore, /pendingStore.clear\(accountId\)/);
+});
+
+test('late redemption A cannot clear a newer B pending token for the same account', () => {
+  const redeem = between('async function redeem', 'async function createTestVisit');
+  assert.match(redeem, /pendingStore.save\(pending\)/);
+  assert.match(redeem, /if \(!redeemGate.isCurrent\(request\)\) \{ if \(securePending\) await pendingStore.clearIfMatches\(accountId, pending\); return; \}/);
+  assert.match(redeem, /const result = await api.redeemClaim\(target\);\s*if \(!redeemGate.isCurrent\(request\)\) return;\s*if \(securePending\) void pendingStore.clearIfMatches\(accountId, pending\)/);
+  assert.doesNotMatch(redeem, /pendingStore.clear\(accountId\)/);
 });

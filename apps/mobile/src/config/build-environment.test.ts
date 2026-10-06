@@ -316,6 +316,7 @@ test('actual Expo production config preserves release identity, plugins, and blo
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-location',
     'expo-audio',
     'expo-notifications',
     './plugins/with-build-source-commit.cjs',
@@ -323,7 +324,7 @@ test('actual Expo production config preserves release identity, plugins, and blo
   assertPlaybackOnlyAudio(config);
   assertPushChannel(config);
   assert.equal(config.android?.googleServicesFile, undefined);
-  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO', 'android.permission.ACCESS_BACKGROUND_LOCATION', 'android.permission.FOREGROUND_SERVICE_LOCATION', 'android.permission.QUERY_ALL_PACKAGES']);
   assert.deepEqual(config.android?.intentFilters, [
     {
       action: 'VIEW',
@@ -408,12 +409,13 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-location',
     'expo-audio',
     'expo-notifications',
   ]);
   assertPlaybackOnlyAudio(config);
   assertPushChannel(config);
-  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.RECORD_AUDIO']);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.RECORD_AUDIO', 'android.permission.ACCESS_BACKGROUND_LOCATION', 'android.permission.FOREGROUND_SERVICE_LOCATION', 'android.permission.QUERY_ALL_PACKAGES']);
   assert.deepEqual(config.android?.intentFilters, []);
 });
 
@@ -435,13 +437,14 @@ test('actual Expo showcase config has its own Android identity and no dev launch
     'expo-camera',
     'expo-splash-screen',
     'expo-secure-store',
+    'expo-location',
     'expo-audio',
     'expo-notifications',
     './plugins/with-build-source-commit.cjs',
   ]);
   assertPlaybackOnlyAudio(config);
   assertPushChannel(config);
-  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO']);
+  assert.deepEqual(config.android?.blockedPermissions, ['android.permission.SYSTEM_ALERT_WINDOW', 'android.permission.RECORD_AUDIO', 'android.permission.ACCESS_BACKGROUND_LOCATION', 'android.permission.FOREGROUND_SERVICE_LOCATION', 'android.permission.QUERY_ALL_PACKAGES']);
   assert.deepEqual(config.android?.intentFilters, [{
     action: 'VIEW',
     autoVerify: true,

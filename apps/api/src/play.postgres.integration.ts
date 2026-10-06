@@ -173,6 +173,24 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   }
   state.now = currentTime;
   assert.equal((await play.saveStudio({ accountId: 'player', studio })).items[0]?.entitlementId, entitlement);
+  const projectId = randomUUID(), publicationId = randomUUID();
+  await pool.query(`INSERT INTO collectible_projects (id,merchant_id,lineage_id) VALUES ($1,'play-merchant',$1)`, [projectId]);
+  await pool.query(`INSERT INTO collectible_publications (id,project_id,merchant_id,campaign_id,project_version,reward_grades)
+    VALUES ($1,$2,'play-merchant','play-campaign',1,'{"3":"silver"}'::jsonb)`, [publicationId, projectId]);
+  await pool.query(`INSERT INTO collectible_publication_grades (publication_id,grade_id,summary,detail)
+    VALUES ($1,'silver','{"gradeId":"silver","gradeName":"실버","name":"실제 수집품"}'::jsonb,'{}'::jsonb)`, [publicationId]);
+  await pool.query(`INSERT INTO campaign_collectible_publications (campaign_id,publication_id)
+    VALUES ('play-campaign',$1)`, [publicationId]);
+  const wantedGoal = { kind: 'collectible' as const, merchantId: 'play-merchant', campaignId: 'play-campaign',
+    publicationId, targetVisitCount: 3 as const };
+  const wanted: Studio = { ...studio, goal: wantedGoal };
+  assert.deepEqual((await play.saveStudio({ accountId: 'player', studio: wanted })).studio.goal, wanted.goal);
+  for (const goal of [{ ...wantedGoal, publicationId: randomUUID() }, { ...wantedGoal, campaignId: 'campaign-old' },
+    { ...wantedGoal, targetVisitCount: 1 as const }]) {
+    await assert.rejects(() => play.saveStudio({ accountId: 'player', studio: { ...studio, goal } }),
+      (error) => error instanceof PlayError && error.code === 'STUDIO_GOAL_UNAVAILABLE');
+  }
+  await play.saveStudio({ accountId: 'player', studio });
   assert.deepEqual((await play.getFriendStudio({ accountId: 'friend', friendshipId })).items, [],
     'saved studio stays private without current consent');
   await pool.query(`INSERT INTO account_consents (account_id,terms_version,privacy_version,age_confirmed,source)
@@ -201,15 +219,18 @@ test('play runs replay once, studio requires ownership, friend view hides identi
     VALUES ('play-campaign',5,'Fifth collectible')`);
   assert.deepEqual((await play.getStudio('player')).studio.goal, studio.goal);
   assert.deepEqual((await play.getFriendStudio({ accountId: 'friend', friendshipId })).studio.goal, studio.goal);
+  await play.saveStudio({ accountId: 'player', studio: wanted });
   await pool.query(`UPDATE reward_entitlements SET status='CANCELED' WHERE id=$1`, [entitlement]);
   await pool.query(`UPDATE campaigns SET status='PAUSED' WHERE id='play-campaign'`);
   const sanitized = await play.getStudio('player');
   assert.deepEqual(sanitized.studio.slots, []);
-  assert.equal(sanitized.studio.goal, null);
+  assert.deepEqual(sanitized.studio.goal, wanted.goal, 'own saved target remains visible when its route closes');
   assert.deepEqual(sanitized.items, []);
+  assert.equal((await play.getFriendStudio({ accountId: 'friend', friendshipId })).studio.goal, null);
+  await play.saveStudio({ accountId: 'player', studio: { ...wanted, slots: [] } });
   const metrics = await play.aggregate(30);
   assert.equal(metrics.games.find((game) => game.kind === 'orders')?.completed, 4);
-  assert.equal(metrics.events.find((event) => event.event === 'studio_saved')?.count, 1);
+  assert.equal(metrics.events.find((event) => event.event === 'studio_saved')?.count, 5);
   await pool.query('DELETE FROM friendships WHERE id=$1', [friendshipId]);
   await assert.rejects(() => play.getFriendStudio({ accountId: 'friend', friendshipId }),
     (error) => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');

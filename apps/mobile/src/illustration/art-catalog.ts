@@ -6,6 +6,15 @@ export const cosmeticFrames: Readonly<Record<string, number>> = {
   'courier-bag': 13, 'explorer-gold-decor': 14, 'regular-gold-decor': 15,
   'steady-gold-decor': 16, 'order-sign': 17, 'bronze-decor': 18, 'silver-decor': 19, 'gold-decor': 20,
 };
+// Cell-edge bleed from neighboring atlas illustrations; fractions preserve each cell's scale and position.
+export const cosmeticCrop: Readonly<Record<number, { left?: number; right?: number; top?: number }>> = {
+  6: { left: .09 },
+  16: { left: .08, top: .04 },
+  17: { right: .06, top: .04 },
+  18: { top: .04 },
+  19: { top: .04 },
+  20: { top: .04 },
+};
 export function badgeFrame(id: string): number | undefined {
   if (id.startsWith('explorer-')) return 0;
   if (id.startsWith('regular-')) return 1;

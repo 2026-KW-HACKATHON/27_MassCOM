@@ -46,6 +46,7 @@ TMAP POI/geocode/route 후보는 provider/fetchedAt/expiresAt/attribution을 갖
 | GET /v1/discovery/merchants/:id | published detail, 종료 캠페인도 표현, 미게시/다른 임시 체험 점포404 |
 | POST /v1/discovery/places/search | query/bounds/cursor → transient 일반 장소, EXTERNAL_PLACE 표시·보상참여자동등록 없음 |
 | POST /v1/discovery/walking-routes | origin, 순서 있는 merchantIds<=5, departureAt, dwellMinutes → 실제 WALK geometry/구간별 이동거리·초/머무름·도착영업경고/TTL |
+| POST /v1/discovery/game-content | merchantIds<=20 → 公개 실제 가게 메뉴/권리확인 사진/프로필version, rulesVersion과독립 |
 | POST /v1/discovery/events | eventId/merchantId/MAP_SELECT·DETAIL_VIEW·DIRECTIONS_OPEN·GOAL_SAVE/source만. 위치·검색문자·경로 거절, 비식별 집계 |
 | POST /v1/discovery/merchants/:id/reports | 로그인된 정정접수 kind/location·hours·photo·other + note, 공식 정보 자동수정 없음 |
 | GET/PUT /api/web/v1/merchant/merchants/:id/real-world-profile | 기존 세션/CSRF/역할, expectedVersion+profile, 행 잠금·409·이전 PUT의 신규필드 덮기 방지 |

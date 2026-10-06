@@ -12,13 +12,14 @@ import { getAppPackageId } from '@/config/app-identity';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
+import { fetchCollectiblePreview, type CollectiblePreview } from '@/merchant/collectible-preview-api';
 import { createShopApiClient, type ShopSnapshot } from '@/shop/shop-api';
 import { friendArt } from '@/shop/shop-art';
 import { AvatarWardrobe, clothingArtForId, equippedClothingArt, useEquippedClothingArt } from '@/shop/wardrobe';
 import { StudioScene } from '@/studio/studio-scene';
 import { ShareFormatButtons, useStudioShare } from '@/studio/studio-share';
 import { createStudioApiClient, studioErrorMessage, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme } from '@/studio/studio-api';
-import { studioGoalOptions } from '@/studio/studio-goals';
+import { resolveStudioGoal, studioGoalOptions } from '@/studio/studio-goals';
 import { ownedPage, ownedPageSize } from '@/studio/owned-page';
 import { runStudioSave } from '@/studio/studio-save';
 import { colorsForScheme } from '@/theme/palette';
@@ -59,6 +60,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const [merchants, setMerchants] = useState<readonly PublicMerchant[]>([]);
   const [merchantError, setMerchantError] = useState(false);
   const [draft, setDraft] = useState<Studio>();
+  const [goalNow, setGoalNow] = useState(() => Date.now());
+  const [wantedPreview, setWantedPreview] = useState<{ merchantId: string; goalPublicationId: string; preview: CollectiblePreview | null; error?: true }>();
   const [avatarChoice, setAvatarChoice] = useState<string | null>(null);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [clothingChoice, setClothingChoice] = useState<string | null>(null);
@@ -99,7 +102,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
           .catch(() => ({ items: [] as readonly PublicMerchant[], failed: true as const })),
       ]);
       if (!active.current || request !== generation.current) return;
-      setPreview(null); setSnapshot(studio); setCollection(owned); setShop(shopSnapshot); setMerchants(catalog.items);
+      setGoalNow(Date.now()); setPreview(null); setSnapshot(studio); setCollection(owned); setShop(shopSnapshot); setMerchants(catalog.items);
       setMerchantError(catalog.failed);
       const requestedIndex = owned.collectibles.findIndex((item) => item.entitlementId === requestedEntitlement);
       setCollectionPage(Math.floor(Math.max(0, requestedIndex) / ownedPageSize));
@@ -141,10 +144,24 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   }, [draft, collection]);
   const representativeCoin = collection?.collectibles.find((item) => item.entitlementId === experience.snapshot?.profile.coinEntitlementId);
   const options = useMemo(() => snapshot && collection ? studioGoalOptions(merchants, collection, snapshot.records) : [], [merchants, collection, snapshot]);
+  const wantedGoal = draft?.goal?.kind === 'collectible' ? draft.goal : undefined;
+  useEffect(() => {
+    if (!wantedGoal?.merchantId) return;
+    const controller = new AbortController();
+    void fetchCollectiblePreview(apiUrl, wantedGoal.merchantId, fetch, controller.signal)
+      .then((value) => { if (!controller.signal.aborted) setWantedPreview({ merchantId: wantedGoal.merchantId!, goalPublicationId: wantedGoal.publicationId!, preview: value }); })
+      .catch(() => { if (!controller.signal.aborted) setWantedPreview({ merchantId: wantedGoal.merchantId!, goalPublicationId: wantedGoal.publicationId!, preview: null, error: true }); });
+    return () => controller.abort();
+  }, [apiUrl, wantedGoal?.merchantId, wantedGoal?.campaignId, wantedGoal?.publicationId]);
+  const currentWantedPreview = wantedPreview && wantedGoal && wantedPreview.merchantId === wantedGoal.merchantId
+    && wantedPreview.goalPublicationId === wantedGoal.publicationId ? wantedPreview : undefined;
+  const wantedStatus = wantedGoal && collection ? resolveStudioGoal(wantedGoal, merchants, collection, goalNow,
+    currentWantedPreview?.preview ?? undefined) : undefined;
   const clothingPreview = useMemo(() => shop ? { clothing: { ...shop.clothing, equipped: clothingChoice } } : undefined, [shop, clothingChoice]);
   const clothingArt = useEquippedClothingArt(clothingPreview);
   const dirty = !!draft && !!snapshot && JSON.stringify(draft) !== JSON.stringify(snapshot.studio);
-  const goalAvailable = !draft?.goal || options.some((option) => JSON.stringify(option.goal) === JSON.stringify(draft.goal));
+  const goalAvailable = !draft?.goal || options.some((option) => JSON.stringify(option.goal) === JSON.stringify(draft.goal))
+    || draft.goal.kind === 'collectible' && JSON.stringify(draft.goal) === JSON.stringify(snapshot?.studio.goal);
 
   async function save() {
     if (!draft || saving || !goalAvailable) return;
@@ -330,6 +347,13 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
           <Pressable accessibilityRole="button" onPress={() => void retryMerchants()} style={styles.goButton}><Text style={styles.goText}>다시 불러오기</Text></Pressable>
         </View> : null}
         {!goalAvailable ? <Text accessibilityRole="alert" style={[styles.error, { color: palette.error }]}>이전 목표 가게를 지금은 선택할 수 없어요. 새 목표를 골라 주세요.</Text> : null}
+        {wantedStatus ? <View style={styles.goalRow}>
+          <Text accessibilityRole="alert" style={styles.rowMeta}>{wantedStatus.status === 'completed' ? wantedStatus.label
+            : !currentWantedPreview ? '현재 수집품 획득 경로 확인 중…'
+            : currentWantedPreview.error ? '현재 수집품 경로를 확인하지 못했어요. 아래로 당겨 다시 확인해 주세요.'
+            : wantedStatus.label}</Text>
+          {wantedGoal?.merchantId ? <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: wantedGoal.merchantId! } })} style={styles.goButton}><Text style={styles.goText}>획득 경로 확인</Text></Pressable> : null}
+        </View> : null}
         <Pressable accessibilityRole="radio" accessibilityState={{ selected: !draft.goal }} onPress={() => chooseGoal(null)} style={[styles.row, !draft.goal && styles.rowSelected]}>
           <Text style={styles.rowTitle}>아직 정하지 않기</Text>
         </Pressable>

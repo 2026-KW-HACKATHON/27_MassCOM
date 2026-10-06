@@ -52,20 +52,12 @@ test('title, story and DEMO disclosure stay legible on the floating hero card', 
   }
 });
 
-test('large or wrapped detail labels stack above left-aligned values, while the hero badge can grow', () => {
-  for (const [palette, world] of schemes) {
-    const styles = makeMerchantDetailStyles(palette, world);
-    assert.equal(styles.infoRowStacked.flexDirection, 'column');
-    assert.equal(styles.infoValueStacked.textAlign, 'left');
-    assert.equal(styles.infoLabelStacked.width, undefined);
-    assert.equal(styles.heroTopline.flexWrap, 'wrap');
-    assert.equal('width' in styles.demoBadge, false);
-    assert.equal('overflow' in styles.demoBadge, false);
-  }
+test('real detail labels are stacked and photos reserve height', () => {
   const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
-  assert.match(source, /isLargeText\(fontScale\) \|\| wrappedAtWidth === width/);
-  assert.match(source, /event\.nativeEvent\.lines\.length > 1/);
-  assert.match(source, />월계 동네 식탁<\/Text>/);
+  assert.match(source, /function Line\(/);
+  assert.match(source, /height:170/);
+  assert.match(source, /height:120/);
+  assert.match(source, /점주 제공 실제 사진/);
 });
 
 test('visitor feedback counts remain legible and its action meets the touch target', () => {

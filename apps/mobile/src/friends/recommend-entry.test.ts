@@ -14,9 +14,17 @@ test('the recommend action shares only the shop name and its link through the sy
 
 test('the merchant detail page and the map pin sheet both offer 친구에게 추천 with the demo flag', () => {
   const detail = read('../screens/merchant-detail/index.tsx');
-  assert.match(detail, /label="친구에게 추천"/);
-  assert.match(detail, /recommendMerchant\(\{ id: merchant\.id, name: merchant\.name, demo: merchant\.demo \}\)/);
+  assert.match(detail, /친구에게 추천<\/Text>/);
+  assert.match(detail, /recommendMerchant\(\{\s*id:\s*merchant\.id,\s*name:\s*merchant\.name,\s*demo:\s*merchant\.demo\s*\}\)/);
   const sheet = read('../screens/town-map/pin-sheet.tsx');
   assert.match(sheet, /label="친구에게 추천"/);
   assert.match(sheet, /recommendMerchant\(\{ id: pin\.merchantId, name: pin\.name, demo: pin\.demo \}\)/);
+});
+
+test('list and map detail entry retain their discovery source', () => {
+  const discovery = read('../screens/real-map/index.tsx');
+  assert.match(discovery, /function open\(id:string,source:'map'\|'list'\|'recommendation'\)/);
+  assert.match(discovery, /params:\{merchantId:id,from:source\}/);
+  assert.match(discovery, /visible\.map\(m=>row\(m,'list'\)\)/);
+  assert.match(discovery, /\{selected\?<View[\s\S]*?\{row\(selected,'map'\)\}/);
 });

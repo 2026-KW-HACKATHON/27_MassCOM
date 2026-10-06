@@ -249,6 +249,12 @@ export function findCoupon(book: Pick<BadgeBook, 'rewards'> | undefined, couponI
   return couponsOf(book).find((coupon) => coupon.couponId === couponId);
 }
 
+export function couponForUse(current: Coupon, book: Pick<BadgeBook, 'rewards'>, now = Date.now()): Coupon {
+  const fresh = findCoupon(book, current.couponId);
+  if (!fresh || fresh.merchantId !== current.merchantId) return { ...current, status: 'VOIDED' };
+  return fresh.status === 'ISSUED' && Date.parse(fresh.expiresAt) <= now ? { ...fresh, status: 'EXPIRED' } : fresh;
+}
+
 /**
  * 쿠폰 사용 시트가 열려 있는 동안 3초마다 받은 도감으로 쿠폰이 바뀌었는지 본다. 바뀐 쿠폰을 돌려주고, 아직 쓸 수 있으면 undefined다.
  * 방문 취소로 조건이 깨져 무효가 된 쿠폰은 도감에서 사라지므로 목록에 없으면 사용할 수 없는 쿠폰(VOIDED)이다.

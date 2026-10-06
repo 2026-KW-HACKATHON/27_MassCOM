@@ -22,6 +22,7 @@ function service(run: () => Promise<{ counts: RetentionCount[]; failed: Retentio
 
 test('every retention step is named once, in the order the command reports them', () => {
   assert.deepEqual([...retentionStepNames], [
+    'discovery_event_dedupe', 'merchant_real_world_reports', 'merchant_real_world_photos', 'merchant_real_world_media',
     'auth_sessions', 'web_sessions', 'deletion_intake', 'admin_audit', 'admin_owner_audit', 'admin_role_audit',
     'staff_registration_audit', 'merchant_campaign_extension_audit', 'merchant_staff_action_audit',
     'coupon_audit', 'customer_identity_tokens', 'wallet_challenges', 'web_oauth_states',

@@ -52,7 +52,7 @@ assert.equal(businessStateAt(overnightWithMondayClosure, new Date('2026-10-05T00
 
 **Owner:** Geo executor. **Files:** `apps/mobile/modules/tmap-map/**`, `apps/mobile/src/maps/**`, `apps/api/src/tmap-provider.ts`와 test, `scripts/prepare-tmap-sdk.mjs`. AAR/keys/signedURL Git금지. appconfig/package 변경 Root요청.
 
-**Interfaces:** Point/Bounds/ExternalPlace/WalkingRoute 공통타입. nativeMap props/events 설계계약, TmapProvider places/geocode/walk. native active와 lifecycle, markerId/clusterleaf/bounds callback. Typed JS wrapper는 native missing/key missing/error를 정직하게 표시.
+**Interfaces:** Point/Bounds/ExternalPlace/WalkingRoute 공통타입. nativeMap props/events 설계계약, TmapProvider places/geocode/walk. native active와 lifecycle, markerId/clusterleaf/bounds callback. toTmapPoint/parseWalkingResponse를 producer module에 export하며 fixture는 실제 pedestrian/automobile 모양으로 test에 명시한다. Typed JS wrapper는 native missing/key missing/error를 정직하게 표시.
 
 - [ ] lon/lat변환·실제 pedestrian응답parser/기간/quota/error/stale의 RED 시험:
 ```ts
@@ -101,8 +101,9 @@ state.resolve(b,pageB);state.resolve(a,pageA);assert.equal(state.snapshot().quer
 
 - [ ] initialissue+reissue 응답유실 각각/동일시도relaunch/expiredidentitycleanup/role revoke/wrongcustomer/wrongstore/couponalreadyused RED. 예시:
 ```ts
-const recovery=await replayLostIssue({identityToken,merchantReference});
-assert.equal(recovery.slotId,originalSlotId);assert.equal(recovery.state,'ISSUED');
+// 기존 commerce client의 발급 method를 실패 응답 fixture와 재실행 storage로 검사한다.
+assert.equal(recovered.slotId,original.slotId);
+assert.equal(recovered.tokenVersion,original.tokenVersion+1);
 ```
 - [ ] pendingintent를 계정별 안전storage에 유지, sessionchange fencing과terminalexpiry/불가상태표시. success는servercollection/coupon결과만.
 - [ ] arrival설명과selectedstoremismatch, 조건·쿠폰가게/기간/방법/공식최신상태/취소이력 구현.

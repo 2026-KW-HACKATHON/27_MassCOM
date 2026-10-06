@@ -109,7 +109,7 @@ test('공개 수집품 미리보기와 상세 열람은 목록의 공개 조건 
   const preview = new PostgresCollectiblePreviewService(pool, now);
   const views = new PostgresMerchantDetailViewService(pool, now);
   assert.deepEqual(await preview.preview('visible'), {
-    merchantId: 'visible', campaignId: 'campaign-visible', name: '가게 방문 수집품',
+    merchantId: 'visible', campaignId: 'campaign-visible', publicationId, name: '가게 방문 수집품',
     goals: [
       { visitCount: 1, gradeId: 'bronze', gradeName: '브론즈', shape: 'circle', theme: '가을', thumbnailDataUrl: 'data:image/png;base64,bronze' },
       { visitCount: 3, gradeId: 'silver', gradeName: '실버', shape: 'circle', theme: '가을', thumbnailDataUrl: 'data:image/png;base64,silver' },
@@ -144,6 +144,7 @@ test('공개 수집품 미리보기와 상세 열람은 목록의 공개 조건 
   await assertVisibleMerchantHidden();
   await pool.query("DELETE FROM showcase_guest_trials WHERE merchant_id = 'visible'");
   assert.equal((await preview.preview('visible')).campaignId, 'campaign-visible');
+  assert.equal((await preview.preview('visible')).publicationId, publicationId);
   await views.record('demo', 'list');
   await views.record('no-publication', 'list');
   await assert.rejects(preview.preview('no-publication'), (error: unknown) =>
@@ -188,4 +189,5 @@ test('공개 수집품 미리보기와 상세 열람은 목록의 공개 조건 
     client.release();
   }
   assert.deepEqual((await preview.preview('visible')).goals.map((goal) => goal.thumbnailDataUrl), [null, null]);
+  assert.equal((await preview.preview('visible')).publicationId, undefined);
 });

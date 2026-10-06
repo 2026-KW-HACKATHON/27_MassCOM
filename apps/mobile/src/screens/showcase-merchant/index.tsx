@@ -219,6 +219,7 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   if (state.status === 'allowed' && apiUrl) {
     return <MerchantHomeScreen
       apiUrl={apiUrl}
+      accountId={accountId}
       merchantId={state.merchantId}
       merchantName={state.merchantName}
       role={state.role}

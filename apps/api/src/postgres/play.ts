@@ -41,6 +41,11 @@ function validStudio(value: unknown): value is Studio {
   const goal = studio.goal as Record<string, unknown>;
   if (typeof goal.kind !== 'string') return false;
   if (goal.kind === 'play') return Object.keys(goal).sort().join(',') === 'gameKind,kind' && isGameKind(goal.gameKind);
+  if (goal.kind === 'collectible') return Object.keys(goal).sort().join(',') === 'campaignId,kind,merchantId,publicationId,targetVisitCount' &&
+    typeof goal.merchantId === 'string' && goal.merchantId.length > 0 && goal.merchantId.length <= 200 &&
+    typeof goal.campaignId === 'string' && goal.campaignId.length > 0 && goal.campaignId.length <= 200 &&
+    typeof goal.publicationId === 'string' && uuidPattern.test(goal.publicationId) &&
+    (goal.targetVisitCount === 1 || goal.targetVisitCount === 3 || goal.targetVisitCount === 5);
   return ['discover', 'regular', 'series'].includes(goal.kind) &&
     Object.keys(goal).sort().join(',') === 'kind,merchantId' &&
     typeof goal.merchantId === 'string' && goal.merchantId.length > 0 && goal.merchantId.length <= 200;
@@ -176,7 +181,19 @@ export class PostgresPlayService implements PlayService {
       }
       const items = await this.items(client, input.accountId, input.studio.slots);
       if (items.length !== input.studio.slots.length) throw new PlayError('STUDIO_ITEM_NOT_OWNED');
-      if (input.studio.goal && input.studio.goal.kind !== 'play' &&
+      if (input.studio.goal?.kind === 'collectible') {
+        const savedGoal = (await this.studio(client, input.accountId)).goal;
+        const sameSavedGoal = savedGoal?.kind === 'collectible'
+          && savedGoal.merchantId === input.studio.goal.merchantId
+          && savedGoal.campaignId === input.studio.goal.campaignId
+          && savedGoal.publicationId === input.studio.goal.publicationId
+          && savedGoal.targetVisitCount === input.studio.goal.targetVisitCount;
+        if (!sameSavedGoal
+            && !(await this.publicCollectibleGoal(client, input.studio.goal))) {
+          throw new PlayError('STUDIO_GOAL_UNAVAILABLE');
+        }
+      }
+      if (input.studio.goal && input.studio.goal.kind !== 'play' && input.studio.goal.kind !== 'collectible' &&
           !(await this.publicMerchant(client, input.studio.goal.merchantId))) {
         throw new PlayError('STUDIO_GOAL_UNAVAILABLE');
       }
@@ -216,8 +233,10 @@ export class PostgresPlayService implements PlayService {
       if (!saved) return { nickname, studio: { theme: defaultStudio.theme, layout: defaultStudio.layout,
         accent: defaultStudio.accent, goal: null }, items: [], avatar: null, avatarClothingId: null };
       const studio = saved.studio;
-      const goal = studio.goal?.kind !== 'play' && studio.goal &&
-        !(await this.publicMerchant(client, studio.goal.merchantId)) ? null : studio.goal;
+      const goal = studio.goal?.kind === 'collectible'
+        ? await this.publicCollectibleGoal(client, studio.goal) ? studio.goal : null
+        : studio.goal?.kind !== 'play' && studio.goal &&
+          !(await this.publicMerchant(client, studio.goal.merchantId)) ? null : studio.goal;
       const items = await this.items(client, friendId, studio.slots);
       const clothing = (await client.query<{ item_id: string }>(
         `SELECT clothing.item_id FROM account_profile profile
@@ -259,7 +278,7 @@ export class PostgresPlayService implements PlayService {
     const stored = await this.studio(client, accountId);
     const records = await this.records(client, accountId);
     const items = await this.items(client, accountId, stored.slots);
-    const goal = stored.goal?.kind !== 'play' && stored.goal &&
+    const goal = stored.goal?.kind !== 'play' && stored.goal?.kind !== 'collectible' && stored.goal &&
       !(await this.publicMerchant(client, stored.goal.merchantId)) ? null : stored.goal;
     const studio = { ...stored, slots: items.map((item) => item.entitlementId!), goal };
     return { studio, records, unlockedThemes: unlocked(records), achievements: await this.achievements(client, accountId, records),
@@ -331,6 +350,22 @@ export class PostgresPlayService implements PlayService {
       GROUP BY m.id,c.id
       HAVING ${publicCampaignGoalsHaving}
       LIMIT 1`, [merchantId, this.now()]);
+    return Boolean(result.rowCount);
+  }
+
+  private async publicCollectibleGoal(client: PoolClient, goal: Extract<NonNullable<Studio['goal']>, { kind: 'collectible' }>): Promise<boolean> {
+    const result = await client.query(`SELECT 1 FROM merchants m
+      JOIN campaigns c ON c.merchant_id=m.id
+      JOIN campaign_goals g ON g.campaign_id=c.id
+      JOIN campaign_collectible_publications link ON link.campaign_id=c.id
+      JOIN collectible_publications publication ON publication.id=link.publication_id
+      JOIN collectible_publication_grades grade ON grade.publication_id=publication.id
+        AND grade.grade_id=publication.reward_grades->>g.target_visit_count::text
+      WHERE m.id=$1 AND c.id=$2 AND g.target_visit_count=$3 AND publication.id=$4
+        AND publication.media_removed_at IS NULL AND ${publicCampaignPredicate(5)}
+        AND (SELECT array_agg(all_goal.target_visit_count ORDER BY all_goal.target_visit_count)
+          FROM campaign_goals all_goal WHERE all_goal.campaign_id=c.id) = ARRAY[1,3,5]::integer[]
+      LIMIT 1`, [goal.merchantId, goal.campaignId, goal.targetVisitCount, goal.publicationId, this.now()]);
     return Boolean(result.rowCount);
   }
 

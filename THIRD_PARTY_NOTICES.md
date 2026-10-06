@@ -14,6 +14,17 @@
 | qrcode | 1.5.3 | [node-qrcode](https://github.com/soldair/node-qrcode), MIT | Android·운영 점주 웹의 일회성 QR 표시용 서버 이미지 생성 |
 | PostgreSQL | 18 Alpine(개발·CI) | [PostgreSQL](https://www.postgresql.org/), PostgreSQL License | 점포·캠페인 영속 저장과 실제 통합 테스트 |
 
+## 실사용 지도·위치·사진 의존성 (Issue #381)
+
+| 이름 | 버전 | 출처·라이선스 | 사용 범위 |
+| --- | --- | --- | --- |
+| TMAP Android VSM SDK | 3.7 / VSM 2.0.14 | [공식 Android 문서](https://tmapapi.tmapmobility.com/androidVSM/docs/androidDoc.html), [서비스 약관](https://tmapapi.tmapmobility.com/terms.html), 계정별 SDK 배포 조건 확인 필요 | 실제 Android 지도. 공식 ZIP/AAR 해시는 검증하며 AAR은 Git에서 제외한다. 공개 APK/AAR 배포 권리를 이 문서로 확정하지 않는다. |
+| TMAP Vector JS·REST | 공식 Web V3 / REST | [공식 웹 문서](https://tmapapi.tmapmobility.com/webv3VSM/guide/webGuide.html), TMAP 서비스 약관 | 지도·장소·주소 후보·보행 경로. 공급자 표시를 유지하고 외부 응답의 보관은 24시간 미만으로 제한한다. |
+| expo-location | 57.0.20 | [Expo](https://github.com/expo/expo/tree/main/packages/expo-location), MIT | 사용자가 용도를 확인한 뒤 전경 위치를 한 번 조회한다. 백그라운드 위치 서비스는 추가하지 않는다. |
+| sharp | 0.35.5 | [sharp](https://github.com/lovell/sharp), Apache-2.0; 하위 libvips 라이선스 포함 | 실제 점포 사진 디코드·방향 보정·크기 제한·메타데이터 제거·WebP 재인코드 |
+| FlatBuffers Java | 24.3.25 | [FlatBuffers](https://github.com/google/flatbuffers), Apache-2.0 | 공식 TMAP Android SDK의 JVM 런타임 요구 |
+| source-map-js | 1.2.2 | [upstream](https://github.com/7rulnik/source-map-js), BSD-3-Clause | 기존 PostCSS 전이 의존성의 보안 패치. 별도 기능·의존성은 추가하지 않았다. |
+
 ## Phase 3 NFT 계약 의존성
 
 | 이름 | 버전 | 출처·라이선스 | 사용 범위 |

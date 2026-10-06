@@ -1,0 +1,22 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'kr.masscom'
+version = '1.0.0'
+
+android {
+  namespace 'kr.masscom.tmapmap'
+  defaultConfig {
+    minSdkVersion 24
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  implementation 'com.google.flatbuffers:flatbuffers-java:24.3.25'
+  implementation files('libs/tmap-sdk-3.7.aar')
+  implementation files('libs/vsm-tmap-sdk-v2-eaa-2.0.14.aar')
+}

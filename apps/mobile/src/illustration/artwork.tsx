@@ -1,19 +1,22 @@
 import { View } from 'react-native';
 import { AtlasImage, type ArtProps } from './atlas-image';
-import { badgeFrame, cosmeticFrames, packFrame } from './art-catalog';
+import { badgeFrame, cosmeticCrop, cosmeticFrames, packFrame } from './art-catalog';
 import { CharacterArt } from './character-art';
 export function CosmeticArt({ id, ...props }: ArtProps & { id: string | null | undefined }) {
   if (id === 'stack-cheer') return <CharacterArt {...props} avatar="walk-rabbit" frame="cheer" />;
   const frame = id ? cosmeticFrames[id] : undefined;
   if (frame === undefined) return null;
   const image = <AtlasImage {...props} source={require('../../assets/images/experience-quality/equipment-atlas.png')} columns={5} rows={5} frame={frame} />;
-  // The compass begins after this transparent gutter; exclude a speck from the adjacent cap.
-  return frame === 6 ? <View style={{ width: props.size, height: props.size }}>
-    <View style={{ left: props.size * .09, width: props.size * .91, height: props.size, overflow: 'hidden' }}>
-      <AtlasImage {...props} style={{ left: -props.size * .09 }} source={require('../../assets/images/experience-quality/equipment-atlas.png')}
-        columns={5} rows={5} frame={frame} />
+  const crop = cosmeticCrop[frame];
+  if (!crop) return image;
+  const { left = 0, right = 0, top = 0 } = crop;
+  return <View style={{ width: props.size, height: props.size }}>
+    <View style={{ left: props.size * left, top: props.size * top,
+      width: props.size * (1 - left - right), height: props.size * (1 - top), overflow: 'hidden' }}>
+      <AtlasImage {...props} style={{ left: -props.size * left, top: -props.size * top }}
+        source={require('../../assets/images/experience-quality/equipment-atlas.png')} columns={5} rows={5} frame={frame} />
     </View>
-  </View> : image;
+  </View>;
 }
 export function BadgeArt({ id, size, ...props }: ArtProps & { id: string | null | undefined }) {
   const frame = id ? badgeFrame(id) : undefined;

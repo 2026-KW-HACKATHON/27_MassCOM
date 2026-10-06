@@ -1,5 +1,6 @@
 import { useId, useRef } from 'react';
 import { Image, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useIsFocused } from 'expo-router';
 
 import Svg, { Defs, G, LinearGradient, Stop } from 'react-native-svg';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
@@ -10,6 +11,7 @@ import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
 import { CollectibleFaceOutline } from '@/screens/collection/collectible-default-back';
 import { gradeMaterialFor, gradeMaterialPresets } from '@/screens/collection/grade-material';
+import { GradeMaterialLayer } from '@/screens/collection/grade-material-layer';
 import { studioComposition, studioDecorPlacement } from './studio-composition';
 
 import type { PublicStudio, StudioItem } from './studio-api';
@@ -29,13 +31,15 @@ export function CompanionScene({ avatar, clothing, size = 160, onLoad, onError, 
 }
 
 /** The exact metal shell is captured once for both photographs and video layers. */
-export function StudioCoin({ item, apiUrl, size, onLoad, onError }: {
-  item: StudioItem; apiUrl: string; size: number; onLoad?: () => void; onError?: () => void;
+export function StudioCoin({ item, apiUrl, size, onLoad, onError, active = false }: {
+  item: StudioItem; apiUrl: string; size: number; onLoad?: () => void; onError?: () => void; active?: boolean;
 }) {
+  const focused = useIsFocused();
   const id = useId().replace(/[^a-zA-Z0-9]/g, '');
   const source = item.artwork?.thumbnailDataUrl ? { uri: item.artwork.thumbnailDataUrl }
     : merchantArtSource({ id: item.merchantId }, apiUrl);
-  const material = gradeMaterialPresets[gradeMaterialFor(item.artwork?.gradeId ?? '', item.artwork?.gradeName ?? '')];
+  const grade = gradeMaterialFor(item.artwork?.gradeId ?? '', item.artwork?.gradeName ?? '');
+  const material = gradeMaterialPresets[grade];
   const shape = item.artwork?.shape ?? 'circle';
   return <View style={{ width: size, height: size }}>
     <Svg width={size} height={size} viewBox="0 0 100 100">
@@ -55,6 +59,8 @@ export function StudioCoin({ item, apiUrl, size, onLoad, onError }: {
       borderRadius: shape === 'stamp' ? size * .04 : size }}>
       <Image source={source} resizeMode="contain" style={{ width: '100%', height: '100%' }} onLoad={onLoad} onError={onError} />
     </View> : null}
+    <GradeMaterialLayer material={grade} size={size} faceUri={item.artwork?.thumbnailDataUrl} shape={shape}
+      variant="card" active={active && focused} />
     <Svg pointerEvents="none" width={size} height={size} viewBox="0 0 100 100" style={{ position: 'absolute' }}>
       <CollectibleFaceOutline shape={shape} fill="none" stroke={material.colors[1]} strokeWidth={1} />
     </Svg>
@@ -151,7 +157,7 @@ export function StudioScene({ studio, items, avatar, clothing, apiUrl, onItemPre
         accessibilityLabel={`대표 수집품 ${representative?.displayName ?? experienceProfile?.coin?.displayName ?? ''}`}
         disabled={!onItemPress || !representative} onPress={() => representative && onItemPress?.(representative)}
         style={[styles.featuredCoin, { left: width * studioComposition.coinCenterX - coinWidth / 2, top: height * studioComposition.coinCenterY - coinWidth / 2, width: coinWidth, height: coinWidth }]}>
-        <StudioCoin item={representative!} apiUrl={apiUrl} size={coinWidth}
+        <StudioCoin item={representative!} apiUrl={apiUrl} size={coinWidth} active={!onAssetsReady}
           onLoad={() => markLoaded('featured-coin')} onError={onAssetError} />
       </Pressable> : null}
     </View>

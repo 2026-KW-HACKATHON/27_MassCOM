@@ -91,7 +91,7 @@ test('촬영 취소와 발급 복구의 접근성 이름은 표시 문구와 같
 
 test('점포·세션·클라이언트 변경은 대기 중인 고객 상태까지 새 화면으로 교체한다', () => {
   const boundary = staff.slice(staff.indexOf('export function StaffClaimScreen('), staff.indexOf('function StaffClaimSession('));
-  assert.match(boundary, /JSON.stringify\(\[props.apiUrl, props.merchantId, props.credential\]\)/);
+  assert.match(boundary, /JSON.stringify\(\[props.apiUrl, props.accountId, props.merchantId, props.credential\]\)/);
   assert.match(boundary, /scope.identity !== identity \|\| scope.credential !== props.credential \|\| scope.callback !== props.onSessionInvalid/);
   assert.match(boundary, /version: scope.version \+ 1/);
   assert.match(boundary, /<StaffClaimSession key=\{scope.version\} \{...props\} \/>/);

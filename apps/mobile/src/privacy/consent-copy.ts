@@ -3,8 +3,8 @@
  * 버전 이름은 시험이 서로 비교한다. 화면이 보여 주는 문구가 이 버전의 것이므로 버전은 앱이 들고 있고, 서버가 다른 버전을 요구하면 동의를 보내지 않고
  * 앱 업데이트를 안내한다.
  */
-export const CONSENT_TERMS_VERSION = 'terms-2026-09-30';
-export const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-05';
+export const CONSENT_TERMS_VERSION = 'terms-2026-10-06';
+export const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-06';
 
 export const TERMS_URL = 'https://www.masscom.kr/terms';
 export const PRIVACY_URL = 'https://www.masscom.kr/privacy';

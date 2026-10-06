@@ -34,3 +34,7 @@ export function redeemTarget(
   if (!pendingRedeemToken || preview?.status !== 'AVAILABLE') return undefined;
   return pendingRedeemToken === input.trim() ? pendingRedeemToken : undefined;
 }
+
+export function selectedMerchantMismatch(selectedMerchantId: string | undefined, preview: ClaimPreview): boolean {
+  return Boolean(selectedMerchantId && selectedMerchantId !== preview.merchantId);
+}

@@ -211,6 +211,28 @@ test('recovers a lost issue response by reissuing the existing slot', async () =
   ]);
 });
 
+test('a lost initial response recovers after relaunch through replay, while revoked staff cannot recover', async () => {
+  let calls = 0;
+  let revoked = false;
+  const fetcher: typeof fetch = async (input) => {
+    calls += 1;
+    if (revoked) return Response.json({ code: 'MERCHANT_ACCESS_DENIED' }, { status: 403 });
+    if (calls === 1) throw new TypeError('response lost');
+    if (String(input).endsWith('/reissue')) {
+      return Response.json({ claimSlotId: 'slot-1', token: 'R'.repeat(43), tokenVersion: 2, expiresAt: '2026-10-06T10:02:00.000Z' });
+    }
+    return Response.json({ claimSlotId: 'slot-1', tokenVersion: 1, expiresAt: '2026-10-06T10:00:00.000Z', replayed: true });
+  };
+  const options = { apiUrl: 'https://api.example.test', credential: { kind: 'bearer' as const, sessionToken: 'staff-session' }, fetcher };
+  await assert.rejects(createCommerceApiClient(options).issueOrReissueIdentityClaim({ merchantId: 'merchant-1', customerIdentityToken: identityToken }), /response lost/);
+  const recovered = await createCommerceApiClient(options).issueOrReissueIdentityClaim({ merchantId: 'merchant-1', customerIdentityToken: identityToken });
+  assert.equal(recovered.claimSlotId, 'slot-1');
+  assert.equal(recovered.tokenVersion, 2);
+  revoked = true;
+  await assert.rejects(createCommerceApiClient(options).issueOrReissueIdentityClaim({ merchantId: 'merchant-1', customerIdentityToken: identityToken }),
+    (error: unknown) => error instanceof CommerceApiError && error.code === 'MERCHANT_ACCESS_DENIED');
+});
+
 test('recovers a lost reissue response through the same identity reference and server replay', async () => {
   const requests: string[] = [];
   const client = createCommerceApiClient({
@@ -454,6 +476,7 @@ test('parses collection states while keeping app collectibles and NFT state sepa
         campaignId: 'campaign-1',
         campaignTitle: '월계 한 바퀴',
         targetVisitCount: 1,
+        publicationId: 'publication-immutable',
         displayName: '첫 밥상 잎새',
         earnedAt: '2026-09-19T03:00:00.000Z',
         appCollectibleStatus: 'COLLECTED',
@@ -477,6 +500,20 @@ test('parses collection states while keeping app collectibles and NFT state sepa
   });
 
   assert.deepEqual(await client.getCollection(), payload);
+});
+
+test('collection preserves acquired publication identity when artwork is withdrawn', async () => {
+  const collectible = {
+    entitlementId: 'entitlement-1', merchantId: 'merchant-1', merchantName: '가게',
+    campaignId: 'campaign-1', campaignTitle: '캠페인', targetVisitCount: 3,
+    publicationId: 'publication-old', displayName: '세 번째 보상', earnedAt: '2026-10-06T00:00:00Z',
+    appCollectibleStatus: 'COLLECTED', mintJobId: null, recipient: null,
+    nftStatus: 'NOT_REQUESTED', nft: null,
+  };
+  const client = createCommerceApiClient({ apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ visits: [], collectibles: [collectible] }) });
+  assert.equal((await client.getCollection()).collectibles[0]?.publicationId, 'publication-old');
 });
 
 test('keeps the optional preparing flag from the collection and drops unknown values', async () => {

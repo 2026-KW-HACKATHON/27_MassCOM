@@ -6,6 +6,7 @@ import {
   badgesToNextBox,
   couponAccessibilityLabel,
   couponAfterPoll,
+  couponForUse,
   couponExpiryLabel,
   couponStatusLabel,
   couponsOf,
@@ -190,6 +191,11 @@ test('an open coupon sheet follows the polled book: redeemed, voided or withdraw
   assert.equal(withdrawn?.status, 'VOIDED');
   assert.equal(withdrawn?.couponId, current.couponId);
   assert.equal(withdrawn?.title, current.title);
+  assert.equal(couponForUse(current, opened, Date.parse(current.expiresAt) - 1).status, 'ISSUED');
+  assert.equal(couponForUse(current, opened, Date.parse(current.expiresAt)).status, 'EXPIRED');
+  assert.equal(couponForUse(current, { rewards: opened.rewards.map((reward) => ({ ...reward, coupon: null })) }).status, 'VOIDED');
+  assert.equal(couponForUse(current, { rewards: opened.rewards.map((reward) => reward.coupon
+    ? { ...reward, coupon: { ...reward.coupon, merchantId: 'another-merchant' } } : reward) }).status, 'VOIDED');
 });
 
 test('coupons are listed from opened boxes and found by id', () => {

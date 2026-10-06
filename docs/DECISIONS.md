@@ -2,6 +2,14 @@
 
 상태는 `USER_CONFIRMED`, `PROPOSED`, `EXTERNAL_CHECK_REQUIRED`, `BLOCKED`로 구분합니다.
 
+## Issue #381 실제 가게 탐색·방문 연결 (2026-10-06)
+
+사용자가 요청한 결과 범위는 실제 지도와 가게 데이터를 기반으로 한 발견→방문→수집→재방문 흐름, 점주 운영, 네 게임과 현실 콘텐츠 연결, 개인정보·성과 측정, 화면 품질을 모두 포함한다. 이를 구현 범위에서 첫 단계만 남기거나 후속 제안으로 미루지 않는다. **기술·화면 선택은 에이전트 구현 제안이며 사용자가 제공하지 않은 계정·약관·점주 동의·현장 상태를 대체하지 않는다.**
+
+| ID | 항목 | 결정·구현 기본값 | 현재 상태 | 근거·영향 |
+| --- | --- | --- | --- | --- |
+| D-080 | 실사용 전환 범위, 탐색 구조, TMAP SDK, 운영 증거 경계 | **사용자 요청 범위:** 실사용 흐름 전체를 개선하고 16개 acceptance section을 모두 구현·판정한다. **구현 선택(`PROPOSED`, 에이전트):** 하단은 `탐색 · 도감 · 홈 · 놀이 · 상점`; 앱 내 지도·장소·보행 경로는 TMAP, Android는 official SDK 3.7 native view와 웹은 TMAP Vector JS; Profile은 MassCOM merchant ID와 외부 place ID, 별도로 출처·확인 증거·위치 만료·주간/예외 영업시간·실제 점주 사진을 저장한다. 새 profile/media/report/일별 이벤트는 nullable additive migration 0056–0058이며 공개 검색은 등록·보상 참여를 뜻하지 않는다. 모바일 지도 key `EXPO_PUBLIC_TMAP_MAP_APP_KEY`는 공개 client identifier이고 server `TMAP_REST_APP_KEY`는 비공개 환경 설정이다. 좌표 사용은 수동 중심 또는 동의한 foreground 위치만 허용하고 GPS 근접은 방문 권리 발급 근거가 아니다. 캠페인 `AVAILABLE`은 공개 획득 경로 상태이며 현재 참여/이미 지급된 권리·보유 수집품을 정원이나 미디어 철회로 취소하지 않는다. TMAP provider key/쿼터/이용 조건, private AAR의 앱 재배포 권리, 실제 점주 동의·정보 확인·캠페인 게시는 외부 확인 전까지 `EXTERNAL_CHECK_REQUIRED`; 이 결정은 허위 완료 표시를 허용하지 않는다. | `USER_CONFIRMED`(요청 결과 범위) · `PROPOSED`(탭·provider·schema/SDK 결정) · `EXTERNAL_CHECK_REQUIRED`(실제 키·라이선스·점주/현장 권한) | [Issue #381](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/381), [설계](superpowers/specs/2026-10-06-real-world-experience-design.md), [수용 보고서](REAL_WORLD_STATUS_2026-10-06.md). 코드·격리 자동/브라우저 검증은 외부 허가나 실기/공개 배포를 대신하지 않는다. migration 롤백은 0056–0058 데이터와 기존 지급 권리를 DROP하지 않고 새 UI/API를 끈다. |
+
 ## Issue #373 현재 기준과 승인 경계 (2026-10-05)
 
 사용자는 최신 코드와 실제 화면을 바탕으로 네 게임·수집·아바타·핵심 화면의 경험 품질을 개선하고 직접 실행 검증하도록 요청했다. 작업 기준은 `0ce3114c`, 브랜치는 `feat/experience-quality`다. 통합 상태는 해당 브랜치의 PR 검사·병합 기록에 따른다. 공개 서버 배포는 별도다. 게임 규칙·화면·아트의 구체적인 구현은 자율적인 구현 선택이다. 기존 사용자 권리와 운영/시연 분리를 보존하고, 실기·실사용자·공개 반영을 실행 증거 없이 완료로 간주하지 않는다. 로컬 CUA는 합성 계정·세션 fixture로 수행했으며 실제 Google 로그인을 사용하지 않았다. 브라우저에서 첫 방문→마일리지 뽑기→획득·장착, 친구 공간·완료 목표 갱신·웹 MP4, 320px 줄인 동작·오류 복구를 확인했다. Android 네이티브 구매는 실행하지 않았다. 상태와 증거는 [프로젝트 상태](PROJECT_STATE.md) 및 [품질 보고서](EXPERIENCE_QUALITY.md)에 갱신한다.

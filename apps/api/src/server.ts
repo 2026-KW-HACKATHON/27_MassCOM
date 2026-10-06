@@ -4,7 +4,7 @@ import { isIP } from 'node:net';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 
 import {
   AccountDeletionError,
@@ -24,6 +24,11 @@ import { PostgresStoreTicketService } from './postgres/store-tickets.js';
 import { SocialError, socialErrorStatus, startNotificationsRunner, type SocialService } from './social.js';
 import { handleSocialHttp, SocialHttpError } from './social-http.js';
 import { PostgresSocialService } from './postgres/social.js';
+import { PostgresRealWorldService } from './postgres/real-world.js';
+import { PostgresRealWorldMediaStore } from './real-world-media.js';
+import { TmapProvider } from './tmap-provider.js';
+import { RealWorldError } from './real-world-contract.js';
+import { handleRealWorldHttp } from './real-world-http.js';
 import { ExpoPushGateway } from './expo-push-gateway.js';
 import { PlayError, type PlayService, type Studio } from './play.js';
 import { ExperienceError, type CollectionExperienceService, type Equipment } from './collection-experience.js';
@@ -92,7 +97,7 @@ import { PostgresPlayService } from './postgres/play.js';
 import { PostgresMerchantOverviewService } from './postgres/merchant-overview.js';
 import { PostgresCollectiblePreviewService, PostgresMerchantDetailViewService } from './postgres/merchant-discovery.js';
 import { PostgresAdminFunnelService } from './postgres/admin-funnel.js';
-import { AdminError, PostgresAdminService, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
+import { AdminError, PostgresAdminService, assertPlatformAdmin, type AdminCampaignDraftInput, type MerchantInput } from './postgres/admin.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
@@ -218,7 +223,20 @@ export type ExperienceServices = {
   collectionExperience?: CollectionExperienceService | undefined;
   merchantOperations?: MerchantOperations | undefined;
   notifications?: NotificationService | undefined;
+  realWorld?: PostgresRealWorldService | undefined;
+  tmap?: TmapProvider | undefined;
 };
+
+export function realWorldAdminCheck(accountLifecycle: PostgresAccountLifecycle):
+  (client: PoolClient, accountId: string) => Promise<boolean> {
+  return async (client, accountId) => {
+    try { await assertPlatformAdmin(client, accountLifecycle, accountId); return true; }
+    catch (error) {
+      if (error instanceof AdminError && error.code === 'ADMIN_FORBIDDEN') return false;
+      throw error;
+    }
+  };
+}
 
 export function createApiServer(
   service: WalletChallengeService,
@@ -268,7 +286,7 @@ export function createApiServer(
   storeTickets?: StoreTicketService,
   social?: SocialService,
 ) {
-  const { collectionExperience, merchantOperations, notifications } = experienceServices;
+  const { collectionExperience, merchantOperations, notifications, realWorld, tmap } = experienceServices;
   const requireCustomerScan = async (accountId: string, merchantId: string): Promise<void> => {
     if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
     try { await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' }); }
@@ -304,6 +322,8 @@ export function createApiServer(
   // 실행별 멱등 재시도도 본문·DB 진입 전에 계정별로 센다. 분당 60회는 정상 완료·재시도에 여유를 둔다.
   const playFinishLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
   const socialWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
+  const discoveryEventLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60_000 });
+  const discoveryMapLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60 * 60_000 });
   const requireCurrentPlayConsent = async (accountId: string): Promise<void> => {
     if (!consent) throw new RequestError(503, 'CONSENT_NOT_CONFIGURED');
     const state = await consent.status(accountId);
@@ -332,6 +352,37 @@ export function createApiServer(
       }
 
       const path = new URL(request.url ?? '/', 'http://localhost').pathname;
+      if (await handleRealWorldHttp({ request, response, path, realWorld, tmap,
+        resolveAccountId: async () => resolveAccountId(request),
+        resolveWebAccountId: async channel => {
+          const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
+          response.setHeader('x-robots-tag', 'noindex, nofollow');
+          if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
+          if (request.method !== 'GET' && (request.headers.origin !== origin ||
+              !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? ''))) {
+            throw new RequestError(403, channel === 'admin' ? 'ADMIN_CSRF_FORBIDDEN' : 'MERCHANT_CSRF_FORBIDDEN');
+          }
+          const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+          if (channel === 'admin' && (!admin || !await admin.isAdmin(accountId))) throw new AdminError('ADMIN_FORBIDDEN');
+          return accountId;
+        },
+        readBody: (maxBytes) => readJson(request, false, maxBytes), decode: decodePathParameter,
+        send: (status, value) => sendJson(response, status, value as object),
+        consumeEvent: () => {
+          const decision = discoveryEventLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            throw new RealWorldError('EVENT_RATE_LIMITED', 429, true);
+          }
+        },
+        consumeMap: () => {
+          const decision = discoveryMapLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            throw new RealWorldError('MAP_CLIENT_RATE_LIMITED', 429, true);
+          }
+        },
+      })) return;
       if (path === '/api/web/auth/start' && request.method === 'GET') {
         const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
@@ -577,8 +628,19 @@ export function createApiServer(
           if (!admin.publishMerchant) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
           const body = await readJson(request);
           requireOnlyKeys(body, ['expectedVersion', 'consentDocumentRef']);
-          sendJson(response, 200, { merchant: await admin.publishMerchant(accountId, decodePathParameter(publishMatch[1]!),
-            requireNumber(body, 'expectedVersion'), body.consentDocumentRef) });
+          const merchantId = decodePathParameter(publishMatch[1]!);
+          const expectedVersion = requireNumber(body, 'expectedVersion');
+          const existing = (await admin.listMerchants(accountId)).find(merchant => merchant.id === merchantId);
+          if (!existing) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
+          if (existing.publishedAt === null) {
+            if (!realWorld) throw new RequestError(503, 'REAL_WORLD_NOT_CONFIGURED');
+            const view = await realWorld.profile(accountId, merchantId);
+            if (view.version !== expectedVersion) throw new AdminError('ADMIN_VERSION_CONFLICT');
+            if (!['location', 'schedule', 'menu', 'photo'].every(key => view.readiness.some(item => item.key === key && item.ready)) ||
+                !view.profile.visitInstructions.trim()) throw new AdminError('ADMIN_MERCHANT_NOT_READY');
+          }
+          sendJson(response, 200, { merchant: await admin.publishMerchant(accountId, merchantId,
+            expectedVersion, body.consentDocumentRef) });
           return;
         }
         const ownersMatch = path.match(/^\/api\/web\/admin\/merchants\/([^/]+)\/owners$/);
@@ -1929,6 +1991,10 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
+      if (error instanceof RealWorldError) {
+        sendJson(response, error.status, { code: error.code, ...(error.retryable ? { retryable: true } : {}) });
+        return;
+      }
       if (error instanceof ExperienceError) {
         sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'EXPERIENCE_FRIEND_NOT_FOUND' ? 404
           : error.code === 'EXPERIENCE_LOCKED' ? 403 : 400, { code: error.code });
@@ -2882,6 +2948,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const fcmConfig = fcmConfigFromEnv();
   const notifications = pool && accountLifecycle
     ? new PostgresNotificationService(pool, { accountLifecycle, ...(fcmConfig ? { fcm: fcmConfig } : {}) }) : undefined;
+  const adminService = pool && accountDeletionHmacSecret && webAuthConfig && !showcaseInvites
+    ? new PostgresAdminService(pool, accountDeletionHmacSecret,
+      process.env.MERCHANT_REFERENCE_HMAC_SECRET || accountDeletionHmacSecret) : undefined;
+  const realWorld = pool ? new PostgresRealWorldService(pool, {
+    ...(accountLifecycle ? { accountLifecycle } : {}),
+    ...(adminService && accountLifecycle ? { isAdmin: realWorldAdminCheck(accountLifecycle) } : {}),
+    includeDemo: Boolean(showcaseDeployment), mediaStore: new PostgresRealWorldMediaStore(pool),
+  }) : undefined;
   const server = createApiServer(
     configuredService(bindingStore, challengeStore),
     accountResolver,
@@ -2900,9 +2974,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     webAuth,
     webAuthConfig?.wwwEnabled ?? false,
     customerIdentities,
-    pool && accountDeletionHmacSecret && webAuthConfig && !showcaseInvites
-      ? new PostgresAdminService(pool, accountDeletionHmacSecret,
-        process.env.MERCHANT_REFERENCE_HMAC_SECRET || accountDeletionHmacSecret) : undefined,
+    adminService,
     pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret) : undefined,
     pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
@@ -2945,6 +3017,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       collectionExperience: pool && accountLifecycle ? new PostgresCollectionExperienceService(pool, accountLifecycle) : undefined,
       merchantOperations: pool && accountLifecycle ? new PostgresMerchantOperations(pool, { accountLifecycle }) : undefined,
       notifications,
+      realWorld,
+      tmap: pool ? new TmapProvider({ appKey: process.env.TMAP_REST_APP_KEY ?? '' }) : undefined,
     },
     pool && accountLifecycle && collection
       ? new PostgresStoreTicketService(pool, collection, accountLifecycle) : undefined,

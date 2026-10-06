@@ -3,6 +3,10 @@ import type { Pool } from 'pg';
 import { PostgresAccountLifecycle } from './account-lifecycle.js';
 
 export type RetentionStepName =
+  | 'discovery_event_dedupe'
+  | 'merchant_real_world_reports'
+  | 'merchant_real_world_photos'
+  | 'merchant_real_world_media'
   | 'auth_sessions'
   | 'web_sessions'
   | 'deletion_intake'
@@ -43,6 +47,10 @@ type Step = { name: RetentionStepName; table: string; where: string };
 // 표 이름과 조건은 모두 이 파일의 고정 문자열이다. 단계마다 조건 하나를 세기(report)와 지우기(run)가 함께 쓰므로
 // 보고한 개수와 실제로 지우는 행이 같은 기준이다.
 const steps: readonly Step[] = [
+  { name: 'discovery_event_dedupe', table: 'discovery_event_dedupe', where: `created_at < ${ago('23 hours')}` },
+  { name: 'merchant_real_world_reports', table: 'merchant_real_world_reports', where: `created_at < ${ago('90 days')}` },
+  { name: 'merchant_real_world_photos', table: 'merchant_real_world_photos', where: `deleted_at < ${oneDayAgo}` },
+  { name: 'merchant_real_world_media', table: 'merchant_real_world_media', where: `created_at < ${oneDayAgo} AND NOT EXISTS (SELECT 1 FROM merchant_real_world_photos photo WHERE photo.digest = merchant_real_world_media.digest)` },
   // 만료됐거나 해지된 세션. 앱 세션은 로그인 때마다 100건씩 같은 조건으로 이미 정리되고, 웹 세션은 정리가 없었다.
   { name: 'auth_sessions', table: 'auth_sessions', where: 'expires_at <= $1 OR revoked_at IS NOT NULL' },
   { name: 'web_sessions', table: 'web_sessions', where: 'expires_at <= $1 OR revoked_at IS NOT NULL' },

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { acceptInspection, redeemTarget } from './claim-inspect';
+import { acceptInspection, redeemTarget, selectedMerchantMismatch } from './claim-inspect';
 import type { ClaimPreview } from './commerce-api';
 import { createIdentityRequestGate } from './customer-identity';
 
@@ -48,4 +48,10 @@ test('확정은 수령 가능한 미리보기와 확인한 코드가 모두 있�
   assert.equal(redeemTarget('code-a', 'code-a', undefined), undefined);
   assert.equal(redeemTarget('code-a', 'code-a', { ...available, status: 'EXPIRED' }), undefined);
   assert.equal(redeemTarget('code-a', undefined, available), undefined);
+});
+
+test('선택한 가게와 직원 코드의 실제 가게가 다르면 확정하지 않는다', () => {
+  assert.equal(selectedMerchantMismatch('merchant-2', available), true);
+  assert.equal(selectedMerchantMismatch('merchant-1', available), false);
+  assert.equal(selectedMerchantMismatch(undefined, available), false);
 });

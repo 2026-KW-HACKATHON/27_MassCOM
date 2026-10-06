@@ -1643,6 +1643,7 @@ test('admin store go-live routes need the admin session, same-origin JSON and kn
   const campaign = { id: 'campaign-1', status: 'ACTIVE', public: true };
   const admin = {
     isAdmin: async () => true,
+    listMerchants: async () => [{ id: 'real-1', publishedAt: '2026-10-01T00:00:00.000Z' }],
     publishMerchant: record('publishMerchant', merchant),
     listOwners: record('listOwners', [{ accountId: 'owner-1', role: 'OWNER' }]),
     promoteOwner: record('promoteOwner', { accountId: 'staff-1', role: 'OWNER' }),
@@ -1746,6 +1747,53 @@ test('admin store go-live routes need the admin session, same-origin JSON and kn
     method: 'POST', headers: json, body: JSON.stringify({ verificationDocumentRef: 'OWN-01' }),
   })).status, 403);
   assert.equal(calls.length, before);
+});
+
+test('first-time real-store publication requires a current ready real-world profile', async (t) => {
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  let publishes = 0;
+  const admin = {
+    isAdmin: async () => true,
+    listMerchants: async () => [{ id: 'real-1', publishedAt: null }],
+    publishMerchant: async () => { publishes++; return { id: 'real-1', status: 'ACTIVE' }; },
+  } as unknown as PostgresAdminService;
+  const args: Parameters<typeof startFixture> = [t];
+  args[14] = webAuth; args[16] = admin;
+  const base = await startFixture(...args);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const publish = (url: string) => webRequest(url, '/api/web/admin/merchants/real-1/publish', {
+    method: 'POST', headers, body: JSON.stringify({ expectedVersion: 3, consentDocumentRef: 'CS-01' }),
+  });
+  const missing = await publish(base);
+  assert.equal(missing.status, 503);
+  assert.deepEqual(await missing.json(), { code: 'REAL_WORLD_NOT_CONFIGURED' });
+  assert.equal(publishes, 0);
+
+  const view = { version: 3, profile: { visitInstructions: '정문으로 들어오세요' },
+    readiness: ['location', 'schedule', 'menu', 'photo'].map(key => ({ key, ready: true })) };
+  let profiles = 0;
+  args[37] = { realWorld: { profile: async () => { profiles++; return view; } } as unknown as NonNullable<ExperienceServices['realWorld']> };
+  const configured = await startFixture(...args);
+  view.readiness[0]!.ready = false;
+  assert.equal((await publish(configured)).status, 409);
+  assert.equal(publishes, 0);
+  view.readiness[0]!.ready = true;
+  view.profile.visitInstructions = '   ';
+  assert.equal((await publish(configured)).status, 409);
+  assert.equal(publishes, 0);
+  view.profile.visitInstructions = '정문으로 들어오세요';
+  view.version = 4;
+  assert.equal((await publish(configured)).status, 409);
+  assert.equal(publishes, 0);
+  view.version = 3;
+  const published = await publish(configured);
+  assert.equal(published.status, 200);
+  assert.deepEqual(await published.json(), { merchant: { id: 'real-1', status: 'ACTIVE' } });
+  assert.equal(profiles, 4);
+  assert.equal(publishes, 1);
 });
 
 test('merchant registration uses host-bound web cookie and rejects foreign-origin writes', async (t) => {
@@ -4886,6 +4934,7 @@ test('owner promotion and demotion need a web login from the last ten minutes', 
   const calls: string[] = [];
   const admin = {
     isAdmin: async () => true,
+    listMerchants: async () => [{ id: 'real-1', publishedAt: '2026-10-01T00:00:00.000Z' }],
     promoteOwner: async () => { calls.push('promote'); return { accountId: 'staff-1', role: 'OWNER' }; },
     demoteOwner: async () => { calls.push('demote'); return { accountId: 'staff-1', role: 'STAFF' }; },
     publishMerchant: async () => { calls.push('publish'); return { id: 'real-1' }; },
