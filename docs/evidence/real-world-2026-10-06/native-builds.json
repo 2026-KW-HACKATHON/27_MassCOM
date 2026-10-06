@@ -1,0 +1,438 @@
+[
+  {
+    "variant": "production",
+    "sourceCommit": "138d8a414d65964b3b85724ac453b80bf6930625",
+    "package": "kr.masscom.wolgye",
+    "buildType": "release",
+    "artifactFile": "production-sdk-private-release.apk",
+    "sha256": "5d4e36a6a0164729f457a9a77f045cb0fced0d10964bc3291a5e8445a6e95fe6",
+    "bytes": 108977445,
+    "minSdk": 24,
+    "targetSdk": 36,
+    "architecture": "arm64-v8a",
+    "buildSeconds": 96,
+    "signing": "existing Expo Android Debug certificate; private validation only",
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "permissions": [
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.CAMERA",
+      "android.permission.INTERNET",
+      "android.permission.MODIFY_AUDIO_SETTINGS",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.VIBRATE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.ACCESS_WIFI_STATE",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
+      "android.permission.WAKE_LOCK",
+      "com.google.android.c2dm.permission.RECEIVE",
+      "kr.masscom.wolgye.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
+      "com.sec.android.provider.badge.permission.READ",
+      "com.sec.android.provider.badge.permission.WRITE",
+      "com.htc.launcher.permission.READ_SETTINGS",
+      "com.htc.launcher.permission.UPDATE_SHORTCUT",
+      "com.sonyericsson.home.permission.BROADCAST_BADGE",
+      "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
+      "com.anddoes.launcher.permission.UPDATE_COUNT",
+      "com.majeur.launcher.permission.UPDATE_BADGE",
+      "com.huawei.android.launcher.permission.CHANGE_BADGE",
+      "com.huawei.android.launcher.permission.READ_SETTINGS",
+      "com.huawei.android.launcher.permission.WRITE_SETTINGS",
+      "android.permission.READ_APP_BADGE",
+      "com.oppo.launcher.permission.READ_SETTINGS",
+      "com.oppo.launcher.permission.WRITE_SETTINGS",
+      "me.everything.badger.permission.BADGE_COUNT_READ",
+      "me.everything.badger.permission.BADGE_COUNT_WRITE"
+    ],
+    "nativeLibraries": [
+      "lib/arm64-v8a/libNitroGoogleSignin.so",
+      "lib/arm64-v8a/libNitroModules.so",
+      "lib/arm64-v8a/libandroidx.graphics.path.so",
+      "lib/arm64-v8a/libappmodules.so",
+      "lib/arm64-v8a/libbarhopper_v3.so",
+      "lib/arm64-v8a/libc++_shared.so",
+      "lib/arm64-v8a/libdatastore_shared_counter.so",
+      "lib/arm64-v8a/libexpo-modules-core.so",
+      "lib/arm64-v8a/libfbjni.so",
+      "lib/arm64-v8a/libgesturehandler.so",
+      "lib/arm64-v8a/libgifimage.so",
+      "lib/arm64-v8a/libhermestooling.so",
+      "lib/arm64-v8a/libhermesvm.so",
+      "lib/arm64-v8a/libimage_processing_util_jni.so",
+      "lib/arm64-v8a/libimagepipeline.so",
+      "lib/arm64-v8a/libjnidispatch.so",
+      "lib/arm64-v8a/libjsi.so",
+      "lib/arm64-v8a/libnative-filters.so",
+      "lib/arm64-v8a/libnative-imagetranscoder.so",
+      "lib/arm64-v8a/libreact_codegen_rnscreens.so",
+      "lib/arm64-v8a/libreact_codegen_rnsvg.so",
+      "lib/arm64-v8a/libreact_codegen_safeareacontext.so",
+      "lib/arm64-v8a/libreactnative.so",
+      "lib/arm64-v8a/libreanimated.so",
+      "lib/arm64-v8a/librnscreens.so",
+      "lib/arm64-v8a/libstatic-webp.so",
+      "lib/arm64-v8a/libsurface_util_jni.so",
+      "lib/arm64-v8a/libuniffi_yttrium_wcpay.so",
+      "lib/arm64-v8a/libvsmsdk_jni.so",
+      "lib/arm64-v8a/libworklets.so",
+      "lib/arm64-v8a/libzstd-kmp.so"
+    ],
+    "elf16KiBAlignment": [
+      {
+        "library": "lib/arm64-v8a/libNitroGoogleSignin.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libNitroModules.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libandroidx.graphics.path.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libappmodules.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libbarhopper_v3.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libc++_shared.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libdatastore_shared_counter.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libexpo-modules-core.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libfbjni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libgesturehandler.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libgifimage.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libhermestooling.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libhermesvm.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libimage_processing_util_jni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libimagepipeline.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libjnidispatch.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libjsi.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libnative-filters.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libnative-imagetranscoder.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreact_codegen_rnscreens.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreact_codegen_rnsvg.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreact_codegen_safeareacontext.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreactnative.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreanimated.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/librnscreens.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libstatic-webp.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libsurface_util_jni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libuniffi_yttrium_wcpay.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libvsmsdk_jni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libworklets.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libzstd-kmp.so",
+        "minimumLoadAlignment": 16384
+      }
+    ],
+    "zip16KiBAlignment": true,
+    "tmapSdkClassesPresent": true,
+    "mapModulePresent": true,
+    "forbiddenPermissionsPresent": false,
+    "forbiddenPaymentSdkClassesPresent": false,
+    "installed": false,
+    "liveProviderTested": false,
+    "publiclyDistributed": false
+  },
+  {
+    "variant": "showcase",
+    "sourceCommit": "138d8a414d65964b3b85724ac453b80bf6930625",
+    "package": "kr.masscom.wolgye.demo",
+    "buildType": "release",
+    "artifactFile": "showcase-sdk-private-release.apk",
+    "sha256": "7688ace0d561620d75e26dc07057e6018ec2e8a6d4709d515e69d0079f8e8a4d",
+    "bytes": 114729601,
+    "minSdk": 24,
+    "targetSdk": 36,
+    "architecture": "arm64-v8a",
+    "buildSeconds": 97,
+    "signing": "existing Expo Android Debug certificate; private validation only",
+    "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "permissions": [
+      "android.permission.ACCESS_COARSE_LOCATION",
+      "android.permission.ACCESS_FINE_LOCATION",
+      "android.permission.CAMERA",
+      "android.permission.INTERNET",
+      "android.permission.MODIFY_AUDIO_SETTINGS",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.VIBRATE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.ACCESS_WIFI_STATE",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
+      "android.permission.WAKE_LOCK",
+      "com.google.android.c2dm.permission.RECEIVE",
+      "kr.masscom.wolgye.demo.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
+      "com.sec.android.provider.badge.permission.READ",
+      "com.sec.android.provider.badge.permission.WRITE",
+      "com.htc.launcher.permission.READ_SETTINGS",
+      "com.htc.launcher.permission.UPDATE_SHORTCUT",
+      "com.sonyericsson.home.permission.BROADCAST_BADGE",
+      "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
+      "com.anddoes.launcher.permission.UPDATE_COUNT",
+      "com.majeur.launcher.permission.UPDATE_BADGE",
+      "com.huawei.android.launcher.permission.CHANGE_BADGE",
+      "com.huawei.android.launcher.permission.READ_SETTINGS",
+      "com.huawei.android.launcher.permission.WRITE_SETTINGS",
+      "android.permission.READ_APP_BADGE",
+      "com.oppo.launcher.permission.READ_SETTINGS",
+      "com.oppo.launcher.permission.WRITE_SETTINGS",
+      "me.everything.badger.permission.BADGE_COUNT_READ",
+      "me.everything.badger.permission.BADGE_COUNT_WRITE"
+    ],
+    "nativeLibraries": [
+      "lib/arm64-v8a/libNitroGoogleSignin.so",
+      "lib/arm64-v8a/libNitroModules.so",
+      "lib/arm64-v8a/libandroidx.graphics.path.so",
+      "lib/arm64-v8a/libappmodules.so",
+      "lib/arm64-v8a/libbarhopper_v3.so",
+      "lib/arm64-v8a/libc++_shared.so",
+      "lib/arm64-v8a/libdatastore_shared_counter.so",
+      "lib/arm64-v8a/libexpo-modules-core.so",
+      "lib/arm64-v8a/libfbjni.so",
+      "lib/arm64-v8a/libgesturehandler.so",
+      "lib/arm64-v8a/libgifimage.so",
+      "lib/arm64-v8a/libhermestooling.so",
+      "lib/arm64-v8a/libhermesvm.so",
+      "lib/arm64-v8a/libimage_processing_util_jni.so",
+      "lib/arm64-v8a/libimagepipeline.so",
+      "lib/arm64-v8a/libjnidispatch.so",
+      "lib/arm64-v8a/libjsi.so",
+      "lib/arm64-v8a/libnative-filters.so",
+      "lib/arm64-v8a/libnative-imagetranscoder.so",
+      "lib/arm64-v8a/libreact_codegen_rnscreens.so",
+      "lib/arm64-v8a/libreact_codegen_rnsvg.so",
+      "lib/arm64-v8a/libreact_codegen_safeareacontext.so",
+      "lib/arm64-v8a/libreactnative.so",
+      "lib/arm64-v8a/libreanimated.so",
+      "lib/arm64-v8a/librnscreens.so",
+      "lib/arm64-v8a/libstatic-webp.so",
+      "lib/arm64-v8a/libsurface_util_jni.so",
+      "lib/arm64-v8a/libuniffi_yttrium_wcpay.so",
+      "lib/arm64-v8a/libvsmsdk_jni.so",
+      "lib/arm64-v8a/libworklets.so",
+      "lib/arm64-v8a/libzstd-kmp.so"
+    ],
+    "elf16KiBAlignment": [
+      {
+        "library": "lib/arm64-v8a/libNitroGoogleSignin.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libNitroModules.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libandroidx.graphics.path.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libappmodules.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libbarhopper_v3.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libc++_shared.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libdatastore_shared_counter.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libexpo-modules-core.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libfbjni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libgesturehandler.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libgifimage.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libhermestooling.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libhermesvm.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libimage_processing_util_jni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libimagepipeline.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libjnidispatch.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libjsi.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libnative-filters.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libnative-imagetranscoder.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreact_codegen_rnscreens.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreact_codegen_rnsvg.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreact_codegen_safeareacontext.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreactnative.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libreanimated.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/librnscreens.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libstatic-webp.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libsurface_util_jni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libuniffi_yttrium_wcpay.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libvsmsdk_jni.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libworklets.so",
+        "minimumLoadAlignment": 16384
+      },
+      {
+        "library": "lib/arm64-v8a/libzstd-kmp.so",
+        "minimumLoadAlignment": 16384
+      }
+    ],
+    "zip16KiBAlignment": true,
+    "tmapSdkClassesPresent": true,
+    "mapModulePresent": true,
+    "forbiddenPermissionsPresent": false,
+    "forbiddenPaymentSdkClassesPresent": false,
+    "installed": false,
+    "liveProviderTested": false,
+    "publiclyDistributed": false
+  }
+]

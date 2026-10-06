@@ -10,6 +10,8 @@
 
 PR·merge·deploy는 아직 없다. 다음은 site whole-suite·집중 reviewer·최신 Android build/export·네 게임 합성 QA를 마치고 최종 SHA와 증거를 확정해 PR을 만드는 것이다. 일반 소스 완료와 live/provider/현장·실기 gate를 혼동하지 않는다. Migration 0056–0058의 저장 자료와 기존 수집 권리는 UI rollback으로 삭제하지 않는다.
 
+최종 빌드·검증 기준: 앱 소스 `138d8a414d65964b3b85724ac453b80bf6930625`, [PR #382](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/382). 모바일1759/API540/PG498+3SKIP/site515, type/lint/checkJs·audit·독립 APPROVE·소스 gate PASS. 운영/시연 실제 SDK 포함 private APK는 각각96초/97초 PASS이며 기존 debug 인증서를 재사용한 검증본이다. 공개 설치본/운영 서버는 갱신하지 않았다. 마지막 문서 HEAD의 원격 CI·merge 상태는 PR 기록을 따른다.
+
 ## 현재 작업: 요약 홈과 목적별 상세 (Issue #378, 2026-10-06)
 
 브랜치 `fix/home-overview`, [PR #379](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/379). 홈은 실제 수치와 네 진입으로 줄이고 가게권·미션·전시는 상세에서 기존 기능을 보존한다. 모바일 1677/1677·타입·전체 lint·접근성·privacy 로그·독립 검토·source-only gate PASS, 소스 `4ee5dd1aca6ab5edfacfe0552739fcf40625245f`의 운영/시연 Android export와 자산 경계 PASS다. 실폰 기본 홈/세 상세/뒤로·200% 홈/전시와 다크 웹/개봉 ACK/취소/홈 수치 갱신을 확인했다. [홈 QA](HOME_OVERVIEW_QA_2026-10-06.md)에 증거와 미검증 범위를 남긴다.

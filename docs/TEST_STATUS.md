@@ -13,7 +13,7 @@
 | 정적 검사 | 모바일 타입/lint·접근성 semantics·점주 JS checkJs PASS | 전경 복귀 보완 후 최종 타입/lint도 PASS |
 | 의존성 audit | API PASS, 모바일 PASS | source-map-js 1.2.2 패치. 기존 braces/node-forge 2026-10-31 예외 유지; 새 예외 없음 |
 | CUA 실제 웹 조작 | 합성 DB에서 PASS | 미공개 고객 미리보기/사진·메뉴 7,000원만 수정 저장, 390px 탐색 5곳/위치 미확인 1곳, 지도 키 미설정 주소 대안, 네 게임 부분 진행·서버 결과 저장 |
-| 네이티브 Android | 이전 변경분 공식 SDK 3.7 debug assemble PASS | 최종 운영/시연 대상 private release 컴파일은 후속 실행. 설치·실지도·서명된 공개 릴리스 판정으로 승격하지 않음 |
+| 네이티브 Android | 최종 코드 138d8a41의 운영·시연 private release PASS | 실제 SDK/모듈 DEX·패키지·ABI·금지 권한 제외·31개 ELF/ZIP 16KiB 정렬 PASS. 기존 debug 인증서의 비공개 검증본, 설치/실지도/공개 서명 별도 |
 | 외부 수용 | TMAP 키·연결 휴대폰 부재로 NOT_RUN | 실제 타일/POI/보행/GPS, 새로운 청음·진동·TalkBack/200%·성능. 과거 소리 PASS/진동 체감 FAIL 보존 |
 
 기존 36개 ID와 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 추가 검사로 재번호화하거나 올리지 않는다. 공개 배포 전 API·약관/처리방침 `2026-10-06`·최신 고객 앱/웹의 적용 순서를 확인한다.

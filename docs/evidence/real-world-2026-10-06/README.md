@@ -32,3 +32,11 @@ Chrome/CUA, 390×844, 로컬 Expo 실제 export와 기존 production-web 자산,
 [Chrome 결과 화면 유휴 측정](web-result-idle-metrics.json): 443.72초 동안 TaskDuration 0.520644초, ScriptDuration 0.427438초, JS heap 22,265,072→21,974,556 bytes, LayoutCount 0. 목표는 종료된 게임 화면 평균 task 시간 1% 미만·heap 증가 5MiB 미만이며 이 조건에서 통과했다. Map key가 없고 데스크톱 Chrome인 측정이므로 지도 SDK/GPS/GPU·Android 배터리·실기 FPS 목표로 확대하지 않는다.
 
 실제 지도 타일·POI·보행·GPS, 현장 QR/쿠폰·권한 변경, 새 APK 실기 설치, 실제 소리·진동·TalkBack/글자 200%·네이티브 공유/센서·성능은 NOT_RUN이다. 과거 진동 체감 FAIL은 해결된 것으로 바꾸지 않는다. 실제 merchant 동의/권한·SDK 공개 배포 조건·외부 키를 별도 충족해야 한다.
+
+## 최종 패키징·현재 공개 서버
+
+[두 실제 Android APK의 출처](native-builds.json): 앱 코드 138d8a41와 내장 source metadata가 일치하고 운영/시연 패키지가 분리된다. 공식 지도 SDK/모듈의 DEX 포함, min24/target36/arm64, 금지 권한/결제 SDK 없음, 31개 ELF LOAD·ZIP 16KiB 정렬을 확인했다. 실제 설치·키 인증·타일은 확인하지 않았으며 기존 Expo debug 인증서를 재사용한 private 검증본이다. 공개 APK/AAR은 없다.
+
+[공개 서버 읽기 전용 상태](live-readonly-status.json)는 두 health200/신규 v1 probe404를 기록하며 커밋 SHA는 반환되지 않았다. [이전 코드 CI 전체 통과](ci-code-39032f5d.json) 이후 CI에는 신규 점주 웹 회귀도 포함했다. 마지막 HEAD 상태는 PR #382를 따른다.
+
+[최종 빈 홈](empty-home-final-source-390.png)은 실제 PG 빈 목록의 가게권0/마일리지0/동행0과 네 행동을 보여준다. [320px 가게 상세](merchant-detail-final-source-320.png)의 메뉴/입구/영업 상태를 읽고 키보드 Enter로 뒤로 이동해 선택한 가게·수동 출발지·저장 코스를 유지하는 것을 확인했다. private QA 배너가 머리글 터치를 덮는 하네스 제약이 있어 이 조작을 실제 휴대폰 터치 수용으로 주장하지 않는다.
