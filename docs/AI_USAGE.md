@@ -1,5 +1,9 @@
 # AI 사용 기록
 
+## 2026-10-07 NAVER 실제 자격 증명과 준비 순서 후속
+
+Codex가 사용자 지시에 따라 CUA 등록 폼을 준비/등록하고 키를 출력 없이 Git 밖에 저장했다. 실제 TMAP403→NAVER 주소200을 확인했고, 네이버 실제 SDK 소스에서 콜백-before-export를 찾아 최소 로더 수정과 독립 검토를 진행했다. 모바일1777/타입/lint PASS. 수정 후 웹 타일·실기는 브라우저/단말 부재로 미검증이며 일반 장소 검색용 별도 키도 없다. [Issue385](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/385).
+
 ## 2026-10-07 TMAP 실제 연결과 NAVER 대체 경로
 
 Codex가 사용자 요청으로 공식 문서·실제 TMAP 응답을 확인하고 SDK 로더/주소 옵션을 수정했다. 네이티브·웹·서버 구현과 독립 리뷰를 분리해 키/Secret 출력 없이 지도 대체 경로를 검증했다. 모바일1775/API546, private 개발 APK, 실제 TMAP 로컬 웹 PASS이며 NAVER 키·실폰·공개 배포는 미검증이다. [Issue #383](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/383).

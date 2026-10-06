@@ -1,0 +1,61 @@
+{
+  "naverMapsRegistration": {
+    "status": "PASS",
+    "application": "masscom",
+    "services": [
+      "Dynamic Map",
+      "Geocoding"
+    ],
+    "representativeAccountConfirmed": true,
+    "webOrigins": [
+      "https://masscom.kr",
+      "http://127.0.0.1:4422",
+      "http://localhost:4422"
+    ],
+    "androidPackages": [
+      "kr.masscom.wolgye",
+      "kr.masscom.wolgye.demo",
+      "kr.masscom.wolgye.dev"
+    ]
+  },
+  "credentialStorage": {
+    "git": "OUTSIDE",
+    "mode": "0600",
+    "valuesLogged": false
+  },
+  "naverGeocode": {
+    "status": "PASS",
+    "candidateCount": 1,
+    "provider": "NAVER",
+    "participation": "EXTERNAL_PLACE"
+  },
+  "liveAuthFailureFallback": {
+    "status": "PASS",
+    "fault": "intentionally invalid TMAP key",
+    "tmapHttpStatus": 403,
+    "naverHttpStatus": 200,
+    "naverCandidateCount": 1
+  },
+  "naverWebSdkAuth": {
+    "status": "PASS",
+    "httpStatus": 200,
+    "vendorResult": true,
+    "scope": "public landmark/service URLs; no user GPS"
+  },
+  "webTiles": {
+    "status": "NOT_RUN",
+    "beforeRepair": "FAIL: callback precedes namespace export",
+    "afterRepair": "Browser control unavailable; not retested"
+  },
+  "mobileRegression": {
+    "status": "PASS",
+    "passed": 1777,
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "targetLoaderSessionPassed": 7,
+    "independentReview": "No actionable findings"
+  },
+  "separateNaverLocalSearch": "NOT_RUN: Developers credentials not issued",
+  "androidDevice": "NOT_RUN: exact Samsung phone absent; emulator not used",
+  "publicDeployment": "NOT_RUN"
+}

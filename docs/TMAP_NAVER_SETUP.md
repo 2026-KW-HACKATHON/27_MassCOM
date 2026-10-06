@@ -56,3 +56,10 @@ NAVER_SEARCH_CLIENT_SECRET=
 - NAVER 응답은 DB·서버 캐시에 저장하지 않고 앱의 후보/표시에 최대 1시간 만료를 둔다. 이는 앱의 신선도 정책이며 제공자가 허용한 저장 기간을 뜻하지 않는다. 제공자 간 데이터 표시·SDK 배포 조건은 공개 배포 전에 실제 신청 조건을 확인한다.
 - 서버 runtime.env를 수정한 뒤 해당 API 컨테이너를 재생성해야 적용된다. 앱의 공개 지도 ID는 빌드 시 포함되므로 새 export/APK가 필요하다. `EXPO_NO_DOTENV=1`인 시연/운영 빌드에는 선택한 환경 파일의 값을 명시적으로 전달한다. 서버 Secret을 번들에 넣지 않는다.
 - 코드 병합, 개인 검증 APK, 실제 휴대폰, 공개 배포, Google Play 제출은 각각 별도 검증 결과다.
+
+
+## 실제 발급 후 확인 — 2026-10-07
+
+현재 로컬 환경은 TMAP의 `/Users/choi/.config/masscom/tmap.env`와 NAVER Maps의 `/Users/choi/.config/masscom/naver.env`를 사용한다. 두 파일은 Git 밖·권한600이며 실제 값을 문서/로그에 넣지 않는다. 신규 Maps masscom 등록·대표 계정·실제 주소 대체를 확인했다. [후속 증거](evidence/naver-live-2026-10-07/README.md)는 SDK 준비 순서 복구와 미완료 타일/단말 검증을 구분한다. 지역 검색용 NAVER_SEARCH 두 키는 별도 발급이 필요하다.
+
+환경 파일을 명시적으로 전달한 Node 빌드 래퍼는 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID 등 공개 식별자만 앱 프로세스에 주고 Secret은 제거한다. 키 값을 바꾸고 Expo export를 재검증할 때 `--clear`로 이전 변환 캐시를 비운다. 공개 서버 적용·공개 APK 배포는 이 로컬 설정 저장과 별도다.
