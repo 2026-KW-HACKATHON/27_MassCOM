@@ -139,7 +139,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   function select(id:string, source:'map'|'list'|'recommendation') {
     discoveryState.select(id);setClusterIds([]);if(source==='map')event(id,'MAP_SELECT',source);
   }
-  function open(id:string,source:'map'|'list'|'recommendation') {
+  function openMerchant(id:string,source:'map'|'list'|'recommendation') {
     discoveryState.select(id);router.push({pathname:'/merchants/[merchantId]',params:{merchantId:id,from:source}});
   }
   function viewport(value:{bounds:Bounds;camera:typeof initialCamera}) {
@@ -219,7 +219,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
     <View style={{flex:1}}><Text style={styles.name}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text style={styles.muted}>{merchant.roadAddress}{merchant.floor?` · ${merchant.floor}`:''}</Text><Text style={styles.muted}>{merchant.position?'위치 확인됨':'위치 확인 필요'} · {businessLabel(merchant.business)}</Text>
       <Text style={styles.muted}>{merchant.distance?`${merchant.distance.meters}m 직선거리 · ${merchant.distance.origin==='CURRENT_LOCATION'?'현재 위치':merchant.distance.origin==='MANUAL'?'선택한 출발지':'지도 중심'}`:'거리를 표시할 출발지 없음'} · {merchant.campaign?`${campaignLabel(merchant.campaign.state)} 캠페인 · ${enrollmentLabel(merchant.campaign.enrollment)} · ${rewardLabel(merchant.campaign.rewardAvailability)}`:'진행 중인 캠페인 없음'}</Text>
       {merchant.thumbnail?<Text style={styles.muted}>점주 제공 실제 사진 · {photoKindLabel(merchant.thumbnail.kind)}</Text>:null}
-      <View style={styles.actions}>{button('상세',()=>open(merchant.id,source))}{merchant.position?button('코스에 추가',()=>updateCourse([...course.filter(stop=>stop.merchantId!==merchant.id),...(!course.some(stop=>stop.merchantId===merchant.id)&&course.length<5?createCourse([merchant.id]):[])])):null}</View>
+      <View style={styles.actions}>{button('상세',()=>openMerchant(merchant.id,source))}{merchant.position?button('코스에 추가',()=>updateCourse([...course.filter(stop=>stop.merchantId!==merchant.id),...(!course.some(stop=>stop.merchantId===merchant.id)&&course.length<5?createCourse([merchant.id]):[])])):null}</View>
     </View></Pressable>;
   const controls=<>
     <AppHeader title="탐색" subtitle="가게와 코스 찾기" compact /><View style={styles.header}><View style={styles.actions}>{button('지도',()=>discoveryState.setMode('map'),state.mode==='map')}{button('목록',()=>discoveryState.setMode('list'),state.mode==='list')}</View></View>

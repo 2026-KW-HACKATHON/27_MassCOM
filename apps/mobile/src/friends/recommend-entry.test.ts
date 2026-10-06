@@ -23,7 +23,7 @@ test('the merchant detail page and the map pin sheet both offer 친구에게 추
 
 test('list and map detail entry retain their discovery source', () => {
   const discovery = read('../screens/real-map/index.tsx');
-  assert.match(discovery, /function open\(id:string,source:'map'\|'list'\|'recommendation'\)/);
+  assert.match(discovery, /function openMerchant\(id:string,source:'map'\|'list'\|'recommendation'\)/);
   assert.match(discovery, /params:\{merchantId:id,from:source\}/);
   assert.match(discovery, /visible\.map\(m=>row\(m,'list'\)\)/);
   assert.match(discovery, /\{selected\?<View[\s\S]*?\{row\(selected,'map'\)\}/);
