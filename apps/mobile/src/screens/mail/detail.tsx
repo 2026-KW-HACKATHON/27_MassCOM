@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { Text, TextInput, useColorScheme, View } from 'react-native';
 
@@ -19,6 +19,7 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
   mailId: string;
 }) {
   const api = useMemo(() => createSocialApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
   const [mail, setMail] = useState<MailDetail>();
   const [error, setError] = useState<unknown>();
@@ -44,8 +45,9 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
   async function respond(decision: 'ACCEPT' | 'DECLINE') {
     if (!mail?.mealInvitation || busy) return;
     setNotice(undefined);
-    if (decision === 'ACCEPT' && mail.mealInvitation.schedule.kind === 'RANGE' && !isHHmm(selectedTime)) {
-      setNotice('범위 안의 시간을 HH:mm으로 입력해 주세요.');
+    if (decision === 'ACCEPT' && mail.mealInvitation.schedule.kind === 'RANGE' && (!isHHmm(selectedTime)
+      || selectedTime < mail.mealInvitation.schedule.startTime || selectedTime > mail.mealInvitation.schedule.endTime)) {
+      setNotice('제안된 범위 안의 시간을 HH:mm으로 입력해 주세요.');
       return;
     }
     setBusy(true);
@@ -101,6 +103,7 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
               <Text accessibilityRole="header" style={{ color: palette.label, fontWeight: '800', fontSize: 18 }}>식사 초대</Text>
               <Text style={{ color: palette.label }}>{mail.mealInvitation.merchant.name}</Text>
               <Text style={{ color: palette.secondaryLabel }}>{mail.mealInvitation.merchant.address}</Text>
+              <BounceButton label="가게 정보 보기" variant="secondary" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: mail.mealInvitation!.merchant.id } })} />
               <Text style={{ color: palette.label }}>{mealScheduleCopy(mail.mealInvitation.date, mail.mealInvitation.schedule)}</Text>
               {mail.mealInvitation.selectedTime ? <Text style={{ color: palette.success, fontWeight: '800' }}>확정 시간: {mail.mealInvitation.selectedTime}</Text> : null}
               <Text style={{ color: palette.label }}>상태: {invitationStatusCopy(mail.mealInvitation.status)}</Text>

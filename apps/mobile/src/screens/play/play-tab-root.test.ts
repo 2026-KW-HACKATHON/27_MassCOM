@@ -19,3 +19,10 @@ test('the old /play route keeps its stack header by using the default screen mod
   assert.match(stack, /return <PlayScreen key=\{auth\.accountId\}/);
   assert.doesNotMatch(stack, /tabRoot/);
 });
+
+test('web game exit uses a working confirmation before clearing an active run', () => {
+  assert.match(screen, /<ConfirmDialog visible=\{exitPrompt && !!run\}/);
+  assert.match(screen, /onConfirm=\{\(\) => \{ setExitPrompt\(false\); exitToHub\(\); \}\}/);
+  assert.doesNotMatch(screen, /window\.confirm|Alert\.alert/);
+  assert.match(screen, /title="놀이를 나갈까요\?"/);
+});

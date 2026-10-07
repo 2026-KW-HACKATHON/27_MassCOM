@@ -19,6 +19,8 @@ export class PostgresStoreTicketService implements StoreTicketService {
         `SELECT entitlement.id FROM reward_entitlements AS entitlement
          WHERE entitlement.customer_account_id = $1
            AND entitlement.status IN ('GRANTED', 'MINT_REQUESTED', 'FULFILLED')
+           AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+             WHERE spent.source_kind = 'VISIT' AND spent.source_id = entitlement.id)
            AND NOT EXISTS (
              SELECT 1 FROM store_ticket_openings AS opened
              WHERE opened.account_id = $1 AND opened.entitlement_id = entitlement.id
@@ -42,6 +44,10 @@ export class PostgresStoreTicketService implements StoreTicketService {
         [entitlementId, accountId],
       );
       if (!valid.rowCount) throw new StoreTicketError('STORE_TICKET_NOT_FOUND');
+      // 리롤도 동일 entitlement 행을 잠그므로 회수/개봉 경합에서 마지막 상태를 다시 확인한다.
+      const spent = await client.query(`SELECT 1 FROM coin_reroll_consumptions
+        WHERE source_kind = 'VISIT' AND source_id = $1`, [entitlementId]);
+      if (spent.rowCount) throw new StoreTicketError('STORE_TICKET_NOT_FOUND');
       const inserted = await client.query(
         `INSERT INTO store_ticket_openings (account_id, entitlement_id)
          VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING entitlement_id`, [accountId, entitlementId],

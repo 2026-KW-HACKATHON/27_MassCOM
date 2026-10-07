@@ -22,9 +22,9 @@ const contrastPairs = [
   ['onAccentContainer', 'accentContainer'],
 ] as const;
 
-test('the shared action blue matches the approved light and dark palette', () => {
-  assert.equal(lightColors.primary, '#2456D6');
-  assert.equal(darkColors.primary, '#9BB8FF');
+test('the shared action mint matches the approved light and dark palette', () => {
+  assert.equal(lightColors.primary, '#076F64');
+  assert.equal(darkColors.primary, '#83DCCA');
 });
 
 test('presentation colors are aliases of the semantic palette', () => {
@@ -43,7 +43,7 @@ test('presentation colors are aliases of the semantic palette', () => {
   }
 });
 
-test('78% white over light action blue falls below body-text contrast', () => {
+test('78% white over light action mint falls below body-text contrast', () => {
   assert.ok(contrast(composite('#FFFFFF', lightColors.primary, 0.78), lightColors.primary) < 4.5);
 });
 

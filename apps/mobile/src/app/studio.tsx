@@ -11,7 +11,8 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 
 export default function StudioRoute() {
   const auth = useAuthSession();
-  const { entitlement, avatar } = useLocalSearchParams<{ entitlement?: string | string[]; avatar?: string | string[] }>();
+  const { entitlement, avatar, sourceKind, sourceId } = useLocalSearchParams<{
+    entitlement?: string | string[]; avatar?: string | string[]; sourceKind?: string | string[]; sourceId?: string | string[] }>();
   const header = <BackHeader title="내 공간" />;
   if (!auth.credential || !auth.accountId) return <SkyBackdrop><AuthRequiredRoute header={header} /></SkyBackdrop>;
   if (!publicApiConfig.available) return <SkyBackdrop><SkyScrollView header={header}>
@@ -19,5 +20,8 @@ export default function StudioRoute() {
   </SkyScrollView></SkyBackdrop>;
   return <StudioScreen key={auth.accountId} apiUrl={publicApiConfig.apiUrl} credential={auth.credential}
     onSessionInvalid={auth.invalidateSession} requestedEntitlement={typeof entitlement === 'string' ? entitlement : undefined}
-    requestedAvatar={typeof avatar === 'string' ? avatar : undefined} />;
+    requestedAvatar={typeof avatar === 'string' ? avatar : undefined}
+    requestedSource={typeof sourceKind === 'string' && typeof sourceId === 'string'
+      && ['VISIT', 'STORE_DRAW', 'GRADE_DRAW', 'REROLL'].includes(sourceKind)
+      ? { sourceKind: sourceKind as 'VISIT' | 'STORE_DRAW' | 'GRADE_DRAW' | 'REROLL', sourceId } : undefined} />;
 }

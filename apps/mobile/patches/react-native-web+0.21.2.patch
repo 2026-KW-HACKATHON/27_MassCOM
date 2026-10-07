@@ -1,0 +1,21 @@
+diff --git a/node_modules/react-native-web/dist/cjs/exports/useColorScheme/index.js b/node_modules/react-native-web/dist/cjs/exports/useColorScheme/index.js
+--- a/node_modules/react-native-web/dist/cjs/exports/useColorScheme/index.js
++++ b/node_modules/react-native-web/dist/cjs/exports/useColorScheme/index.js
+@@ -30,2 +30,2 @@
+     return remove;
+-  });
++  }, []);
+diff --git a/node_modules/react-native-web/dist/exports/useColorScheme/index.js b/node_modules/react-native-web/dist/exports/useColorScheme/index.js
+--- a/node_modules/react-native-web/dist/exports/useColorScheme/index.js
++++ b/node_modules/react-native-web/dist/exports/useColorScheme/index.js
+@@ -25,2 +25,2 @@
+     return remove;
+-  });
++  }, []);
+diff --git a/node_modules/react-native-web/src/exports/useColorScheme/index.js b/node_modules/react-native-web/src/exports/useColorScheme/index.js
+--- a/node_modules/react-native-web/src/exports/useColorScheme/index.js
++++ b/node_modules/react-native-web/src/exports/useColorScheme/index.js
+@@ -26,2 +26,2 @@
+     return remove;
+-  });
++  }, []);

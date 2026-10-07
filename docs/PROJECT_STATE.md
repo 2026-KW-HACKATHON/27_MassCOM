@@ -1,5 +1,12 @@
 # 프로젝트 상태
 
+## 2026-10-07 전체 고객 UI와 코인·마이룸 연결 (Issue #399)
+
+브랜치 `feat/ui-boards-integration`에서 첨부 23보드/67상태를 실제 API에 연결했다. 시작 기준은 `76205cd0`, 작업 중 `origin/main d108b9a0`의 수집품 수정도 fast-forward로 반영했다. [화면별 추적](UI_BOARDS_STATUS_2026-10-07.md), [QA](UI_BOARDS_QA_2026-10-07.md)가 범위와 검증의 정본이다.
+
+Migration0062–0067과 privacy-2026-10-07 동의 안내가 필요하다. 앱·API·공개 안내를 같은 정책 버전으로 제공해야 하며 운영 배포는 이 작업의 로컬 검증과 별도다. 신규 가구는 미정 가격으로 판매하지 않고 리롤권을 임의 지급하지 않는다.
+
+
 ## 2026-10-07 이슈 #315 후속
 
 살아 있는 그림의 세 렌더링 결함을 `fix/315-living-overlays`에서 수정하고 별도 PR로 제출한다. 사이트 519/519와 실제 Canvas를 검증했다. API/DB·Android 계약·공개 배포 변경 없음. [검증](evidence/315-living-overlays-2026-10-07/README.md).

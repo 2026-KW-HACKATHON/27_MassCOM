@@ -1,4 +1,9 @@
 <p align="center">
+
+## 고객 UI 시안 연결 (Issue #399)
+
+23개 보드의 67개 상태를 실제 코인·방문·마이룸·이웃 흐름에 연결했습니다. [화면별 대응](docs/UI_BOARDS_STATUS_2026-10-07.md)과 [검증/배포 경계](docs/UI_BOARDS_QA_2026-10-07.md)를 확인하세요. 신규 가구 가격과 리롤권 지급량은 예시 숫자로 정하지 않습니다.
+
   <img src="docs/assets/readme/hero.png" width="100%" alt="월계동 식당 거리와 파란 월계 마스코트가 함께 있는 MassCOM 콘셉트 일러스트">
 </p>
 

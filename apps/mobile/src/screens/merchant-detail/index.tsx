@@ -66,6 +66,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   if(error&&!merchant)return <Frame><StateScene kind="error" title="가게 정보를 표시할 수 없습니다" body={error} action={{label:'다시 확인',onPress:()=>{void refresh();}}}/></Frame>;
   if(!merchant)return <Frame><StateScene kind="empty" title="가게 정보 없음"/></Frame>;
   const photos=merchant.photos;
+  const leadPhoto=photos.find(photo=>publishedPhotoUri(apiUrl,photo.url));
   const campaign=merchant.campaign;
   const source=detailViewSource(from);
   const saveGoal=async(targetVisitCount:1|3|5)=>{
@@ -93,12 +94,10 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   };
   return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 상세"/>} contentContainerStyle={{paddingBottom:48+insets.bottom}} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void refresh(true);}} progressViewOffset={insets.top}/>}>
     <View style={{padding:16,gap:14}}>
-      <FloatingCard><Text accessibilityRole="header" style={ds.heading}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text selectable style={ds.body}>{merchant.story}</Text><Text style={ds.muted}>{merchant.category??'업종 정보 없음'}</Text>
+      <FloatingCard>{leadPhoto?<View style={{gap:4,marginBottom:12}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,leadPhoto.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(leadPhoto.kind)}{leadPhoto.caption?` · ${leadPhoto.caption}`:''}</Text></View>:null}<Text accessibilityRole="header" style={ds.heading}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text selectable style={ds.body}>{merchant.story}</Text><Text style={ds.muted}>{merchant.category??'업종 정보 없음'}</Text>
         <Pressable accessibilityRole="button" onPress={()=>{void recommendMerchant({id:merchant.id,name:merchant.name,demo:merchant.demo});}} style={ds.action}><Text style={ds.actionText}>친구에게 추천</Text></Pressable></FloatingCard>
       {error?<Text accessibilityRole="alert" style={ds.muted}>{error} 화면을 아래로 당겨 다시 확인하세요.</Text>:null}
-      <FloatingCard><Text accessibilityRole="header" style={ds.section}>실제 가게 사진</Text>
-        {photos.some(photo=>publishedPhotoUri(apiUrl,photo.url))?<View style={{gap:10}}>{photos.filter(photo=>publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View>:<View style={ds.photoEmpty}><Text style={ds.muted}>점주 제공 사진이 아직 없습니다</Text></View>}
-      </FloatingCard>
+      {photos.some(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url))?<FloatingCard><Text accessibilityRole="header" style={ds.section}>가게 사진 더 보기</Text><View style={{gap:10}}>{photos.filter(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View></FloatingCard>:!leadPhoto?<FloatingCard><Text style={ds.muted}>점주 제공 사진이 아직 없습니다</Text></FloatingCard>:null}
       <FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 준비</Text><Line label="주소" value={merchant.roadAddress}/><Line label="위치" value={merchant.position?'확인된 위치':'위치 확인 필요 · 지도로 표시하지 않습니다'}/>
         {merchant.floor?<Line label="층·호수" value={`${merchant.floor}${merchant.location?.unit?` · ${merchant.location.unit}`:''}`}/>:null}
         {merchant.entranceNote?<Line label="입구" value={merchant.entranceNote}/>:null}

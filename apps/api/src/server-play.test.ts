@@ -40,7 +40,8 @@ async function request(server: Server, method: string, url: string, accountId?: 
 
 function fixture(consent?: ConsentService, configure?: (args: Parameters<typeof createApiServer>) => void) {
   const calls: string[] = [];
-  const snapshot = { studio: defaultStudio, records: [], unlockedThemes: [], items: [], avatar: null };
+  const snapshot = { studio: defaultStudio, revision: 0, records: [], unlockedThemes: [], items: [],
+    coinItems: [], furnitureItems: [], avatar: null };
   const play: PlayService = {
     start: async ({ accountId, kind }) => {
       calls.push(`start:${accountId}`);

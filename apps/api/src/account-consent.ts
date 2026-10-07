@@ -4,7 +4,7 @@
  * 기존 쓰기 요청은 옛 앱 호환을 유지한다. 새 놀이·공간 API는 현재 버전 동의를 요구한다.
  */
 export const CURRENT_TERMS_VERSION = 'terms-2026-10-06';
-export const CURRENT_PRIVACY_VERSION = 'privacy-2026-10-06';
+export const CURRENT_PRIVACY_VERSION = 'privacy-2026-10-07';
 
 export type ConsentSource = 'WEB' | 'ANDROID' | 'SHOWCASE_APP';
 

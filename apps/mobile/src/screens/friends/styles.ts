@@ -15,6 +15,7 @@ export function makeFriendsStyles(palette: AppColors, world: WorldTheme) {
   eyebrow: { color: world.cardMuted, fontSize: 12, fontWeight: '800' },
   nicknameRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   nickname: { flex: 1, minWidth: 0, color: world.cardInk, fontSize: 20, fontWeight: '900' },
+  introText: { flex: 1, minWidth: 0, color: world.cardMuted, fontSize: 14, lineHeight: 21 },
   codeBlock: { alignItems: 'center', gap: 6, paddingVertical: 4 },
   code: { color: world.cardInk, fontFamily: 'monospace', fontSize: 32, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
   qrBox: { alignItems: 'center', paddingVertical: 4 },

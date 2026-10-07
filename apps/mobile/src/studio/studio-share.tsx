@@ -9,7 +9,7 @@ import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
 import { gradeMaterialFor, gradeMaterialPresets } from '@/screens/collection/grade-material';
 
-import type { PublicStudio, StudioItem } from './studio-api';
+import type { FurnitureSnapshot, PublicStudio, StudioItem } from './studio-api';
 import { CompanionScene, StudioCoin, StudioScene } from './studio-scene';
 import { studioShareLifetime } from './studio-share-lifetime';
 import { cancelStudioVideo, exportStudioVideo, saveStudioImage } from './studio-video';
@@ -24,10 +24,10 @@ const sceneTops = { feed: 0, story: 90 } as const;
 const brand = require('../../assets/images/mascot/v2/logo-badge.png');
 
 export function StudioShareCard({ studio, items, avatar, clothing, apiUrl, format, media = 'image', experienceProfile, badgeName,
-  demoNote, onReady, onAssetError, ref }: {
+  demoNote, furniture, onReady, onAssetError, ref }: {
   studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; clothing?: EquippedClothingArt | null; apiUrl: string;
   format: Format; media?: Media; experienceProfile?: ExperienceProfile; badgeName?: string;
-  demoNote?: boolean; onReady?: () => void; onAssetError?: () => void; ref?: Ref<View>;
+  demoNote?: boolean; furniture?: FurnitureSnapshot; onReady?: () => void; onAssetError?: () => void; ref?: Ref<View>;
 }) {
   const sceneReady = useRef(false);
   const brandReady = useRef(false);
@@ -38,6 +38,7 @@ export function StudioShareCard({ studio, items, avatar, clothing, apiUrl, forma
       { paddingTop: sceneTops[format], backgroundColor: format === 'story' ? '#EDF5F8' : '#FFFFFF' }]}>
       <View style={{ width: 360, height: sceneHeights[format] }}>
         <StudioScene studio={studio} items={items} avatar={avatar} clothing={clothing} apiUrl={apiUrl}
+          furniture={furniture}
           experienceProfile={experienceProfile} badgeName={badgeName}
           videoBackground={media === 'video'}
           width={360} height={sceneHeights[format]}
@@ -63,7 +64,7 @@ export function StudioShareCard({ studio, items, avatar, clothing, apiUrl, forma
 }
 
 type ShareTarget = { id: number; studio: PublicStudio; items: StudioItem[]; avatar: string | null; clothing?: EquippedClothingArt | null; format: Format;
-  media: Media; experienceProfile?: ExperienceProfile; badgeName?: string; demoNote: boolean };
+  media: Media; experienceProfile?: ExperienceProfile; badgeName?: string; demoNote: boolean; furniture?: FurnitureSnapshot };
 export type StudioShareOutcome = 'shared' | 'saved' | 'cancelled' | 'unavailable';
 
 export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote: boolean,
@@ -86,7 +87,7 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
 
   const share = useCallback(async (studio: PublicStudio, items: readonly StudioItem[], avatar: string | null,
     format: Format, media: Media = 'image', experienceProfile?: ExperienceProfile, badgeName?: string,
-    representativeCoin?: StudioItem, clothing?: EquippedClothingArt | null): Promise<StudioShareOutcome> => {
+    representativeCoin?: StudioItem, clothing?: EquippedClothingArt | null, furniture?: FurnitureSnapshot): Promise<StudioShareOutcome> => {
     const alive = studioShareLifetime(isAlive, generation);
     if (busy.current || !alive()) return 'cancelled';
     busy.current = true;
@@ -94,7 +95,10 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
     const id = ++nextId.current;
     const ready = new Promise<void>((resolve, reject) => { pending.current = { id, resolve, reject }; });
     const featured = representativeCoin ?? items.find((item) => item.entitlementId === experienceProfile?.coinEntitlementId);
-    const ordered = featured ? [featured, ...items.filter((item) => item.entitlementId !== featured.entitlementId)].slice(0, 6) : [...items];
+    const ordered = featured ? [featured, ...items.filter((item) => featured.entitlementId
+      ? item.entitlementId !== featured.entitlementId
+      : featured.sourceId ? item.sourceKind !== featured.sourceKind || item.sourceId !== featured.sourceId
+        : item.merchantId !== featured.merchantId || item.displayName !== featured.displayName)].slice(0, 6) : [...items];
     const first = ordered[0];
     const coinSource = first?.artwork?.thumbnailDataUrl
       ? { uri: first.artwork.thumbnailDataUrl } : first ? merchantArtSource({ id: first.merchantId }, apiUrl) : undefined;
@@ -103,7 +107,7 @@ export function useStudioShare(apiUrl: string, isAlive: () => boolean, demoNote:
     const cancellation = setInterval(() => {
       if (!alive()) { pending.current?.reject(new Error('SHARE_CANCELLED')); void cancelStudioVideo(); }
     }, 100);
-    setTarget({ id, studio, items: ordered, avatar, clothing, format, media, experienceProfile, badgeName, demoNote });
+    setTarget({ id, studio, items: ordered, avatar, clothing, furniture, format, media, experienceProfile, badgeName, demoNote });
     try {
       await ready;
       clearTimeout(timeout);

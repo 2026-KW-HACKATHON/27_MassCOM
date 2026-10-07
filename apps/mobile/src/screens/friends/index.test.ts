@@ -92,7 +92,7 @@ test('adding and returning to the friends tab refresh both the friend list and s
   assert.match(screen, /const refreshFriendsAndSocial = useCallback\(\s*\(\) => Promise\.allSettled\(\[refreshQuietly\(\), refreshSocialQuietly\(\)\]\),\s*\[refreshQuietly, refreshSocialQuietly\],\s*\);/);
   const addFriend = screen.slice(screen.indexOf('const addFriend = useCallback'), screen.indexOf('// A code that arrived by QR or link'));
   assert.match(addFriend, /await refreshFriendsAndSocial\(\);/);
-  assert.match(addFriend, /\}, \[api, refreshFriendsAndSocial\]\);/);
+  assert.match(addFriend, /\}, \[api, refreshFriendsAndSocial, setAddNotice, setCodeInput, setScanning\]\);/);
   const focus = screen.slice(screen.indexOf('const focusCount = useRef'), screen.indexOf('function submitTyped'));
   assert.match(focus, /else if \(focusCount\.current > 1\) void refreshFriendsAndSocial\(\);/);
   const pull = screen.slice(screen.indexOf('async function refresh()'), screen.indexOf('const sky ='));
@@ -233,7 +233,7 @@ test('the guards against a double tap read refs, not React state that only updat
 
 test('a code or nickname reply the app cannot read reloads the screen, so no stale code or QR stays on it', () => {
   assert.match(screen, /if \(replyNeedsRefresh\(error\)\) void refreshQuietly\(\);/);
-  assert.equal((screen.match(/replyNeedsRefresh\(error\)/g) ?? []).length, 2, 'nickname and rotate');
+  assert.equal((screen.match(/replyNeedsRefresh\(error\)/g) ?? []).length, 3, 'nickname, intro and rotate');
 });
 
 test('the camera permission text names the friend code QR next to the visit claim QR, and still promises nothing is stored', () => {

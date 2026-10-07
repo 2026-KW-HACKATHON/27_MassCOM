@@ -1,3 +1,4 @@
+import { notifyProfileUpdated } from './profile-updates';
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
 import { medalKinds, type MedalKind, type MedalTier } from '@/gamification/badge-api';
@@ -10,6 +11,7 @@ import { validateFriendCode } from './code';
 
 export const TOTAL_BADGES = 9;
 export const MAX_NICKNAME_LENGTH = 12;
+export const MAX_INTRO_LENGTH = 30;
 /** Shown for a stamp whose shop name came back blank. */
 export const UNNAMED_SHOP = '이름 없는 가게';
 
@@ -20,6 +22,7 @@ export type FriendStamp = { merchantName: string; merchantId: string | null };
 export type Friend = {
   friendshipId: string;
   nickname: string;
+  intro?: string;
   badges: FriendBadges;
   /** Always explorer, regular, steady in this order. */
   medals: readonly FriendMedal[];
@@ -29,6 +32,7 @@ export type Friend = {
 
 export type FriendMe = {
   nickname: string;
+  intro?: string;
   code: string;
   badges: FriendBadges;
   medals: readonly FriendMedal[];
@@ -136,7 +140,17 @@ export function createFriendsApiClient(options: Options) {
     async setNickname(nickname: string): Promise<string> {
       const payload = await request('/me/profile', json('PUT', { nickname }));
       if (!isRecord(payload)) throw invalidResponse();
-      return parseNickname(payload.nickname);
+      const saved = parseNickname(payload.nickname);
+      notifyProfileUpdated();
+      return saved;
+    },
+    async setIntro(intro: string): Promise<string> {
+      if (Array.from(intro).length > MAX_INTRO_LENGTH) throw new FriendsApiError(400, 'PROFILE_INTRO_INVALID');
+      const payload = await request('/me/profile', json('PUT', { intro }));
+      if (!isRecord(payload)) throw invalidResponse();
+      const saved = parseIntro(payload.intro);
+      notifyProfileUpdated();
+      return saved;
     },
   };
 }
@@ -163,6 +177,7 @@ function parseMe(value: unknown): FriendMe {
   const medals = parseMedals(value.medals);
   return {
     nickname: parseNickname(value.nickname),
+    intro: value.intro === undefined ? '' : parseIntro(value.intro),
     code: parseCode(value.code),
     badges: parseBadges(value.badges, medals),
     medals,
@@ -179,6 +194,7 @@ function parseFriend(value: unknown): Friend {
   return {
     friendshipId: value.friendshipId,
     nickname: parseNickname(value.nickname),
+    ...(value.intro === undefined ? {} : { intro: parseIntro(value.intro) }),
     badges: parseBadges(value.badges, medals),
     medals,
     stamps: parseStamps(value.stamps),
@@ -196,6 +212,11 @@ function parseCode(value: unknown): string {
 function parseNickname(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) throw invalidResponse();
   if (Array.from(value).length > MAX_NICKNAME_LENGTH) throw invalidResponse();
+  return value;
+}
+
+function parseIntro(value: unknown): string {
+  if (typeof value !== 'string' || Array.from(value).length > MAX_INTRO_LENGTH) throw invalidResponse();
   return value;
 }
 
@@ -308,6 +329,8 @@ export function friendsErrorMessage(error: unknown): string {
       return '삭제된 계정이라 친구 기능을 쓸 수 없어요.';
     case 'FRIEND_NICKNAME_INVALID':
       return '이 별명은 쓸 수 없어요. 글자나 숫자가 들어간 12자 이하로, 주소나 이메일처럼 보이지 않게 지어 주세요.';
+    case 'PROFILE_INTRO_INVALID':
+      return '한 줄 소개는 30자 이하로 입력해 주세요.';
     case 'FRIEND_NOT_FOUND':
       return '이미 끊어진 친구예요. 목록을 새로 불러올게요.';
     case 'FRIENDS_NOT_CONFIGURED':

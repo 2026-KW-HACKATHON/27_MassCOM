@@ -74,6 +74,25 @@ test('recorded draw, visit badge, equipment, reversal and friend disclosure stay
   assert.equal(publicProfile.coin?.merchantId, 'experience-shop');
   assert.ok(!('coinEntitlementId' in publicProfile));
   assert.ok(!('wishlist' in publicProfile));
+  const projectId = randomUUID(), publicationId = randomUUID(), gradeDrawId = randomUUID();
+  await pool.query(`INSERT INTO collectible_projects(id,merchant_id,lineage_id)
+    VALUES($1,'experience-shop',$1)`, [projectId]);
+  await pool.query(`INSERT INTO collectible_publications(id,project_id,merchant_id,campaign_id,project_version,reward_grades)
+    VALUES($1,$2,'experience-shop','experience-campaign',1,'{}'::jsonb)`, [publicationId,projectId]);
+  await pool.query(`INSERT INTO collectible_publication_grades(publication_id,grade_id,summary,detail)
+    VALUES($1,'bronze','{"name":"경험 가게 코인"}'::jsonb,'{}'::jsonb)`, [publicationId]);
+  await pool.query(`INSERT INTO grade_draws(id,account_id,request_id,grade,price,pool_version,reward_kind,
+    publication_id,grade_id,duplicate,quantity) VALUES($1,$2,$3,'BRONZE',100,$4,'COIN',$5,'bronze',false,1)`,
+  [gradeDrawId,account,randomUUID(),'a'.repeat(64),publicationId]);
+  snapshot = await service.setEquipment({ accountId: account,
+    coinSource: { sourceKind: 'GRADE_DRAW', sourceId: gradeDrawId } });
+  assert.equal(snapshot.profile.coinSource?.sourceId, gradeDrawId);
+  assert.equal(snapshot.profile.coinEntitlementId, null);
+  assert.equal(snapshot.profile.representativeCoin?.displayName, '경험 가게 코인');
+  assert.equal((await service.getFriend({ accountId: other, friendshipId: friendId })).coin?.displayName, '경험 가게 코인');
+  await assert.rejects(() => service.setEquipment({ accountId: account,
+    coinSource: { sourceKind: 'GRADE_DRAW', sourceId: randomUUID() } }));
+  await service.setEquipment({ accountId: account, coinEntitlementId: coinId });
   await pool.query(`UPDATE visit_events SET status='CANCELED',cancellation_reason='test reversal' WHERE id=$1`, [visitId]);
   await pool.query(`UPDATE reward_entitlements SET status='CANCELED' WHERE id=$1`, [coinId]);
   snapshot = await service.getSnapshot(account);

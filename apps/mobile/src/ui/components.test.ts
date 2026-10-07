@@ -51,7 +51,7 @@ test('screen copy fits its space and does not repeat the heading below it', () =
   assert.match(list, /placeholder="가게 이름·주소 검색"/);
   assert.doesNotMatch(list, /어디로 탐험할까요|내 탐험 여권 보기|도감에서 내 도장 보기/);
   const home = readSource('screens/home/index.tsx');
-  assert.match(home, /title="홈" subtitle="오늘의 탐험"/);
+  assert.match(home, /<AppHeader title="홈" showFriendsEntry showMailEntry compact/);
   assert.doesNotMatch(home, /<HomeCollectionDisplay/);
   assert.equal((readSource('screens/home/home-exhibit.tsx').match(/<HomeCollectionDisplay/g) ?? []).length, 1);
   const collection = readSource('screens/collection/index.tsx');
@@ -61,14 +61,16 @@ test('screen copy fits its space and does not repeat the heading below it', () =
   assert.doesNotMatch(collection, /<AppHeader title="나의 탐험 여권"/);
 });
 
-test('the header keeps account tools one tap away, and says so under the avatar', () => {
+test('the profile strip keeps identity, mileage, mail and settings one tap away', () => {
   const header = read('app-header.tsx');
-  assert.match(header, /href="\/settings"/);
-  assert.match(header, /accessibilityLabel=\{avatarClothing \? `내 정보, \$\{avatarClothing\.name\} 착용` : '내 정보'\}/);
-  // A visible "내 정보" label on its own frosted pill sits under the avatar; the 48dp target is the Pressable around both.
-  assert.match(header, /styles\.avatarLabelPill[\s\S]*?styles\.avatarLabel[^>]*>내 정보</);
+  const strip = read('profile-strip.tsx');
+  assert.match(header, /<ProfileStrip avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} avatarContent=\{avatarContent\} \/>/);
+  for (const route of ['/profile', '/shop', '/mail', '/settings']) assert.ok(strip.includes(`href="${route}"`), route);
+  assert.match(strip, /getFriends\(\)/);
+  assert.match(strip, /getShop\(\)/);
+  assert.match(strip, /getSocial\(\)/);
   const home = readSource('screens/home/index.tsx');
-  assert.match(home, /<AppHeader title="홈" subtitle="오늘의 탐험"/);
+  assert.match(home, /<AppHeader title="홈"/);
   assert.match(home, /showFriendsEntry showMailEntry/);
 });
 
@@ -76,13 +78,12 @@ test('large text grows freely with reflow while home keeps one exhibit and claim
   const header = read('app-header.tsx');
   assert.doesNotMatch(header, /styles\.headerTitle[^>]*maxFontSizeMultiplier|styles\.headerSubtitle[^>]*numberOfLines/);
   assert.match(header, /\{subtitle \? <Text style=\{styles\.headerSubtitle\}>\{subtitle\}<\/Text> : null\}/);
-  assert.match(header, /stackedHeader && \{ flexBasis: '100%' \}/);
-  assert.match(header, /flexWrap: 'wrap'/);
+  assert.match(read('profile-strip.tsx'), /flexWrap: 'wrap'/);
   assert.doesNotMatch(read('bounce-button.tsx'), /maxFontSizeMultiplier|numberOfLines/);
   const home = readSource('screens/home/index.tsx');
   const exhibit = readSource('experience/home-collection-display.tsx');
   assert.doesNotMatch(home, /heroMascotSize|<Mascot/);
-  assert.equal((home.match(/<CompanionScene/g) ?? []).length, 1, 'one small overview companion');
+  assert.equal((home.match(/<StudioScene/g) ?? []).length, 1, 'one room preview');
   assert.doesNotMatch(home, /<HomeCollectionDisplay/);
   assert.equal((readSource('screens/home/home-exhibit.tsx').match(/<HomeCollectionDisplay/g) ?? []).length, 1);
   assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
@@ -96,12 +97,11 @@ test('the claim hero tells people what to show or type', () => {
   assert.doesNotMatch(claim, /점주에게 받은 QR을 촬영하거나 1회 코드를 입력하세요/);
 });
 
-test('header titles sit on the frosted panel while the avatar stays outside it', () => {
+test('header titles and back controls remain separate from the profile strip', () => {
   const header = read('app-header.tsx');
-  // #298: an optional 친구 entry (showFriendsEntry) can sit between the panel and the account avatar.
-  assert.match(header, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?<\/View>[\s\S]*?<Link href="\/settings"/);
+  assert.match(header, /<ProfileStrip[^>]*\/>[\s\S]*?accessibilityRole="header"/);
   const back = read('back-header.tsx');
-  assert.match(back, /<View style=\{\[styles\.headerPanel[^\]]*\]\}>[\s\S]*?styles\.backTitle[\s\S]*?<\/View>/);
+  assert.match(back, /<ProfileStrip \/>[\s\S]*?accessibilityLabel="뒤로"[\s\S]*?styles\.backTitle/);
 });
 
 test('the header art fades into the page colour over its last 15% in both schemes', () => {
@@ -161,12 +161,10 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
   assert.match(scrim, /scrim: \{[\s\S]*?shadowColor: 'transparent'/);
 });
 
-test('the sky art is the top of the scroll content: the headers carry it and SkyBackdrop is only the page colour', () => {
+test('the shared sky backdrop paints the page while headers stay inside scroll content', () => {
   assert.doesNotMatch(read('sky-backdrop.tsx'), /skyTownHeader|<Image|<SkyArt/);
-  assert.match(read('sky-art.tsx'), /skyTownHeader/);
-  assert.match(read('app-header.tsx'), /<SkyArt compact=\{compact\} \/>/);
-  assert.match(read('app-header.tsx'), /minHeight: compact \? undefined : skyArtHeight\(width\)/);
-  assert.match(read('back-header.tsx'), /<SkyArt compact \/>/);
+  assert.doesNotMatch(read('app-header.tsx'), /<SkyArt/);
+  assert.doesNotMatch(read('back-header.tsx'), /<SkyArt/);
   // The header renders inside the scroll view, before the content, so both scroll away together.
   assert.match(read('sky-scroll-view.tsx'), /<ScrollView[\s\S]*\{header\}[\s\S]*<\/ScrollView>/);
 });
@@ -215,12 +213,12 @@ test('stack pages use the sky header with a back button instead of the plain nat
   assert.ok((detail.match(/<BackHeader title="가게 상세"/g) ?? []).length >= 2, 'detail page and its state frame');
   assert.match(readSource('screens/recommendations/index.tsx'), /<BackHeader title="다음 가게 추천"/);
   assert.match(detail, /<BackHeader title="가게 상세"\/>/);
-  assert.match(detail, /photos\.filter\(photo=>publishedPhotoUri\(apiUrl,photo\.url\)\)/);
+  assert.match(detail, /photos\.filter\(photo=>photo\.id!==leadPhoto\?\.id&&publishedPhotoUri\(apiUrl,photo\.url\)\)/);
   assert.match(detail, /AI 생성 수집품 그림 · 실제 가게 사진과 다릅니다/);
   assert.match(detail, /<Image source=\{\{uri:goal\.thumbnailDataUrl\}\}/);
   const back = read('back-header.tsx');
   assert.match(back, /art \? <StoreArt source=\{art\}/);
-  assert.match(back, /<SkyArt compact \/>/);
+  assert.match(back, /<ProfileStrip \/>/);
 });
 
 test('signed-out and set-up states of the tab routes sit on the sky under their own header, not on a white sheet', () => {
@@ -278,7 +276,7 @@ test('mascots are plain images unless asked to be interactive, and the exhibit h
   const home = readSource('screens/home/index.tsx');
   const exhibit = readSource('experience/home-collection-display.tsx');
   assert.doesNotMatch(home, /<Mascot|<AvatarPortrait|interactive/);
-  assert.equal((home.match(/<CompanionScene/g) ?? []).length, 1);
+  assert.equal((home.match(/<StudioScene/g) ?? []).length, 1);
   assert.equal((exhibit.match(/<CompanionScene/g) ?? []).length, 1);
   assert.match(exhibit, /<CompanionScene[^>]*interactive/);
   const portrait = readSource('illustration/avatar-portrait.tsx');

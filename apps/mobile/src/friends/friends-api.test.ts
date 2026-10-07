@@ -54,7 +54,27 @@ test('parses the friends list and keeps only the allowed fields', () => {
     stamps: [{ merchantName: '월계 국밥집', merchantId: null }, { merchantName: '월계 분식', merchantId: null }], rank: 1,
   });
   assert.deepEqual(Object.keys(parsed.friends[0]!.stamps[0]!), ['merchantName', 'merchantId']);
-  assert.deepEqual(Object.keys(parsed.me), ['nickname', 'code', 'badges', 'medals', 'rank', 'asOf']);
+  assert.deepEqual(Object.keys(parsed.me), ['nickname', 'intro', 'code', 'badges', 'medals', 'rank', 'asOf']);
+  assert.equal(parsed.me.intro, '');
+});
+
+test('reads and saves a server-backed one-line intro with a 30-character boundary', async () => {
+  const bodies: unknown[] = [];
+  const client = createFriendsApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (_input, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return Response.json({ nickname: '모모', intro: '오늘도 골목 산책!' });
+    },
+  });
+  assert.equal(await client.setIntro('오늘도 골목 산책!'), '오늘도 골목 산책!');
+  assert.deepEqual(bodies, [{ intro: '오늘도 골목 산책!' }]);
+  await assert.rejects(client.setIntro('가'.repeat(31)), /PROFILE_INTRO_INVALID/);
+  assert.equal(bodies.length, 1);
+  assert.equal(parseFriendsSnapshot({ ...snapshot(), me: { ...snapshot().me, intro: '소개' } }).me.intro, '소개');
+  assert.throws(() => parseFriendsSnapshot({ ...snapshot(), me: { ...snapshot().me, intro: '가'.repeat(31) } }), /INVALID_RESPONSE/);
+  assert.equal(parseFriendsSnapshot({ ...snapshot(), friends: [friend({ intro: '같이 산책해요' })] }).friends[0]?.intro, '같이 산책해요');
 });
 
 test('친구 도장은 공개 가게 ID만 보존하고 숨겨진 가게는 연결하지 않는다', () => {

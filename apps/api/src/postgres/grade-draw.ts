@@ -184,11 +184,21 @@ export class PostgresGradeDrawService implements GradeDrawService {
       (SELECT count(*) FROM collectible_acquisitions acquisition
         JOIN reward_entitlements entitlement ON entitlement.id=acquisition.entitlement_id
         WHERE entitlement.customer_account_id=$1 AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
-          AND acquisition.publication_id=$2 AND acquisition.grade_id=$3)
+          AND acquisition.publication_id=$2 AND acquisition.grade_id=$3
+          AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+            WHERE spent.source_kind='VISIT' AND spent.source_id=acquisition.entitlement_id))
       + (SELECT count(*) FROM coin_draws draw JOIN coin_tickets ticket ON ticket.id=draw.ticket_id
-        WHERE ticket.account_id=$1 AND draw.publication_id=$2 AND draw.grade_id=$3)
+        WHERE ticket.account_id=$1 AND draw.publication_id=$2 AND draw.grade_id=$3
+          AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+            WHERE spent.source_kind='STORE_DRAW' AND spent.source_id=draw.ticket_id))
       + (SELECT count(*) FROM grade_draws WHERE account_id=$1 AND reward_kind='COIN'
-        AND publication_id=$2 AND grade_id=$3)
+        AND publication_id=$2 AND grade_id=$3
+        AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+          WHERE spent.source_kind='GRADE_DRAW' AND spent.source_id=grade_draws.id))
+      + (SELECT count(*) FROM coin_rerolls WHERE account_id=$1 AND publication_id=$2 AND grade_id=$3
+          AND revoked_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+            WHERE spent.source_kind='REROLL' AND spent.source_id=coin_rerolls.id))
     )::integer AS n`, [accountId, reward.publicationId, reward.gradeId]);
     return result.rows[0]!.n;
   }

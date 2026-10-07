@@ -279,7 +279,7 @@ export class PostgresReversalService implements ReversalService {
         })),
         { visitEventId: visit.id, progressAfter },
       );
-      if (revoke.length > 0) await this.revokeEntitlements(client, revoke, visit.id, now);
+      if (revoke.length > 0) await this.revokeEntitlements(client, revoke, visit.customer_account_id, visit.id, now);
 
       if (promotedVisitId) {
         await grantReachedGoals(client, {
@@ -463,6 +463,7 @@ export class PostgresReversalService implements ReversalService {
   private async revokeEntitlements(
     client: PoolClient,
     revoke: readonly { id: string; status: EntitlementRow['status'] }[],
+    accountId: string,
     visitEventId: string,
     now: Date,
   ): Promise<void> {
@@ -519,6 +520,63 @@ export class PostgresReversalService implements ReversalService {
        WHERE id = ANY($3::uuid[])`,
       [now, visitEventId, entitlementIds],
     );
+    // 발행 불가로 되돌린 방문 코인에서 파생된 모든 리롤 획득도 함께 철회한다.
+    // 원본·추첨 기록은 남겨 재전송 결과와 감사 연결을 유지한다.
+    await client.query(`WITH RECURSIVE chain(id) AS (
+        SELECT draw.id FROM coin_rerolls draw
+        WHERE draw.source_kind = 'VISIT' AND draw.source_id = ANY($1::uuid[])
+        UNION
+        SELECT child.id FROM coin_rerolls child JOIN chain parent
+          ON child.source_kind = 'REROLL' AND child.source_id = parent.id
+      ) UPDATE coin_rerolls draw
+      SET revoked_at = $2, revoked_by_visit_event_id = $3
+      FROM chain WHERE draw.id = chain.id AND draw.revoked_at IS NULL`,
+    [entitlementIds, now, visitEventId]);
+    // 필수 코인이 사라진 시리즈 쿠폰은 사용 전이면 철회한다. 이미 사용됐다면 방문 취소 전체를 되돌린다.
+    const affectedCoupons = await client.query<{ id: string; redeemed_at: Date | null }>(`
+      WITH affected AS (
+        SELECT acquisition.publication_id, acquisition.grade_id
+        FROM collectible_acquisitions acquisition WHERE acquisition.entitlement_id = ANY($2::uuid[])
+        UNION
+        SELECT draw.publication_id, draw.grade_id FROM coin_rerolls draw
+        WHERE draw.revoked_by_visit_event_id = $3
+      ), active_owned AS (
+        SELECT acquisition.publication_id, acquisition.grade_id
+        FROM collectible_acquisitions acquisition
+        JOIN reward_entitlements entitlement ON entitlement.id = acquisition.entitlement_id
+        WHERE entitlement.customer_account_id = $1 AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
+          AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+            WHERE spent.source_kind='VISIT' AND spent.source_id=acquisition.entitlement_id)
+        UNION ALL SELECT draw.publication_id, draw.grade_id
+        FROM coin_draws draw JOIN coin_tickets ticket ON ticket.id=draw.ticket_id
+        WHERE ticket.account_id=$1 AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+          WHERE spent.source_kind='STORE_DRAW' AND spent.source_id=draw.ticket_id)
+        UNION ALL SELECT draw.publication_id, draw.grade_id FROM grade_draws draw
+        WHERE draw.account_id=$1 AND draw.reward_kind='COIN'
+          AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+            WHERE spent.source_kind='GRADE_DRAW' AND spent.source_id=draw.id)
+        UNION ALL SELECT draw.publication_id, draw.grade_id FROM coin_rerolls draw
+        WHERE draw.account_id=$1 AND draw.revoked_at IS NULL
+          AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+            WHERE spent.source_kind='REROLL' AND spent.source_id=draw.id)
+      )
+      SELECT coupon.id, coupon.redeemed_at FROM coin_series_coupons coupon
+      WHERE coupon.account_id=$1 AND coupon.revoked_at IS NULL
+        AND (coupon.redeemed_at IS NOT NULL OR coupon.expires_at > $4)
+        AND EXISTS (SELECT 1 FROM coin_series_entries entry JOIN affected
+          USING (publication_id,grade_id)
+          WHERE entry.series_id=coupon.series_id AND entry.tier=coupon.tier
+            AND NOT EXISTS (SELECT 1 FROM active_owned owned
+              WHERE owned.publication_id=entry.publication_id AND owned.grade_id=entry.grade_id))
+      FOR UPDATE OF coupon`, [accountId, entitlementIds, visitEventId, now]);
+    if (affectedCoupons.rows.some(coupon => coupon.redeemed_at)) {
+      throw new ReversalError('VISIT_REWARD_COUPON_REDEEMED');
+    }
+    if (affectedCoupons.rowCount) {
+      await client.query(`UPDATE coin_series_coupons
+        SET revoked_at=$2, revoked_by_visit_event_id=$3 WHERE id=ANY($1::uuid[])`,
+      [affectedCoupons.rows.map(coupon => coupon.id), now, visitEventId]);
+    }
   }
 
   // 다시 센 배지 수로 더는 열 수 없는 상자의 미사용 쿠폰을 무효로 한다. 사용한 쿠폰과 이미 만료된 쿠폰은 건드리지 않는다

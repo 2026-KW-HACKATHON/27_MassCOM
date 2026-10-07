@@ -16,7 +16,7 @@ const { loadMerchants } = productionWeb;
 
 // 도감은 동의를 확인한 뒤에만 읽는다(Issue #253). 아래 기존 시험은 이미 동의한 계정을 전제로 하므로 동의 조회에 "동의함"으로 답하는 fetcher로 감싼다.
 // 동의 화면 자체의 시험은 이 파일 끝의 "웹 첫 로그인 동의" 시험이 감싸지 않은 productionWeb.loadCollection으로 한다.
-const consentAccepted = { required: false, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06' };
+const consentAccepted = { required: false, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-07' };
 const withConsent = (fetcher) => (url, options) => (url === '/api/web/consent'
   ? Promise.resolve({ ok: true, status: 200, json: async () => consentAccepted })
   : fetcher(url, options));
@@ -1837,11 +1837,11 @@ const cspOf = (source) => /http-equiv="Content-Security-Policy" content="([^"]+)
 
 test('웹 색·글자 토큰은 앱과 같은 --mc-* 블록으로 시작하고 옛 변수와 Georgia를 쓰지 않는다 (Issue #218)', () => {
   assert.ok(css.replaceAll('\r\n', '\n').trimStart().startsWith(':root {\n  color-scheme: light dark;'));
-  for (const token of ['--mc-bg: #FFFFFF', '--mc-primary: #2456D6', '--mc-sky-1: #BFE3FF', '--mc-bronze-edge: #8A5226',
+  for (const token of ['--mc-bg: #FAFAF5', '--mc-primary: #076F64', '--mc-sky-1: #BFE3FF', '--mc-bronze-edge: #8A5226',
     '--mc-gold-container: #FBEFC4', '--mc-stamp-ink: #A3401F', '--mc-radius-card: 20px', '--mc-radius-control: 14px',
     '--mc-page: min(72rem, calc(100vw - 40px))']) assert.ok(css.includes(token), token);
   const dark = /@media \(prefers-color-scheme: dark\) \{\s*:root \{([^}]+)\}/.exec(css)?.[1] ?? '';
-  for (const token of ['--mc-bg: #14171D', '--mc-primary: #9BB8FF', '--mc-sky-1: #1D3A63', '--mc-stamp-ink: #FFB09A',
+  for (const token of ['--mc-bg: #112724', '--mc-primary: #83DCCA', '--mc-sky-1: #1D3A63', '--mc-stamp-ink: #FFB09A',
     '--mc-locked-fill: #262C37']) assert.ok(dark.includes(token), token);
   assert.doesNotMatch(css, /--(?:ink|muted|paper|night|moon|stream|line|focus|ribbon-ink)\b/);
   assert.doesNotMatch(css, /Georgia|(?<!sans-)serif/);
@@ -3020,9 +3020,9 @@ function consentDocument() {
   return fixture;
 }
 
-const consentRequired = { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06' };
+const consentRequired = { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-07' };
 const consentBodySent = {
-  termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06',
+  termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-07',
   ageConfirmed: true, termsAccepted: true, privacyAccepted: true,
 };
 
@@ -3186,7 +3186,7 @@ test('웹 동의: 기록이 거절되거나 실패하면 화면과 체크를 그
     [{ ok: false, status: 409, body: { code: 'CONSENT_VERSION_MISMATCH' } }, /새로 바뀌었어요/],
     [{ ok: false, status: 400, body: { code: 'CONSENT_INCOMPLETE' } }, /기록하지 못했어요/],
     [{ ok: false, status: 500, body: {} }, /기록하지 못했어요/],
-    [{ ok: true, status: 200, body: { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-06' } }, /기록하지 못했어요/],
+    [{ ok: true, status: 200, body: { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-07' } }, /기록하지 못했어요/],
     [{ ok: true, status: 200, body: null }, /기록하지 못했어요/],
   ]) {
     const { nodes, doc } = consentDocument();

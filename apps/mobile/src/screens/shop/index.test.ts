@@ -11,7 +11,7 @@ const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url
 const machine = readFileSync(fileURLToPath(new URL('./gacha-machine.tsx', import.meta.url)), 'utf8');
 
 test('GET refresh does not clear unresolved POST pending; only replay success/state-change handling clears storage', () => {
-  const quietRefreshFn = screen.slice(screen.indexOf('const quietRefresh ='), screen.indexOf('useFocusEffect('));
+  const quietRefreshFn = screen.slice(screen.indexOf('const quietRefresh ='), screen.indexOf('useFocusEffect(', screen.indexOf('const quietRefresh =')));
   assert.match(screen, /const refreshGachaSnapshot = shop\.refreshQuietly;/);
   assert.match(quietRefreshFn, /refreshGachaSnapshot\(\)/);
   assert.match(quietRefreshFn, /\[refreshGachaSnapshot\]/);

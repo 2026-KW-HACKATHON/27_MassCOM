@@ -10,7 +10,8 @@ test('a received ticket discloses its own merchant and exact pool probabilities 
   assert.match(shop, /shop\.pools\.find\(\(candidate\) => candidate\.id === ticket\.poolId\)/);
   assert.match(shop, /pool\.entries\.map/);
   assert.equal((shop.match(/coinProbabilityText\(entry\.weight, totalWeight\)/g) ?? []).length, 2);
-  assert.match(shop, /disabled=\{busy \|\| result !== undefined \|\| !canUse\}/);
+  assert.match(shop, /disabled=\{busy \|\| result !== undefined \|\| Boolean\(pendingTicketId\) \|\| !canUse\}/);
+  assert.match(shop, /기존 보유 코인은 그대로 유지돼요/);
   assert.match(shop, /parseCollectibleArtwork\(result\.summary\)/);
 });
 

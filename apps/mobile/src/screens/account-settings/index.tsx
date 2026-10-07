@@ -358,6 +358,14 @@ export function AccountSettingsScreen({
       </Stagger>
 
       <FloatingCard style={styles.groupCard}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>설정 바로가기</Text>
+        <Link href={'/profile' as never} asChild><Pressable accessibilityRole="button" style={styles.secondaryLink}><Text style={styles.secondaryLinkText}>내 프로필과 탐험 여권 →</Text></Pressable></Link>
+        <Link href={'/appearance' as never} asChild><Pressable accessibilityRole="button" style={styles.secondaryLink}><Text style={styles.secondaryLinkText}>하단 바 꾸미기 →</Text></Pressable></Link>
+        <Link href="/studio" asChild><Pressable accessibilityRole="button" style={styles.secondaryLink}><Text style={styles.secondaryLinkText}>마이룸 공개와 꾸미기 →</Text></Pressable></Link>
+        <Link href="/wallet" asChild><Pressable accessibilityRole="button" style={styles.secondaryLink}><Text style={styles.secondaryLinkText}>외부 지갑 연결 →</Text></Pressable></Link>
+      </FloatingCard>
+
+      <FloatingCard style={styles.groupCard}>
         <Text style={styles.sectionTitle}>친구</Text>
         <Text selectable style={styles.intro}>친구 코드를 주고받고 순위를 봐요.</Text>
         <Link href={'/notifications' as never} asChild>
@@ -434,6 +442,16 @@ export function AccountSettingsScreen({
         <View accessibilityLiveRegion="polite">
           {legalError ? <Text selectable style={styles.error}>{legalError}</Text> : null}
         </View>
+      </FloatingCard>
+
+      <FloatingCard style={styles.groupCard}>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>도움말</Text>
+        <Text style={styles.cardTitle}>방문 인증이 안 돼요</Text>
+        <Text style={styles.cardBody}>가게에 표시된 방문 QR을 다시 확인하거나 코드를 직접 입력해 주세요. 인증에 실패하면 방문 화면에서 오류와 다시 시도 방법을 알려드려요.</Text>
+        <Text style={styles.cardTitle}>뽑기권과 리롤권은 어떻게 달라요?</Text>
+        <Text style={styles.cardBody}>일반 뽑기권은 기존 코인을 그대로 두고 새 코인을 얻어요. 리롤권은 선택한 코인을 앱에서 회수하고 새 코인을 얻어요.</Text>
+        <Text style={styles.cardTitle}>NFT를 받은 뒤 리롤할 수 있나요?</Text>
+        <Text style={styles.cardBody}>발급 진행 중인 코인과 발급이 완료된 코인은 앱에서 회수하거나 리롤할 수 없어요. 발급 실패 여부는 서버에서 확정된 상태를 확인해 주세요.</Text>
       </FloatingCard>
 
       <FloatingCard style={styles.groupCard}>
@@ -654,7 +672,7 @@ function IntakeStatus({
             onPress={onReissue}
             style={[styles.secondaryLink, busy && styles.disabled]}
           >
-            <Text style={styles.secondaryLinkText}>접수번호 다시 받기</Text>
+            <Text style={styles.statusLinkText}>접수번호 다시 받기</Text>
           </Pressable>
           {description.canCancel ? (
             <Pressable
@@ -664,7 +682,7 @@ function IntakeStatus({
               onPress={onCancel}
               style={[styles.secondaryLink, busy && styles.disabled]}
             >
-              <Text style={styles.secondaryLinkText}>{busy ? '처리 중…' : `삭제 요청 취소 (${formatKstMinute(view.cancelUntil)}까지)`}</Text>
+              <Text style={styles.statusLinkText}>{busy ? '처리 중…' : `삭제 요청 취소 (${formatKstMinute(view.cancelUntil)}까지)`}</Text>
             </Pressable>
           ) : null}
         </>

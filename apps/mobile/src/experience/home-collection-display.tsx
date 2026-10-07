@@ -22,7 +22,8 @@ export function HomeCollectionDisplay({ experience, collection, shop, visitGoal,
   const scheme = useColorScheme();
   const styles = makeStyles(colorsForScheme(scheme), worldForScheme(scheme));
   const badge = experience.catalog.badges.find((item) => item.id === experience.profile.badgeId);
-  const coin = collection?.collectibles.find((item) => item.entitlementId === experience.profile.coinEntitlementId);
+  const coin = experience.profile.representativeCoin
+    ?? collection?.collectibles.find((item) => item.entitlementId === experience.profile.coinEntitlementId);
   const availablePacks = experience.catalog.packs.filter((pack) => !shop ||
     (shop.grades.find((grade) => grade.grade === pack.grade)?.remaining ?? 0) > 0);
   const nextPack = availablePacks.find((pack) => shop && shop.mileage.balance >= pack.price) ?? availablePacks[0];
@@ -36,7 +37,9 @@ export function HomeCollectionDisplay({ experience, collection, shop, visitGoal,
       <CompanionScene avatar={shop?.avatar ?? null} clothing={equippedClothingArt(shop)} experienceProfile={experience.profile} interactive size={96} />
       <View style={styles.details}>
         {badge ? <View style={styles.badgeLine}><BadgeArt id={badge.id} size={42} /><Text style={styles.detail}>{badge.name}</Text></View> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel={coin ? `${coin.displayName} 도감에서 보기` : "대표 코인 고르기"} onPress={() => router.push('/collection')} style={styles.coinLine}>{coin ? <StudioCoin item={coin} apiUrl={apiUrl} size={64} /> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel={coin ? `${coin.displayName} 도감에서 보기` : "대표 코인 고르기"}
+          onPress={() => router.push(experience.profile.coinSource?.sourceKind && experience.profile.coinSource.sourceKind !== 'VISIT' ? '/coin-collection' : '/collection')}
+          style={styles.coinLine}>{coin ? <StudioCoin item={coin} apiUrl={apiUrl} size={64} /> : null}
           <Text style={styles.detail}>{coin ? coin.displayName : '대표 코인을 골라 보세요'}</Text></Pressable>
       </View>
     </View>

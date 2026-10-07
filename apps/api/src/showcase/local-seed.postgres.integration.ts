@@ -6,6 +6,7 @@ import { Pool } from 'pg';
 
 import { PostgresMerchantAccessControl } from '../postgres/merchant-access.js';
 import { PostgresMerchantCatalog } from '../postgres/merchant-catalog.js';
+import { PostgresRealWorldService } from '../postgres/real-world.js';
 import { runMigrations } from '../postgres/migrate.js';
 import {
   seedLocalShowcase,
@@ -118,6 +119,16 @@ test('local showcase seed is repeatable with three visible demo merchants', asyn
       '가상 점포 A', '가상 점포 B', '가상 점포 C',
     ]);
     assert.ok(listed.every((merchant) => merchant.demo));
+    const demoDetails = new PostgresRealWorldService(pool, { includeDemo: true });
+    const detail = await demoDetails.merchant(SHOWCASE_MERCHANT_ID);
+    assert.equal(detail.demo, true);
+    assert.equal(detail.position, null, 'virtual stores must not invent real map coordinates');
+    assert.equal(detail.name, '가상 점포 A');
+    await assert.rejects(new PostgresRealWorldService(pool).merchant(SHOWCASE_MERCHANT_ID),
+      (error: unknown) => error instanceof Error && error.message === 'MERCHANT_NOT_FOUND');
+    const publication = await pool.query('SELECT published_at FROM merchants WHERE id = $1', [SHOWCASE_MERCHANT_ID]);
+    await seedLocalShowcase(pool);
+    assert.deepEqual((await pool.query('SELECT published_at FROM merchants WHERE id = $1', [SHOWCASE_MERCHANT_ID])).rows, publication.rows);
 
     const access = new PostgresMerchantAccessControl(pool);
     const staff = await access.requirePermission({

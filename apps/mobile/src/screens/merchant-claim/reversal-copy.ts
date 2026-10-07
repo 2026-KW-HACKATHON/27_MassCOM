@@ -82,6 +82,7 @@ export function visitCancelFailureMessage(status: number | undefined, code: stri
     case 'VISIT_CANCEL_WINDOW_CLOSED': return '방문한 날이 지나 취소할 수 없어요.';
     case 'VISIT_REWARD_ALREADY_MINTED': return '이 방문으로 받은 NFT를 이미 발행했거나 발행 중이라 취소할 수 없어요.';
     case 'VISIT_REWARD_MINT_IN_PROGRESS': return 'NFT 발행이 막 시작돼 지금은 취소할 수 없어요. 잠시 뒤 다시 시도해 주세요.';
+    case 'VISIT_REWARD_COUPON_REDEEMED': return '이 방문에서 이어진 시리즈 쿠폰이 이미 사용돼 방문을 취소할 수 없어요.';
     case 'INVALID_REVERSAL_REASON': return '취소 사유를 골라 주세요.';
     case 'INVALID_REVERSAL_NOTE': return '메모는 100자 이하로 쓰고 연락처·이메일·주소는 적지 마세요.';
     case 'ACCOUNT_DELETED': return '계정이 삭제돼 처리할 수 없어요.';

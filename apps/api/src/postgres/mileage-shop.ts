@@ -99,6 +99,10 @@ export async function earnedAndSpent(db: Queryable, accountId: string): Promise<
     `SELECT coalesce(sum(price), 0)::integer AS spent FROM grade_draws WHERE account_id = $1`,
     [accountId],
   );
+  const furnitureSpentResult = await db.query<SpentRow>(
+    `SELECT coalesce(sum(price_mileage), 0)::integer AS spent FROM furniture_purchases WHERE account_id = $1`,
+    [accountId],
+  );
   const creditResult = await db.query<CreditRow>(
     `SELECT coalesce(sum(amount), 0)::integer AS credited FROM mileage_credits WHERE account_id = $1`,
     [accountId],
@@ -111,7 +115,7 @@ export async function earnedAndSpent(db: Queryable, accountId: string): Promise<
       completedSeries: row.completed_series,
     }) + (creditResult.rows[0]?.credited ?? 0),
     spent: (spentResult.rows[0]?.spent ?? 0) + (ticketSpentResult.rows[0]?.spent ?? 0)
-      + (gradeDrawSpentResult.rows[0]?.spent ?? 0),
+      + (gradeDrawSpentResult.rows[0]?.spent ?? 0) + (furnitureSpentResult.rows[0]?.spent ?? 0),
   };
 }
 

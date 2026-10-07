@@ -3,11 +3,13 @@ import type { ColorValue } from 'react-native';
 
 type GlyphName = 'explore' | 'map' | 'claim' | 'collection' | 'friends' | 'shop' | 'account' | 'home' | 'mail' | 'play';
 
-export function TabGlyph({ name, color, size }: {
+export function TabGlyph({ name, color, size, filled = false }: {
   name: GlyphName;
   color: ColorValue;
   size: number;
+  filled?: boolean;
 }) {
+  const face = filled ? color : 'none';
   const stroke = { stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const };
 
   return (
@@ -22,24 +24,20 @@ export function TabGlyph({ name, color, size }: {
         <Circle cx="16" cy="10.5" r="1" fill={color} /><Circle cx="18" cy="14" r="1" fill={color} />
       </> : null}
       {name === 'home' ? <>
-        <Path d="M3.5 11.5 12 4l8.5 7.5" {...stroke} strokeLinejoin="round" />
-        <Path d="M6 10.5V20h12v-9.5" {...stroke} strokeLinejoin="round" />
-        <Path d="M10 20v-5h4v5" {...stroke} strokeLinejoin="round" />
+        <Path d="M3 10.5 12 3l9 7.5V21h-6v-7H9v7H3Z" {...stroke} fill={face} strokeLinejoin="round" />
       </> : null}
       {name === 'map' ? <>
-        {/* A folded map: three panels with two creases. */}
-        <Path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20V6.5Z" {...stroke} strokeLinejoin="round" />
-        <Path d="M9 4v13.5M15 6.5V20" {...stroke} />
+        <Path d="M12 22s8-8 8-14a8 8 0 0 0-16 0c0 6 8 14 8 14Z" {...stroke} fill={face} strokeLinejoin="round" />
+        <Circle cx="12" cy="8" r="3" fill={filled ? '#FFFFFF' : 'none'} stroke={filled ? '#FFFFFF' : color} strokeWidth="1.5" />
       </> : null}
       {name === 'claim' ? <>
         <Rect x="4" y="4" width="16" height="16" rx="3" {...stroke} />
         <Path d="m8 12 3 3 5-6" {...stroke} />
       </> : null}
       {name === 'collection' ? <>
-        <Rect x="4" y="4" width="7" height="7" rx="1" {...stroke} />
-        <Rect x="13" y="4" width="7" height="7" rx="1" {...stroke} />
-        <Rect x="4" y="13" width="7" height="7" rx="1" {...stroke} />
-        <Rect x="13" y="13" width="7" height="7" rx="1" {...stroke} />
+        <Path d="M12 5C8 2 4 3 2 4v16c3-2 7-2 10 0 3-2 7-2 10 0V4c-3-1-6-2-10 1Z" {...stroke} strokeLinejoin="round" />
+        <Path d="M12 5v15" {...stroke} />
+        {filled ? <><Path d="M5 7h4M5 10h4M15 7h4M15 10h4" {...stroke} /></> : null}
       </> : null}
       {name === 'friends' ? <>
         {/* Two heads: the one in front is larger, the friend behind it is smaller. */}
@@ -49,11 +47,8 @@ export function TabGlyph({ name, color, size }: {
         <Path d="M16 14.7c2.9-.2 4.6 1.3 5 4" {...stroke} />
       </> : null}
       {name === 'shop' ? <>
-        {/* A little storefront: awning triangle over a doorway. */}
-        <Path d="M4 9.5 6 4h12l2 5.5" {...stroke} strokeLinejoin="round" />
-        <Path d="M4 9.5h16v2a2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1-2 2 2 2 0 0 1-2-2 2 2 0 0 1-2 2 2 2 0 0 1-2-2v-2Z" {...stroke} strokeLinejoin="round" />
-        <Path d="M6 13.5V20h12v-6.5" {...stroke} strokeLinejoin="round" />
-        <Rect x="10" y="15.5" width="4" height="4.5" rx="0.5" {...stroke} />
+        <Path d="M5 8h14l2 13H3Z" {...stroke} fill={face} strokeLinejoin="round" />
+        <Path d="M8 9V5a4 4 0 0 1 8 0v4" {...stroke} />
       </> : null}
       {name === 'account' ? <>
         <Circle cx="12" cy="8" r="3.5" {...stroke} />

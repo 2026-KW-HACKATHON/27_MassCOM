@@ -233,14 +233,21 @@ export async function seedShowcaseFixtureData(
            WHERE id = $1 AND is_demo AND neighborhood IS NULL AND category IS NULL`,
           [entry.merchantId, merchantNeighborhood, entry.category],
         );
+        // Canonical virtual stores were already visible in the legacy catalog. Mark their
+        // publication for the new detail reader after the fixture identity/status checks.
+        await client.query(
+          `UPDATE merchants SET published_at = COALESCE(published_at, $2)
+           WHERE id = $1 AND is_demo AND status = 'ACTIVE'`,
+          [entry.merchantId, now],
+        );
         continue;
       }
       await client.query(
         `INSERT INTO merchants
-         (id, name, story, road_address, minimum_spend_won, status, is_demo, neighborhood, category)
-         VALUES ($1, $2, $3, $4, 0, 'ACTIVE', true, $5, $6)
+         (id, name, story, road_address, minimum_spend_won, status, is_demo, neighborhood, category, published_at)
+         VALUES ($1, $2, $3, $4, 0, 'ACTIVE', true, $5, $6, $7)
          ON CONFLICT (id) DO NOTHING`,
-        [entry.merchantId, entry.name, entry.story, merchantAddress, merchantNeighborhood, entry.category],
+        [entry.merchantId, entry.name, entry.story, merchantAddress, merchantNeighborhood, entry.category, now],
       );
       if (staffAccountId) {
         await client.query(

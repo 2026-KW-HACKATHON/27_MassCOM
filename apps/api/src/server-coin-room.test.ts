@@ -7,6 +7,7 @@ import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } f
 import { CoinEconomyError, type CoinEconomyService } from './coin-economy.js';
 import { RoomCommunityError, type RoomCommunityService } from './room-community.js';
 import { GradeDrawError, type GradeDrawService } from './grade-draw.js';
+import { FriendError, type FriendService } from './friends.js';
 import { createApiServer, developmentHeaderAccountResolver } from './server.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
@@ -32,9 +33,11 @@ function fixture(configure?: (args: Parameters<typeof createApiServer>) => void)
   const calls: unknown[] = [];
   const capture = async (input: unknown) => { calls.push(input); return { replayed: true }; };
   const coins = { getShop: capture, getCollection: capture, purchase: capture, useTicket: capture,
-    claimSeries: capture, publishPool: capture, publishSeries: capture } as unknown as CoinEconomyService;
+    claimSeries: capture, publishPool: capture, publishSeries: capture,
+    grantRerollTicket: capture, useRerollTicket: capture } as unknown as CoinEconomyService;
   const rooms = { getSettings: capture, setVisibility: capture, randomRoom: capture, getRoom: capture,
-    visit: capture, stamp: capture, removeStamp: capture, reportStamp: capture, blockRoom: capture } as unknown as RoomCommunityService;
+    visit: capture, stamp: capture, removeStamp: capture, reportStamp: capture, blockRoom: capture,
+    neighbors: capture, visitors: capture } as unknown as RoomCommunityService;
   const gradeDraw = { getShop: capture, draw: capture } as unknown as GradeDrawService;
   const consent: ConsentService = { appSource: 'ANDROID', status: async id => ({ required: id === 'old',
     termsVersion: CURRENT_TERMS_VERSION, privacyVersion: CURRENT_PRIVACY_VERSION }),
@@ -44,7 +47,8 @@ function fixture(configure?: (args: Parameters<typeof createApiServer>) => void)
     nonce: () => 'coinroomnonce123', challengeId: () => 'coin-room-test' });
   const args: Parameters<typeof createApiServer> = [challenge, developmentHeaderAccountResolver];
   args[26] = consent;
-  args[39] = { coinEconomy: coins, roomCommunity: rooms, gradeDraw } as NonNullable<typeof args[39]>;
+  args[39] = { coinEconomy: coins, roomCommunity: rooms, gradeDraw,
+    furniture: { get: capture, purchase: capture } } as unknown as NonNullable<typeof args[39]>;
   configure?.(args);
   return { server: createApiServer(...args), calls, coins, rooms, gradeDraw };
 }
@@ -54,10 +58,15 @@ const routes = [
   ['GET', '/shop/draw-pools', undefined], ['POST', '/shop/draws', { grade: 'BRONZE', requestId: 'one', expectedPoolVersion: 'a'.repeat(64) }],
   ['GET', '/coin-shop', undefined], ['POST', '/coin-shop/purchases', { poolId: id, requestId: 'purchase-1' }],
   ['POST', `/coin-tickets/${id}/use`, {}], ['GET', '/me/coins', undefined], ['POST', `/coin-series/${id}/claim`, {}],
+  ['POST', `/coin-reroll-tickets/${id}/use`, { poolId: id, sourceKind: 'VISIT', sourceId: id, requestId: 'reroll-1' }],
   ['GET', '/me/room-publication', undefined], ['PUT', '/me/room-publication', { visible: true }],
+  ['PUT', '/me/room-publication', { visibility: 'FRIENDS' }],
+  ['GET', '/rooms/neighbors', undefined], ['GET', '/me/room-visitors', undefined],
+  ['GET', '/me/furniture', undefined], ['POST', '/me/furniture/purchases', { itemId: id, requestId: 'furniture-1' }],
   ['GET', '/rooms/random', undefined], ['GET', `/rooms/${id}`, undefined], ['POST', `/rooms/${id}/visits`, {}],
   ['POST', `/rooms/${id}/stamps`, { kind: 'COZY' }], ['DELETE', `/room-stamps/${id}`, {}],
   ['POST', `/room-stamps/${id}/reports`, {}], ['POST', `/rooms/${id}/block`, {}],
+  ['POST', `/rooms/${id}/friendship`, {}],
 ] as const;
 
 test('coin and community routes require authenticated current consent before reading or writing', async () => {
@@ -77,12 +86,18 @@ test('purchase and draw use authenticated account and stable replay keys', async
   assert.deepEqual(f.calls.at(-1), { accountId: 'customer', ticketId: id });
   assert.equal((await request(f.server, 'POST', `/coin-series/${id}/claim`, 'customer', {})).status, 200);
   assert.deepEqual(f.calls.at(-1), { accountId: 'customer', seriesId: id });
+  assert.equal((await request(f.server, 'POST', `/coin-reroll-tickets/${id}/use`, 'customer',
+    { poolId: id, sourceKind: 'VISIT', sourceId: id, requestId: 'reroll-after-timeout' })).status, 200);
+  assert.deepEqual(f.calls.at(-1), { accountId: 'customer', ticketId: id, poolId: id,
+    sourceKind: 'VISIT', sourceId: id, requestId: 'reroll-after-timeout' });
 });
 
 test('extra account, weights, reward amounts and public text are rejected at HTTP boundary', async () => {
   const f = fixture();
   const invalid = [
     ['/coin-shop/purchases', { poolId: id, requestId: 'x', accountId: 'victim' }],
+    [`/coin-reroll-tickets/${id}/use`, { poolId: id, sourceKind: 'VISIT', sourceId: id,
+      requestId: 'x', accountId: 'victim' }],
     [`/coin-tickets/${id}/use`, { weight: 999 }], [`/coin-series/${id}/claim`, { tier: 'PRISM' }],
     [`/rooms/${id}/visits`, { mileage: 1000 }], [`/rooms/${id}/stamps`, { kind: 'COZY', text: 'free text' }],
   ] as const;
@@ -103,10 +118,34 @@ test('community route preserves opaque room and stamp identifiers and returns em
   f.rooms.randomRoom = async input => { f.calls.push(input); return null; };
   assert.deepEqual((await request(f.server, 'GET', `/rooms/random?excludeRoomId=${id}`, 'customer')).body, null);
   assert.deepEqual(f.calls.at(-1), { accountId: 'customer', excludeRoomId: id });
-  assert.equal((await request(f.server, 'POST', `/rooms/${id}/stamps`, 'customer', { kind: 'COOL' })).status, 201);
-  assert.deepEqual(f.calls.at(-1), { accountId: 'customer', roomId: id, kind: 'COOL' });
+  assert.equal((await request(f.server, 'POST', `/rooms/${id}/stamps`, 'customer',
+    { kind: 'COOL', message: '다시 올게요' })).status, 201);
+  assert.deepEqual(f.calls.at(-1), { accountId: 'customer', roomId: id, kind: 'COOL', message: '다시 올게요' });
   assert.equal((await request(f.server, 'DELETE', `/room-stamps/${id}`, 'customer', {})).status, 204);
   assert.deepEqual(f.calls.at(-1), { accountId: 'customer', stampId: id });
+});
+
+test('neighbor friendship route accepts only a separate empty-body action and maps replay or revoked access', async () => {
+  const calls: unknown[] = [];
+  let created = true;
+  let denied = false;
+  const f = fixture(args => {
+    args[21] = { addNeighbor: async (input: { accountId: string; roomId: string }) => {
+      calls.push(input);
+      if (denied) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      return { friend: { friendshipId: id }, created };
+    } } as unknown as FriendService;
+  });
+  const path = `/rooms/${id}/friendship`;
+  assert.equal((await request(f.server, 'POST', path, 'customer', { accountId: 'other' })).status, 400);
+  assert.deepEqual(calls, []);
+  assert.equal((await request(f.server, 'POST', path, 'customer', {})).status, 201);
+  assert.deepEqual(calls.at(-1), { accountId: 'customer', roomId: id });
+  created = false;
+  assert.equal((await request(f.server, 'POST', path, 'customer', {})).status, 200);
+  denied = true;
+  assert.deepEqual(await request(f.server, 'POST', path, 'customer', {}),
+    { status: 404, body: { code: 'FRIEND_NEIGHBOR_NOT_FOUND' } });
 });
 
 test('expired ticket and hidden room failures keep actionable status codes', async () => {
@@ -133,6 +172,11 @@ test('coin publication uses existing web admin session and CSRF checks without a
   assert.deepEqual(f.calls, []);
   assert.equal((await request(f.server, 'POST', path, undefined, body, headers)).status, 201);
   assert.deepEqual(f.calls.at(-1), { ...body, actorAccountId: 'verified-admin' });
+  const grant = '/api/web/admin/coin-reroll-tickets/grant';
+  const grantBody = { accountId: 'customer', grade: 'SILVER', requestId: 'approved-grant' };
+  assert.equal((await request(f.server, 'POST', grant, undefined, { ...grantBody, actorAccountId: 'forged' }, headers)).status, 400);
+  assert.equal((await request(f.server, 'POST', grant, undefined, grantBody, headers)).status, 200);
+  assert.deepEqual(f.calls.at(-1), { ...grantBody, actorAccountId: 'verified-admin' });
 });
 
 test('grade draw rejects forced rewards and forwards a stable pool and request for one replay', async () => {

@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
-import { PostgresCoinEconomyService, chooseWeightedCoin } from './postgres/coin-economy.js';
+import { PostgresCoinEconomyService, chooseWeightedCoin, coinGradeRank } from './postgres/coin-economy.js';
 
 test('weighted draw obeys exact integer boundaries', () => {
   const entries = [{ id: 'first', weight: 1 }, { id: 'second', weight: 3 }];
   assert.equal(chooseWeightedCoin(entries, () => 0).id, 'first');
   for (const value of [1, 2, 3]) assert.equal(chooseWeightedCoin(entries, () => value).id, 'second');
   assert.throws(() => chooseWeightedCoin(entries, () => 4), { code: 'INVALID_REQUEST' });
+});
+
+test('reroll only treats the four published standard grades as ranked', () => {
+  assert.equal(coinGradeRank({ grade_id: 'bronze', summary: {} }), 1);
+  assert.equal(coinGradeRank({ grade_id: 'custom', summary: { gradeName: '실버' } }), 2);
+  assert.equal(coinGradeRank({ grade_id: 'gold', summary: {} }), 3);
+  assert.equal(coinGradeRank({ grade_id: 'prism', summary: {} }), 4);
+  assert.equal(coinGradeRank({ grade_id: 'custom', summary: { gradeName: '가게 특별판' } }), 0);
 });
 
 test('malformed nested publishing inputs and missing grant actor reject before database work', async () => {

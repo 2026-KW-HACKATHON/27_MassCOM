@@ -634,7 +634,7 @@ export function ClaimRedeemScreen({
               onPress={scanning ? () => setScanning(false) : () => void startScan()}
               style={[styles.button, styles.scanButton, { backgroundColor: palette.surface, borderColor: palette.primary }, busy && styles.disabled]}
             >
-              <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.primary }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
+              <Text style={[styles.buttonText, styles.scanButtonText, { color: palette.label }]}>{scanning ? '촬영 닫기' : 'QR 촬영'}</Text>
             </Pressable>
           ) : null}
           <Text style={styles.inputLabel}>수령 코드</Text>
@@ -748,6 +748,17 @@ export function ClaimRedeemScreen({
                 <Text style={[styles.collectionButtonText, { color: palette.onPrimary }]}>{primaryAction.label}</Text>
               </Pressable>
               {primaryAction.kind === 'recommendation' ? <Text style={styles.successBody}>{primaryAction.detail}</Text> : null}
+              <Pressable accessibilityRole="button" accessibilityLabel="마이룸 전시와 꾸미기" onPress={() => router.navigate('/studio')}
+                style={[styles.collectionButton, { backgroundColor: palette.primaryContainer }]}>
+                <Text style={[styles.collectionButtonText, { color: palette.onPrimaryContainer }]}>마이룸 전시·꾸미기</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel={currentNextSuggestion ? '다음 추천 가게 보기' : '다음 가게 탐색하기'}
+                onPress={() => currentNextSuggestion
+                  ? router.navigate({ pathname: '/merchants/[merchantId]', params: { merchantId: currentNextSuggestion.merchantId, from: 'recommendation' } })
+                  : router.navigate('/map')}
+                style={styles.textLink}>
+                <Text style={styles.textLinkText}>{currentNextSuggestion ? '다음 추천 가게 보기' : '다음 가게 탐색하기'}</Text>
+              </Pressable>
             </View>
             <View style={styles.secondaryLinks}>
               <Pressable accessibilityRole="button" accessibilityLabel="홈으로" onPress={() => router.replace('/')} style={styles.textLink}>

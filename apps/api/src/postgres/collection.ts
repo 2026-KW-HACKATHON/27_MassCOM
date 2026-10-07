@@ -108,6 +108,8 @@ export class PostgresCollectionReader implements CollectionReader {
            ON grade.publication_id = publication.id AND grade.grade_id = acquisition.grade_id
          WHERE entitlement.customer_account_id = $1
            AND entitlement.status IN ('GRANTED', 'MINT_REQUESTED', 'FULFILLED')
+           AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+             WHERE spent.source_kind = 'VISIT' AND spent.source_id = entitlement.id)
          ORDER BY entitlement.target_visit_count DESC, entitlement.id DESC`,
         [accountId],
       ),
