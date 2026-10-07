@@ -63,6 +63,7 @@
 
 - #206의 전체 체험 수용과 #380·#394의 남은 범위는 실제 Issue 상태와 증거를 재확인한다. 과거 기록의 열린 PR 목록을 현재 목록으로 사용하지 않는다.
 - PR 상태는 `gh pr list --state all` 및 개별 `gh pr view <번호> --json state,mergedAt,headRefOid`로 확인한다.
+- [PR #402](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/402)(뽑기 `CONSENT_REQUIRED`를 "동의 확인하기"로 연결): 2026-10-08 최신 main과 문서 충돌을 풀고 모바일 1,878/1,878·gate 통과, 독립 리뷰 승인. 남은 🟡: 개발용 DEMO 계정의 동의 화면 "로그아웃"이 DEMO 상태를 벗어나지 못함, 동의·미설정 거절 뒤 뽑기 대기 기록 유지(같은 요청 ID 복구).
 
 ## 12. 다음 실행 명령
 

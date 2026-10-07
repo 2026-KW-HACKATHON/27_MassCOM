@@ -6,7 +6,9 @@ const source = (path: string) => readFileSync(new URL(path, import.meta.url), 'u
 
 test('play and studio consent actions ask the existing root gate to re-check', () => {
   const layout = source('../app/_layout.tsx');
-  assert.match(layout, /const recheckConsent = useCallback\(\(\) => setConsentedAccountId\(undefined\), \[\]\)/);
+  assert.match(layout, /const recheckConsent = useCallback\(\(\) => \{\s*setConsentedAccountId\(undefined\);\s*setRecheckRequestedAccountId\(auth\.accountId\);\s*\}, \[auth\.accountId\]\)/);
+  // DEMO 계정도 이 요청을 받은 계정에 한해 같은 동의 화면을 연다.
+  assert.match(layout, /consentedAccountId, recheckRequestedAccountId,/);
   assert.match(layout, /<ConsentRecheckProvider onRecheck=\{recheckConsent\}><Routes \/><\/ConsentRecheckProvider>/);
 
   for (const path of ['../screens/play/index.tsx', '../screens/play/game-session.tsx', '../screens/studio/index.tsx', '../screens/studio/friend.tsx']) {

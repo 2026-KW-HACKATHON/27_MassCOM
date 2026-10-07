@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { consentRequiredMessage } from '@/privacy/consent-flow';
 import { ShopApiError, createShopApiClient, shopErrorMessage } from './shop-api';
 
 function snapshotBody(overrides: Record<string, unknown> = {}) {
@@ -222,6 +223,8 @@ test('shopErrorMessage covers every documented code and never leaks a raw status
     'INVALID_REQUEST', 'SHOP_INSUFFICIENT_MILEAGE', 'SHOP_GRADE_COMPLETE', 'SHOP_STATE_CHANGED',
     'SHOP_REQUEST_CONFLICT', 'SHOP_RATE_LIMITED', 'SHOP_ITEM_NOT_OWNED', 'SHOP_CLOTHING_NOT_OWNED', 'ACCOUNT_DELETED',
     'MILEAGE_SHOP_NOT_CONFIGURED', 'SESSION_INVALID', 'NETWORK_ERROR', 'INVALID_RESPONSE', 'HTTP_500',
+    'DRAW_STATE_CHANGED', 'DRAW_INSUFFICIENT_MILEAGE', 'DRAW_COIN_UNAVAILABLE', 'DRAW_REQUEST_CONFLICT', 'DRAW_RATE_LIMITED',
+    'CONSENT_REQUIRED', 'GRADE_DRAW_NOT_CONFIGURED', 'INTERNAL_ERROR',
   ];
   for (const code of codes) {
     const message = shopErrorMessage(new ShopApiError(0, code));
@@ -229,6 +232,14 @@ test('shopErrorMessage covers every documented code and never leaks a raw status
     assert.ok(message.length > 0, code);
     assert.doesNotMatch(message, /HTTP_|^[A-Z_]+$/, code);
   }
+  // 뽑기에서 흔한 코드가 일반 실패 문구로 뭉개지지 않는다.
+  const generic = shopErrorMessage(new ShopApiError(500, 'SOMETHING_UNKNOWN'));
+  for (const code of ['CONSENT_REQUIRED', 'GRADE_DRAW_NOT_CONFIGURED', 'INTERNAL_ERROR', 'DRAW_RATE_LIMITED']) {
+    assert.notEqual(shopErrorMessage(new ShopApiError(0, code)), generic, code);
+  }
+  assert.match(shopErrorMessage(new ShopApiError(403, 'CONSENT_REQUIRED')), /동의/);
+  // 상점·뽑기 화면은 이 문구로 "동의 확인하기" 단추를 고른다. 문구가 갈라지면 단추가 조용히 사라진다.
+  assert.equal(shopErrorMessage(new ShopApiError(403, 'CONSENT_REQUIRED')), consentRequiredMessage);
   assert.match(shopErrorMessage(new ShopApiError(429, 'SHOP_RATE_LIMITED', 90)), /2분/);
   assert.equal(shopErrorMessage(new Error('plain')), '네트워크에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.');
 });

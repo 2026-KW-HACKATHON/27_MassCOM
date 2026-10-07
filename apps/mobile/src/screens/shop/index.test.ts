@@ -351,3 +351,11 @@ test('failed purchase exposes a recovery action independently of the disabled ne
   assert.equal(recoveryStarted.current, false, 'the old one-shot mount latch must reopen');
   assert.equal(wake, 8, 'the mounted recovery effect is scheduled without a new purchase');
 });
+
+test('등급 뽑기는 동의 필요 오류에서 다시 불러오기 대신 동의 확인 단추를 보인다', () => {
+  const gradeMachine = readFileSync(fileURLToPath(new URL('./grade-draw-machine.tsx', import.meta.url)), 'utf8');
+  assert.match(screen, /const recheckConsent = useConsentRecheck\(\);/);
+  assert.match(screen, /onRecheckConsent=\{recheckConsent\}/);
+  assert.equal(screen.match(/drawError === consentRequiredMessage \? \{ label: consentRecheckLabel, onPress: recheckConsent \}/g)?.length, 2);
+  assert.match(gradeMachine, /error === consentRequiredMessage && onRecheckConsent\s*\? <Control label=\{consentRecheckLabel\}[^>]*onPress=\{onRecheckConsent\}/);
+});

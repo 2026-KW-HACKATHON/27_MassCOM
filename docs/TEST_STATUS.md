@@ -82,6 +82,12 @@
 
 수정 범위와 배포 조건은 [PROJECT_STATE](PROJECT_STATE.md), 다음 순서는 [HANDOFF](HANDOFF.md)를 따른다. 기존 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 추가 로컬 검사로 변경하지 않는다.
 
+## 2026-10-07 뽑기 동의 필요 오류와 동의 확인 경로
+
+브랜치 `fix/grade-draw-error-messages`, 기준 main `8b336ece`, 커밋 3469ed8a·fdd72d2a. 등급 전체 뽑기가 서버의 `CONSENT_REQUIRED`(403)를 일반 실패 문구로만 보여 주던 결함을 고쳤다. Windows 11 로컬에서 모바일 타입 검사 PASS, 린트 PASS, `shop-api` 10/10·`consent-flow` 9/9·상점 `index` 19/19·`consent-recheck` PASS, 전체 모바일 1832 PASS/7 FAIL이다. 실패 7건은 변경 전 main에서도 같은 항목이 실패하며 이번 변경과 무관하다. 로컬 테스트 DB에서 뽑기 서비스를 직접 호출해 서비스 자체는 정상임을 확인했고 원인은 HTTP 단계의 동의 검사였다.
+
+사용자가 직접 실행해 "동의 확인하기"로 이용약관 동의 여부가 갱신되고 그 뒤 뽑기가 되는 것을 확인했다(PASS, 기기 모델·앱 버전·계정 종류 미기록). `NOT_RUN`: 데모/Google 계정별 구분, 운영·시연 설치본별 확인, `tools/gate.sh`. 한 variant나 계정 종류의 결과를 다른 쪽의 검증 완료로 보지 않는다.
+
 ## 2026-10-07 전체 고객 UI 통합 (Issue #399)
 
 첨부 23보드/67상태의 자동·DB·HTTP·브라우저·Android 변형 검사 결과는 [UI QA](UI_BOARDS_QA_2026-10-07.md)에 명령과 환경별로 기록한다. 로컬 가상 점포 HTTP 흐름은 실제 운영 가게/카메라/GPS/NFT 체인 발행 수용과 구분한다. [상태별 대응표](UI_BOARDS_STATUS_2026-10-07.md)는 원본 보드 ID를 유지한다.

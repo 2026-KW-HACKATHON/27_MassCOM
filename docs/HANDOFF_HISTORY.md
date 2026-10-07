@@ -1,5 +1,13 @@
 # HANDOFF
 
+## 2026-10-07 뽑기 동의 필요 오류 수정 (브랜치 fix/grade-draw-error-messages)
+
+main `8b336ece`에서 분기한 로컬 브랜치 `fix/grade-draw-error-messages`에 커밋 3469ed8a(오류 문구)·fdd72d2a(동의 확인 단추와 데모 계정 동의 경로)가 있다. 이후 [PR #402](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/402)로 올라갔고 2026-10-08 최신 main과 충돌(문서 3개)을 풀어 병합했다.
+
+서버의 동의 검사(`requireCurrentPlayConsent`)에 걸리면 앱이 동의 필요 안내와 "동의 확인하기"를 보인다. 데모 계정은 앱 시작 때 여전히 동의를 묻지 않고, 이 단추를 눌렀을 때만 그 계정에 동의 화면을 연다(`shouldAskConsent`의 `recheckRequestedAccountId`). 동의는 사용자가 직접 제출해야 하며 앱이 대신 기록하지 않는다. 서버·DB·migration 변경은 없다.
+
+배포 순서 메모: privacy-2026-10-07 안내가 올라가면 기존 사용자는 재동의가 필요하다. 그 직후 앱을 켜 둔 사용자가 뽑기에서 같은 오류를 만날 수 있고 이 수정이 그 경우를 "동의 확인하기"로 풀게 한다. 이 수정은 공통 코드라 시연·운영 variant 모두에 영향이 있고, 각 설치본 확인은 `NOT_RUN`이다. 재개 시 `git status -sb`와 `git log --oneline -3`으로 위 커밋을 확인한 뒤, PR 전에 `bash tools/gate.sh`를 실행한다.
+
 ## 2026-10-07 첨부 23보드 실제 구현 (Issue #399)
 
 [정식 PR #400](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/400). 사용자가 정식 PR 전환과 머지를 명시했다. 기능 소스48335458 이후 웹 선택 상태의 ARIA 별칭, 개봉 콜백 이름 명확화와 최종 검증 기록을 반영했다. 최신 CI/머지 상태는 PR에서 확인한다. 사용자가 연결한 Samsung SM-S928N Android16에서 동일 서명 개발 설치본과 최신 Metro로 다섯 탭·시험 방문·정상 이미지 개봉·전시 저장/홈 복귀를 확인했다. 휴대폰 설정은 복원했다. `work/device`는 비공개 QA 중간물로 Git에 포함하지 않는다.

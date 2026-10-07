@@ -159,7 +159,12 @@ function AuthenticatedRoot() {
   // 이 실행에서 서버가 "이미 동의했다"고 답한 계정. 기기에는 저장하지 않고 실행마다 서버에 다시 묻는다(D-059).
   const [consentedAccountId, setConsentedAccountId] = useState<string>();
   const acceptConsent = useCallback(() => setConsentedAccountId(auth.accountId), [auth.accountId]);
-  const recheckConsent = useCallback(() => setConsentedAccountId(undefined), []);
+  // DEMO 계정은 처음에는 묻지 않지만, 서버가 동의를 요구해 "동의 확인하기"를 누르면 이 계정에 한해 같은 화면을 연다.
+  const [recheckRequestedAccountId, setRecheckRequestedAccountId] = useState<string>();
+  const recheckConsent = useCallback(() => {
+    setConsentedAccountId(undefined);
+    setRecheckRequestedAccountId(auth.accountId);
+  }, [auth.accountId]);
   const activeEntry = reconcileShowcaseAccount(entry, auth.accountId);
   if (activeEntry !== entry) {
     setEntry(activeEntry);
@@ -206,7 +211,7 @@ function AuthenticatedRoot() {
   if (
     auth.accountId && auth.credential && publicApiConfig.available && shouldAskConsent({
       status: auth.state.status, accountId: auth.accountId, credential: auth.credential,
-      apiAvailable: publicApiConfig.available, consentedAccountId,
+      apiAvailable: publicApiConfig.available, consentedAccountId, recheckRequestedAccountId,
     })
   ) {
     return <ConsentScreen
