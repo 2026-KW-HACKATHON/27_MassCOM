@@ -358,6 +358,11 @@ export function livingBoundingBox(project, gradeId, padding = 0.1) {
       const swayRad = item.kind === 'sway' ? (clamp(item.amplitude, 0, 100, 0) / 100) * 6 * Math.PI / 180 : 0;
       const bobFrac = item.kind === 'bob' ? (clamp(item.amplitude, 0, 100, 0) / 100) * .03 : 0;
       const pivot = { x: (item.pivot?.x ?? .5), y: (item.pivot?.y ?? .5) };
+      if (item.kind === 'steam') {
+        // paintLivingItem draws three puffs up to .22 above the pivot, each at most .03 wide.
+        minX = Math.min(minX, pivot.x - .03); maxX = Math.max(maxX, pivot.x + .03);
+        minY = Math.min(minY, pivot.y - .22 - .03); maxY = Math.max(maxY, pivot.y + .03);
+      }
       for (const point of item.strokes ?? []) {
         const x = transform.x + point.x * transform.width, y = transform.y + point.y * transform.height;
         // sway는 paintLivingItem처럼 pivot 둘레로 ±최대각까지 돌아간다. 두 극단만 보면 회전 중 지나가는 자리를 다 덮는다.
