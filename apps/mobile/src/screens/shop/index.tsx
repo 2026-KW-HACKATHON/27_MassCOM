@@ -21,9 +21,11 @@ import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 
 import { ShopApiError, createShopApiClient, shopErrorMessage, type MileageGrade, type ShopGradeView, type ShopRerollResult } from '@/shop/shop-api';
+import { createGradeDrawApi, type GradeDrawPool, type GradeDrawResult, type GradeDrawShop } from '@/shop/grade-draw-api';
+import { clearPendingGradeDraw, readPendingGradeDraw, writePendingGradeDraw, type PendingGradeDraw } from '@/shop/grade-draw-pending';
 import { mileageCoinArt } from '@/shop/shop-art';
 import {
-  buildFriendGrid, earnRulesText, formatMileage, rerollDisclosure, rerollButtonState, resumeOrStartPurchase, showcaseBonusLabel,
+  buildFriendGrid, createRequestId, earnRulesText, formatMileage, resumeOrStartPurchase, showcaseBonusLabel,
   type FriendGridCell, type PendingPurchase,
 } from '@/shop/shop-rules';
 import { shopDrawHeading, shopDrawIntro } from '@/shop/shop-copy';
@@ -32,14 +34,14 @@ import { enterShopPurchaseScope, leaveShopPurchaseScope, subscribeShopPurchaseSc
 import { recoverPendingPurchase } from '@/shop/pending-purchase-recovery';
 import { useShop } from '@/shop/use-shop';
 
-import { themePackName, cosmeticSequenceDisclosure } from './gacha-rules';
 import { GachaMachine } from './gacha-machine';
+import { GradeDrawMachine } from './grade-draw-machine';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { HistorySection } from './history-section';
 import { useShopStyles } from './use-shop-styles';
 
 export const SHOP_TITLE = '상점';
-export const SHOP_SUBTITLE = '가게 코인 뽑기권과 캐릭터 꾸미기를 골라요';
+export const SHOP_SUBTITLE = '코인·테마 꾸미기·캐릭터를 등급별로 뽑아요';
 
 type Notice = { tone: 'success' | 'error'; text: string };
 
@@ -60,7 +62,30 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const styles = useShopStyles();
 
   const api = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const drawApi = useMemo(() => createGradeDrawApi({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shop = useShop(api);
+  const drawScopeKey = `${apiUrl}:${accountId}:${getAppPackageId() ?? 'app'}`;
+  const [storedDrawShop, setStoredDrawShop] = useState<{ key: string; value: GradeDrawShop }>();
+  const [storedDrawError, setStoredDrawError] = useState<{ key: string; value: string }>();
+  const drawShop = storedDrawShop?.key === drawScopeKey ? storedDrawShop.value : undefined;
+  const drawError = storedDrawError?.key === drawScopeKey ? storedDrawError.value : undefined;
+  const drawLoading = !drawShop && !drawError;
+  const drawApiRef = useRef(drawApi);
+  useEffect(() => { drawApiRef.current = drawApi; }, [drawApi]);
+  const refreshDrawShop = useCallback(async () => {
+    try {
+      const next = await drawApi.getShop();
+      if (drawApiRef.current !== drawApi) return false;
+      setStoredDrawShop({ key: drawScopeKey, value: next }); setStoredDrawError(undefined); return true;
+    } catch (error) {
+      if (drawApiRef.current !== drawApi) return false;
+      setStoredDrawError({ key: drawScopeKey, value: shopErrorMessage(error) }); return false;
+    }
+  }, [drawApi, drawScopeKey]);
+  useEffect(() => {
+    const timer = setTimeout(() => { void refreshDrawShop(); }, 0);
+    return () => clearTimeout(timer);
+  }, [refreshDrawShop]);
   const pendingScope = useMemo<PendingPurchaseScope>(
     () => pendingPurchaseScope({ accountId, apiUrl, appVariant: getAppPackageId() ?? 'app' }),
     [accountId, apiUrl],
@@ -79,6 +104,14 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   }, [gachaOnly, gachaVisible, refreshGachaSnapshot]);
   const [refreshing, setRefreshing] = useState(false);
   const [pending, setPending] = useState<PendingPurchase>();
+  const [storedDrawPending, setStoredDrawPending] = useState<{ key: string; value: PendingGradeDraw }>();
+  const [storedGradeResult, setStoredGradeResult] = useState<{ key: string; value: GradeDrawResult }>();
+  const drawPending = storedDrawPending?.key === drawScopeKey ? storedDrawPending.value : undefined;
+  const gradeResult = storedGradeResult?.key === drawScopeKey ? storedGradeResult.value : undefined;
+  const setDrawPending = useCallback((value: PendingGradeDraw | undefined) => setStoredDrawPending(value ? { key: drawScopeKey, value } : undefined), [drawScopeKey]);
+  const setGradeResult = useCallback((value: GradeDrawResult | undefined) => setStoredGradeResult(value ? { key: drawScopeKey, value } : undefined), [drawScopeKey]);
+  const gradeResultRef = useRef(gradeResult);
+  useEffect(() => { gradeResultRef.current = gradeResult; }, [gradeResult]);
   const [busyGrade, setBusyGrade] = useState<MileageGrade>();
   const [notice, setNotice] = useState<Notice>();
   const [machineOpen, setMachineOpen] = useState(gachaOnly);
@@ -109,7 +142,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const quietRefresh = useCallback(async () => refreshGachaSnapshot(), [refreshGachaSnapshot]);
 
   // 상점 탭은 마운트된 채로 남으므로 포커스를 다시 받을 때 최신 잔액을 조용히 읽는다.
-  useFocusEffect(useCallback(() => { void quietRefresh(); }, [quietRefresh]));
+  useFocusEffect(useCallback(() => { void quietRefresh(); void refreshDrawShop(); }, [quietRefresh, refreshDrawShop]));
 
   const snapshotReady = Boolean(shop.snapshot);
   const [recoveryWake, setRecoveryWake] = useState(0);
@@ -121,7 +154,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   }, [pendingScopeKey]);
 
   useEffect(() => {
-    if (!snapshotReady || recoveryStarted.current || revealRef.current) return;
+    if (!snapshotReady || recoveryStarted.current || revealRef.current || gradeResultRef.current) return;
     const lease = enterShopPurchaseScope(pendingScope);
     if (!lease) {
       return subscribeShopPurchaseScope(pendingScope, () => {
@@ -133,12 +166,13 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     const generation = recoveryGeneration.current + 1;
     recoveryGeneration.current = generation;
     let mounted = true;
+    const isCurrent = () => mounted && recoveryGeneration.current === generation && pendingScopeKey === `${pendingScope.appVariant}:${pendingScope.apiUrl}:${pendingScope.accountId}`;
     void recoverPendingPurchase({
       scope: pendingScope,
       readPending: readPendingPurchase,
       clearPending: clearPendingPurchase,
       reroll: (input) => apiRef.current.reroll(input),
-      isCurrent: () => mounted && recoveryGeneration.current === generation && pendingScopeKey === `${pendingScope.appVariant}:${pendingScope.apiUrl}:${pendingScope.accountId}`,
+      isCurrent,
       onStart: (stored) => {
         setSelectedGrade(stored.grade);
         setMachineOpen(true);
@@ -155,9 +189,32 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       },
       onError: (error) => { setNotice({ tone: 'error', text: shopErrorMessage(error) }); },
       onFinish: () => { setBusyGrade(undefined); },
-    }).finally(() => { leaveShopPurchaseScope(lease); });
+    }).then(async (status) => {
+      // 이전 앱의 /shop/rerolls 요청을 먼저 복구한다. 같은 계정에 미확인 청구가 있으면 새 뽑기를 시작하지 않는다.
+      if (status !== 'empty' || !isCurrent()) return;
+      const stored = await readPendingGradeDraw(pendingScope);
+      if (!stored || !isCurrent()) return;
+      setDrawPending(stored); setSelectedGrade(stored.grade); setMachineOpen(true); setBusyGrade(stored.grade); setNotice(undefined);
+      try {
+        const result = await drawApiRef.current.draw(stored);
+        if (!isCurrent()) return;
+        await clearPendingGradeDraw(pendingScope).catch(() => undefined);
+        if (!isCurrent()) return;
+        setDrawPending(undefined); setGradeResult(result); setHistoryRefreshToken((value) => value + 1);
+        void refreshDrawShop(); void shopRef.current.refreshQuietly(); void refreshExperience();
+      } catch (error) {
+        if (!isCurrent()) return;
+        if (error instanceof ShopApiError && ['DRAW_STATE_CHANGED', 'DRAW_INSUFFICIENT_MILEAGE', 'DRAW_COIN_UNAVAILABLE'].includes(error.code)) {
+          await clearPendingGradeDraw(pendingScope).catch(() => undefined);
+          if (!isCurrent()) return;
+          setDrawPending(undefined); void refreshDrawShop();
+        }
+        setNotice({ tone: 'error', text: shopErrorMessage(error) });
+      } finally { if (isCurrent()) setBusyGrade(undefined); }
+    }).catch((error) => { if (isCurrent()) setNotice({ tone: 'error', text: error instanceof Error ? error.message : shopErrorMessage(error) }); })
+      .finally(() => { leaveShopPurchaseScope(lease); });
     return () => { mounted = false; recoveryGeneration.current += 1; };
-  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience]);
+  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience, refreshDrawShop, setDrawPending, setGradeResult]);
 
 
   async function refresh() {
@@ -165,6 +222,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     setHistoryRefreshToken((value) => value + 1);
     try {
       const refreshed = await quietRefresh();
+      await refreshDrawShop();
       if (refreshed) { setNotice(undefined); requestRecovery(); }
     } finally {
       setRefreshing(false);
@@ -228,6 +286,42 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       if (isCurrent()) setBusyGrade(undefined);
       leaveShopPurchaseScope(lease);
     }
+  }
+
+  async function buyGrade(pool: GradeDrawPool): Promise<boolean> {
+    if (busyGrade || avatarBusy || experience.saving || refreshing || drawLoading) return false;
+    const generation = recoveryGeneration.current;
+    const isCurrent = () => recoveryGeneration.current === generation && drawApiRef.current === drawApi;
+    const lease = enterShopPurchaseScope(pendingScope);
+    if (!lease) { setNotice({ tone: 'error', text: '이전 구매 확인 중이에요. 결과를 받은 뒤 다시 시도해 주세요.' }); return false; }
+    try {
+      // 구버전 미확인 요청까지 확인해야 한 계정에서 두 번 차감되는 동시 구매를 막을 수 있다.
+      if (await readPendingPurchase(pendingScope)) { requestRecovery(); return false; }
+      const stored = await readPendingGradeDraw(pendingScope);
+      if (!isCurrent()) return false;
+      const attempt = stored ?? { grade: pool.grade, requestId: createRequestId(), expectedPoolVersion: pool.version };
+      setDrawPending(attempt); setSelectedGrade(attempt.grade); setGradeResult(undefined); setBusyGrade(attempt.grade); setNotice(undefined);
+      if (!stored) await writePendingGradeDraw(pendingScope, attempt);
+      if (!isCurrent()) return false;
+      const result = await drawApi.draw(attempt);
+      if (!isCurrent()) return false;
+      await clearPendingGradeDraw(pendingScope).catch(() => undefined);
+      if (!isCurrent()) return false;
+      setDrawPending(undefined); setGradeResult(result); setHistoryRefreshToken((value) => value + 1);
+      void refreshDrawShop(); void shop.refreshQuietly(); void refreshExperience();
+      return true;
+    } catch (error) {
+      if (!isCurrent()) return false;
+      if (error instanceof ShopApiError && ['DRAW_STATE_CHANGED', 'DRAW_INSUFFICIENT_MILEAGE', 'DRAW_COIN_UNAVAILABLE'].includes(error.code)) {
+        // 서버가 차감 전에 거절한 경우에만 새 요청을 만들 수 있다. 응답 유실/타임아웃은 같은 UUID로 복구한다.
+        await clearPendingGradeDraw(pendingScope).catch(() => undefined);
+        if (!isCurrent()) return false;
+        setDrawPending(undefined);
+        void refreshDrawShop();
+      }
+      setNotice({ tone: 'error', text: shopErrorMessage(error) });
+      return false;
+    } finally { if (isCurrent()) setBusyGrade(undefined); leaveShopPurchaseScope(lease); }
   }
 
   /**
@@ -307,7 +401,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
 
   const { snapshot } = shop;
   const grid = buildFriendGrid(snapshot.items, snapshot.avatar);
-  const machine = (gachaOnly ? gachaVisible : machineOpen) ? <GachaMachine
+  const selectedPool = drawShop?.pools.find((pool) => pool.grade === selectedGrade) ?? drawShop?.pools[0];
+  const legacyMachine = Boolean(pending || reveal);
+  const machine = !(gachaOnly ? gachaVisible : machineOpen) ? null : legacyMachine ? <GachaMachine
     snapshot={snapshot} profile={experience.snapshot?.profile} bonusSaving={experience.saving} bonusError={experience.error}
     onEquipBonus={reveal?.bonus ? () => { if (reveal.bonus) void experience.save({ cosmetics: { [reveal.bonus.slot]: reveal.bonus.id } }); } : undefined}
     result={reveal} selectedGrade={selectedGrade} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
@@ -324,7 +420,27 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       router.push({ pathname: '/studio', params: avatarItemId ? { avatar: avatarItemId } : {} });
     }}
     onClose={() => { setMachineOpen(false); setReveal(undefined); setAvatarError(undefined); onGachaClose?.(); }}
-  /> : null;
+  /> : selectedPool ? <GradeDrawMachine
+    pool={selectedPool} balance={drawShop?.balance ?? snapshot.mileage.balance} result={gradeResult}
+    busy={Boolean(busyGrade) || avatarBusy || experience.saving} error={notice?.tone === 'error' ? notice.text : drawError}
+    refreshing={refreshing} equipmentBusy={avatarBusy || experience.saving} equipmentError={avatarError ?? experience.error}
+    avatarId={snapshot.avatar} equippedThemeId={gradeResult?.reward.kind === 'THEME' ? experience.snapshot?.profile.cosmetics[gradeResult.reward.slot] : undefined}
+    onDraw={() => buyGrade(selectedPool)} onRecover={drawPending ? requestRecovery : undefined}
+    onEquip={() => {
+      const reward = gradeResult?.reward;
+      if (reward?.kind === 'CHARACTER') void chooseAvatar(reward.id);
+      if (reward?.kind === 'THEME') void experience.save({ cosmetics: { [reward.slot]: reward.id } });
+    }}
+    onOpenCollection={() => { setMachineOpen(false); setGradeResult(undefined); onGachaClose?.(); router.push('/coin-collection'); }}
+    onClose={() => { setMachineOpen(false); setGradeResult(undefined); setAvatarError(undefined); onGachaClose?.(); }}
+    onRefresh={() => { void refresh(); }}
+  /> : <FullScreenModal visible animationType="fade" onRequestClose={onGachaClose ?? (() => setMachineOpen(false))}>
+    <View style={{ flex: 1, justifyContent: 'center', backgroundColor: palette.background }}>
+      <StateScene kind={drawError ? 'error' : 'loading'} title={drawError ?? '뽑기 목록을 불러오는 중'}
+        action={drawError ? { label: '다시 불러오기', onPress: () => { void refreshDrawShop(); } } : undefined} />
+      <BounceButton label="닫기" onPress={() => { setMachineOpen(false); onGachaClose?.(); }} />
+    </View>
+  </FullScreenModal>;
   if (gachaOnly) return machine;
 
   const bonusLabel = showcaseBonusLabel(snapshot.mileage.showcaseBonus);
@@ -335,10 +451,11 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         <FloatingCard style={styles.card}>
           <View style={styles.mileageRow}>
             <Image source={mileageCoinArt} style={styles.coin} accessible={false} accessibilityIgnoresInvertColors />
-            <Text accessibilityLabel={`마일리지 ${snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(snapshot.mileage.balance)}</Text>
+            <Text accessibilityLabel={`마일리지 ${drawShop?.balance ?? snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(drawShop?.balance ?? snapshot.mileage.balance)}</Text>
             <Mascot interactive pose="gift" size={56} />
           </View>
           {pending ? <BounceButton label="이전 구매 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
+          {drawPending ? <BounceButton label="이전 뽑기 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
           <View accessibilityLiveRegion="polite">
             {experience.error ? <Text style={styles.errorMessage}>{experience.error}</Text> : null}
@@ -349,25 +466,25 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
 
       <Stagger index={1}>
         <View style={styles.section}>
-          <FloatingCard style={styles.card} onPress={() => router.push('/coin-shop')}
-            accessibilityLabel="가게 코인 뽑기권" accessibilityHint="가게와 이벤트를 고르고 코인 뽑기권을 확인합니다">
-            <Text accessibilityRole="header" style={styles.sectionTitle}>가게 코인 뽑기권 ›</Text>
-            <Text style={styles.sectionNote}>가게·등급·확률을 보고 권리를 받은 뒤 코인을 뽑아요.</Text>
-          </FloatingCard>
           <Text accessibilityRole="header" style={styles.sectionTitle}>{shopDrawHeading}</Text>
           <Text style={styles.sectionNote}>{shopDrawIntro}</Text>
-          {snapshot.grades.map((grade) => (
+          {drawShop ? drawShop.pools.map((grade) => (
             <GradeRow
               key={grade.grade}
               grade={grade}
-              balance={snapshot.mileage.balance}
-              friends={snapshot.items.filter((item) => item.grade === grade.grade && !item.owned)}
+              balance={drawShop.balance}
               busy={busyGrade === grade.grade}
               purchaseBusy={Boolean(busyGrade) || avatarBusy || experience.saving}
-              onBuy={() => { setSelectedGrade(grade.grade); setReveal(undefined); setNotice(undefined); setMachineOpen(true); }}
+              onBuy={() => { setSelectedGrade(grade.grade); setGradeResult(undefined); setNotice(undefined); setMachineOpen(true); }}
               styles={styles}
             />
-          ))}
+          )) : <StateScene kind={drawError ? 'error' : 'loading'} title={drawError ?? '뽑기 목록을 불러오는 중'}
+            action={drawError ? { label: '다시 불러오기', onPress: () => { void refreshDrawShop(); } } : undefined} />}
+          <FloatingCard style={styles.card} onPress={() => router.push('/coin-shop')}
+            accessibilityLabel="가게 행사 코인 뽑기권" accessibilityHint="가게와 이벤트를 고르고 기간이 있는 코인 뽑기권을 확인합니다">
+            <Text accessibilityRole="header" style={styles.sectionTitle}>가게 행사 뽑기권 ›</Text>
+            <Text style={styles.sectionNote}>가게·행사별 한정 뽑기권과 사용 기한을 확인해요.</Text>
+          </FloatingCard>
         </View>
       </Stagger>
 
@@ -385,19 +502,32 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       </Stagger>
 
       <Stagger index={3}>
-        <HistorySection api={api} refreshToken={historyRefreshToken} />
+        <>
+          <FloatingCard style={styles.card}>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>최근 전체 랜덤 뽑기</Text>
+            {drawShop?.history.length ? drawShop.history.map((entry) => <View key={entry.drawId} style={styles.historyRow}>
+              <View style={styles.historyCopy}>
+                <Text style={styles.historyName}>{gradeLabel(entry.grade)} · {entry.reward.name}</Text>
+                <Text style={styles.historyMeta}>{entry.reward.kind === 'COIN' ? '가게 코인' : entry.reward.kind === 'THEME' ? '테마 꾸미기' : '캐릭터'} · {new Date(entry.createdAt).toLocaleDateString('ko-KR')}</Text>
+              </View>
+              <Text style={styles.historyAmount}>-{formatMileage(entry.price)}</Text>
+            </View>) : <Text style={styles.historyEmpty}>아직 뽑은 기록이 없어요.</Text>}
+          </FloatingCard>
+          <HistorySection api={api} refreshToken={historyRefreshToken} />
+        </>
       </Stagger>
     </>,
     machine,
   );
 }
 
-function GradeRow({ grade, balance, friends, busy, purchaseBusy, onBuy, styles }: {
-  grade: ShopGradeView; balance: number; busy: boolean; purchaseBusy: boolean; onBuy: () => void;
-  friends: readonly { id: string; name: string }[];
+function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
+  grade: GradeDrawPool; balance: number; busy: boolean; purchaseBusy: boolean; onBuy: () => void;
   styles: ReturnType<typeof useShopStyles>;
 }) {
-  const button = rerollButtonState(grade, balance);
+  const button = grade.total <= 0 ? { disabled: true, reason: '뽑기 목록을 준비 중이에요' }
+    : balance < grade.price ? { disabled: true, reason: `마일리지 ${formatMileage(grade.price - balance)} 부족` }
+      : { disabled: false, reason: undefined };
   // 다른 등급을 구매하는 동안에도 전부 비활성화해 눌러도 조용히 무시되는 상태를 피한다.
   const disabled = button.disabled || purchaseBusy;
   return (
@@ -405,22 +535,18 @@ function GradeRow({ grade, balance, friends, busy, purchaseBusy, onBuy, styles }
       <View style={styles.gradeHeader}>
         <PackArt grade={grade.grade} size={80} />
         <View style={styles.gradeCopy}>
-          <Text style={styles.gradeName}>{themePackName(grade.grade)} · {gradeLabel(grade.grade)} 캐릭터</Text>
+          <Text style={styles.gradeName}>{gradeLabel(grade.grade)} 전체 랜덤</Text>
           <Text style={styles.gradePrice}>가격 {formatMileage(grade.price)}</Text>
-          <Text style={styles.gradeOwned}>가진 친구 {grade.owned}/{grade.total}</Text>
+          <Text style={styles.gradeOwned}>코인 {grade.counts.COIN} · 테마 {grade.counts.THEME} · 캐릭터 {grade.counts.CHARACTER}</Text>
         </View>
       </View>
-      <Text style={styles.disclosure}>{rerollDisclosure(grade)}</Text>
-      <Text style={styles.disclosure}>{cosmeticSequenceDisclosure}</Text>
+      <Text style={styles.disclosure}>전체 {grade.total}종 각 {(grade.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}% · 중복 가능</Text>
       {button.reason || (purchaseBusy && !busy) ? <Text style={styles.disabledReason}>{button.reason ?? '다른 작업을 처리하고 있어요'}</Text> : null}
       <BounceButton
         label={busy ? '뽑는 중…' : '뽑기'}
         disabled={disabled}
         onPress={onBuy}
       />
-      {friends.length ? <View style={styles.grid}>{friends.map((friend) => <View key={friend.id} style={styles.cell}>
-        <CharacterArt avatar={friend.id} frame="calm" size={72} /><Text style={styles.cellName}>{friend.name}</Text>
-      </View>)}</View> : null}
     </FloatingCard>
   );
 }

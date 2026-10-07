@@ -19,13 +19,24 @@ test('데드존에 눌려도 저역통과 상태는 계속 쌓여, 5°~9° 같�
   }
 });
 
-test('큰 기울임은 ±30°로 clamp된다', () => {
-  // atan2(1, 0) = 90도: 저역통과를 여러 번 적용해 목표치에 충분히 수렴시킨다.
+test('기기 기울임은 앞면과 뒷면까지 연속적으로 회전한다', () => {
   let smoothed = 0;
   for (let i = 0; i < 50; i += 1) smoothed = tiltStep(1, 0, smoothed);
-  assert.equal(smoothed, 30);
+  assert.ok(smoothed > 89 && smoothed <= 90);
+  for (let i = 0; i < 50; i += 1) smoothed = tiltStep(0, -1, smoothed);
+  assert.ok(Math.abs(smoothed) > 179);
   for (let i = 0; i < 50; i += 1) smoothed = tiltStep(-1, 0, smoothed);
-  assert.equal(smoothed, -30);
+  assert.ok(Math.abs(smoothed + 90) < .1);
+});
+
+test('±180° 경계를 지날 때 긴 방향으로 튀지 않는다', () => {
+  const next = tiltStep(Math.sin(-179 * Math.PI / 180), Math.cos(-179 * Math.PI / 180), 179);
+  assert.ok(Math.abs(next) > 178, `경계의 가까운 쪽으로 이동해야 한다: ${next}`);
+});
+
+test('폰을 수평으로 놓아 회전 방향의 중력 정보가 사라지면 마지막 각도를 유지한다', () => {
+  assert.equal(tiltStep(0, 0, 90), 90);
+  assert.equal(tiltStep(NaN, 1, 90), 90);
 });
 
 test('저역통과는 한 번에 목표치로 뛰지 않고 점진적으로 다가간다', () => {

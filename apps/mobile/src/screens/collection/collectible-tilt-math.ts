@@ -8,19 +8,20 @@
 export const TILT_GAIN = 1;
 const LOW_PASS_ALPHA = .2;
 const DEADZONE_DEG = 2;
-const CLAMP_DEG = 30;
 
 /**
- * One low-pass step from a raw gravity sample to a smoothed, clamped tilt angle in degrees.
+ * One low-pass step from a raw gravity sample to a smoothed full-circle angle in degrees.
  * Returns the value BEFORE the dead zone — the caller must feed this back in as `previousSmoothedDeg`
  * on the next call, so a real but small tilt keeps accumulating across samples instead of the filter
  * state getting reset to 0 every time the (dead-zoned) output happened to read 0.
  */
 export function tiltStep(gravityX: number, gravityY: number, previousSmoothedDeg: number): number {
-  const raw = Math.atan2(gravityX, gravityY) * 180 / Math.PI * TILT_GAIN;
   const previous = Number.isFinite(previousSmoothedDeg) ? previousSmoothedDeg : 0;
-  const smoothed = previous + (raw - previous) * LOW_PASS_ALPHA;
-  return Math.max(-CLAMP_DEG, Math.min(CLAMP_DEG, smoothed));
+  if (!Number.isFinite(gravityX) || !Number.isFinite(gravityY) || Math.hypot(gravityX, gravityY) < .15) return previous;
+  const raw = Math.atan2(gravityX, gravityY) * 180 / Math.PI * TILT_GAIN;
+  const shortestTurn = ((raw - previous + 540) % 360) - 180;
+  const smoothed = previous + shortestTurn * LOW_PASS_ALPHA;
+  return ((smoothed + 540) % 360) - 180;
 }
 
 /** Only this rounded value should ever cross the UI-thread → JS bridge, and only when it changes. The 2° dead zone is applied here, on the output only, never on the filter state above. */

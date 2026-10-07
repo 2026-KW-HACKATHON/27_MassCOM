@@ -87,6 +87,8 @@ export type ReflectionInput = { tiltX: number; tiltY: number; timeMs: number; ac
 export type ReflectionFrame = {
   bandOffset: number;
   bandAngle: number;
+  specular: number;
+  fresnel: number;
   rainbowPhase: number;
   rainbowGradient: ReturnType<typeof rainbowGradientAt>;
   highlightX: number;
@@ -100,6 +102,12 @@ export function reflectionAt(input: ReflectionInput, preset: GradeMaterialPreset
   const active = input.active !== false;
   const x = active ? clampTilt(input.tiltX) : 0;
   const y = active ? clampTilt(input.tiltY) : 0;
+  // 광원은 화면의 좌상단에 고정한다. 코인 법선이 광원을 향할수록 확산 반사가 밝아지고,
+  // 비스듬한 각도에서는 가장자리 반사가 강해진다.
+  const nz = Math.sqrt(Math.max(0, 1 - x * x * .55 - y * y * .55));
+  const lightDot = Math.max(0, (-x * .34 - y * .27 + nz * .90) / 1.0);
+  const specular = unit(.16 + .84 * lightDot ** (preset.material === 'bronze' ? 3 : 5));
+  const fresnel = unit(.2 + .8 * (1 - nz) ** 2);
   // 먼저 나머지를 취해 매우 큰 시간에도 삼각함수 입력이 유한하고 정밀하게 유지되도록 한다.
   const ambient = active && input.ambient !== false;
   const time = ambient && Number.isFinite(input.timeMs) ? Math.max(0, input.timeMs) : 0;
@@ -115,10 +123,12 @@ export function reflectionAt(input: ReflectionInput, preset: GradeMaterialPreset
   return {
     bandOffset: .5 + x * .8 + y * .3 + drift,
     bandAngle: -25 + x * 6 - y * 5,
+    specular,
+    fresnel,
     rainbowPhase,
     rainbowGradient: rainbowGradientAt(rainbowPhase),
-    highlightX: unit(.5 + x * .3 + Math.sin(cycle * Math.PI * 2) * .13),
-    highlightY: unit(.42 + y * .28 - Math.sin(cycle * Math.PI * 2) * .08),
+    highlightX: unit(.5 - x * .3 + Math.sin(cycle * Math.PI * 2) * .13),
+    highlightY: unit(.42 - y * .28 - Math.sin(cycle * Math.PI * 2) * .08),
     glintOpacities,
   };
 }

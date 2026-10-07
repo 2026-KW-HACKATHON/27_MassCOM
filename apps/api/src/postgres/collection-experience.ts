@@ -11,6 +11,7 @@ import { medalValuesSql } from './badge-rewards.js';
 
 type Stored = { badge_id: string | null; cosmetics: Equipment; coin_entitlement_id: string | null; wishlist_item_id: string | null };
 type Spend = { id: string; grade: MileageGrade; cosmetic_bonus_id: string };
+type GradeDraw = { grade: MileageGrade; reward_kind: string; item_id: string | null };
 type Skill = { kind: GameKind; progress: number; achieved: boolean; best_score: number };
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -106,9 +107,13 @@ export class PostgresCollectionExperienceService implements CollectionExperience
       FROM collection_experience_profiles WHERE account_id=$1`, [accountId])).rows[0];
     const medals = buildMedals((await db.query<MedalValues>(medalValuesSql, [accountId])).rows[0]!);
     const spends = (await db.query<Spend>(`SELECT id,grade,cosmetic_bonus_id FROM mileage_spends WHERE account_id=$1 AND reason='REROLL'`, [accountId])).rows;
+    const gradeDraws = (await db.query<GradeDraw>(`SELECT grade,reward_kind,item_id FROM grade_draws
+      WHERE account_id=$1`, [accountId])).rows;
     const skills = (await db.query<Skill>(`SELECT kind,skill_progress AS progress,skill_achieved AS achieved,best_score
       FROM play_records WHERE account_id=$1`, [accountId])).rows;
-    const bonusIds = new Set(spends.map((spend) => spend.cosmetic_bonus_id));
+    const bonusIds = new Set([...spends.map((spend) => spend.cosmetic_bonus_id),
+      ...gradeDraws.filter((draw) => draw.reward_kind === 'THEME').map((draw) => draw.item_id)
+        .filter((id): id is string => id !== null)]);
     const badges = EXPERIENCE_BADGES.map((badge) => {
       const [kind] = badge.id.split('-');
       const medal = medals.find((candidate) => candidate.kind === kind);
@@ -140,7 +145,8 @@ export class PostgresCollectionExperienceService implements CollectionExperience
     };
     return { catalog: { badges: EXPERIENCE_BADGES, cosmetics: EXPERIENCE_COSMETICS, packs: EXPERIENCE_PACKS },
       profile, progress: { badges, cosmetics, packs: EXPERIENCE_PACKS.map((pack) => ({ id: pack.id,
-        opens: spends.filter((spend) => spend.grade === pack.grade).length,
+        opens: spends.filter((spend) => spend.grade === pack.grade).length
+          + gradeDraws.filter((draw) => draw.grade === pack.grade).length,
         ownedBonuses: pack.bonusItemIds.filter((id) => bonusIds.has(id)).length,
         totalBonuses: pack.bonusItemIds.length })) } };
   }

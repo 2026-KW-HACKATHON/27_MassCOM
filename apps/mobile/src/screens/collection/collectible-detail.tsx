@@ -1,10 +1,10 @@
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useRouter } from 'expo-router';
 import { foregroundAudioMode } from '@/sound/playback-audio-mode';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AppState, Image, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { AppState, Image, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, useColorScheme, useWindowDimensions, type LayoutChangeEvent, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Defs, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
+import Svg, { ClipPath, Defs, G, Image as SvgImage, LinearGradient, Mask, Rect, Stop } from 'react-native-svg';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { cancelAnimation, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -16,11 +16,11 @@ import { canUseTiltSensor } from '@/ui/can-use-tilt-sensor';
 import { Mascot } from '@/ui/mascot';
 import { StateScene } from '@/ui/state-scene';
 
-import { CollectibleDefaultBack, CollectibleFaceShape, collectibleGradeColors } from './collectible-default-back';
+import { CollectibleDefaultBack, CollectibleFaceOutline, CollectibleFaceShape, collectibleGradeColors, collectibleWebClipPath } from './collectible-default-back';
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
 import type { CollectibleDetailInput, LegacyCollectibleDetail } from './legacy-collectible-detail';
 import {
-  angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
+  angleFrameWebMask, angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
   onceMotions, ONCE_MS, particleAt,
 } from './collectible-motion';
 import { TiltSensor } from './collectible-tilt';
@@ -43,16 +43,62 @@ type Props = {
 };
 
 /** 각도 프레임 스프라이트 한 칸을 얼굴 크기로 잘라 보여준다. 두 칸을 겹쳐 opacity로 섞으면 크로스페이드가 된다. */
-function SpriteCell({ frames, index, faceSize, opacity }: { frames: CollectibleAngleFrames; index: number; faceSize: number; opacity: number }) {
+function SpriteCell({ frames, index, faceSize, opacity, shape }: { frames: CollectibleAngleFrames; index: number; faceSize: number; opacity: number; shape: string }) {
   const col = index % frames.columns;
   const row = Math.floor(index / frames.columns);
   const rows = Math.ceil(frames.count / frames.columns);
+  const clipId = `sprite-face-${useId().replace(/:/g, '')}`;
+  const isStamp = shape === 'stamp';
+  const isSerrated = shape === 'serrated' || shape === 'gear';
+  const insetX = isStamp ? .09 : isSerrated ? 0 : .04;
+  const insetY = isStamp ? .04 : isSerrated ? 0 : .04;
+  if (!isSerrated || Platform.OS === 'web') {
+    return <View pointerEvents="none" style={{ position: 'absolute', left: faceSize * insetX, top: faceSize * insetY,
+      width: faceSize * (1 - insetX * 2), height: faceSize * (1 - insetY * 2), opacity,
+      overflow: 'hidden', borderRadius: isStamp ? faceSize * .06 : isSerrated ? 0 : faceSize * .46,
+      ...(isSerrated ? { clipPath: collectibleWebClipPath(shape) } : {}) }}>
+      <Image source={{ uri: frames.dataUrl }} resizeMode="stretch" accessible={false}
+        style={{ position: 'absolute', width: faceSize * frames.columns, height: faceSize * rows,
+          left: -col * faceSize - faceSize * insetX, top: -row * faceSize - faceSize * insetY }} />
+    </View>;
+  }
   return (
-    <View pointerEvents="none" style={{ position: 'absolute', width: faceSize, height: faceSize, overflow: 'hidden', opacity }}>
-      <Image source={{ uri: frames.dataUrl }} resizeMode="stretch"
-        style={{ position: 'absolute', width: faceSize * frames.columns, height: faceSize * rows, left: -col * faceSize, top: -row * faceSize }} />
-    </View>
+    <Svg pointerEvents="none" width={faceSize} height={faceSize} style={{ position: 'absolute', opacity }}>
+      <Defs><ClipPath id={clipId}><G scale={faceSize / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G></ClipPath></Defs>
+      <G clipPath={`url(#${clipId})`}>
+        <SvgImage href={{ uri: frames.dataUrl }} preserveAspectRatio="none"
+          x={-col * faceSize} y={-row * faceSize} width={faceSize * frames.columns} height={faceSize * rows} />
+      </G>
+    </Svg>
   );
+}
+
+/** 게시 사진의 원본 비율과 무관하게 발행된 앞·뒷면의 같은 윤곽으로 자른다. */
+function FaceImage({ uri, shape, size, onError }: { uri: string; shape: string; size: number; onError?: () => void }) {
+  const clipId = `collectible-face-${useId().replace(/:/g, '')}`;
+  const isStamp = shape === 'stamp';
+  const isSerrated = shape === 'serrated' || shape === 'gear';
+  const insetX = isStamp ? .09 : isSerrated ? 0 : .04;
+  const insetY = isStamp ? .04 : isSerrated ? 0 : .04;
+  const width = size * (1 - insetX * 2);
+  const height = size * (1 - insetY * 2);
+  const photo = <Image source={{ uri }} resizeMode="contain" onError={onError} accessible={false}
+    style={{ position: 'absolute', width: size, height: size, left: -size * insetX, top: -size * insetY }} />;
+  if (!isSerrated || Platform.OS === 'web') {
+    return <View pointerEvents="none" style={{ position: 'absolute', left: size * insetX, top: size * insetY, width, height,
+      overflow: 'hidden', borderRadius: isStamp ? size * .06 : isSerrated ? 0 : size * .46,
+      ...(isSerrated ? { clipPath: collectibleWebClipPath(shape) } : {}) }}>
+      {photo}
+    </View>;
+  }
+  // 톱니 윤곽은 Android/iOS SVG 클립으로 보존한다. Web은 표준 CSS polygon을 사용한다.
+  return <View pointerEvents="none" style={{ position: 'absolute', width: size, height: size }}>
+    {onError ? <Image source={{ uri }} onError={onError} style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }} /> : null}
+    <Svg pointerEvents="none" width={size} height={size}>
+    <Defs><ClipPath id={clipId}><G scale={size / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G></ClipPath></Defs>
+    <SvgImage href={{ uri }} width={size} height={size} preserveAspectRatio="xMidYMid meet" clipPath={`url(#${clipId})`} />
+    </Svg>
+  </View>;
 }
 
 /** 얼굴과 같은 스프라이트 좌표·섞음으로 조명을 자른다. 기본 사진의 윤곽을 대신 쓰지 않는다. */
@@ -198,6 +244,7 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
   const angleRef = useRef(snapshot.angle);
   const moving = motionAllowed && !reduceMotion && foreground;
   const material = gradeMaterialFor(snapshot.gradeId, snapshot.gradeName);
+  const lightClipId = `collectible-light-outline-${useId().replace(/:/g, '')}`;
   const materialActive = moving && !scene && cardVisible;
   const materialClock = useGradeMaterialClock(materialActive);
   const materialAngle = useSharedValue(snapshot.angle);
@@ -392,6 +439,8 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
     {frameBlend.blend > 0 ? <SpriteCellMask frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).upper} /> : null}
   </> : undefined;
   const frontUri = snapshot.frontImageSource && !imageFailed ? Image.resolveAssetSource(snapshot.frontImageSource)?.uri : picture || undefined;
+  const webFrontMask = Platform.OS === 'web' && showFrames && snapshot.angleFrames && frameBlend && !frameBlend.back
+    ? angleFrameWebMask(snapshot.angleFrames, frameBlend.index, frameBlend.next, frameBlend.blend) : frontUri;
   const livingClock = moving ? clock : 0;
   // activeMotion이 현재 재생 중인 타입과 일치하면(자동재생 중) 그 정확한 객체를 쓴다 — 같은 type이라도 once/loop가
   // 서로 다른 particle을 가질 수 있어 type만으로 찾으면 항상 첫 번째 것이 걸린다(WP4 리뷰 6). 수동 조작처럼
@@ -420,9 +469,9 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
             {reverse ? (
               snapshot.backImageDataUrl ? (
                 <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
-                <Image source={{ uri: snapshot.backImageDataUrl }} resizeMode="contain" accessible={false}
-                  style={{ width: displayFace, height: displayFace }} />
-                <GradeMaterialLayer material={material} size={displayFace} faceUri={snapshot.backImageDataUrl} shape={snapshot.shape}
+                <CollectibleFaceShape shape={snapshot.shape} size={displayFace} fill={gradeColors.container} />
+                <FaceImage uri={snapshot.backImageDataUrl} shape={snapshot.shape} size={displayFace} />
+                <GradeMaterialLayer material={material} size={displayFace} shape={snapshot.shape}
                   tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} />
                 </View>
               ) : (
@@ -439,16 +488,14 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
               <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
                 {showFrames && frameBlend && !frameBlend.back && snapshot.angleFrames ? (
                   <View style={{ position: 'absolute', width: displayFace, height: displayFace, overflow: 'hidden' }}>
-                    <SpriteCell frames={snapshot.angleFrames} index={frameBlend.index} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).lower} />
-                    {frameBlend.blend > 0 ? <SpriteCell frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).upper} /> : null}
+                    <SpriteCell frames={snapshot.angleFrames} index={frameBlend.index} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).lower} shape={snapshot.shape} />
+                    {frameBlend.blend > 0 ? <SpriteCell frames={snapshot.angleFrames} index={frameBlend.next} faceSize={displayFace} opacity={angleFrameOpacities(frameBlend.blend).upper} shape={snapshot.shape} /> : null}
                   </View>
                 ) : (
-                  snapshot.frontImageSource && !imageFailed ? (
-                    <Image source={snapshot.frontImageSource} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
-                      style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                  snapshot.frontImageSource && frontUri && !imageFailed ? (
+                    <FaceImage uri={frontUri} shape={snapshot.shape} size={displayFace} onError={() => setImageFailed(true)} />
                   ) : picture ? (
-                    <Image source={{ uri: picture }} resizeMode="contain" accessible={false} onError={() => setImageFailed(true)}
-                      style={{ position: 'absolute', width: displayFace, height: displayFace }} />
+                    <FaceImage uri={picture} shape={snapshot.shape} size={displayFace} onError={() => setImageFailed(true)} />
                   ) : (
                     <Mascot pose="stamp" size={displayFace} breathe={false} />
                   )
@@ -456,19 +503,20 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
                 {snapshot.living ? <LivingOverlay living={snapshot.living} cell={livingCell(livingClock, snapshot.living.periodMs, snapshot.living.count)} faceSize={displayFace} /> : null}
                 {/* 상세는 수집품을 감상하는 화면이다. 점주 빛 모션과 겹쳐도 재질이 묻히지 않게 조금만 낮춘다. */}
                 <GradeMaterialLayer material={material} size={displayFace}
-                  faceUri={frontUri} faceMask={frontMask}
+                  faceUri={frontUri} faceMask={frontMask} webFaceMask={webFrontMask}
                   shape={snapshot.shape} tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive}
                   intensityScale={animationFrame.light ? .9 : 1} />
               </View>
             )}
-            {animationFrame.light && !reverse ? <Svg pointerEvents="none" width={displayFace} height={displayFace} style={{ position: 'absolute', top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
+            {animationFrame.light && !reverse ? <Svg pointerEvents="none" width={displayFace} height={displayFace} style={{ position: 'absolute', top: size * .09, left: size * .09, transform: [{ scaleX }], ...(Platform.OS === 'web' ? { clipPath: collectibleWebClipPath(snapshot.shape), ...(webFrontMask ? { maskImage: `url(${JSON.stringify(webFrontMask)})`, maskSize: 'contain', maskPosition: 'center', maskRepeat: 'no-repeat' } : {}) } : {}) }}>
               <Defs>
+                <ClipPath id={lightClipId}><G scale={displayFace / 100}><CollectibleFaceOutline shape={snapshot.shape} fill="white" /></G></ClipPath>
                 <Mask id="collectible-light-mask" maskType="alpha">{frontMask ?? <SvgImage href={{ uri: frontUri }} width={displayFace} height={displayFace} />}</Mask>
                 <LinearGradient id="collectible-light" x1={animationFrame.lightX} y1={0} x2={animationFrame.lightX + size * .28} y2={0} gradientUnits="userSpaceOnUse">
                   <Stop offset={0} stopColor="#fff" stopOpacity={0} /><Stop offset={0.5} stopColor="#fff" stopOpacity={1} /><Stop offset={1} stopColor="#fff" stopOpacity={0} />
                 </LinearGradient>
               </Defs>
-              <Rect width={displayFace} height={displayFace} fill="url(#collectible-light)" mask="url(#collectible-light-mask)" opacity={animationFrame.lightOpacity} />
+              <Rect width={displayFace} height={displayFace} fill="url(#collectible-light)" clipPath={Platform.OS === 'web' ? undefined : `url(#${lightClipId})`} mask={Platform.OS === 'web' ? undefined : 'url(#collectible-light-mask)'} opacity={animationFrame.lightOpacity} />
             </Svg> : null}
             {animationFrame.particles ? Array.from({ length: 15 }, (_, index) => {
               const point = activeMotionParticle ? particleAt(activeMotionParticle, index, animationFrame.particlePhase) : undefined;

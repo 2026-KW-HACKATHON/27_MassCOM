@@ -23,13 +23,15 @@ test('GET refresh does not clear unresolved POST pending; only replay success/st
 test('focused quiet refresh executes the actual source callback wiring and settles with fresh shop aggregates', () => {
   const refreshSource = screen.match(/const refreshGachaSnapshot = shop\.refreshQuietly;/)?.[0];
   const quietSource = screen.match(/const quietRefresh = useCallback\(async \(\) => refreshGachaSnapshot\(\), \[refreshGachaSnapshot\]\);/)?.[0];
-  const focusSource = screen.match(/useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); \}, \[quietRefresh\]\)\);/)?.[0];
+  const focusSource = screen.match(/useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); void refreshDrawShop\(\); \}, \[quietRefresh, refreshDrawShop\]\)\);/)?.[0];
   assert.ok(refreshSource);
   assert.ok(quietSource);
   assert.ok(focusSource);
 
   let aggregateGetCount = 0;
   const stableRefreshQuietly = () => { aggregateGetCount += 1; return Promise.resolve(true); };
+  const refreshDrawShop = () => Promise.resolve(true);
+  void refreshDrawShop;
   let hookIndex = 0;
   let focusCallback: (() => void) | undefined;
   const hookSlots: { deps: readonly unknown[]; value: unknown }[] = [];
@@ -76,7 +78,7 @@ test('PR #312 리뷰 라운드 6: 상점 탭이 다시 포커스를 받을 때�
   // 기기 QA: 방문으로 마일리지를 번 뒤 상점 탭으로 돌아와도(탭은 마운트된 채로 남는다) 다시 포커스를 받을
   // 때까지는 처음 불러온 잔액이 그대로 보였다. use-shop-avatar-art.ts의 useFocusEffect와 같은 모양.
   assert.match(screen, /import \{ useFocusEffect, useRouter \} from 'expo-router';/);
-  assert.match(screen, /useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); \}, \[quietRefresh\]\)\);/);
+  assert.match(screen, /useFocusEffect\(useCallback\(\(\) => \{ void quietRefresh\(\); void refreshDrawShop\(\); \}, \[quietRefresh, refreshDrawShop\]\)\);/);
 });
 test('buy source body fails closed when pending read is unavailable before any write or POST', async () => {
   const buyFn = screen.slice(screen.indexOf('async function buy('), screen.indexOf('async function chooseAvatar('));
@@ -229,7 +231,7 @@ test('PR #312 QA: 뽑기 기계는 SkyBackdrop 안, SkyScrollView의 형제로 �
   assert.match(skyFn, /<SkyBackdrop>\s*<SkyScrollView/);
   assert.match(skyFn, /<\/SkyScrollView>\s*\{extra\}\s*<\/SkyBackdrop>/, 'extra(모달)는 SkyScrollView 다음, 여전히 SkyBackdrop 안에 있다');
   assert.match(screen, /return sky\(\s*<>/, '성공 화면은 sky()의 두 번째 인자로 뽑기 기계를 넘긴다(머리글·RefreshControl 중복 없음)');
-  assert.match(screen, /const machine = \(gachaOnly \? gachaVisible : machineOpen\) \? <GachaMachine[\s\S]*?\/> : null;/);
+  assert.match(screen, /const machine = !\(gachaOnly \? gachaVisible : machineOpen\) \? null : legacyMachine \? <GachaMachine[\s\S]*?\/> : selectedPool \? <GradeDrawMachine/);
   assert.match(screen, /\n\s*machine,\s*\);/);
   // RefreshControl 배선은 sky() 안에 한 번만 있다 — 되돌리면 중복돼 ui/components.test.ts의 전체 개수 시험이 깨진다.
   assert.equal((screen.match(/<RefreshControl/g) ?? []).length, 1);
@@ -238,7 +240,8 @@ test('PR #312 QA: 뽑기 기계는 SkyBackdrop 안, SkyScrollView의 형제로 �
 test('PR #312 리뷰 6번: 구매 성공과 당겨서 새로고침 둘 다 사용 내역의 첫 페이지를 다시 불러오게 한다', () => {
   const refreshFn = screen.slice(screen.indexOf('async function refresh()'), screen.indexOf('async function buy('));
   assert.match(refreshFn, /setHistoryRefreshToken\(\(value\) => value \+ 1\);/);
-  const buySuccess = screen.slice(screen.indexOf('const result = await api.reroll'), screen.indexOf('} catch (error) {'));
+  const buySuccessStart = screen.indexOf('const result = await api.reroll');
+  const buySuccess = screen.slice(buySuccessStart, screen.indexOf('} catch (error) {', buySuccessStart));
   assert.match(buySuccess, /setHistoryRefreshToken\(\(value\) => value \+ 1\);/);
   assert.match(screen, /<HistorySection api=\{api\} refreshToken=\{historyRefreshToken\} \/>/);
 });

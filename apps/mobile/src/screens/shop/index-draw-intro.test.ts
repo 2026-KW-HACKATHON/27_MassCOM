@@ -9,18 +9,19 @@ import { darkColors, lightColors } from '../../theme/palette';
 import { darkWorld, lightWorld } from '../../theme/world';
 import { makeShopStyles } from './styles';
 
-// 캐릭터 꾸미기와 가게 코인 뽑기권이 다른 상품임을 한눈에 알 수 있어야 한다.
+// 등급 통합 뽑기와 기간이 있는 가게 행사권은 다른 상품임을 한눈에 알 수 있어야 한다.
 const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
 
-test('the draw section distinguishes character rewards from store coin tickets', () => {
-  assert.equal(shopDrawHeading, '캐릭터 꾸미기 뽑기');
-  assert.match(shopDrawIntro, /마일리지·의상·새 캐릭터를 차례로 받아요/);
-  assert.match(shopDrawIntro, /가게 코인 뽑기권은 위에서 확인해요/);
+test('the draw section describes one reward from all items in the selected grade', () => {
+  assert.equal(shopDrawHeading, '등급별 전체 랜덤 뽑기');
+  assert.match(shopDrawIntro, /코인, 테마 꾸미기, 캐릭터 중 하나/);
+  assert.match(shopDrawIntro, /중복도 나올 수 있어요/);
+  assert.match(screen, /가게 행사 뽑기권/);
 });
 
 test('the screen shows that heading and intro above the grade cards, once', () => {
   assert.match(screen, /import \{ shopDrawHeading, shopDrawIntro \} from '@\/shop\/shop-copy';/);
-  const section = screen.slice(screen.indexOf('{shopDrawHeading}') - 120, screen.indexOf('{snapshot.grades.map'));
+  const section = screen.slice(screen.indexOf('{shopDrawHeading}') - 120, screen.indexOf('{drawShop ? drawShop.pools.map'));
   assert.match(section, /<Text accessibilityRole="header" style=\{styles\.sectionTitle\}>\{shopDrawHeading\}<\/Text>/);
   assert.match(section, /<Text style=\{styles\.sectionNote\}>\{shopDrawIntro\}<\/Text>/);
   assert.equal((screen.match(/\{shopDrawHeading\}/g) ?? []).length, 1);

@@ -62,6 +62,8 @@ test('customer screens use the art bridge except for validated collectible inlin
     // 가게 코인도 발행 수집품 파서가 확인한 인라인 썸네일만 표시한다.
     'screens/coin-shop/index.tsx',
     'screens/coin-collection/index.tsx',
+    // 새 등급 뽑기 응답도 grade-draw-api가 검증한 인라인 썸네일만 그린다.
+    'screens/shop/grade-draw-machine.tsx',
   ]);
   const offenders = [...sources(join(src, 'screens')), ...sources(join(src, 'ui'))]
     .map((path) => ({ path, name: relative(src, path).replaceAll('\\', '/') }))
@@ -75,6 +77,8 @@ test('customer screens use the art bridge except for validated collectible inlin
     assert.match(read(file), /\.thumbnailDataUrl/);
     assert.doesNotMatch(read(file), /uri: (?:coin|entry|result)\.summary/);
   }
+  assert.match(read('shop/grade-draw-api.ts'), /parseCollectibleArtwork\(value\.artwork\)/);
+  assert.match(read('screens/shop/grade-draw-machine.tsx'), /reward\.artwork\.thumbnailDataUrl/);
   assert.match(read('screens/play/quality-session.tsx'), /if \(item\.uri\) return <Image source=\{\{ uri: item\.uri \}\}/);
   assert.match(read('screens/play/play-content.ts'), /url\.origin === base\.origin \? url\.toString\(\) : undefined/);
   assert.match(read('screens/real-map/index.tsx'), /merchant\.thumbnail&&publishedPhotoUri\(apiUrl,merchant\.thumbnail\.url\)/);

@@ -95,6 +95,10 @@ export async function earnedAndSpent(db: Queryable, accountId: string): Promise<
     `SELECT coalesce(sum(price), 0)::integer AS spent FROM coin_tickets WHERE account_id = $1 AND source = 'PURCHASE'`,
     [accountId],
   );
+  const gradeDrawSpentResult = await db.query<SpentRow>(
+    `SELECT coalesce(sum(price), 0)::integer AS spent FROM grade_draws WHERE account_id = $1`,
+    [accountId],
+  );
   const creditResult = await db.query<CreditRow>(
     `SELECT coalesce(sum(amount), 0)::integer AS credited FROM mileage_credits WHERE account_id = $1`,
     [accountId],
@@ -106,7 +110,8 @@ export async function earnedAndSpent(db: Queryable, accountId: string): Promise<
       distinctMerchants: row.distinct_merchants,
       completedSeries: row.completed_series,
     }) + (creditResult.rows[0]?.credited ?? 0),
-    spent: (spentResult.rows[0]?.spent ?? 0) + (ticketSpentResult.rows[0]?.spent ?? 0),
+    spent: (spentResult.rows[0]?.spent ?? 0) + (ticketSpentResult.rows[0]?.spent ?? 0)
+      + (gradeDrawSpentResult.rows[0]?.spent ?? 0),
   };
 }
 
@@ -332,8 +337,10 @@ export class PostgresMileageShopService implements MileageShopService {
 
       // 모두 같은 connection(client)을 쓰므로 Pool.query처럼 동시에 보낼 수 없다(한 번에 하나).
       const recentResult = await client.query<{ n: number }>(
-        `SELECT count(*)::integer AS n FROM mileage_spends
-         WHERE account_id = $1 AND created_at > $2`,
+        `SELECT (
+           (SELECT count(*) FROM mileage_spends WHERE account_id = $1 AND created_at > $2)
+           + (SELECT count(*) FROM grade_draws WHERE account_id = $1 AND created_at > $2)
+         )::integer AS n`,
         [input.accountId, new Date(now.getTime() - this.rerollRateLimitWindowMs)],
       );
       const owned = await ownedItemIds(client, input.accountId);

@@ -1,11 +1,11 @@
-import { useEffect, useId, useState, type ReactNode } from 'react';
-import { AppState, View } from 'react-native';
+import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
+import { AppState, Platform, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedProps, useDerivedValue, useFrameCallback, useSharedValue, type SharedValue } from 'react-native-reanimated';
-import Svg, { Circle, Defs, G, Image as SvgImage, Line, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, G, Image as SvgImage, Line, LinearGradient, Mask, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { useMotionEnabled } from '@/motion/use-motion';
 
-import { CollectibleFaceOutline } from './collectible-default-back';
+import { CollectibleFaceOutline, collectibleWebClipPath } from './collectible-default-back';
 import { GOLD_BAND_STOPS, GOLD_WARM_STOPS, gradeMaterialPresets, PRISM_FOIL_STOPS, RAINBOW_PERIODS, reflectionAt, type GradeMaterial, type ReflectionFrame } from './grade-material';
 
 const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
@@ -22,6 +22,7 @@ type Props = {
   faceUri?: string;
   /** 각도별 스프라이트를 쓸 때 현재 칸의 알파를 얼굴과 같은 위치로 잘라 전달한다. */
   faceMask?: ReactNode;
+  webFaceMask?: string;
   shape: string;
   tilt?: SharedValue<{ x: number; y: number }>;
   clock?: SharedValue<number>;
@@ -77,10 +78,11 @@ function Glint({ index, size, color, material, reflection, opacityScale }: {
   </AnimatedGroup>;
 }
 
-function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock, variant, moving, intensityScale = 1 }: VisualProps) {
+function MaterialVisual({ material, size, faceUri, faceMask, webFaceMask, shape, tilt, clock, variant, moving, intensityScale = 1 }: VisualProps) {
   const basePreset = gradeMaterialPresets[material];
   const preset = variant === 'card' ? { ...basePreset, sweepPeriodMs: basePreset.cardPeriodMs } : basePreset;
   const key = useId().replace(/:/g, '');
+  const clipId = `${key}outline`;
   const maskId = `${key}mask`;
   const lightMaskId = `${key}lightmask`;
   const rimMaskId = `${key}rimmask`;
@@ -126,13 +128,18 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
   const linesProps = useAnimatedProps(() => {
     return { opacity: (.25 + .05 * Math.sin(reflection.get().rainbowPhase * Math.PI * 2)) * scale };
   });
+  const reflectedProps = useAnimatedProps(() => ({ opacity: reflection.get().specular }));
+  const edgeProps = useAnimatedProps(() => ({ opacity: reflection.get().fresnel }));
   // 그림보다 긴 색 주기를 나열해 양끝 색의 늘어짐이 카드 안에 들어오지 않게 한다.
   const rainbowColors = Array.from({ length: RAINBOW_PERIODS * (PRISM_FOIL_STOPS.length - 1) + 1 },
     (_, index) => PRISM_FOIL_STOPS[index % (PRISM_FOIL_STOPS.length - 1)]);
   const maskFace = faceMask ?? (faceUri ? <SvgImage href={{ uri: faceUri }} width={size} height={size} preserveAspectRatio="xMidYMid meet" />
     : <G scale={size / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G>);
   const svgStyle = { position: 'absolute' as const, left: 0, top: 0 };
-  const glintCount = variant === 'card' ? isPrism ? 4 : isGold ? 3 : 0 : preset.glintCount;
+  const maskUri = webFaceMask ?? faceUri;
+  const webShapeStyle = Platform.OS === 'web' ? { clipPath: collectibleWebClipPath(shape),
+    ...(maskUri ? { maskImage: `url(${JSON.stringify(maskUri)})`, maskSize: 'contain', maskPosition: 'center', maskRepeat: 'no-repeat' } : {}) } as ViewStyle & CSSProperties : undefined;
+  const glintCount = variant === 'card' ? isPrism ? 4 : isGold ? 3 : 0 : variant === 'detail' ? 0 : preset.glintCount;
   const bandStops = isGold ? GOLD_BAND_STOPS.map((stop) =>
     <Stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />) : [
     <Stop key={0} offset={0} stopColor={preset.tint} stopOpacity={0} />,
@@ -146,9 +153,10 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
   // 합성 부모가 사진도 포함하도록 효과만 감싸는 네이티브 격리 뷰를 만들지 않는다.
   return <>
     {/* 색과 빛의 합성을 분리하고 합성 미지원 환경에서도 사진을 보존할 불투명도를 쓴다. */}
-    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, { width: size, height: size, mixBlendMode: isGold ? 'normal' : isPrism ? 'overlay' : 'soft-light' }]}>
+    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, webShapeStyle, { width: size, height: size, mixBlendMode: isGold ? 'normal' : isPrism ? 'overlay' : 'soft-light' }]}>
       <Svg pointerEvents="none" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Defs>
+          <ClipPath id={clipId}><G scale={size / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G></ClipPath>
           <Mask id={maskId} maskType="alpha">{maskFace}</Mask>
           <LinearGradient id={warmId} x1={0} y1={0} x2={1} y2={1}>
             {GOLD_WARM_STOPS.map((color, index) => <Stop key={color} offset={index / (GOLD_WARM_STOPS.length - 1)} stopColor={color} />)}
@@ -157,7 +165,7 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
             {rainbowColors.map((color, index) => <Stop key={index} offset={index / (rainbowColors.length - 1)} stopColor={color} />)}
           </AnimatedGradient>
         </Defs>
-        <G mask={`url(#${maskId})`}>
+        <G clipPath={Platform.OS === 'web' ? undefined : `url(#${clipId})`} mask={Platform.OS === 'web' ? undefined : `url(#${maskId})`}>
           <Rect width={size} height={size} fill={isGold ? `url(#${warmId})` : isPrism ? `url(#${rainbowId})` : preset.tint} opacity={alpha} />
           {isPrism ? <AnimatedGroup animatedProps={linesProps}>
             {Array.from({ length: 48 }, (_, index) => <Line key={index} x1={-size + index * size / 20} y1={0}
@@ -167,9 +175,10 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
       </Svg>
     </View>
     {/* 골드 유색 가장자리는 일반 합성에 두어 흰 픽셀에서도 금빛 반사띠가 남게 한다. */}
-    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, { width: size, height: size, mixBlendMode: isGold ? 'normal' : 'screen' }]}>
+    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, webShapeStyle, { width: size, height: size, mixBlendMode: isGold ? 'normal' : 'screen' }]}>
       <Svg pointerEvents="none" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Defs>
+          <ClipPath id={clipId}><G scale={size / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G></ClipPath>
           <Mask id={lightMaskId} maskType="alpha">{maskFace}</Mask>
           <AnimatedGradient id={bandId} animatedProps={bandProps} gradientUnits="userSpaceOnUse">
             {bandStops}
@@ -180,18 +189,21 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
             <Stop offset={1} stopColor={preset.tint} stopOpacity={0} />
           </AnimatedRadialGradient>
         </Defs>
-        <G mask={`url(#${lightMaskId})`}>
+        <G clipPath={Platform.OS === 'web' ? undefined : `url(#${clipId})`} mask={Platform.OS === 'web' ? undefined : `url(#${lightMaskId})`}>
+          <AnimatedGroup animatedProps={reflectedProps}>
           {vivid ? <Rect width={size} height={size} fill={`url(#${hotspotId})`} opacity={Math.min(1, scale)} /> : null}
           <Rect width={size} height={size} fill={`url(#${bandId})`} opacity={coreAlpha} />
+          </AnimatedGroup>
           {Array.from({ length: Math.min(glintCount, STAR_POINTS.length) }, (_, index) =>
             <Glint key={index} index={index} size={size} color={isGold ? '#FFC23A' : index % 2 ? '#FFF1FF' : '#DCFFFF'}
               material={material} reflection={reflection} opacityScale={scale} />)}
         </G>
       </Svg>
     </View>
-    {vivid ? <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, { width: size, height: size, mixBlendMode: 'normal' }]}>
+    {vivid ? <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={[svgStyle, webShapeStyle, { width: size, height: size, mixBlendMode: 'normal' }]}>
       <Svg pointerEvents="none" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Defs>
+          <ClipPath id={clipId}><G scale={size / 100}><CollectibleFaceOutline shape={shape} fill="white" /></G></ClipPath>
           <Mask id={rimMaskId} maskType="alpha">{maskFace}</Mask>
           <LinearGradient id={rimId} x1={0} y1={0} x2={1} y2={1}>
             {(isGold ? ['#C98A00', '#FFC23A', '#FFF1BB', '#D99000', '#FFE7A0'] : PRISM_FOIL_STOPS).map((color, index, colors) =>
@@ -202,11 +214,11 @@ function MaterialVisual({ material, size, faceUri, faceMask, shape, tilt, clock,
             {bandStops}
           </AnimatedGradient>
         </Defs>
-        <G mask={`url(#${rimMaskId})`}>
-          <G scale={size / 100} opacity={coreAlpha}>
+        <G clipPath={Platform.OS === 'web' ? undefined : `url(#${clipId})`} mask={Platform.OS === 'web' ? undefined : `url(#${rimMaskId})`}>
+          <AnimatedGroup animatedProps={edgeProps} scale={size / 100} opacity={coreAlpha}>
             <CollectibleFaceOutline shape={shape} fill="none" stroke={`url(#${rimId})`} strokeWidth={4.5} />
             <CollectibleFaceOutline shape={shape} fill="none" stroke={`url(#${rimLightId})`} strokeWidth={4.5} />
-          </G>
+          </AnimatedGroup>
         </G>
       </Svg>
     </View> : null}
