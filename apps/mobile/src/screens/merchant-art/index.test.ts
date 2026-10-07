@@ -166,7 +166,7 @@ test('the showcase owner page opens it in place, only for the merchant the probe
   assert.match(owner, /artOpen && state\.status === 'allowed' && apiUrl/);
   assert.match(owner, /merchantId=\{state\.merchantId\}/);
   assert.match(owner, /onBack=\{\(\) => setArtOpen\(false\)\}/);
-  assert.match(owner, /if \(artOpen\) setArtOpen\(false\);\s+else onBrowse\(\);/);
+  assert.match(owner, /if \(artOpen\) setArtOpen\(false\);\s+else onReturnToRole\(\);/);
   const home = read('screens/merchant-home/index.tsx');
   assert.match(owner, /<MerchantHomeScreen/);
   assert.match(owner, /onArt=\{\(\) => setArtOpen\(true\)\}/);

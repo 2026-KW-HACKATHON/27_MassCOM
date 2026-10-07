@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, ImageBackground, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -53,6 +54,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
   apiUrl: string; credential: AccountCredential; onSessionInvalid: () => Promise<void>;
   tabRoot?: boolean; onGamePlayingChanged?: (playing: boolean) => void;
 }) {
+  const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
   const recheckConsent = useConsentRecheck();
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
@@ -211,6 +213,13 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
           <Text style={[styles.chevron, { color: palette.secondaryLabel }]}>›</Text>
         </Pressable>;
       })}</View>
+      <Pressable accessibilityRole="button" accessibilityLabel="월계 방 탐험하기" onPress={() => router.push('/room-explore')}
+        style={[styles.gameCard, { borderColor: palette.primary, backgroundColor: palette.primaryContainer }]}>
+        <View style={[styles.gameMark, { backgroundColor: palette.primary }]}><Text style={[styles.gameMarkText, { color: palette.onPrimary }]}>⌂</Text></View>
+        <View style={styles.gameDetail}><Text style={[styles.gameTitle, { color: palette.onPrimaryContainer }]}>월계 방 탐험</Text>
+          <Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>이웃 방 구경 · 칭찬 도장 · 방문 마일리지</Text></View>
+        <Text style={[styles.chevron, { color: palette.primary }]}>›</Text>
+      </Pressable>
       <UnlockPreview snapshot={snapshot} label={palette.label} muted={palette.secondaryLabel} />
       {art.length ? <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>네 놀이에 방문한 가게와 수집품 그림 {art.length}개가 이어져요.</Text> : <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>{artLoaded ? '연습 꾸러미로 먼저 놀아 보세요. 방문하면 내 가게 그림으로 놀이가 넓어져요.' : '수집품 그림을 확인하지 못했어요.'}</Text>}
       <Text style={[styles.rewardNote, { color: palette.secondaryLabel }]}>게임별 실력 배지로 동행 꾸미기를 해금하고, 완주 기록으로 공간 배경을 열어요.</Text>

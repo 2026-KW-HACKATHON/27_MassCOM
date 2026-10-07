@@ -78,6 +78,17 @@ test('뽑기 결과는 마일리지, 옷, 캐릭터를 순차 공개하고 최�
   assert.doesNotMatch(sequentialArea, /styles\.rewardStep/, '순차 공개 카드에는 최종 요약 3줄을 렌더하지 않는다');
 });
 
+test('보상 화면은 기다려도 유지되고 다음 버튼을 눌러야 다음 보상 또는 최종 결과로 이동한다', () => {
+  const reveal = machine.slice(machine.indexOf('const startRewardReveal ='), machine.indexOf('useFocusEffect('));
+  assert.doesNotMatch(reveal, /setTimeout|setInterval/, '보상 단계 사이에 자동 전환 타이머가 없어야 한다');
+  assert.match(reveal, /const revealNext = useCallback\(\(\) => \{[\s\S]*?startRewardReveal\(gachaNextRewardPhase\(current\)\)/);
+  for (const name of ['MileageReward', 'ClothingReward', 'CharacterReward']) {
+    assert.match(machine, new RegExp(`<${name}[^>]*onNext=\\{revealNext\\}`));
+  }
+  assert.match(machine, /timers\.push\(setTimeout\(\(\) => startRewardReveal\('reward-mileage'\), elapsed\)\)/, '개봉 연출 뒤 첫 보상은 여전히 보여야 한다');
+  assert.match(machine, /if \(!succeeded\)[\s\S]*?purchase-failed/, '구매 실패는 보상 화면으로 이동하지 않아야 한다');
+});
+
 test('미공개 캐릭터 이름은 캐릭터 단계 전 접근성 라벨에 포함되지 않는다', () => {
   const labelFunction = machine.slice(machine.indexOf('function resultAccessibilityLabel'), machine.indexOf('function clothingRewardName'));
   assert.match(labelFunction, /phase === 'reward-mileage'[\s\S]*?마일리지/);

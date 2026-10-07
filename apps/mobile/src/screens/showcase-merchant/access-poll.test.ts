@@ -235,15 +235,10 @@ test('decidePermissionRecheck allows exactly one automatic recheck per request c
   assert.deepEqual(decidePermissionRecheck(nextRequest, 'denied', 'ABC123'), { action: 'recheck', code: 'XYZ999' });
 });
 
-test('shouldHandleHardwareBack registers while the admin screen is open even without merchant staff permission', () => {
-  // The bug (review #3): an approver without staff permission opens the admin screen from the denied status, but back is unhandled.
-  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: true, screenStatus: 'denied' }), true);
-  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: true, screenStatus: 'loading' }), true);
-  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: true, screenStatus: 'allowed' }), true);
-  // Merchant screen itself still gets back handling without the admin screen open.
-  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: false, screenStatus: 'allowed' }), true);
-  // Neither admin open nor staff permission: nothing for this screen to handle.
-  assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: false, screenStatus: 'denied' }), false);
-  // The tour screen handles its own exit.
-  assert.equal(shouldHandleHardwareBack({ tour: true, adminOpen: true, screenStatus: 'allowed' }), false);
+test('점주 체험은 권한 조회 상태와 무관하게 뒤로가기를 받되 투어는 자체 종료한다', () => {
+  for (const screenStatus of ['loading', 'denied', 'error', 'allowed'] as const) {
+    assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: false, screenStatus }), true, screenStatus);
+    assert.equal(shouldHandleHardwareBack({ tour: false, adminOpen: true, screenStatus }), true, `admin ${screenStatus}`);
+    assert.equal(shouldHandleHardwareBack({ tour: true, adminOpen: true, screenStatus }), false, `tour ${screenStatus}`);
+  }
 });

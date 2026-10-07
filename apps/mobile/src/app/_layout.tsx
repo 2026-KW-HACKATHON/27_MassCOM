@@ -17,7 +17,8 @@ import { shouldAskConsent } from '@/privacy/consent-flow';
 import { ConsentRecheckProvider } from '@/privacy/consent-recheck';
 import { hasPendingFriendLink } from '@/friends/pending-friend-link';
 import { initializeUiSounds } from '@/sound/ui-sounds';
-import { consumeInternalAuthReturn, reconcileShowcaseAccount, showcaseEntryDestination, type ShowcaseRoleState } from '@/navigation/showcase-entry';
+import { consumeInternalAuthReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry, type ShowcaseRoleState } from '@/navigation/showcase-entry';
+import { ShowcaseRoleReturnContext } from '@/navigation/showcase-role-context';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
 import { SocialPushProvider } from '@/social/push-runtime';
@@ -98,6 +99,9 @@ function Routes() {
         <Stack.Screen name="play" options={{ headerShown: false }} />
         <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
         <Stack.Screen name="merchant-art" options={{ headerShown: false }} />
+        <Stack.Screen name="coin-shop" options={{ headerShown: false }} />
+        <Stack.Screen name="coin-collection" options={{ headerShown: false }} />
+        <Stack.Screen name="room-explore" options={{ headerShown: false }} />
         <Stack.Screen name="recommendations" options={{ headerShown: false }} />
         <Stack.Screen name="wallet" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ title: '알림함' }} />
@@ -123,6 +127,7 @@ function AuthenticatedRoot() {
   const auth = useAuthSession();
   const themeMode = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [entry, setEntry] = useState<ShowcaseRoleState>({});
+  const returnToRole = useCallback(() => setEntry({ accountId: auth.accountId }), [auth.accountId]);
   useEffect(() => {
     if (!auth.accountId) return;
     const accountId = auth.accountId;
@@ -203,21 +208,24 @@ function AuthenticatedRoot() {
       accountId={auth.accountId}
       credential={auth.credential}
       onBrowse={() => setEntry({ role: 'customer', accountId: auth.accountId })}
+      onReturnToRole={returnToRole}
       onLogout={auth.logout}
       onSessionInvalid={auth.invalidateSession}
     />;
   }
 
-  if (!auth.appKit) return <ConsentRecheckProvider onRecheck={recheckConsent}><Routes /></ConsentRecheckProvider>;
-
   return (
-    <AppKitProvider key={auth.accountId} instance={auth.appKit}>
-      <WalletThemeSynchronizer themeMode={themeMode} />
-      <ConsentRecheckProvider onRecheck={recheckConsent}><Routes /></ConsentRecheckProvider>
-      <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
-        <AppKit />
-      </View>
-    </AppKitProvider>
+    <ShowcaseRoleReturnContext.Provider value={showShowcaseRoleEntry(getAppPackageId()) ? returnToRole : undefined}>
+      {!auth.appKit ? <ConsentRecheckProvider onRecheck={recheckConsent}><Routes /></ConsentRecheckProvider> : (
+        <AppKitProvider key={auth.accountId} instance={auth.appKit}>
+          <WalletThemeSynchronizer themeMode={themeMode} />
+          <ConsentRecheckProvider onRecheck={recheckConsent}><Routes /></ConsentRecheckProvider>
+          <View pointerEvents="box-none" style={{ position: 'absolute', width: '100%', height: '100%' }}>
+            <AppKit />
+          </View>
+        </AppKitProvider>
+      )}
+    </ShowcaseRoleReturnContext.Provider>
   );
 }
 

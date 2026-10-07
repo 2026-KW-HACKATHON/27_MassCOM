@@ -39,7 +39,7 @@ import { HistorySection } from './history-section';
 import { useShopStyles } from './use-shop-styles';
 
 export const SHOP_TITLE = '상점';
-export const SHOP_SUBTITLE = '마일리지를 모아 가게 친구를 뽑아요';
+export const SHOP_SUBTITLE = '가게 코인 뽑기권과 캐릭터 꾸미기를 골라요';
 
 type Notice = { tone: 'success' | 'error'; text: string };
 
@@ -349,6 +349,11 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
 
       <Stagger index={1}>
         <View style={styles.section}>
+          <FloatingCard style={styles.card} onPress={() => router.push('/coin-shop')}
+            accessibilityLabel="가게 코인 뽑기권" accessibilityHint="가게와 이벤트를 고르고 코인 뽑기권을 확인합니다">
+            <Text accessibilityRole="header" style={styles.sectionTitle}>가게 코인 뽑기권 ›</Text>
+            <Text style={styles.sectionNote}>가게·등급·확률을 보고 권리를 받은 뒤 코인을 뽑아요.</Text>
+          </FloatingCard>
           <Text accessibilityRole="header" style={styles.sectionTitle}>{shopDrawHeading}</Text>
           <Text style={styles.sectionNote}>{shopDrawIntro}</Text>
           {snapshot.grades.map((grade) => (

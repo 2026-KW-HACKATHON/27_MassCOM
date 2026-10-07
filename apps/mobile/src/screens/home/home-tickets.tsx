@@ -106,12 +106,16 @@ export function HomeTicketsScreen({ apiUrl, credential, onSessionInvalid }: {
         colors={[palette.primary]} progressBackgroundColor={world.card} progressViewOffset={insets.top} />}
     >
       <View style={styles.section}>
+        <FloatingCard onPress={() => router.push('/coin-shop')} accessibilityLabel="구매한 가게 코인 뽑기권 보기"
+          accessibilityHint="구매하거나 선물받은 코인 뽑기권을 사용합니다">
+          <Text style={styles.ticketName}>코인 뽑기권은 여기서 확인 ›</Text>
+        </FloatingCard>
         <Text accessibilityRole="header" style={styles.heading}>열 수 있는 가게권 · {tickets.status === 'ready' ? `${tickets.tickets.length}장` : tickets.status === 'loading' ? '확인 중' : '조회 실패'}</Text>
         {tickets.status === 'loading' && tickets.tickets.length === 0 ? (
           <FloatingCard><StateScene kind="loading" title="가게권을 확인하는 중" /></FloatingCard>
         ) : tickets.tickets.length === 0 && tickets.status !== 'error' ? (
           <FloatingCard>
-            <StateScene framed={false} kind="empty" title="아직 가게 뽑기권이 없어요"
+            <StateScene framed={false} kind="empty" title="아직 방문 보상 가게권이 없어요"
               body="방문 인증으로 1·3·5회 목표를 달성하면 열 수 있는 가게권이 나타나요."
               action={{ label: '방문 인증 열기', onPress: () => router.push('/claim') }} />
           </FloatingCard>

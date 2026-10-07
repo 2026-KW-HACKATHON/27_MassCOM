@@ -1,0 +1,10 @@
+{
+  "sha256": "d0a8b58dc687a15845e6839081bd12e4eafa5a629816b44483516043e5ca7abb",
+  "bytes": 134555947,
+  "nativeLibraries": 32,
+  "nativeLibrariesMatchPreviousVerifiedArtifact": true,
+  "publicRelease": false,
+  "tmapPublicKeyPresent": true,
+  "naverPublicIdPresent": true,
+  "naverServerSecretAbsent": true
+}

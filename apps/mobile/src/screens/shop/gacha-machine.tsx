@@ -19,7 +19,7 @@ import { CharacterArt } from '@/illustration/character-art';
 import { AvatarWardrobe, equippedClothingArt, type EquippedClothingArt } from '@/shop/wardrobe';
 import { drawRewardDisclosure, rerollDisclosure } from '@/shop/shop-rules';
 
-import { cosmeticSequenceDisclosure, gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaRewardDelayMs, gachaTimeline, isNewDraw, type GachaPhase, type GachaRewardPhase, type GachaStage } from './gacha-rules';
+import { cosmeticSequenceDisclosure, gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaTimeline, isNewDraw, type GachaPhase, type GachaRewardPhase, type GachaStage } from './gacha-rules';
 
 type Props = {
   snapshot: ShopSnapshot;
@@ -67,7 +67,6 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   const [drawing, setDrawing] = useState<ShopGradeView>();
   const [pendingCloseMessage, setPendingCloseMessage] = useState<string>();
   const timelineTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const rewardTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const advancePhase = useCallback((next: typeof phase) => { phaseRef.current = next; setPhase(next); }, []);
   const bob = useSharedValue(0);
   const shake = useSharedValue(0);
@@ -99,13 +98,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     items: [{ ...result.rewards.clothing.item, owned: true, equipped: false }],
   } }) : currentClothing;
 
-  const clearRewardTimer = useCallback(() => {
-    if (rewardTimer.current) clearTimeout(rewardTimer.current);
-    rewardTimer.current = undefined;
-  }, []);
-  const startRewardRevealRef = useRef<(next?: GachaRewardPhase | 'result') => void>(() => {});
   const startRewardReveal = useCallback((next: GachaRewardPhase | 'result' = 'reward-mileage') => {
-    clearRewardTimer();
     activeResult.current = undefined;
     cardOpacity.set(1);
     cardScale.set(1);
@@ -116,9 +109,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     advancePhase(next);
     void drawHaptic();
     playUiSound(next === 'reward-character' ? 'success' : 'flip');
-    rewardTimer.current = setTimeout(() => startRewardRevealRef.current(gachaNextRewardPhase(next)), gachaRewardDelayMs(motionAllowed));
-  }, [advancePhase, cardOpacity, cardScale, clearRewardTimer, motionAllowed]);
-  useEffect(() => { startRewardRevealRef.current = startRewardReveal; }, [startRewardReveal]);
+  }, [advancePhase, cardOpacity, cardScale]);
   const revealNext = useCallback(() => {
     const current = phaseRef.current;
     if (current === 'reward-mileage' || current === 'reward-clothing' || current === 'reward-character') startRewardReveal(gachaNextRewardPhase(current));
@@ -139,7 +130,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
         crank.set(360); shake.set(0); jiggle.set(0); capsuleDrop.set(1); capsuleWobble.set(0); capsuleSplit.set(1);
         burst.set(1); cardScale.set(1); cardOpacity.set(1);
         const timer = setTimeout(() => startRewardReveal('reward-mileage'), 0);
-        return () => { clearTimeout(timer); clearRewardTimer(); };
+        return () => { clearTimeout(timer); };
       }
       return;
     }
@@ -150,7 +141,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
       const timer = setTimeout(() => startRewardReveal('reward-mileage'), 0);
       cardOpacity.set(withTiming(1, { duration: 180 }));
       cardScale.set(1);
-      return () => { clearTimeout(timer); clearRewardTimer(); };
+      return () => { clearTimeout(timer); };
     }
     const durations = gachaTimeline(false);
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -173,8 +164,8 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     };
     stages.forEach((stage) => { timers.push(setTimeout(() => enter(stage), elapsed)); elapsed += durations[stage]; });
     timers.push(setTimeout(() => startRewardReveal('reward-mileage'), elapsed));
-    return () => { timers.forEach(clearTimeout); clearRewardTimer(); };
-  }, [result, motionAllowed, advancePhase, burst, capsuleDrop, capsuleSplit, capsuleWobble, cardOpacity, cardScale, clearRewardTimer, crank, jiggle, shake, startRewardReveal]);
+    return () => { timers.forEach(clearTimeout); };
+  }, [result, motionAllowed, advancePhase, burst, capsuleDrop, capsuleSplit, capsuleWobble, cardOpacity, cardScale, crank, jiggle, shake, startRewardReveal]);
 
   const machineStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.get() }, { translateX: shake.get() }] }));
   const crankStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${crank.get()}deg` }] }));
@@ -188,7 +179,6 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     setDrawing(selected);
     skipRequested.current = false;
     setPendingCloseMessage(undefined);
-    clearRewardTimer();
     activeResult.current = undefined;
     advancePhase(gachaPhaseAfter(phaseRef.current, { type: 'draw-started' }));
     crank.set(0); shake.set(0); jiggle.set(0); capsuleDrop.set(0); capsuleWobble.set(0); capsuleSplit.set(0); burst.set(0);
@@ -208,7 +198,6 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
       return;
     }
     timelineTimers.current.forEach(clearTimeout);
-    clearRewardTimer();
     crank.set(360); shake.set(0); jiggle.set(0); capsuleDrop.set(1); capsuleWobble.set(0); capsuleSplit.set(1);
     burst.set(1); cardScale.set(1); cardOpacity.set(1); startRewardReveal('reward-mileage');
   };
@@ -309,7 +298,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
                 {result.bonus && onEquipBonus ? <Control label={bonusSaving ? '꾸미기 저장 중…' : bonusEquipped ? result.bonus?.slot === 'decor' ? '장식 배치 완료' : '꾸미기 장착 완료' : result.bonus?.slot === 'decor' ? '내 공간에 이 장식 배치' : '지금 동행에게 꾸미기 장착'} disabled={avatarBusy || bonusSaving || bonusEquipped} onPress={onEquipBonus} /> : null}
                 <Control label={isAvatar ? '대표 캐릭터예요' : avatarBusy ? '설정 중…' : '대표 캐릭터로'} primary disabled={isAvatar || avatarBusy || bonusSaving} onPress={onSetAvatar} />
                 {onOpenStudio ? <Control label={result.bonus?.slot === 'decor' ? '내 공간에 놓으러 가기' : '내 공간에서 만나기'} disabled={avatarBusy || bonusSaving} onPress={onOpenStudio} /> : null}
-                {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy || bonusSaving} onPress={() => { clearRewardTimer(); activeResult.current = undefined; advancePhase('detail'); }} /> : null}
+                {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy || bonusSaving} onPress={() => { activeResult.current = undefined; advancePhase('detail'); }} /> : null}
                 <Control label="닫기" onPress={onClose} />
               </View> : null}
             </>

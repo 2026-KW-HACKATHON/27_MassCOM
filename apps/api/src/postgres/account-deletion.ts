@@ -265,6 +265,20 @@ async function pseudonymizeAccount(
   deletedAlias: string,
   now: Date,
 ): Promise<void> {
+  // 공개 방과 코인 소비권은 계정 삭제와 같은 lifecycle 잠금으로 직렬화한다.
+  await client.query(`DELETE FROM room_stamp_reports WHERE reporter_account_id=$1 OR stamp_id IN
+    (SELECT id FROM room_stamps WHERE author_account_id=$1 OR room_id IN (SELECT id FROM public_rooms WHERE account_id=$1))`, [accountId]);
+  await client.query('UPDATE room_stamp_reports SET moderated_by_account_id=$2 WHERE moderated_by_account_id=$1', [accountId, deletedAlias]);
+  await client.query(`DELETE FROM room_stamps WHERE author_account_id=$1 OR room_id IN
+    (SELECT id FROM public_rooms WHERE account_id=$1)`, [accountId]);
+  await client.query(`DELETE FROM room_visits WHERE visitor_account_id=$1 OR room_id IN
+    (SELECT id FROM public_rooms WHERE account_id=$1)`, [accountId]);
+  await client.query('DELETE FROM room_blocks WHERE blocker_account_id=$1 OR blocked_account_id=$1', [accountId]);
+  await client.query('DELETE FROM public_rooms WHERE account_id=$1', [accountId]);
+  await client.query('DELETE FROM coin_series_coupons WHERE account_id=$1', [accountId]);
+  await client.query('UPDATE coin_series_coupons SET redeemed_by_account_id=$2 WHERE redeemed_by_account_id=$1', [accountId, deletedAlias]);
+  await client.query('DELETE FROM coin_draws WHERE ticket_id IN (SELECT id FROM coin_tickets WHERE account_id=$1)', [accountId]);
+  await client.query('DELETE FROM coin_tickets WHERE account_id=$1', [accountId]);
   await client.query('DELETE FROM play_runs WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM play_records WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM studios WHERE account_id = $1', [accountId]);

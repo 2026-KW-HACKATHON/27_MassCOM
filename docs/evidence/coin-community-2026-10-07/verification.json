@@ -1,0 +1,43 @@
+{
+  "scope": "synthetic loopback QA API/DB and Samsung SM-S928N; not actual merchant/customer acceptance",
+  "apiUnit": {
+    "pass": 556,
+    "fail": 0
+  },
+  "mobileUnit": {
+    "pass": 1790,
+    "fail": 0
+  },
+  "postgres": {
+    "pass": 506,
+    "skip": 3,
+    "fail": 0,
+    "skipReason": "3 hosted seed cases require a disposable container on port55435; CI runs that gate separately"
+  },
+  "newPostgres": {
+    "pass": 8,
+    "fail": 0
+  },
+  "typecheckBuildLint": "PASS",
+  "accessibilitySemantics": "PASS",
+  "sourceSecretPrivacy": "PASS",
+  "independentReview": "PASS after mandatory corrections",
+  "physical": {
+    "customerSettingsToRole": "PASS",
+    "merchantErrorHardwareBackToRole": "PASS",
+    "coinShopAndCollectionEmptyState": "PASS",
+    "publicRoomDefaultOptInWithdraw": "PASS",
+    "randomRoomEmpty": "PASS",
+    "actualMerchantAllowedScreen": "NOT_RUN - isolated QA did not configure the complete merchant flow",
+    "purchaseUseSeriesAndQr": "NOT_RUN on device; PG service flow PASS",
+    "darkLargeFontTalkBackHaptic": "NOT_RUN this iteration"
+  },
+  "restoredSettings": {
+    "night": "no",
+    "density": "450 physical, no override",
+    "size": "1080x2340 physical, no override",
+    "fontScale": 1
+  },
+  "roomVisibilityAfterQa": false,
+  "publicRelease": false
+}

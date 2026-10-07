@@ -22,8 +22,24 @@ test('시연 권한 승인 분기에만 점주 셸을 연결하고 세 탭은 �
   assert.doesNotMatch(read('../../app/_layout.tsx').slice(read('../../app/_layout.tsx').indexOf('return <Stack')), /MerchantHomeScreen/);
 });
 
+test('시연 점주 종료와 고객 설정은 실제 역할 선택으로 돌아가고 내부 화면 닫기는 점주 화면에 남는다', () => {
+  const root = read('../../app/_layout.tsx');
+  const settings = read('../../app/(tabs)/settings.tsx');
+  assert.match(root, /onReturnToRole=\{returnToRole\}/);
+  assert.match(root, /ShowcaseRoleReturnContext\.Provider value=\{showShowcaseRoleEntry\(getAppPackageId\(\)\) \? returnToRole : undefined\}/);
+  assert.match(settings, /useContext\(ShowcaseRoleReturnContext\)/);
+  assert.match(settings, /<BackHeader title="내 정보">\{returnToRole \? \(/);
+  assert.match(settings, /역할 선택으로/);
+  assert.match(showcase, /else onReturnToRole\(\)/);
+  assert.match(showcase, /!notificationsOpen && !shouldHandleHardwareBack\(\{ tour, adminOpen, screenStatus: state\.status \}\)/);
+  assert.match(showcase, /if \(adminOpen\) setAdminOpen\(false\)/);
+  assert.match(showcase, /else if \(artOpen\) setArtOpen\(false\)/);
+  assert.match(home, /\{ label: '역할 선택으로', onPress: props\.onReturnToRole \}/);
+  assert.match(staff, /onRequestClose=\{done\}/);
+});
+
 test('기존 기능 진입점과 전체 화면 발급·복구를 모두 유지한다', () => {
-  for (const label of ['고객 화면으로', '빈 공간 투어', '권한 요청 관리', '로그아웃', '방문 확인', '오늘·현황', '가게 꾸미기']) assert.ok(home.includes(label), label);
+  for (const label of ['역할 선택으로', '빈 공간 투어', '권한 요청 관리', '로그아웃', '방문 확인', '오늘·현황', '가게 꾸미기']) assert.ok(home.includes(label), label);
   for (const handler of ['startScan', 'scanned', 'resolve', 'lookupCoupons', 'confirmRedeem', 'issue', 'reissue', 'recoverCurrent']) assert.match(staff, new RegExp(`function ${handler}\\(`));
   assert.match(staff, /<BottomSheet isPresented=/);
   assert.match(staff, /<RNHostView style=\{\{ width: width - 32, height:[^\n]+\}\}>\s*<ScrollView/);

@@ -246,6 +246,11 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       </View>
       <Text style={[styles.hint, { color: palette.secondaryLabel }]}>{selected.length}/6개 전시 · 동행 {shop.items.find((item) => item.id === avatarChoice)?.name ?? '기본 마스코트'} · 옷 {shop.clothing.items.find((item) => item.id === clothingChoice)?.name ?? '없음'}</Text>
       <Text style={[styles.visibilityNote, { color: palette.secondaryLabel }]}>저장한 동행과 수집품은 친구 공간에 바로 보여요.</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="내 방 공개와 월계 방 탐험 설정" onPress={() => router.push('/room-explore')}
+        style={[styles.section, { backgroundColor: palette.primaryContainer, borderRadius: 16, padding: 16 }]}>
+        <Text style={[styles.heading, { color: palette.onPrimaryContainer }]}>이웃에게 내 방 보여주기 ›</Text>
+        <Text style={[styles.hint, { color: palette.secondaryLabel }]}>내 방은 기본 비공개예요. 탐험 공개와 칭찬 도장을 관리해요.</Text>
+      </Pressable>
       {experience.error ? <Pressable accessibilityRole="button" onPress={() => void experience.refresh()}><Text style={styles.rowMeta}>{experience.error} · 다시 확인</Text></Pressable> : null}
       {previewProfile ? <Text accessibilityLiveRegion="polite" style={[styles.hint, { color: palette.secondaryLabel }]}>착용 미리보기 · 아직 저장하지 않았어요. 공유에는 저장된 장비가 보여요.</Text> : null}
       {experience.snapshot ? <ExperienceWardrobe snapshot={experience.snapshot} saving={experience.saving} avatar={avatarChoice} clothing={clothingArt}

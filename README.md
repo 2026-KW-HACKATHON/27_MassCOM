@@ -6,6 +6,8 @@
 
 <p align="center">동네 가게를 발견하고, 방문을 기록하고, 마스코트를 모으는 Android 서비스.<br>외부 지갑 NFT는 선택 기능이며 앱 수집품과 실제 발행 상태를 구분합니다.</p>
 
+가게별 코인 뽑기권·중복 수량·시리즈 쿠폰과 공개 동의 기반 방 탐험은 [설정·검증 기록](docs/COIN_COMMUNITY_QA_2026-10-07.md)을 따른다. 실제 점포/확률 풀과 동의받은 쿠폰 조건을 등록하기 전에는 빈 상태이며 기존 보유 권리를 삭제하지 않는다. 새 설치/운영 반영에는 API migration 0059·0060이 먼저 필요하다. 시연앱은 점주 화면의 뒤로가기/메뉴와 고객 내 정보의 ‘역할 선택으로’에서 고객·점주 체험을 다시 고른다. 역할 선택 자체로 점주 권한을 부여하지 않는다.
+
 <p align="center">
   <img alt="React Native" src="https://img.shields.io/badge/React_Native-Android-2358C7?logo=react&amp;logoColor=white">
   <img alt="Expo SDK 57" src="https://img.shields.io/badge/Expo-SDK_57-152A4A?logo=expo&amp;logoColor=white">
