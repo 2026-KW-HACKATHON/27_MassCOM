@@ -144,7 +144,12 @@ function merchantScreen(fetcher, initial) {
   profileForm.elements = form().elements;
   profileForm.querySelectorAll = () => doc.getElementById('real-world-menu-rows').children;
   const photoForm = doc.getElementById('real-world-photo-form');
-  photoForm.elements = { photo: { files: [] }, kind: value('MENU'), caption: value(''), rightsConfirmed: { checked: true } };
+  const photoInput = { files: [], _value: '' };
+  Object.defineProperty(photoInput, 'value', {
+    get() { return this._value; },
+    set(value) { this._value = value; if (value === '') this.files = []; },
+  });
+  photoForm.elements = { photo: photoInput, kind: value('MENU'), caption: value(''), rightsConfirmed: { checked: true } };
   photoForm.reset = () => {};
   const cleanup = mountRealWorldMerchant(fetcher, doc, [{ id: initial.merchantId, name: '가게', role: 'OWNER' }]);
   return { doc, nodes, profileForm, photoForm, cleanup };
@@ -239,9 +244,11 @@ test('request timeout includes the response body and aborts the fetch', async t 
   assert.equal(signal.aborted, true);
 });
 
-test('stalled save releases busy and refreshes server version without discarding draft', async t => {
+test('저장 결과 미확정 뒤 다른 편집자의 전화번호 변경은 초안을 유지하고 다시 불러오기 전 재저장을 막는다', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const initial = merchantView(), current = { ...initial, version: 2 };
+  const initial = merchantView(), current = { ...initial, version: 2, profile: {
+    ...initial.profile, visitInstructions: '저장 전 안내', contact: { phone: '02-999-9999', website: null },
+  } };
   let reads = 0; const writes = [];
   const fetcher = async (path, options) => {
     if (path.endsWith('/discovery-engagement')) return { ok: true, json: async () => ({ counts: {} }) };
@@ -260,10 +267,127 @@ test('stalled save releases busy and refreshes server version without discarding
   await settle(); t.mock.timers.tick(10_000); await firstSave;
   assert.equal(reads, 2);
   assert.equal(profileForm.elements.visitInstructions.value, '저장 전 안내');
-  assert.match(doc.getElementById('real-world-status').textContent, /서버 정보를 다시 확인/);
+  await profileForm.dispatch('submit');
+  assert.equal(writes.length, 1, '서버 버전만 갱신한 채 이전 전화번호를 다시 보내면 안 된다');
+  assert.match(doc.getElementById('real-world-status').textContent, /충돌/);
+  assert.match(doc.getElementById('real-world-status').textContent, /초안.*남아/);
+  assert.match(doc.getElementById('real-world-status').textContent, /다시 불러오기/);
+  await doc.getElementById('real-world-refresh').dispatch('click');
+  assert.equal(profileForm.elements.phone.value, '02-999-9999');
   await profileForm.dispatch('submit');
   assert.equal(writes.length, 2);
   assert.equal(writes[1].expectedVersion, 2);
+  assert.equal(writes[1].profile.contact.phone, '02-999-9999');
+  cleanup();
+});
+
+test('재조회한 프로필이 보낸 값과 같으면 JSONB 키 순서와 무관하게 저장 성공으로 확인하고 추가 초안도 유지한다', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const initial = merchantView(); let current = initial, reads = 0;
+  const writes = [];
+  const fetcher = async (path, options) => {
+    if (path.endsWith('/discovery-engagement')) return { ok: true, json: async () => ({ counts: {} }) };
+    if (options.method === 'PUT') {
+      const sent = JSON.parse(options.body); writes.push(sent);
+      // JSONB의 객체 키 순서는 요청과 달라도 값은 그대로다.
+      const reorder = value => Array.isArray(value) ? value.map(reorder)
+        : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).reverse().map(([k, v]) => [k, reorder(v)])) : value;
+      current = { ...initial, version: writes.length + 1, profile: reorder(sent.profile) };
+      return writes.length === 1 ? { ok: true, json: () => new Promise(() => {}) }
+        : { ok: true, json: async () => current };
+    }
+    reads++; return { ok: true, json: async () => current };
+  };
+  const { doc, profileForm, cleanup } = merchantScreen(fetcher, initial);
+  await settle();
+  profileForm.elements.visitInstructions.value = '전송한 안내';
+  profileForm.elements.weekday1.value = '09:00-18:00';
+  profileForm.elements.scheduleConfirmed.checked = true;
+  const firstSave = profileForm.dispatch('submit');
+  await settle();
+  profileForm.elements.visitInstructions.value = '응답 대기 중 추가 초안';
+  t.mock.timers.tick(10_000); await firstSave;
+  assert.equal(reads, 2);
+  assert.match(doc.getElementById('real-world-status').textContent, /저장.*확인/);
+  assert.doesNotMatch(doc.getElementById('real-world-status').textContent, /불확실|충돌/);
+  assert.equal(profileForm.elements.visitInstructions.value, '응답 대기 중 추가 초안');
+  await profileForm.dispatch('submit');
+  assert.equal(writes.length, 2);
+  assert.equal(writes[1].expectedVersion, 2);
+  assert.equal(writes[1].profile.visitInstructions, '응답 대기 중 추가 초안');
+  cleanup();
+});
+
+for (const failure of ['timeout', '500']) {
+  test(`사진 등록 결과 미확정(${failure}) 뒤 목록을 재조회하고 같은 선택 파일을 다시 전송하지 않는다`, async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const initial = merchantView(); let current = initial, reads = 0, uploads = 0;
+    const fetcher = async (path, options) => {
+      if (path.endsWith('/discovery-engagement')) return { ok: true, json: async () => ({ counts: {} }) };
+      if (options.method === 'POST') {
+        uploads++;
+        current = { ...initial, version: uploads + 1, photos: [...initial.photos, { id: 'photo-c', kind: 'MENU' }] };
+        if (uploads > 1) return { ok: true, json: async () => current };
+        return failure === 'timeout' ? { ok: true, json: () => new Promise(() => {}) }
+          : { ok: false, status: 500, json: async () => ({ code: 'INTERNAL_ERROR' }) };
+      }
+      reads++; return { ok: true, json: async () => current };
+    };
+    const previousReader = globalThis.FileReader;
+    t.after(() => { globalThis.FileReader = previousReader; });
+    globalThis.FileReader = class {
+      readAsDataURL() { this.result = 'data:image/png;base64,AA=='; this.onload(); }
+    };
+    const { doc, profileForm, photoForm, cleanup } = merchantScreen(fetcher, initial);
+    await settle();
+    profileForm.elements.visitInstructions.value = '저장 전 방문 안내';
+    photoForm.elements.photo.files = [{ type: 'image/png', name: 'menu.png' }];
+    const upload = photoForm.dispatch('submit');
+    await settle();
+    if (failure === 'timeout') t.mock.timers.tick(10_000);
+    await upload;
+    assert.equal(reads, 2);
+    assert.equal(doc.getElementById('real-world-photos').children.length, 3);
+    const recoveryMessage = doc.getElementById('real-world-status').textContent;
+    assert.equal(profileForm.elements.visitInstructions.value, '저장 전 방문 안내');
+    const retry = photoForm.dispatch('submit');
+    await settle(); t.mock.timers.tick(10_000); await retry;
+    assert.equal(uploads, 1, '결과 미확정인 같은 선택 파일을 중복 등록하지 않는다');
+    assert.equal(photoForm.elements.photo.files.length, 0);
+    assert.match(recoveryMessage, /사진/);
+    assert.match(recoveryMessage, /목록.*확인/);
+    photoForm.elements.photo.files = [{ type: 'image/png', name: 'other.png' }];
+    await photoForm.dispatch('submit');
+    assert.equal(uploads, 2, '목록 확인 후 새로 선택한 사진은 등록할 수 있다');
+    cleanup();
+  });
+}
+
+test('사진 등록 뒤 재조회도 실패하면 선택 파일을 비우고 명시적 다시 불러오기까지 쓰기를 막는다', async t => {
+  const initial = merchantView(); let reads = 0, uploads = 0;
+  const fetcher = async (path, options) => {
+    if (path.endsWith('/discovery-engagement')) return { ok: true, json: async () => ({ counts: {} }) };
+    if (options.method === 'POST') { uploads++; throw new TypeError('응답 유실'); }
+    if (++reads === 2) throw new TypeError('재조회 연결 실패');
+    return { ok: true, json: async () => initial };
+  };
+  const previousReader = globalThis.FileReader;
+  t.after(() => { globalThis.FileReader = previousReader; });
+  globalThis.FileReader = class { readAsDataURL() { this.result = 'data:image/png;base64,AA=='; this.onload(); } };
+  const { doc, profileForm, photoForm, cleanup } = merchantScreen(fetcher, initial);
+  await settle();
+  profileForm.elements.visitInstructions.value = '유지할 초안';
+  photoForm.elements.photo.files = [{ type: 'image/png' }];
+  await photoForm.dispatch('submit');
+  assert.equal(reads, 2);
+  assert.equal(photoForm.elements.photo.files.length, 0);
+  assert.equal(profileForm.elements.visitInstructions.value, '유지할 초안');
+  assert.match(doc.getElementById('real-world-status').textContent, /정보 다시 불러오기/);
+  await photoForm.dispatch('submit');
+  assert.equal(uploads, 1);
+  await doc.getElementById('real-world-refresh').dispatch('click');
+  await photoForm.dispatch('submit');
+  assert.equal(uploads, 1, '재조회 성공 뒤에도 이전 선택 파일을 재전송하지 않는다');
   cleanup();
 });
 
