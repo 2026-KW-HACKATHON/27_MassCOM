@@ -1,3 +1,4 @@
+import { useIsFocused } from 'expo-router';
 import { BottomTabBarHeightCallbackContext, type BottomTabBarProps } from 'expo-router/tabs';
 import { useContext, useEffect, useState, type ComponentProps } from 'react';
 import { Keyboard, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
@@ -6,6 +7,7 @@ import { lightHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound } from '@/sound/ui-sounds';
 import { uiMetrics } from '@/theme/ui-metrics';
+import { worldForScheme } from '@/theme/world';
 import { TabGlyph } from './tab-glyph';
 import { barHeightFor } from './tab-bar-style';
 import { tabAppearanceColors } from './tab-appearance';
@@ -20,8 +22,11 @@ const glyphByRoute: Record<string, GlyphName> = {
 /** Five stable destinations; only the active destination gets a filled selection. */
 export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
   const { appearance } = useTabAppearance();
-  const colors = tabAppearanceColors(appearance, useColorScheme() === 'dark');
+  const scheme = useColorScheme();
+  const colors = tabAppearanceColors(appearance, scheme === 'dark');
   const { fontScale } = useWindowDimensions();
+  // 이 탭 묶음 위에 하위 화면이 쌓이면 루트 ContextTabBar가 대신 그려진다. 아래에 남은 탭 바까지 그리면 탭 바가 두 벌이 된다.
+  const rootFocused = useIsFocused();
   const [keyboardShown, setKeyboardShown] = useState(false);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardShown(true));
@@ -36,24 +41,27 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
   const away = keyboardShown || runningGame || !visible.some((route) => route.key === focusedKey);
   const footprint = away ? 0 : height + 12 + insets.bottom;
   useEffect(() => { reportFootprint?.(footprint); }, [reportFootprint, footprint]);
-  if (away) return null;
-  return <View accessibilityRole="tablist" style={[styles.bar, {
-    bottom: Math.max(8, insets.bottom), height, backgroundColor: colors.background,
-  }]}>
-    {visible.map((route) => {
-      const options = descriptors[route.key]!.options;
-      const selected = route.key === focusedKey;
-      return <TabSlot key={route.key} home={route.name === 'index'}
-        name={glyphByRoute[route.name] ?? 'explore'} label={options.title ?? route.name}
-        accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} filled={appearance.icons === 'filled'}
-        colors={colors} onPress={() => {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!selected && !event.defaultPrevented) {
-            void lightHaptic(); playUiSound('navigate'); navigation.navigate(route.name, route.params);
-          }
-        }} />;
-    })}
-  </View>;
+  if (away || !rootFocused) return null;
+  const gap = Math.max(8, insets.bottom);
+  return <>
+    {/* 떠 있는 바 아래 틈으로 스크롤 콘텐츠가 비치지 않게 화면 배경색으로 덮는다. */}
+    <View pointerEvents="none" style={[styles.gapMask, { height: gap, backgroundColor: worldForScheme(scheme).page }]} />
+    <View accessibilityRole="tablist" style={[styles.bar, { bottom: gap, height, backgroundColor: colors.background }]}>
+      {visible.map((route) => {
+        const options = descriptors[route.key]!.options;
+        const selected = route.key === focusedKey;
+        return <TabSlot key={route.key} home={route.name === 'index'}
+          name={glyphByRoute[route.name] ?? 'explore'} label={options.title ?? route.name}
+          accessibilityLabel={options.tabBarAccessibilityLabel} selected={selected} filled={appearance.icons === 'filled'}
+          colors={colors} onPress={() => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!selected && !event.defaultPrevented) {
+              void lightHaptic(); playUiSound('navigate'); navigation.navigate(route.name, route.params);
+            }
+          }} />;
+      })}
+    </View>
+  </>;
 }
 
 function isHidden(options: { tabBarItemStyle?: StyleProp<ViewStyle> } | undefined): boolean {
@@ -77,6 +85,7 @@ export function TabSlot({ name, label, accessibilityLabel, selected, filled, col
   </Pressable>;
 }
 const styles = StyleSheet.create({
+  gapMask: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   bar: { position: 'absolute', left: 10, right: 10, flexDirection: 'row', padding: 5, borderRadius: 24,
     boxShadow: '0 3px 18px rgba(20, 56, 45, 0.10)' },
   slot: { flex: 1, minHeight: uiMetrics.minTouch, minWidth: uiMetrics.minTouch, alignItems: 'stretch' },

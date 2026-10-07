@@ -25,7 +25,7 @@ import { clampPosition, changeFurniture, ownedFurniture, placeFurniture, removeF
 import { resolveStudioGoal, studioGoalOptions } from '@/studio/studio-goals';
 import { ownedPage, ownedPageSize } from '@/studio/owned-page';
 import { runStudioSave } from '@/studio/studio-save';
-import { colorsForScheme } from '@/theme/palette';
+import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { ConfirmDialog } from '@/ui/confirm-dialog';
 import { Fold } from '@/ui/fold';
@@ -58,6 +58,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const insets = useSafeAreaInsets();
   const appId = getAppPackageId();
   const palette = colorsForScheme(useColorScheme());
+  const styles = makeStyles(palette);
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(Math.max(width - 28, 280), 460);
   const client = useMemo(() => createStudioApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
@@ -599,7 +600,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   </SkyBackdrop>;
 }
 
-const styles = StyleSheet.create({
+// 선택 칩(choice*)은 다크 모드에서도 읽히도록 팔레트 색을 쓴다. 나머지 정적 색은 기존 그대로다.
+const makeStyles = (palette: AppColors) => StyleSheet.create({
   content: { paddingHorizontal: 14, paddingBottom: 40, gap: 14 },
   sceneFrame: { alignItems: 'center', borderRadius: 6, overflow: 'hidden' },
   avatarList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -623,9 +625,9 @@ const styles = StyleSheet.create({
   heading: { fontSize: 19, fontWeight: '800', color: '#192331' },
   subheading: { fontSize: 14, fontWeight: '700', color: '#42556B', marginTop: 4 },
   choices: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  choice: { minHeight: 44, minWidth: 76, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#CBD8E8', borderRadius: 6, paddingHorizontal: 13, backgroundColor: '#FFFFFF' },
-  choiceSelected: { borderColor: '#2456D6', backgroundColor: '#EAF1FF' },
-  choiceText: { color: '#23334B', fontSize: 14, fontWeight: '700' },
+  choice: { minHeight: 44, minWidth: 76, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: palette.separator, borderRadius: 6, paddingHorizontal: 13, backgroundColor: palette.surface },
+  choiceSelected: { borderColor: palette.primary, backgroundColor: palette.primaryContainer },
+  choiceText: { color: palette.label, fontSize: 14, fontWeight: '700' },
   locked: { opacity: 0.45 },
   swatch: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: '#FFFFFF' },
   swatchSelected: { borderColor: '#24374E', borderWidth: 4 },

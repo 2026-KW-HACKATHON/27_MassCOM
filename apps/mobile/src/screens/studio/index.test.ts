@@ -42,3 +42,16 @@ test('studio exposes focused edit modes with one early save and preserves the sh
   assert.match(source, /setDraft\(\(current\) => studioAfterSave\(submitted, current, saved\.studio\)\)/);
   assert.doesNotMatch(source, /저장한 동행과 수집품은 친구 공간에 바로 보여요/);
 });
+
+test('studio selection chips take palette colours so dark mode never shows white chips', () => {
+  assert.match(source, /const styles = makeStyles\(palette\);/);
+  const rule = (name: string) => source.match(new RegExp(`^  ${name}: \\{.*$`, 'm'))?.[0] ?? '';
+  const choice = rule('choice');
+  assert.match(choice, /borderColor: palette\.separator/);
+  assert.match(choice, /backgroundColor: palette\.surface/);
+  const selected = rule('choiceSelected');
+  assert.match(selected, /borderColor: palette\.primary/);
+  assert.match(selected, /backgroundColor: palette\.primaryContainer/);
+  assert.match(rule('choiceText'), /color: palette\.label/);
+  for (const line of [choice, selected, rule('choiceText')]) assert.doesNotMatch(line, /#[0-9A-Fa-f]{6}/);
+});

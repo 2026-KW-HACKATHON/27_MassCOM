@@ -1,0 +1,19 @@
+diff --git a/node_modules/expo-router/build/fork/useLinking.js b/node_modules/expo-router/build/fork/useLinking.js
+index 6911c31..4e9e999 100644
+--- a/node_modules/expo-router/build/fork/useLinking.js
++++ b/node_modules/expo-router/build/fork/useLinking.js
+@@ -333,6 +333,14 @@ function useLinking(ref, { enabled = true, config, getStateFromPath = native_1.g
+                     // If history length is decreased, i.e. entries were removed, we want to go back
+                     const nextIndex = history.backIndex({ path });
+                     const currentIndex = history.index;
++                    // START FORK
++                    // No earlier entry has this path: popping to another tab (dismissTo) is a new destination, not a step back.
++                    // Pushing keeps the entry behind us, so the browser back button returns to the previous in-app screen.
++                    if (nextIndex === -1) {
++                        history.push({ path, state });
++                        return;
++                    }
++                    // END FORK
+                     try {
+                         if (nextIndex !== -1 &&
+                             nextIndex < currentIndex &&
