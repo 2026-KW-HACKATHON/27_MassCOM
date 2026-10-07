@@ -21,11 +21,12 @@ type Props = {
   accountId: string;
   credential: AccountCredential;
   onBrowse: () => void;
+  onReturnToRole: () => void;
   onLogout: () => Promise<void>;
   onSessionInvalid: () => Promise<void>;
 };
 
-export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse, onLogout, onSessionInvalid }: Props) {
+export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse, onReturnToRole, onLogout, onSessionInvalid }: Props) {
   const colors = colorsForScheme(useColorScheme());
   const [retry, setRetry] = useState(0);
   const [tour, setTour] = useState(false);
@@ -65,11 +66,11 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
       if (notificationsOpen) setNotificationsOpen(false);
       else if (adminOpen) setAdminOpen(false);
       else if (artOpen) setArtOpen(false);
-      else onBrowse();
+      else onReturnToRole();
       return true;
     });
     return () => subscription.remove();
-  }, [adminOpen, artOpen, notificationsOpen, onBrowse, state.status, tour]);
+  }, [adminOpen, artOpen, notificationsOpen, onReturnToRole, state.status, tour]);
 
   // 리뷰 #1: 승인된 요청에 자동 재확인을 한 번만 걸고, 그래도 거부면 멈춰서 수동 "다시 확인"으로 넘긴다.
   const evaluateRecheck = useCallback((request: ShowcaseAccessRequest | null | undefined, screenStatus: 'allowed' | 'denied') => {
@@ -226,7 +227,7 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
       artUrl={state.artUrl}
       credential={credential}
       onSessionInvalid={onSessionInvalid}
-      onBrowse={onBrowse}
+      onReturnToRole={onReturnToRole}
       onTour={() => setTour(true)}
       onArt={() => setArtOpen(true)}
       onAdmin={showAdminEntry ? () => setAdminOpen(true) : undefined}
@@ -285,6 +286,9 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
     {status === 'error' ? <Pressable accessibilityRole="button" onPress={() => { setState({ status: 'loading' }); setRetry((value) => value + 1); }} style={{ minHeight: 48, justifyContent: 'center' }}>
       <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>다시 시도</Text>
     </Pressable> : null}
+    <Pressable accessibilityRole="button" onPress={onReturnToRole} style={{ minHeight: 48, justifyContent: 'center' }}>
+      <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>역할 선택으로</Text>
+    </Pressable>
     <Pressable accessibilityRole="button" onPress={onBrowse} style={{ minHeight: 48, justifyContent: 'center' }}>
       <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>고객으로 둘러보기</Text>
     </Pressable>

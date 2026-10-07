@@ -575,6 +575,12 @@ export function CollectionScreen({
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
+        <Section title="코인·시리즈" note="코인 수량과 실제 운영 중인 시리즈를 확인해요.">
+          <Pressable accessibilityRole="button" onPress={() => router.push('/coin-collection')}
+            style={[styles.primaryButton, { backgroundColor: palette.primaryContainer }]}>
+            <Text style={[styles.primaryButtonText, { color: palette.onPrimaryContainer }]}>내 코인·시리즈 보기 ›</Text>
+          </Pressable>
+        </Section>
         <Section title="내 수집 앨범" note="가게·시즌·등급으로 찾아보고, 즐겨찾는 수집품을 모아요.">
           {collection.collectibles.length > 0 ? (
             <Pressable

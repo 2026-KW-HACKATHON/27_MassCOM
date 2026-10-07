@@ -19,7 +19,7 @@
     "fontScale": 1,
     "night": "no"
   },
-  "restoreStatus": "density/font/size confirmed; last known night=yes after dark home and USB loss, pending physical restore",
+  "restoreStatus": "PASS - after USB reconnection: night=no, physical density450/no override, physical size1080x2340/no override, fontScale1.0 verified",
   "realGpsUsed": false,
   "realCouponIssued": false,
   "publicRelease": false

@@ -85,10 +85,14 @@ type Queryable = Pool | PoolClient;
 
 // db가 PoolClient면 한 연결이라 동시에 두 질의를 보낼 수 없다(Pool과 달리 질의를 줄 세워야 한다) —
 // 이 함수가 어느 쪽으로 불려도 안전하도록 항상 순서대로 기다린다.
-async function earnedAndSpent(db: Queryable, accountId: string): Promise<{ earned: number; spent: number }> {
+export async function earnedAndSpent(db: Queryable, accountId: string): Promise<{ earned: number; spent: number }> {
   const earnedResult = await db.query<EarnedRow>(earnedMileageSql, [accountId]);
   const spentResult = await db.query<SpentRow>(
     `SELECT coalesce(sum(amount), 0)::integer AS spent FROM mileage_spends WHERE account_id = $1`,
+    [accountId],
+  );
+  const ticketSpentResult = await db.query<SpentRow>(
+    `SELECT coalesce(sum(price), 0)::integer AS spent FROM coin_tickets WHERE account_id = $1 AND source = 'PURCHASE'`,
     [accountId],
   );
   const creditResult = await db.query<CreditRow>(
@@ -102,7 +106,7 @@ async function earnedAndSpent(db: Queryable, accountId: string): Promise<{ earne
       distinctMerchants: row.distinct_merchants,
       completedSeries: row.completed_series,
     }) + (creditResult.rows[0]?.credited ?? 0),
-    spent: spentResult.rows[0]?.spent ?? 0,
+    spent: (spentResult.rows[0]?.spent ?? 0) + (ticketSpentResult.rows[0]?.spent ?? 0),
   };
 }
 

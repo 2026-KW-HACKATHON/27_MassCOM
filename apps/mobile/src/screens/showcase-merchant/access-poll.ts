@@ -114,11 +114,9 @@ export function decidePermissionRecheck(
 }
 
 /**
- * 하드웨어 뒤로가기를 이 화면이 받아야 하는지(리뷰 #3): 관리자 화면이 열려 있으면 점주 체험 권한이 없어도(승인자이지만
- * 직원 권한은 없는 경우) 받아서 관리자 화면을 닫아야 한다. 그 밖에는 점주 체험이 열려 있을 때만 받는다(둘러보기 화면으로는
- * 상위 BackHandler가 처리한다). 투어 화면은 자체 종료 버튼을 쓰므로 이 화면은 받지 않는다.
+ * 점주 체험의 모든 상태에서 뒤로가기를 받아 역할 선택으로 돌아간다. 투어는 자체 종료 동작을 쓴다.
+ * 관리자·가게 그림·알림 화면이 열려 있으면 화면 컴포넌트가 그것부터 닫는다.
  */
 export function shouldHandleHardwareBack(input: { tour: boolean; adminOpen: boolean; screenStatus: ShowcaseScreenStatus }): boolean {
-  if (input.tour) return false;
-  return input.adminOpen || input.screenStatus === 'allowed';
+  return !input.tour;
 }

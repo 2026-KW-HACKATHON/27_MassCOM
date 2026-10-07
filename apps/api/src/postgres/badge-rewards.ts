@@ -311,10 +311,15 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
          ORDER BY expires_at, id`,
         [identity.customerAccountId, input.merchantId, now],
       );
+      const seriesCoupons = await client.query<{ id: string; title: string; detail: string; expires_at: Date }>(
+        `SELECT id, title, detail, expires_at FROM coin_series_coupons
+         WHERE account_id = $1 AND merchant_id = $2 AND redeemed_at IS NULL AND expires_at > $3`,
+        [identity.customerAccountId, input.merchantId, now],
+      );
       await client.query('COMMIT');
       return {
         identityExpiresAt: identity.expiresAt.toISOString(),
-        coupons: coupons.rows.map((row) => ({
+        coupons: [...coupons.rows, ...seriesCoupons.rows].sort((a, b) => a.expires_at.getTime() - b.expires_at.getTime()).map((row) => ({
           couponId: row.id, title: row.title, detail: row.detail,
           expiresAt: row.expires_at.toISOString(),
         })),
@@ -350,7 +355,31 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
         [input.couponId, identity.customerAccountId, input.merchantId],
       );
       const coupon = found.rows[0];
-      if (!coupon) throw new BadgeRewardError('COUPON_NOT_FOUND');
+      if (!coupon) {
+        const seriesCoupon = (await client.query<{
+          id: string; account_id: string; merchant_id: string; expires_at: Date;
+          redeemed_at: Date | null; merchant_is_demo: boolean;
+        }>(`SELECT coupon.id, coupon.account_id, coupon.merchant_id, coupon.expires_at,
+            coupon.redeemed_at, merchant.is_demo AS merchant_is_demo
+            FROM coin_series_coupons coupon JOIN merchants merchant ON merchant.id = coupon.merchant_id
+            WHERE coupon.id = $1 AND coupon.account_id = $2 AND coupon.merchant_id = $3
+            FOR UPDATE OF coupon`, [input.couponId, identity.customerAccountId, input.merchantId])).rows[0];
+        if (!seriesCoupon) throw new BadgeRewardError('COUPON_NOT_FOUND');
+        if (seriesCoupon.account_id === input.staffAccountId && !seriesCoupon.merchant_is_demo) {
+          throw new BadgeRewardError('COUPON_SELF_REDEEM');
+        }
+        if (seriesCoupon.redeemed_at) {
+          await client.query('COMMIT');
+          return { couponId: seriesCoupon.id, status: 'REDEEMED',
+            redeemedAt: seriesCoupon.redeemed_at.toISOString(), replayed: true };
+        }
+        if (seriesCoupon.expires_at <= now) throw new BadgeRewardError('COUPON_EXPIRED');
+        await client.query(`UPDATE coin_series_coupons SET redeemed_at = $2, redeemed_by_account_id = $3
+          WHERE id = $1 AND redeemed_at IS NULL AND expires_at > $2`,
+        [seriesCoupon.id, now, input.staffAccountId]);
+        await client.query('COMMIT');
+        return { couponId: seriesCoupon.id, status: 'REDEEMED', redeemedAt: now.toISOString(), replayed: false };
+      }
       // 실제 점포에서는 본인 쿠폰을 본인 점원 계정으로 사용 처리할 수 없다(조회는 목록을 그대로 돌려준다).
       if (coupon.customer_account_id === input.staffAccountId && !coupon.merchant_is_demo) {
         throw new BadgeRewardError('COUPON_SELF_REDEEM');

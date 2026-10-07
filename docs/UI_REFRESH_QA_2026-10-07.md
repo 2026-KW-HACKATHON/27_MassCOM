@@ -27,7 +27,7 @@
 | 360dp 기본 홈 | PASS | 실제 고객 홈 재진입 후 요약/네 진입/CTA 첫 화면. 시작 화면 사진을 홈 근거로 쓰지 않음 |
 | 다크 홈 | PASS | 실제 UI3 고객 홈의 네 타일/CTA/상태 대비 확인 |
 | 320/390dp·다른 다크 탭·200% | NOT_RUN | USB 반복 단절로 검사 중단. source/layout/semantics 검사로 실제 화면 수용을 대체하지 않음 |
-| 기기 설정 원복 | 진행 중 | 밀도450/nooverride·font1.0·size원본은 복원 확인. 마지막 다크 홈 검사 뒤 USB가 끊겨 night yes가 남았고 재연결 시 night no 원복 확인이 필요함 |
+| 기기 설정 원복 | PASS | 재연결 뒤 night no·밀도450/nooverride·font1.0·size1080×2340/nooverride를 adb에서 다시 확인함 |
 
 최종 후보 UI3 SHA256 `d7ff35081ab03a1b6e6e2470ddf3310864f9d52dad0c37d0f7a028efec18d3fb`는 [비공개 APK 검사](evidence/ui-refresh-2026-10-07/final-private-apk.json)를 따른다. UI3의32 native libraries는 16KiB를 검증한 지도 APK와 바이트 해시가 동일하며 SDK/probe없음·금지 권한 제외·동일 서명을 확인했다. 개발 overlay 권한은 기존대로 있다.
 

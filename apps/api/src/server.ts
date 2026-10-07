@@ -79,6 +79,8 @@ import {
 } from './mint-request-service.js';
 import { ReversalError, type ReversalService } from './reversal.js';
 import { MileageShopError, type MileageShopService } from './mileage-shop.js';
+import { CoinEconomyError, type CoinEconomyService, type PublishCoinPoolInput, type PublishCoinSeriesInput } from './coin-economy.js';
+import { RoomCommunityError, type RoomCommunityService } from './room-community.js';
 import { isMileageGrade } from './mileage-rules.js';
 import { VisitorFeedbackError, type VisitorFeedbackService } from './visitor-feedback.js';
 import {
@@ -96,6 +98,8 @@ import { PostgresAccountDeletionProcessingService } from './postgres/account-del
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresFriendService } from './postgres/friends.js';
 import { PostgresPlayService } from './postgres/play.js';
+import { PostgresCoinEconomyService } from './postgres/coin-economy.js';
+import { PostgresRoomCommunityService } from './postgres/room-community.js';
 import { PostgresMerchantOverviewService } from './postgres/merchant-overview.js';
 import { PostgresCollectiblePreviewService, PostgresMerchantDetailViewService } from './postgres/merchant-discovery.js';
 import { PostgresAdminFunnelService } from './postgres/admin-funnel.js';
@@ -222,6 +226,8 @@ export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
 };
 
 export type ExperienceServices = {
+  coinEconomy?: CoinEconomyService | undefined;
+  roomCommunity?: RoomCommunityService | undefined;
   collectionExperience?: CollectionExperienceService | undefined;
   merchantOperations?: MerchantOperations | undefined;
   notifications?: NotificationService | undefined;
@@ -289,7 +295,7 @@ export function createApiServer(
   storeTickets?: StoreTicketService,
   social?: SocialService,
 ) {
-  const { collectionExperience, merchantOperations, notifications, realWorld, tmap, mapProvider } = experienceServices;
+  const { collectionExperience, merchantOperations, notifications, realWorld, tmap, mapProvider, coinEconomy, roomCommunity } = experienceServices;
   const requireCustomerScan = async (accountId: string, merchantId: string): Promise<void> => {
     if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
     try { await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' }); }
@@ -325,6 +331,8 @@ export function createApiServer(
   // 실행별 멱등 재시도도 본문·DB 진입 전에 계정별로 센다. 분당 60회는 정상 완료·재시도에 여유를 둔다.
   const playFinishLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
   const socialWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
+  const coinWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60 * 60_000 });
+  const roomWriteLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60_000 });
   const discoveryEventLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 120, windowMs: 60_000 });
   const discoveryMapLimiter = new FixedWindowAuthLoginLimiter({ maxAttempts: 60, windowMs: 60 * 60_000 });
   const requireCurrentPlayConsent = async (accountId: string): Promise<void> => {
@@ -507,6 +515,51 @@ export function createApiServer(
         }
         const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
         if (!(await admin.isAdmin(accountId))) throw new AdminError('ADMIN_FORBIDDEN');
+        if (path === '/api/web/admin/room-reports' && request.method === 'GET') {
+          if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
+          sendJson(response, 200, { reports: await roomCommunity.listReports(accountId) }); return;
+        }
+        const roomModeration = path.match(/^\/api\/web\/admin\/room-stamps\/([^/]+)\/hide$/);
+        if (roomModeration && request.method === 'POST') {
+          if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
+          const decision = roomWriteLimiter.consume(accountId);
+          if (!decision.allowed) throw new RequestError(429, 'ROOM_RATE_LIMITED');
+          requireEmptyBody(await readJson(request));
+          await roomCommunity.moderateStamp({ actorAccountId: accountId, stampId: decodePathParameter(roomModeration[1]!) });
+          response.writeHead(204).end(); return;
+        }
+        if (request.method === 'POST' && path.startsWith('/api/web/admin/coin-')) {
+          if (!coinEconomy) throw new RequestError(503, 'COIN_ECONOMY_NOT_CONFIGURED');
+          const decision = coinWriteLimiter.consume(accountId);
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            throw new RequestError(429, 'COIN_WRITE_RATE_LIMITED');
+          }
+          const body = await readJson(request);
+          if (path === '/api/web/admin/coin-pools') {
+            requireOnlyKeys(body, ['merchantId', 'eventName', 'grade', 'price', 'purchaseStartsAt', 'purchaseEndsAt',
+              'useExpiresAt', 'perAccountLimit', 'issuanceCap', 'entries']);
+            sendJson(response, 201, await coinEconomy.publishPool({ ...body, actorAccountId: accountId } as PublishCoinPoolInput));
+            return;
+          }
+          if (path === '/api/web/admin/coin-series') {
+            requireOnlyKeys(body, ['merchantId', 'title', 'endsAt', 'baseCoins', 'prismCoins', 'baseCoupon', 'prismCoupon', 'consentDocumentRef', 'consent']);
+            sendJson(response, 201, await coinEconomy.publishSeries({ ...body, actorAccountId: accountId } as PublishCoinSeriesInput));
+            return;
+          }
+          if (path === '/api/web/admin/coin-tickets/grant') {
+            requireOnlyKeys(body, ['accountId', 'poolId', 'requestId']);
+            sendJson(response, 201, await coinEconomy.grantTicket({ actorAccountId: accountId,
+              accountId: requireString(body, 'accountId'), poolId: requireString(body, 'poolId'), requestId: requireString(body, 'requestId') }));
+            return;
+          }
+          const pause = path.match(/^\/api\/web\/admin\/coin-pools\/([^/]+)\/pause$/);
+          if (pause) {
+            requireEmptyBody(body);
+            sendJson(response, 200, await coinEconomy.pausePool({ actorAccountId: accountId, poolId: decodePathParameter(pause[1]!) }));
+            return;
+          }
+        }
         if (path === '/api/web/admin/me' && request.method === 'GET') {
           sendJson(response, 200, { admin: true });
           return;
@@ -1318,6 +1371,96 @@ export function createApiServer(
         sendJson(response, 200, await play.getStudio(accountId));
         return;
       }
+      if (path === '/coin-shop' || path === '/coin-shop/purchases' || path === '/me/coins' ||
+          /^\/(coin-tickets\/[^/]+\/use|coin-series\/[^/]+\/claim)$/.test(path)) {
+        if (!coinEconomy) throw new RequestError(503, 'COIN_ECONOMY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        if (request.method === 'GET' && path === '/coin-shop') {
+          sendJson(response, 200, await coinEconomy.getShop(accountId)); return;
+        }
+        if (request.method === 'GET' && path === '/me/coins') {
+          sendJson(response, 200, await coinEconomy.getCollection(accountId)); return;
+        }
+        if (request.method !== 'POST' || path === '/coin-shop' || path === '/me/coins') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        const decision = coinWriteLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'COIN_WRITE_RATE_LIMITED');
+        }
+        const body = await readJson(request);
+        if (path === '/coin-shop/purchases') {
+          requireOnlyKeys(body, ['poolId', 'requestId']);
+          const requestId = requireString(body, 'requestId');
+          if (requestId.length > 100) throw new RequestError(400, 'INVALID_REQUEST');
+          const result = await coinEconomy.purchase({ accountId, poolId: requireString(body, 'poolId'), requestId });
+          sendJson(response, result.replayed ? 200 : 201, result); return;
+        }
+        requireEmptyBody(body);
+        const use = path.match(/^\/coin-tickets\/([^/]+)\/use$/);
+        if (use) {
+          const result = await coinEconomy.useTicket({ accountId, ticketId: decodePathParameter(use[1]!) });
+          sendJson(response, 200, result); return;
+        }
+        const claim = path.match(/^\/coin-series\/([^/]+)\/claim$/)!;
+        const result = await coinEconomy.claimSeries({ accountId, seriesId: decodePathParameter(claim[1]!) });
+        sendJson(response, result.replayed ? 200 : 201, result); return;
+      }
+      if (path === '/me/room-publication' || path.startsWith('/rooms/') || path.startsWith('/room-stamps/')) {
+        if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        const publicationBody = request.method === 'PUT' && path === '/me/room-publication' ? await readJson(request) : undefined;
+        if (publicationBody) {
+          requireOnlyKeys(publicationBody, ['visible']);
+          if (typeof publicationBody.visible !== 'boolean') throw new RequestError(400, 'INVALID_REQUEST');
+        }
+        // 공개 철회는 새 동의를 수락하기 전에도 가능해야 한다.
+        if (publicationBody?.visible !== false) await requireCurrentPlayConsent(accountId);
+        if (request.method === 'GET' && path === '/me/room-publication') {
+          sendJson(response, 200, await roomCommunity.getSettings(accountId)); return;
+        }
+        if (request.method === 'GET' && path === '/rooms/random') {
+          const query = new URL(request.url!, 'http://localhost').searchParams;
+          if ([...query.keys()].some(key => key !== 'excludeRoomId') || query.getAll('excludeRoomId').length > 1) throw new RequestError(400, 'INVALID_REQUEST');
+          const excludeRoomId = query.get('excludeRoomId');
+          sendJson(response, 200, await roomCommunity.randomRoom({ accountId, ...(excludeRoomId !== null ? { excludeRoomId } : {}) })); return;
+        }
+        const roomMatch = path.match(/^\/rooms\/([^/]+)(?:\/(visits|stamps|block))?$/);
+        if (request.method === 'GET' && roomMatch && !roomMatch[2]) {
+          sendJson(response, 200, await roomCommunity.getRoom({ accountId, roomId: decodePathParameter(roomMatch[1]!) })); return;
+        }
+        const decision = roomWriteLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'ROOM_RATE_LIMITED');
+        }
+        const body = publicationBody ?? await readJson(request);
+        if (request.method === 'PUT' && path === '/me/room-publication') {
+          requireOnlyKeys(body, ['visible']);
+          if (typeof body.visible !== 'boolean') throw new RequestError(400, 'INVALID_REQUEST');
+          sendJson(response, 200, await roomCommunity.setVisibility({ accountId, visible: body.visible })); return;
+        }
+        if (request.method === 'POST' && roomMatch) {
+          const roomId = decodePathParameter(roomMatch[1]!);
+          if (roomMatch[2] === 'stamps') {
+            requireOnlyKeys(body, ['kind']);
+            if (body.kind !== 'COZY' && body.kind !== 'COOL' && body.kind !== 'RETURN') throw new RequestError(400, 'INVALID_REQUEST');
+            sendJson(response, 201, await roomCommunity.stamp({ accountId, roomId, kind: body.kind })); return;
+          }
+          requireEmptyBody(body);
+          if (roomMatch[2] === 'visits') { sendJson(response, 200, await roomCommunity.visit({ accountId, roomId })); return; }
+          if (roomMatch[2] === 'block') { await roomCommunity.blockRoom({ accountId, roomId }); response.writeHead(204).end(); return; }
+        }
+        const stampMatch = path.match(/^\/room-stamps\/([^/]+)(?:\/(reports))?$/);
+        if (stampMatch && ((request.method === 'DELETE' && !stampMatch[2]) || (request.method === 'POST' && stampMatch[2]))) {
+          requireEmptyBody(body);
+          const input = { accountId, stampId: decodePathParameter(stampMatch[1]!) };
+          if (request.method === 'DELETE') await roomCommunity.removeStamp(input);
+          else await roomCommunity.reportStamp(input);
+          response.writeHead(204).end(); return;
+        }
+        throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+      }
       if (request.method === 'PUT' && request.url === '/me/studio') {
         if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
         const accountId = await resolveAccountId(request);
@@ -2021,6 +2164,16 @@ export function createApiServer(
         sendJson(response, status, { code: error.code });
         return;
       }
+      if (error instanceof CoinEconomyError) {
+        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
+          : error.code === 'COIN_TICKET_NOT_FOUND' ? 404 : 409, { code: error.code }); return;
+      }
+      if (error instanceof RoomCommunityError) {
+        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410
+          : error.code === 'ROOM_NOT_FOUND' || error.code === 'ROOM_STAMP_NOT_FOUND' ? 404
+          : error.code === 'ROOM_RATE_LIMITED' ? 429 : error.code === 'ROOM_CONSENT_REQUIRED' ? 403
+          : error.code === 'ROOM_STAMP_LIMIT' ? 409 : 400, { code: error.code }); return;
+      }
       if (error instanceof CollectibleProjectError) {
         const status = error.code === 'COLLECTIBLE_INVALID_PROJECT' ? 400
           : error.code === 'COLLECTIBLE_MEDIA_TOO_LARGE' ? 413
@@ -2603,7 +2756,7 @@ function setCommonHeaders(response: ServerResponse): void {
   response.setHeader('x-content-type-options', 'nosniff');
 }
 
-function sendJson(response: ServerResponse, status: number, body: object): void {
+function sendJson(response: ServerResponse, status: number, body: object | null): void {
   response.writeHead(status);
   response.end(JSON.stringify(body));
 }
@@ -2964,6 +3117,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     mapsId: process.env.NAVER_MAP_CLIENT_ID ?? '', mapsSecret: process.env.NAVER_MAP_CLIENT_SECRET ?? '',
     searchId: process.env.NAVER_SEARCH_CLIENT_ID ?? '', searchSecret: process.env.NAVER_SEARCH_CLIENT_SECRET ?? '',
   }) : undefined;
+  const play = pool && accountLifecycle ? new PostgresPlayService(pool, accountLifecycle) : undefined;
   const server = createApiServer(
     configuredService(bindingStore, challengeStore),
     accountResolver,
@@ -3016,12 +3170,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     pool ? new PostgresCollectiblePreviewService(pool) : undefined,
     pool ? new PostgresMerchantDetailViewService(pool) : undefined,
     pool ? new PostgresAdminFunnelService(pool) : undefined,
-    pool && accountLifecycle ? new PostgresPlayService(pool, accountLifecycle) : undefined,
+    play,
     pool ? new PostgresMerchantProfileService(pool, {
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
     {
+      coinEconomy: pool && accountLifecycle ? new PostgresCoinEconomyService(pool, { accountLifecycle, ...allAccess.mileageShop }) : undefined,
+      roomCommunity: pool && accountLifecycle && play ? new PostgresRoomCommunityService(pool, { accountLifecycle, play }) : undefined,
       collectionExperience: pool && accountLifecycle ? new PostgresCollectionExperienceService(pool, accountLifecycle) : undefined,
       merchantOperations: pool && accountLifecycle ? new PostgresMerchantOperations(pool, { accountLifecycle }) : undefined,
       notifications,

@@ -1,5 +1,15 @@
 # HANDOFF
 
+## 2026-10-07 가게 코인·방 탐험·시리즈 보상과 시연 역할 전환 (Issue #391)
+
+[PR #392](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/392)의 실제 최종 HEAD 검사와 병합 상태를 따른다. 초기 구현 소스는 d2068c0c이며 후속 희귀 확률 보정까지 같은 PR에 포함한다. 재개 시 `gh pr view 392 --json state,headRefOid,mergeCommit,statusCheckRollup`와 primary `git status -sb`로 전달 상태를 확인한다. 후속 비공개 APK fd522b0d는 설치-r와 정상 키/서버 Secret 제외·동일 서명·native32/ZIP16KiB·formatter 포함 확인을 마쳤다.
+
+사용자 피드백을 선별·발전시켜 적용한 `feat/coin-community-loop` 작업. [설계](superpowers/specs/2026-10-07-coin-community-loop-design.md)·[실행 계획](superpowers/plans/2026-10-07-coin-community-loop.md)·[수용 범위](COIN_COMMUNITY_QA_2026-10-07.md)의 기존 권리 보존·점주 동의·기한/한도·공개 동의 경계를 따른다. 새 운영 점포/쿠폰·NFT 발행권·가짜 방문을 만들지 않는다. UI PR #390은 HEAD1943556d/CI37561996001 PASS 후 main09b485cb에 병합했고 primary를 ff-only로 갱신했다. 신규 작업은 이 main으로 재배치한 뒤 별도 PR의 최종 HEAD 검사/병합을 따른다.
+
+모바일1791, API556, PG506+SKIP3(별도55435 hosted fixture)와 신규PG8, 타입/build/lint·접근성·전체 source 비밀/개인정보·독립 검토 PASS. 최종 비공개APK d0a8b58d를 기존 dev 서명/키 노출 검사 후 설치-r했다. 실기에서 고객 내 정보→역할 선택, 점주 오류 화면 뒤로→선택, 코인 두 빈 상태와 방 공개/철회를 확인했다. native 허용 점주·구매/코인 결과/쿠폰 사용·다크/대형 글씨/진동은 이 부분 수용으로 바꾸지 않는다. API/앱 운영 반영 전 migration0059·0060이 먼저 필요하며 현재 운영 표는 자동 seed하지 않는다.
+
+기기 재연결 후 Samsung의 night no, density450/nooverride, size1080×2340/nooverride, font1.0 원복을 확인했다. 이전 USB 단절 당시 원복 대기 기록은 해결됐다. 공개 배포·진동 체감·미실행 화면 수용은 이 확인으로 바꾸지 않는다.
+
 ## 2026-10-07 전체 모바일 UI 구현·실기 진행 (Issue #388)
 
 지도 PR #389는 source dd232f35의 CI37546309486 전체 PASS 후 mainc0691e8f로 병합됐다. primary main은 ff-only로 갱신했고 기존 세 QA export 디렉터리는 보존했다. UI 브랜치 `feat/ui-refresh-388`의 source23cb0dcb는 이 main 위에 재배치했으며 앱 파일 해시가 실기 후보 APK와 같다. 모바일1777·타입/lint·접근성·소스 비밀/개인정보·독립 검토·private build PASS.

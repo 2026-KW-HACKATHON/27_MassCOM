@@ -44,11 +44,6 @@ export function gachaNextRewardPhase(phase: GachaRewardPhase): GachaRewardPhase 
   return rewardPhases[index + 1] ?? 'result';
 }
 
-export function gachaRewardDelayMs(_reduceMotion: boolean): number {
-  return 900;
-}
-
-
 const stageDurations: Readonly<Record<GachaStage, number>> = {
   crank: 500, shake: 450, drop: 500, wobble: 300, split: 400, burst: 350, pop: 300,
 };

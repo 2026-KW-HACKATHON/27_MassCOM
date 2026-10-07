@@ -9,12 +9,13 @@ import { darkColors, lightColors } from '../../theme/palette';
 import { darkWorld, lightWorld } from '../../theme/world';
 import { makeShopStyles } from './styles';
 
-// #332 발견성: 상점을 연 사람이 "마일리지로 캐릭터를 뽑는 곳"임을 한눈에 알 수 있어야 한다. RN 렌더러가 없어 소스 본문으로 확인한다.
+// 캐릭터 꾸미기와 가게 코인 뽑기권이 다른 상품임을 한눈에 알 수 있어야 한다.
 const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
 
-test('the draw section is headed "마일리지로 캐릭터 뽑기" with a one-line intro', () => {
-  assert.equal(shopDrawHeading, '마일리지로 캐릭터 뽑기');
-  assert.match(shopDrawIntro, /등급을 고르고 뽑기를 누르면 아직 없는 가게 친구를 한 명 받아요/);
+test('the draw section distinguishes character rewards from store coin tickets', () => {
+  assert.equal(shopDrawHeading, '캐릭터 꾸미기 뽑기');
+  assert.match(shopDrawIntro, /마일리지·의상·새 캐릭터를 차례로 받아요/);
+  assert.match(shopDrawIntro, /가게 코인 뽑기권은 위에서 확인해요/);
 });
 
 test('the screen shows that heading and intro above the grade cards, once', () => {

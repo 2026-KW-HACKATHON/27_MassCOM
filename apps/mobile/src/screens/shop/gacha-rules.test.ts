@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaRewardDelayMs, gachaTimeline, isNewDraw } from './gacha-rules';
+import { gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaTimeline, isNewDraw } from './gacha-rules';
 
 const prices = [
   { grade: 'BRONZE' as const, price: 100, total: 3 },
@@ -58,10 +58,4 @@ test('result reveal phases keep rewards sequential and end at the final summary'
   assert.equal(gachaNextRewardPhase('reward-clothing'), 'reward-character');
   assert.equal(gachaNextRewardPhase('reward-character'), 'result');
   assert.equal(gachaPhaseAfter('reward-mileage', { type: 'skip', busy: false }), 'reward-clothing');
-});
-
-test('reduced motion skips machine animation delays but keeps a short timed reveal cadence', () => {
-  assert.deepEqual(Object.values(gachaTimeline(true)), [0, 0, 0, 0, 0, 0, 0]);
-  assert.equal(gachaRewardDelayMs(true), 900);
-  assert.equal(gachaRewardDelayMs(false), 900);
 });

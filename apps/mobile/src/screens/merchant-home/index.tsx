@@ -22,7 +22,7 @@ type Props = {
   artUrl: string | null;
   credential: AccountCredential;
   onSessionInvalid: () => void | Promise<void>;
-  onBrowse: () => void;
+  onReturnToRole: () => void;
   onTour: () => void;
   onAdmin?: () => void;
   onNotifications?: () => void;
@@ -69,7 +69,7 @@ export function MerchantHomeScreen(props: Props) {
   }
 
   const menuItems = [
-    { label: '고객 화면으로', onPress: props.onBrowse },
+    { label: '역할 선택으로', onPress: props.onReturnToRole },
     { label: '빈 공간 투어', onPress: props.onTour },
     ...(props.onAdmin ? [{ label: '권한 요청 관리', onPress: props.onAdmin }] : []),
     ...(props.onNotifications ? [{ label: '알림함·푸시 설정', onPress: props.onNotifications }] : []),
