@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { contrast } from '../../theme/contrast';
+import { darkColors, lightColors } from '../../theme/palette';
+import { worldForScheme } from '../../theme/world';
 
 const source = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
 
@@ -47,11 +50,30 @@ test('studio selection chips take palette colours so dark mode never shows white
   assert.match(source, /const styles = makeStyles\(palette\);/);
   const rule = (name: string) => source.match(new RegExp(`^  ${name}: \\{.*$`, 'm'))?.[0] ?? '';
   const choice = rule('choice');
-  assert.match(choice, /borderColor: palette\.separator/);
+  assert.match(choice, /borderColor: palette\.secondaryLabel/);
   assert.match(choice, /backgroundColor: palette\.surface/);
   const selected = rule('choiceSelected');
   assert.match(selected, /borderColor: palette\.primary/);
   assert.match(selected, /backgroundColor: palette\.primaryContainer/);
   assert.match(rule('choiceText'), /color: palette\.label/);
   for (const line of [choice, selected, rule('choiceText')]) assert.doesNotMatch(line, /#[0-9A-Fa-f]{6}/);
+});
+
+test('unselected studio chips keep a 3:1 border against the page and the chip fill in both themes', () => {
+  for (const [scheme, palette] of [['light', lightColors], ['dark', darkColors]] as const) {
+    for (const [name, behind] of [['page', worldForScheme(scheme).page], ['chip fill', palette.surface]] as const) {
+      assert.ok(contrast(palette.secondaryLabel, behind) >= 3, `${scheme} chip border vs ${name}`);
+    }
+    assert.ok(contrast(palette.primary, worldForScheme(scheme).page) >= 3, `${scheme} selected chip border vs page`);
+  }
+});
+
+test('every selectable studio chip prints a check glyph when selected, so selection is not colour-only', () => {
+  // wall/floor default + themes, representative coin, scene, layout.
+  for (const selected of ['draft[surface] === null', 'draft[surface] === theme', 'experience.snapshot?.profile.coinEntitlementId === item.entitlementId',
+    'draft.theme === theme', 'draft.layout === layout']) {
+    const escaped = selected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(source, new RegExp(`\\{${escaped} \\? '✓ ' : ''\\}`), selected);
+    assert.match(source, new RegExp(`${escaped} && styles\\.choiceSelected`), selected);
+  }
 });

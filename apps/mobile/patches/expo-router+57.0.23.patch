@@ -1,8 +1,24 @@
+diff --git a/node_modules/expo-router/build/fork/createMemoryHistory.js b/node_modules/expo-router/build/fork/createMemoryHistory.js
+index c26fcb9..978b369 100644
+--- a/node_modules/expo-router/build/fork/createMemoryHistory.js
++++ b/node_modules/expo-router/build/fork/createMemoryHistory.js
+@@ -39,7 +39,10 @@ function createMemoryHistory() {
+             // We need to find the index from the element before current to get closest path to go back to
+             for (let i = index - 1; i >= 0; i--) {
+                 const item = items[i];
+-                if (item.path === path) {
++                // START FORK - the first entry keeps the URL hash (see replace), so compare paths without it
++                // if (item.path === path) {
++                if (item.path.split('#')[0] === path.split('#')[0]) {
++                    // END FORK
+                     return i;
+                 }
+             }
 diff --git a/node_modules/expo-router/build/fork/useLinking.js b/node_modules/expo-router/build/fork/useLinking.js
-index 6911c31..4e9e999 100644
+index 6911c31..1c0b00d 100644
 --- a/node_modules/expo-router/build/fork/useLinking.js
 +++ b/node_modules/expo-router/build/fork/useLinking.js
-@@ -333,6 +333,14 @@ function useLinking(ref, { enabled = true, config, getStateFromPath = native_1.g
+@@ -333,11 +333,23 @@ function useLinking(ref, { enabled = true, config, getStateFromPath = native_1.g
                      // If history length is decreased, i.e. entries were removed, we want to go back
                      const nextIndex = history.backIndex({ path });
                      const currentIndex = history.index;
@@ -17,3 +33,13 @@ index 6911c31..4e9e999 100644
                      try {
                          if (nextIndex !== -1 &&
                              nextIndex < currentIndex &&
+                             // We should only go back if the entry exists and it's less than current index
+-                            history.get(nextIndex - currentIndex)) {
++                            // START FORK
++                            // history.get takes an absolute index. Upstream passed the negative offset, so this branch never ran.
++                            // history.get(nextIndex - currentIndex)) {
++                            history.get(nextIndex)) {
++                            // END FORK
+                             // An existing entry for this path exists and it's less than current index, go back to that
+                             await history.go(nextIndex - currentIndex);
+                         }

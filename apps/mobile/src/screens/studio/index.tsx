@@ -400,10 +400,12 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
             {(['wall', 'floor'] as const).map((surface) => <View key={surface}>
               <Text style={[styles.subheading, { color: palette.label }]}>{surface === 'wall' ? '벽' : '바닥'}</Text>
               <View style={styles.choices}><Pressable accessibilityRole="radio" accessibilityState={{ checked: draft[surface] === null }}
-                onPress={() => setDraft({ ...draft, [surface]: null })} style={styles.choice}><Text style={styles.choiceText}>기본</Text></Pressable>
+                onPress={() => setDraft({ ...draft, [surface]: null })} style={[styles.choice, draft[surface] === null && styles.choiceSelected]}>
+                <Text style={styles.choiceText}>{draft[surface] === null ? '✓ ' : ''}기본</Text></Pressable>
                 {(['daylight', 'garden', 'evening'] as const).filter((theme) => theme === 'daylight' || snapshot.unlockedThemes.includes(theme)).map((theme) => <Pressable key={theme} accessibilityRole="radio"
-                  accessibilityState={{ selected: draft[surface] === theme }} onPress={() => setDraft({ ...draft, [surface]: theme })} style={styles.choice}>
-                  <Text style={styles.choiceText}>{themeLabels[theme]}</Text></Pressable>)}</View>
+                  accessibilityState={{ selected: draft[surface] === theme }} onPress={() => setDraft({ ...draft, [surface]: theme })}
+                  style={[styles.choice, draft[surface] === theme && styles.choiceSelected]}>
+                  <Text style={styles.choiceText}>{draft[surface] === theme ? '✓ ' : ''}{themeLabels[theme]}</Text></Pressable>)}</View>
             </View>)}
           </> : null}
           <Pressable accessibilityRole="button" onPress={() => router.push('/room-inventory')} style={styles.choice}><Text style={styles.choiceText}>보관함 보기 ›</Text></Pressable>
@@ -467,7 +469,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
           accessibilityRole="button" accessibilityState={{ selected: experience.snapshot?.profile.coinEntitlementId === item.entitlementId }}
           disabled={experience.saving} onPress={() => void experience.save({ coinEntitlementId: experience.snapshot?.profile.coinEntitlementId === item.entitlementId ? null : item.entitlementId })}
           style={[styles.choice, experience.snapshot?.profile.coinEntitlementId === item.entitlementId && styles.choiceSelected]}>
-          <Text style={styles.choiceText}>{item.displayName}</Text>
+          <Text style={styles.choiceText}>{experience.snapshot?.profile.coinEntitlementId === item.entitlementId ? '✓ ' : ''}{item.displayName}</Text>
         </Pressable>)}</View>
       </View> : null}
       </> : null}
@@ -480,7 +482,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
             return <Pressable key={theme} accessibilityRole="button" accessibilityState={{ selected: draft.theme === theme, disabled: !unlocked }}
               disabled={!unlocked} onPress={() => setDraft({ ...draft, theme })}
               style={[styles.choice, draft.theme === theme && styles.choiceSelected, !unlocked && styles.locked]}>
-              <Text style={styles.choiceText}>{themeLabels[theme]}{unlocked ? '' : ' · 잠김'}</Text>
+              <Text style={styles.choiceText}>{draft.theme === theme ? '✓ ' : ''}{themeLabels[theme]}{unlocked ? '' : ' · 잠김'}</Text>
             </Pressable>;
           })}
         </View>
@@ -488,7 +490,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         <View style={styles.choices}>
           {(['shelf', 'gallery'] as const).map((layout) => <Pressable key={layout} accessibilityRole="button" accessibilityState={{ selected: draft.layout === layout }}
             onPress={() => setDraft({ ...draft, layout })} style={[styles.choice, draft.layout === layout && styles.choiceSelected]}>
-            <Text style={styles.choiceText}>{layout === 'shelf' ? '선반' : '갤러리'}</Text>
+            <Text style={styles.choiceText}>{draft.layout === layout ? '✓ ' : ''}{layout === 'shelf' ? '선반' : '갤러리'}</Text>
           </Pressable>)}
         </View>
         <Text style={[styles.subheading, { color: palette.secondaryLabel }]}>포인트 색</Text>
@@ -600,7 +602,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   </SkyBackdrop>;
 }
 
-// 선택 칩(choice*)은 다크 모드에서도 읽히도록 팔레트 색을 쓴다. 나머지 정적 색은 기존 그대로다.
+// 선택 칩(choice*)은 다크 모드에서도 읽히도록 팔레트 색을 쓰고, 테두리는 비텍스트 대비 3:1 이상이 되는 secondaryLabel이다. 나머지 정적 색은 기존 그대로다.
 const makeStyles = (palette: AppColors) => StyleSheet.create({
   content: { paddingHorizontal: 14, paddingBottom: 40, gap: 14 },
   sceneFrame: { alignItems: 'center', borderRadius: 6, overflow: 'hidden' },
@@ -625,7 +627,7 @@ const makeStyles = (palette: AppColors) => StyleSheet.create({
   heading: { fontSize: 19, fontWeight: '800', color: '#192331' },
   subheading: { fontSize: 14, fontWeight: '700', color: '#42556B', marginTop: 4 },
   choices: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  choice: { minHeight: 44, minWidth: 76, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: palette.separator, borderRadius: 6, paddingHorizontal: 13, backgroundColor: palette.surface },
+  choice: { minHeight: 44, minWidth: 76, justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: palette.secondaryLabel, borderRadius: 6, paddingHorizontal: 13, backgroundColor: palette.surface },
   choiceSelected: { borderColor: palette.primary, backgroundColor: palette.primaryContainer },
   choiceText: { color: palette.label, fontSize: 14, fontWeight: '700' },
   locked: { opacity: 0.45 },
