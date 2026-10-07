@@ -1,0 +1,51 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; 실제 휴대전화·로그인 흐름·Google Play는 NOT_RUN이다.",
+  "verifiedAt": "2026-10-08",
+  "sourceCommit": "5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea",
+  "issues": [
+    407
+  ],
+  "checks": {
+    "aab": "PASS; AAB 서명·릴리스 지갑 표면 검사",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한 없음",
+    "apkSignature": "PASS; 업로드 인증서 SHA-256 확인"
+  },
+  "anonymousDownloadSha256Match": "PASS",
+  "acceptedArtifact": {
+    "apk": "MassCOM-operating-android-5ca9895.apk",
+    "apkSha256": "45dc8a37d56b545bf4ef2da133bde48795dfadb2d965d122151d4310aeb5c53b",
+    "apkSize": "약 324MB",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.13",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-5ca9895.apk",
+        "sha256": "45dc8a37d56b545bf4ef2da133bde48795dfadb2d965d122151d4310aeb5c53b"
+      }
+    ]
+  },
+  "physicalAndroid": {
+    "device": "NOT_RUN",
+    "apkInstall": "NOT_RUN",
+    "launch": "NOT_RUN",
+    "usage": "NOT_RUN",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "실제 휴대전화 설치·실행",
+    "로그인 흐름",
+    "지갑",
+    "실제 QR",
+    "TalkBack",
+    "글자 200%",
+    "Google Play 업로드·심사·배포"
+  ],
+  "buildNote": "수정 소스 5ca98955로 새 운영 APK 게시 완료. 약 324MB. 이웃 방 탭 바 중복 제거, 웹 하위 화면→처음 가는 탭 이동 시 history 추가(expo-router 웹 전용 패치, Android 무관), 마이룸 꾸미기 선택 칩 테마 색, 떠 있는 탭 바 아래 띠 배경 마스크를 포함한다.",
+  "recordBasis": "2026-10-08 KST 사용자 제공 게시·빌드 기록; 이번 문서 작업에서 원격 재검증하지 않음. 익명 다운로드 해시 대조는 메인 스레드가 별도로 확인해 이 파일에 채운다"
+}

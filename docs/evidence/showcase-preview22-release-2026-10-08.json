@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-08",
+  "sourceCommit": "5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea",
+  "issues": [
+    407
+  ],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22",
+  "artifact": {
+    "name": "MassCOM-showcase-android-5ca9895.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "sha256": "a384cfee5b1fdacd0c7128d2232c2673f6bb422a1047e223acc1397cceff932f",
+    "size": "약 330MB",
+    "package": "kr.masscom.wolgye.demo",
+    "signingCertificateSha256": "CDB0DC37750C907EAA2F1B9EB172B0911F14B9C9F2DAB78B481F1751D8EBF28A",
+    "internalVersion": "0.1.0-test.2; versionCode 2"
+  },
+  "checks": {
+    "embeddedApi": "PASS; 시연 APK에는 demo-api만 내장",
+    "walletSurface": "NOT_RUN",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한 없음",
+    "apkSignature": "PASS; 시연 키 CDB0DC37…F28A"
+  },
+  "anonymousDownloadSha256Match": "PASS",
+  "notRun": [
+    "실제 휴대전화 설치·실행",
+    "로그인 흐름",
+    "지갑",
+    "실제 QR",
+    "TalkBack",
+    "글자 200%",
+    "Google Play 업로드·심사·배포"
+  ],
+  "limitations": "기존 설치본의 실기 결과와 공개 웹 실측을 Preview 22 설치본 수용으로 재사용하지 않는다.",
+  "physicalAndroid": {
+    "device": "NOT_RUN",
+    "environment": "NOT_RUN",
+    "apkInstall": "NOT_RUN"
+  },
+  "emulatorAndroid": {
+    "device": "NOT_RUN",
+    "environment": "NOT_RUN",
+    "apkInstall": "NOT_RUN"
+  },
+  "buildNote": "수정 소스 5ca98955로 새 시연 APK 게시 완료. 약 330MB. 이웃 방 탭 바 중복 제거, 웹 하위 화면→처음 가는 탭 이동 시 history 추가(expo-router 웹 전용 패치, Android 무관), 마이룸 꾸미기 선택 칩 테마 색, 떠 있는 탭 바 아래 띠 배경 마스크를 포함한다.",
+  "recordBasis": "2026-10-08 KST 사용자 제공 게시·빌드 기록; 이번 문서 작업에서 원격 재검증하지 않음. 익명 다운로드 해시 대조는 메인 스레드가 별도로 확인해 이 파일에 채운다"
+}

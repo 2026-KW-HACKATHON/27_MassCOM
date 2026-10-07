@@ -1,5 +1,11 @@
 # AI 사용 기록
 
+## 2026-10-08 낮은 결함 4건 수정·새 설치본·문서 갱신 (Issue #407)
+
+Claude sonnet이 직전 재측정이 새로 본 낮은 결함 4건(이웃 방 하단 탭 중복, 웹 뒤로 가기 이탈, 다크 꾸미기 칩 색, 떠 있는 탭 바 아래 틈)을 코드 커밋 `5ca98955`로 구현하고 독립 리뷰와 새 `/play/` 번들 측정을 맡았다. 독립 리뷰는 APPROVE(🔴/🟠 없음)였고 남은 🟡 여섯 가지는 [HANDOFF](HANDOFF.md)에 적었다. 새 `/play/` 번들의 측정 원자료는 [측정 기록](evidence/next-build-2026-10-08/README.md)에 있으며 이 문서는 그 결과를 대신 적지 않는다. Codex는 이번 작업에 쓰지 않았다(2026-10-08부터 소유자 지시로 Codex는 이미지 생성 외에는 쓰지 않는다).
+
+이 문서 갱신도 Claude sonnet이 제공 사실·저장소·`git log`만 근거로 했다. 오늘 반영한 범위는 공개 `/open`의 test.13·Preview 22 링크, 새 증거 JSON 2개([시연 Preview 22](evidence/showcase-preview22-release-2026-10-08.json), [운영 test.13](evidence/operating-android-test13-2026-10-08.json)), 현재 요약 문서와 검사 기대값의 릴리스 태그 문자열, `apps/mobile/README.md`의 한 줄이다. git 조작, 그 밖의 `apps/**`·`infra/**`·`scripts/**` 수정, `docs/evidence/next-build-2026-10-08/` 수정은 하지 않았다. 두 APK의 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산)이며 증거 JSON의 해당 필드는 `PASS`다. 실제 실행한 문서 검사는 [TEST_STATUS](TEST_STATUS.md)에 기록한다. AI를 팀원·공동 작성자로 기재하지 않는다.
+
 ## 2026-10-08 병합·수정본 재측정·PR #402 리뷰 (Issue #401)
 
 Claude sonnet이 수정본이 올라간 공개 `/play/`(소스 `9f5ebfa6`)의 5분 시연을 Playwright로 다시 측정했다. 이전 실측의 결함 4건이 모두 FIXED였고 15단계가 PASS, 콘솔 오류·HTTP 4xx/5xx 0건이었으며 낮은 결함 4건을 새로 찾았다. 원자료·캡처 68장·대체 시연 영상은 [재측정 기록](evidence/submission-2026-10-08-recheck/README.md)·[flow-recheck.json](evidence/submission-2026-10-08-recheck/flow-recheck.json)에 보존한다. Claude sonnet은 팀원 PragmoB가 작성한 PR #402(뽑기 `CONSENT_REQUIRED`를 "동의 확인하기"로 연결)의 독립 리뷰도 맡았고, #402와 main의 문서 충돌 해결은 Claude가 맡았다. 병합 순서는 #403 → #404 → #405 → #402다.

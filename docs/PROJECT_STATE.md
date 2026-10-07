@@ -1,5 +1,17 @@
 # 프로젝트 상태
 
+## 2026-10-08 낮은 결함 4건 수정과 test.13·Preview 22 (Issue #407)
+
+기준 main `6ce8ad03`(PR #406 병합) 위의 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`(브랜치 `fix/next-build-1008`)다. 이 PR이 병합되면 기준 SHA는 병합 커밋이 된다. 이 코드는 직전 재측정이 새로 본 낮은 결함 4건에 대응한다. 이웃 방 하단 탭 중복은 하위 화면 아래 숨은 `(tabs)` 바를 그리지 않아 탭 바를 한 벌로 줄였다. 웹에서 하위 화면을 거쳐 처음 가는 탭으로 이동할 때는 history를 덮어쓰지 않고 항목을 추가한다(`apps/mobile/patches/expo-router+57.0.23.patch`, 웹 전용, Android 무관). 마이룸 꾸미기 선택 칩에는 테마 색을 적용했고, 떠 있는 탭 바 아래 띠는 화면 배경색으로 덮었다. main에 이미 병합된 PR #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결)도 이 설치본에 들어 있다.
+
+검증: 모바일 1,883/1,883, typecheck·lint·접근성·운영/시연 Android export·variant 자산·gate PASS. 독립 리뷰(Claude sonnet) APPROVE, 🔴/🟠 없음. 남은 🟡는 여섯 가지다. (1) 패치 조건이 해시(`#`)로 진입한 세션에서 기록이 늘 수 있다(앱은 해시를 만들지 않음). (2) expo-router 원본의 음수 인덱스 비교 결함으로 하위 화면→홈 탭 등에서 뒤로 가기 1회 헛누름이 가능하다(이탈은 아님). (3) 새 시험이 소스 문자열 위주다. (4) 탭 바 없는 하위 화면으로 push할 때 전환 중 탭 바가 먼저 사라진다(Android 외관). (5) 라이트 모드 비선택 칩 테두리 대비가 낮다(1.14:1). (6) 웹 export 전에 `npm ci --prefix apps/mobile`(patch-package)로 패치를 적용해야 한다([모바일 README](../apps/mobile/README.md)에 한 줄 추가).
+
+게시와 공개 반영(2026-10-08 KST, 제공 기록이며 이번 문서 작업의 원격 재검증이 아님): 시연 `showcase-android-v0.1.0-preview.22`(`MassCOM-showcase-android-5ca9895.apk`, SHA-256 `a384cfee5b1fdacd0c7128d2232c2673f6bb422a1047e223acc1397cceff932f`, 약 330MB, package `kr.masscom.wolgye.demo`, 시연 키 `CDB0DC37…F28A`)와 운영 `android-v0.1.0-test.13`(`MassCOM-operating-android-5ca9895.apk`, SHA-256 `45dc8a37d56b545bf4ef2da133bde48795dfadb2d965d122151d4310aeb5c53b`, 약 324MB, package `kr.masscom.wolgye`, 업로드 키 `5E5ED3C3…A395`, AAB 서명·지갑 표면 PASS)를 게시했다. 증거는 [시연 Preview 22](evidence/showcase-preview22-release-2026-10-08.json)와 [운영 test.13](evidence/operating-android-test13-2026-10-08.json)이다. 두 APK 모두 `RECORD_AUDIO`가 없고 내부 versionName/Code는 `0.1.0-test.2`/`2`다. **두 APK의 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산)다.** 확인되기 전에는 "일치"로 적지 않는다.
+
+시연 웹 `/play/`는 소스 `5ca98955` 번들(entry `entry-858be2c61591f08ea88654ceed5f67ec.js`, `lang="ko"`)을 `/opt/masscom-showcase/web/releases/5ca98955…`에 두고 `current`를 전환했으며 edge Caddy를 재시작해 공개 서빙을 확인했다. 운영 api·www·시연 health 200을 유지했다. 서버 API·DB 변경은 없다(운영 `08f125b4`, 시연 API `2d483ed`, migration 68건 유지). 라이브 `/open`의 test.13·Preview 22 링크는 이 PR 병합 커밋의 운영 웹 재배포로 나간다. 그 전의 `/open`은 test.12·Preview 21을 가리킨다. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 따르며 이 절은 그 결과를 대신 적지 않는다.
+
+남은 소유자 판단·수동 항목은 실제 점주·이용자 현장 자료(`NOT_RUN`), 설치본 실기·TalkBack(`NOT_RUN`), 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설(사람), 대회 최종 제출(소유자 승인 필요)이다. 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. 다음 순서는 [현재 인수인계](HANDOFF.md)를 따른다. 아래 절은 당시 이력이다.
+
 ## 2026-10-08 병합·공개 반영·수정본 재측정 (Issue #401 후속)
 
 기준 main `a742e32dd76f36555e6969082b400946c048ad6b`. 병합 순서는 PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(팀원 PragmoB의 뽑기 `CONSENT_REQUIRED` "동의 확인하기" 연결, `a742e32d`)다. #402는 main 문서 충돌 해결, `INTERNAL_ERROR` 문구의 일반 재시도 안내화, 동의 문구 연결의 시험 고정 뒤 병합했다. Issue #401은 #403 병합으로 닫혔다.
