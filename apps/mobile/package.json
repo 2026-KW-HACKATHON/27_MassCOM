@@ -56,6 +56,9 @@
     "@walletconnect/universal-provider": "2.23.5"
   },
   "scripts": {
+    "ui:preview": "node scripts/start-ui-preview.cjs",
+    "ui:test-render": "node scripts/test-ui-preview-render.cjs",
+    "ui:test-isolation": "node scripts/verify-ui-preview-isolation.cjs",
     "start": "expo start",
     "android": "expo run:android",
     "audit:ci": "node ../../scripts/audit-ci.mjs",

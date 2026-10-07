@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const source = readFileSync(fileURLToPath(new URL('./history-section.tsx', import.meta.url)), 'utf8');
+const source = readFileSync(fileURLToPath(new URL('./history-section.tsx', import.meta.url)), 'utf8').replace(/\r\n/g, '\n');
 
 test('PR #312 리뷰 1번: "더 보기"는 불러오는 중이면 비활성화되고, load() 자체도 ref로 두 번째 시작을 막는다', () => {
   assert.match(source, /const statusRef = useRef\(state\.status\);/);

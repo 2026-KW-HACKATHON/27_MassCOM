@@ -6,7 +6,7 @@ import { test } from 'node:test';
 // directly. The envelope sequencing itself (idle/tearing/cards/end, NEW detection, milestone, skip) is covered
 // behaviorally by envelope/envelope-state.test.ts and reveal-lifecycle.test.ts; this only confirms the screen wires
 // into those instead of reimplementing them.
-const source = readFileSync(new URL('./collectible-reveal.tsx', import.meta.url), 'utf8');
+const source = readFileSync(new URL('./collectible-reveal.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 test('skip is offered in every stage, including while loading and on failure', () => {
   assert.match(source, /<SkipButton onPress=\{onSkip\} \/>\s*\n\s*<StateScene kind=\{failure\.removed/, '실패 상태에도 건너뛰기가 있어야 한다');

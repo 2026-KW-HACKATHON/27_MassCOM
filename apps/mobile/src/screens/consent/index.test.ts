@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 test('each required box is a checkbox that tells assistive technology whether it is checked', () => {
   assert.match(screen, /consentChecks\.map/);

@@ -1,4 +1,5 @@
 import { getAppPackageId } from '@/config/app-identity';
+import { UI_PREVIEW_ENABLED, UiPreviewApp } from '@/ui-preview/entry';
 import Constants from 'expo-constants';
 import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -107,6 +108,13 @@ function Routes() {
 }
 
 export default function RootLayout() {
+  if (__DEV__ && UI_PREVIEW_ENABLED && getAppPackageId() === 'kr.masscom.wolgye.dev') {
+    return <SafeAreaProvider><StatusBar style="dark" /><UiPreviewApp /></SafeAreaProvider>;
+  }
+  return <StandardRootLayout />;
+}
+
+function StandardRootLayout() {
   useEffect(() => initializeUiSounds(), []);
   return (
     <SafeAreaProvider>

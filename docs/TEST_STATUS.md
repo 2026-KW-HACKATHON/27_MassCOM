@@ -1,5 +1,15 @@
 # 테스트 상태
 
+## 2026-10-07 Issue #394 PR 준비 추가 확인
+
+모바일 검증 시점 소스 50개 SHA-256 재대조 PASS. `bash tests/bootstrap/check_secrets_test.sh`, `bash tests/bootstrap/verify_bootstrap_test.sh` PASS. `bash scripts/check-secrets.sh <제출 변경 파일 사본>`으로 59개 변경 파일 검사 PASS. Windows Git Bash용으로 해당 검사 스크립트의 CRLF만 LF로 정규화해 실행했으며 논리 수정은 없다. 최신 main 통합 검증은 NOT_RUN이며 PR만 생성하고 머지는 하지 않는다.
+
+## 2026-10-07 Issue #394 최종 UI 로컬 미리보기
+
+Windows·Node24.16.0, `feat/mint-ui-local-preview`/기준 `c0691e8f`의 미커밋 작업트리. `npm.cmd test --prefix apps/mobile` **최종 PASS 1,804/1,804, FAIL0/SKIP0**(46.4초), `typecheck`·`lint` PASS. 최초 전체 시험 7 FAIL은 기존 소스 검사6파일의 CRLF 처리 결함으로 제품 코드를 바꾸지 않고 입력 줄바꿈만 정규화해 해결했다. 개발 실행기의 CI 감시 비활성화도 수정하고 실행 환경/종료 코드 회귀2개를 추가했다.
+
+`ui:test-render` PASS:67개 화면+빈 권/없는 코인/NFT잠금, Node의 실제 React Native Web 렌더이며 클릭/픽셀 검사가 아님. `ui:test-isolation` PASS:production/showcase 각각 플래그1에서 Android JS export(84/87files), 시안 코드 표식/자산 해시 일치0. 독립 경계 검토 P2 1건 수정→재검토 추가 확정 결함0, 이탈 회귀3/3. HTTP localhost8091 HTML/번들200 PASS. CUA `apps:[],browsers:[]`로 실제 브라우저 동작/시각 수용 BLOCKED. 운영/시연 설치·서명·TalkBack·큰 글씨·API/DB·공개 배포 NOT_RUN. [명령·재현·증거](UI_LOCAL_PREVIEW_2026-10-07.md), [기계 판독 요약](evidence/ui-local-preview-2026-10-07/validation.json).
+
 ## 2026-10-07 NAVER 발급·실제 주소 대체·SDK 준비 복구 (Issue #385)
 
 PR384는 최신0165b865 CI37530995738 전체 PASS 뒤 main73284651로 병합됐다. 사용자 콘솔에서 신규 Maps masscom(Dynamic Map·Geocoding)을 등록하고 대표 계정·웹/패키지3개를 확인했다. 키는 Git 밖의 권한600 파일에만 보관한다. 실제 TMAP403→NAVER 주소200·후보1건 PASS이며 별도 NAVER Developers 지역 검색 키는 아직 없다.

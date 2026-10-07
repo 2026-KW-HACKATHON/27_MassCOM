@@ -4,7 +4,7 @@ import test from 'node:test';
 
 // Fold renders react-native views, so it cannot go through the node:test/esbuild runner (see HANDOFF for the
 // react-native Flow-syntax crash); these are light source checks on its own file instead, same as index.test.ts.
-const source = readFileSync(new URL('./fold.tsx', import.meta.url), 'utf8');
+const source = readFileSync(new URL('./fold.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 test('Fold can be controlled by a caller (expanded/onToggle) instead of only its own internal toggle (#296 review)', () => {
   // Without this, a caller (e.g. a `focus=` deep link) has no way to force a collapsed fold open itself.

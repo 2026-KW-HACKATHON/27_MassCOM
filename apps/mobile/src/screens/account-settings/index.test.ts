@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const page = readFileSync(new URL('../../../../../docs/account-deletion.html', import.meta.url), 'utf8');
 
 test('blocked account deletion offers the HTTPS request page with a link role and open failure feedback', () => {

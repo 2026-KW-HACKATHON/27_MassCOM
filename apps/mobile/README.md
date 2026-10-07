@@ -238,3 +238,17 @@ showcase variant만 웹으로도 빌드됩니다: `npm run export:web:showcase`(
 방문 수령·친구·점주 직원 화면의 QR 촬영과 수집품 기울임 토글은 웹에서 안내 문구로 가립니다(`ui/can-use-camera.ts`·`can-use-tilt-sensor.ts`). 점주 직원 화면의 고객 QR 식별은 카메라 없이는 할 수 없습니다(확인 코드는 43자 보안 토큰의 앞 8자일 뿐이라 그것만으로 서버를 부를 수 없고, 전체 토큰을 손으로 입력하게 하는 대체 입력은 비현실적이고 노출 위험이 커 만들지 않았습니다) — 이 화면은 웹에서 미리보기만 됩니다. 체험 로그인 계정이 "점주" 역할로 들어가면 `GET /showcase/access-requests/mine`의 `trialMerchantId`(공개 목록에 없는 개인 체험 가게)로 자기 가게를 찾습니다.
 
 **브라우저 전용 버그(발견·수정):** `AuthApiClient`를 비롯한 5개 API 클라이언트 클래스가 기본 `fetch`를 `this.<필드>(...)`(메서드 호출 문법)로 불러, 실제 브라우저에서 "Illegal invocation"으로 모든 요청이 실패했습니다(Node의 `fetch`는 호출 주체를 검사하지 않아 Android·기존 유닛 테스트에서는 드러나지 않았습니다). `fetch.bind(globalThis)`로 저장해 고쳤습니다.
+
+## Windows 로컬 웹 미리보기
+
+### 최종 UI만 확인하는 격리 미리보기
+
+저장소 루트에서 `npm.cmd run ui:preview --prefix apps/mobile`을 실행하고 **http://localhost:8091**을 엽니다(macOS/Linux는 `npm`). 상단 **로컬 테스트 · 67개 화면 보기**에서 화면을 선택하거나 하단 `탐색 · 도감 · 홈 · 놀이 · 상점`으로 이동합니다. 포트 변경은 `MASSCOM_UI_PORT`로 지정합니다.
+
+실제 API/DB·Google 로그인·지갑 서명·NFT 발행·위치/카메라·메시지 전송은 하지 않습니다. 사람·가게·포인트·가격·풀·확률은 합성 예시입니다. 계정 삭제 화면은 실제 삭제가 아닌 **테스트 데이터 초기화**입니다. 브라우저별 별도 로컬 저장소를 사용합니다.
+
+`MASSCOM_UI_PREVIEW=1`은 개발 variant에서만 별도 모듈을 연결합니다. production/showcase 및 플래그 없는 일반 앱에는 미리보기 코드·시안 자산을 넣지 않습니다. `npm.cmd run ui:test-render --prefix apps/mobile`은 67개 화면 Node 렌더, `npm.cmd run ui:test-isolation --prefix apps/mobile`은 두 variant Android JS export/격리를 검사합니다. 브라우저 클릭·실제 설치·시각 검사를 대신하지 않습니다. [수용·제한 기록](../../docs/UI_LOCAL_PREVIEW_2026-10-07.md)을 참고하세요.
+
+`APP_VARIANT=development` 웹은 loopback API에 연결할 때만 임시 체험 로그인을 사용할 수 있습니다. 공개 시연 API는 로컬 브라우저 Origin의 CORS 요청을 허용하지 않으므로 직접 연결하면 `NETWORK_ERROR`가 납니다. 로컬 연결 서버를 사용할 때는 loopback에만 바인딩하고 upstream을 시연 API로 고정합니다. 환경 변수를 바꾼 뒤에는 `npx expo start --web --localhost --port 8081 --clear`로 이전 API 주소가 남은 Metro 캐시를 갱신합니다.
+
+최신 main의 약관/개인정보 버전은 같은 소스의 로컬 API와 맞춰 실행합니다. 이 Windows 체크아웃의 `.tmp/start-latest-local.ps1`은 PostgreSQL(55434), API(3000), 로컬 연결 서버(8787), Expo 웹(8081)을 시작합니다. DB는 `masscom_showcase_test`이며 가상 점포만 들어 있습니다. 현재 공개 서버는 이전 버전이므로 최신 로컬 체험에서 upstream으로 사용하지 않습니다. Google 로그인은 Android 앱 전용입니다.

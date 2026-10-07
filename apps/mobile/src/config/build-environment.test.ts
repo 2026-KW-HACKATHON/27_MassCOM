@@ -403,7 +403,7 @@ test('actual Expo development config preserves local DEMO identity, plugins, and
   const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
   assert.equal(config.android?.package, 'kr.masscom.wolgye.dev');
   assert.equal(config.scheme, 'masscom-dev');
-  assert.deepEqual(config.platforms, ['android']);
+  assert.deepEqual(config.platforms, ['android', 'web']);
   assert.deepEqual(pluginNames(config), [
     'expo-router',
     'expo-dev-client',

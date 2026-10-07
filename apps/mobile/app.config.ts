@@ -71,7 +71,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // 실제 방어는 MASSCOM_WEB_BASE_URL이 showcase에만 허용되는 위 validateBuildEnvironment 검사와
     // (그 검사를 피해 web을 내보내도) auth-provider.tsx의 런타임 가드
     // (getAppPackageId() + API origin 조합, isApprovedGuestTrialOrigin)가 맡는다.
-    platforms: showcase ? ['android', 'web'] : ['android'],
+    // 로컬 개발 웹도 Metro가 HTML로 제공해야 한다. 체험 인증은 위의 런타임 가드로 loopback API에만 허용한다.
+    platforms: production ? ['android'] : ['android', 'web'],
     experiments: {
       ...config.experiments,
       ...(webBaseUrl ? { baseUrl: webBaseUrl } : null),

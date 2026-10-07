@@ -1,5 +1,34 @@
 # HANDOFF
 
+## 2026-10-07 사용자 후속 요청: PR만 생성, 머지 금지 (Issue #394)
+
+사용자의 최신 지시는 **PR만 생성하고 머지하지 않기**다. `feat/mint-ui-local-preview`의 검증된 작업을 커밋·push하고 Draft PR로 제출한다. 실제 브라우저 클릭·시안 일치가 미검증이므로 구현 완료/운영 적용으로 주장하지 않는다. 최종 생성 결과는 이 항목에 기록한다. 머지·자동 머지·배포는 실행하지 않는다.
+
+fetch 기준 `origin/main`은 `51e2df21`이며 로컬 기준 `c0691e8f`보다 2커밋 앞선다. 이 별도 UI/코인·방 기능을 덮어쓰거나 미리보기 성과에 합치지 않는다. 최신 main 통합 재검증은 아직 하지 않았다. 기존 50개 모바일 변경 파일은 보존한 검증 시점 SHA-256과 모두 일치한다.
+
+## 2026-10-07 최종 67화면 로컬 UI 재개 (Issue #394)
+
+후속 사용자 전달: 독립 `C:/Hack/MassCOM-UI-Sandbox-20261007`의 README·검증 JSON·390×844 홈 이미지를 읽었다. 데스크톱/모바일 각67상태와 흐름15개는 **해당 HTML 시제품의 전달 증거**이며 Expo의 브라우저 PASS가 아니다. 원본 비교·겹쳐보기 `http://127.0.0.1:4187/`를 후속 시각·조작 참고로 사용한다. 픽셀 완전 일치는 미달, 실제 서비스/3D 아님. [참고 경계와 파일](UI_SANDBOX_REFERENCE_2026-10-07.md).
+
+사용자의 “이제 진행”에 따라 기존 `feat/mint-ui-local-preview`의 미커밋 구현을 이어 보완했다. HEAD는 `c0691e8f3bae79029ffa7c036bf2eee20454d400` 그대로이며 이전 수정·자산은 보존했다. [Issue #394](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/394)를 생성했다. GitHub 커넥터에서 #388 종료·이 브랜치 PR 없음 확인. 커밋·push·PR·공개 서버/APK/Play 변경 없음.
+
+홈 0장 권 제외·빈 상태, 종류별 4등급, 일반 뽑기 중복 소모 방지, NFT/풀/권 리롤 제한, 방 미저장 이탈, 게임 탭/카탈로그 이탈 확인, 저장 실패/재시도, 검색 유지·관심 가게 로컬 저장을 보완했다. 상단 화면 목록을 열면 67개 화면으로 이동한다. 실제 서비스 연동은 하지 않는다.
+
+PASS: 최종 모바일 전체 1,804/1,804·타입/lint·67개 Node 렌더·production/showcase 각각 Android JS export와 시안 코드/자산 0·HTTP HTML/번들 200. 기존 실행기의 CI가 감시를 꺼 이전 번들을 제공하던 문제도 고치고8091을 재시작해 최신 수정 표식4개를 확인했다. 독립 경계 검토 P2 1건 수정 후 추가 확정 결함0, 이탈3/3. CRLF 원인7 FAIL은 6개 시험 입력 정규화로 해결했다. BLOCKED: CUA 브라우저0으로 실제 클릭·새로고침 복원·시안 비교 미검증. Android 설치·큰 글씨/TalkBack·실제 오디오/센서·공개 배포 NOT_RUN. [수용·재현·제한](UI_LOCAL_PREVIEW_2026-10-07.md), [검증 요약](evidence/ui-local-preview-2026-10-07/validation.json).
+
+다음 확인: `git status --short --branch` → `npm.cmd run ui:preview --prefix apps/mobile` → **http://localhost:8091**. 현재 loopback 전용8091 서버가 HTML/최신 번들을 제공한다. 사용자가 브라우저에서 확인한 시각 문제와 실제 클릭/저장 복원은 후속 검증으로 남긴다. PR 생성 시점은 위의 최신 요청을 따른다. 기존 일반 앱 인증 경로·운영 보상 계약을 미리보기 모델로 대체하지 않는다.
+
+## 2026-10-07 최종 UI 시안 기준 확인
+
+사용자가 `C:\Hack\ui-concepts-2026-10-07`을 읽고 따르도록 요청했다. `app-screen-plan/READ-FIRST.txt`, `screen-inventory.txt` v8, `final-all-pages/화면목록.txt`, manifest의 수정 이력과 핵심 이미지(홈·가게 이웃·뽑기·도감·리롤·NFT)를 확인했다. 화면 기준은 `final-all-pages`의 67화면/23장과 최신 텍스트이며, 초기 이미지·폐기된 도감 가정을 재사용하지 않는다.
+
+- 하단은 `탐색 · 도감 · 홈 · 놀이 · 상점`. 상단은 프로필·사용자 편집 한 줄 소개·마일리지·우편·설정이다.
+- 홈은 중앙 마이룸 → 중앙 맞춤 보유 뽑기권 → 가게별 방문 보상 → 커진 친구/방문 인증 순서. 페이지 점·바로가기 화살표는 추가하지 않는다. 1/3/5회 목표와 코인 4등급을 임의 대응시키지 않는다.
+- 도감은 가게 > 코인 종류 > 브론즈·실버·골드·프리즘. 일반 뽑기는 기존 코인을 보존하며, 리롤은 기존 코인 회수·권 1장 소모·가게 풀 새 코인 차감/지급으로 구별한다. NFT 발급 중/완료 코인은 회수·리롤을 잠근다.
+- 시안 수치·가게·가격·보상은 예시다. 미확정 확률·회수 코인 재입고·가게 풀 범위·중복 정책·놀이 보상을 운영 규칙으로 임의 확정하지 않는다. 기존 보안·승인·운영/시연 데이터 경계를 유지한다.
+
+현재 브랜치 `feat/mint-ui-local-preview`, HEAD `c0691e8f3bae79029ffa7c036bf2eee20454d400`. 시작 전부터 있던 모바일 수정과 `src/ui-preview/` 등 미추적 구현은 보존했으며 이번 확인에서 앱 코드는 변경하지 않았다. 원격 PR 상태는 `gh` 명령이 PATH에 없어 미확인이고 PR 생성·커밋·push는 하지 않았다. 앱 자동 시험·실행·운영/시연 설치본 검증은 이번 확인에서 `NOT_RUN`이다. 구현 재개 시 `git status --short --branch`로 변경 주체를 재확인하고 [로컬 수용 조건](UI_LOCAL_PREVIEW_2026-10-07.md) 및 실제 소스를 대조한 뒤 `npm.cmd run typecheck --prefix apps/mobile`부터 검증한다.
+
 ## 2026-10-07 Android 주 지도·보행선과 후속 전체 UI
 
 PR #386은 source eb6db635의 CI37535335626 전체 PASS 후 main2bb8491a로 병합됐다. 연결된 Samsung SM-S928N에서 발견한 TMAP 렌더 자식 0×0·초기 제어 카메라·기본 alpha0 보행선을 `fix/tmap-native-layout`에서 수정하고 비공개 실기 수용을 통과했다. 원격 최종 HEAD CI·병합은 PR에서 별도 확인한다. [Issue #387](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/387), [실기/비공개 APK/검증 경계](TMAP_ANDROID_QA_2026-10-07.md)를 따른다. 임시 진단 코드와 자격 증명·APK는 Git에 넣지 않는다. 공개 서버·설치본·Play는 변경하지 않는다.
@@ -1208,3 +1237,15 @@ PostgreSQL 통합·Anvil 시험은 이름이 `_test`로 끝나는 전용 `TEST_D
 - 지갑 세션의 계정별 분리는 “한 프로세스 안에서 계정이 바뀌지 않는다”는 전제에 선다. WalletConnect Core는 저장소를 프로세스 전역 core에 cache하므로, 운영 로그인으로 실행 중 계정을 바꾸게 되면 AppKit을 계정별 `customStoragePrefix`로 다시 만들거나 앱을 재시작해야 한다(PR #81 리뷰 지적).
 - 운영 로그인을 도입해 account ID를 외부에서 정할 수 있게 되면, 계정 삭제의 `campaign_enrollments` 비식별화가 `(campaign_id, 삭제 별칭)` 중복으로 막히지 않는지 먼저 확인한다(PR #74 리뷰 지적).
 - npm audit endpoint가 점검 중이면 CI의 audit 단계가 503으로 실패한다. 단계를 우회하지 말고 복구 뒤 다시 실행한다.
+
+## 2026-10-07 Windows 로컬 클론과 웹 미리보기
+
+사용자 요청에 따라 `C:\Hack\27_MassCOM`에 main `c0691e8f`를 클론했다. Node 24.16.0/npm 11.13.0에서 `npm.cmd ci --no-fund --no-audit` PASS, 기존 Reown patch 적용 PASS. `.tmp/start-web-preview.ps1`로 시연 variant의 Expo 웹 개발 서버를 `http://localhost:8081`에서 실행했다. Codex 내장 브라우저의 시작 역할 선택과 사용자 홈·다섯 탭·체험 버튼 표시 PASS. 시연 API는 기존 `https://demo-api.masscom.kr`를 사용하며 웹에서 쓰지 않는 native OAuth 식별자는 저장소 CI 예시다. 임시 계정 생성·약관 동의·기능 종단·Android·전체 테스트는 NOT_RUN. 코드·공개 배포·PR 변경은 없다. 재실행: PowerShell에서 `& 'C:\Hack\27_MassCOM\.tmp\start-web-preview.ps1'`.
+
+## 2026-10-07 Windows 웹 체험 로그인 진단 후속
+
+브랜치 `fix/local-web-preview`, 기준 main `c0691e8f`. 공개 시연 API의 localhost Origin OPTIONS는 404/CORS 헤더 없음으로 NETWORK_ERROR를 재현했다. `.tmp/showcase-api-proxy.mjs`는 127.0.0.1:8787에만 바인딩하고 upstream을 시연 API로 고정하며 로컬 웹 Origin만 허용한다. health PASS, 허용 Origin OPTIONS204 PASS, 다른 Origin403 PASS. 개발 variant의 platforms에 web을 포함해 Metro HTML 응답을 복구하고 `--clear`로 API 주소 캐시를 갱신했다. 관련 build-environment/guest-trial-origin/guest-trial-availability 40/40 PASS. 로컬 실제 임시 체험 로그인 PASS, 이후 동의 gate는 main의 2026-10-06 문구와 공개 서버 버전 불일치로 BLOCKED. 동의 검사나 버전은 바꾸지 않았다. 공개 `https://demo-api.masscom.kr/play/`의 체험 로그인과 정상 동의 화면 PASS; 동의 제출은 사용자에게 남겨 NOT_RUN. 로컬 최신 기능 종단·Android·전체 테스트 NOT_RUN. 서버는 Expo8081과 proxy8787 실행 중. 재실행은 proxy를 `node .tmp/showcase-api-proxy.mjs`로 먼저 실행하고 `.tmp/start-web-preview.ps1`을 실행한다. 공개 배포·커밋·push·PR은 없다.
+
+## 2026-10-07 최신 코드의 완전한 로컬 실행
+
+원격 main c0691e8f3bae79029ffa7c036bf2eee20454d400과 클론 기준 일치 확인 PASS. 동일 소스의 로컬 API와 DB로 이전 공개 API 연결을 교체했다. PostgreSQL16 portable runtime을 .tmp/local-runtime에 준비하고 127.0.0.1:55434의 masscom_showcase_test DB를 생성했다. API npm ci, migration과 local seed PASS. API3000, 연결 서버8787, Expo8081은 loopback 전용이다. health, 가상 점포3곳, guest login, terms-2026-10-06/privacy-2026-10-06 일치, 실제 브라우저의 최신 동의 화면 PASS. 이전 공개 서버 세션은 새 DB에 없어서 초기 invalidation 오류 후 재로드로 정리했고 새 로컬 세션은 정상이다. 동의 제출, 이후 종단, 외부 지도 키는 NOT_RUN. 재실행 스크립트는 .tmp/start-latest-local.ps1이며 현재 서비스는 실행 중이다. 공개 배포, 커밋, push, PR 없음. 앞선 약관 불일치는 로컬 실행에서 해결됐다.

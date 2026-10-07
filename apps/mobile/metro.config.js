@@ -3,10 +3,14 @@ const { resolve } = require('node:path');
 const { getDefaultConfig } = require('expo/metro-config');
 
 const config = getDefaultConfig(__dirname);
+const { allowUiPreview } = require('./src/ui-preview/gate.cjs');
 // The browser-safe scoring rules are also the API's authoritative replay rules.
 config.watchFolders = [...(config.watchFolders || []), resolve(__dirname, '../api/src')];
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName === '@/ui-preview/entry' && allowUiPreview(process.env.MASSCOM_UI_PREVIEW, process.env.APP_VARIANT)) {
+    return { filePath: resolve(__dirname, 'src/ui-preview/app.tsx'), type: 'sourceFile' };
+  }
   // NodeNext emits .js imports; this one browser-safe source is consumed directly by Metro.
   if (context.originModulePath === resolve(__dirname, '../api/src/play-rules-quality.ts') && moduleName === './play-rules.js') {
     return { filePath: resolve(__dirname, '../api/src/play-rules.ts'), type: 'sourceFile' };

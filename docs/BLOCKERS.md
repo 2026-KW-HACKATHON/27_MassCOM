@@ -1,5 +1,9 @@
 # BLOCKERS
 
+## 2026-10-07 Issue #394 로컬 UI 브라우저 검증
+
+`BLOCKED`: 현재 CUA에서 `cua.createBrowserTab("iab", "http://localhost:8091", { visible: true })`는 `Browser is not available: iab`, 이어 `cua.getState()`는 `apps: [], browsers: []`를 반환했다. 로컬 HTML/번들 HTTP 200과 Node의 67개 화면 렌더는 PASS지만 실제 터치·시안 비교·저장 후 새로고침·좁은 화면/큰 글씨는 검증하지 못했다. 브라우저 제어 연결을 복구한 뒤 [재현 순서](UI_LOCAL_PREVIEW_2026-10-07.md)를 실행한다. 같은 환경에서 의미 없는 재시도나 다른 자동화 우회는 하지 않는다. 운영/시연 Android 설치본 검증도 별도 NOT_RUN이다.
+
 | ID | 원인 | 영향 | 해소 조건 | 상태 |
 | --- | --- | --- | --- | --- |
 | B-001 | D-004~D-008 승인 기록 없음 | 앱·계약·보상·배포 스캐폴드 확정 불가 | 2026-09-18 사용자 승인 기록 | `RESOLVED` |

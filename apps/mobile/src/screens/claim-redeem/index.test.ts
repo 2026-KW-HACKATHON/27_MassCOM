@@ -3,7 +3,7 @@ import { URL } from 'node:url';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
+const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
 function between(start: string, end: string): string {
   const from = screen.indexOf(start);

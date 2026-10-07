@@ -1,0 +1,353 @@
+{
+  "recordedAt": "2026-10-07T06:43:18.943Z",
+  "issue": 394,
+  "branch": "feat/mint-ui-local-preview",
+  "baseCommit": "c0691e8f3bae79029ffa7c036bf2eee20454d400",
+  "worktree": "uncommitted",
+  "environment": {
+    "os": "Windows",
+    "node": "v24.16.0",
+    "shell": "PowerShell"
+  },
+  "checks": {
+    "mobile": {
+      "status": "PASS",
+      "tests": 1804,
+      "fail": 0,
+      "skip": 0,
+      "command": "npm.cmd test --prefix apps/mobile"
+    },
+    "typecheck": {
+      "status": "PASS",
+      "command": "npm.cmd run typecheck --prefix apps/mobile"
+    },
+    "lint": {
+      "status": "PASS",
+      "command": "npm.cmd run lint --prefix apps/mobile"
+    },
+    "render": {
+      "status": "PASS",
+      "screens": 67,
+      "extraStates": 3,
+      "command": "npm.cmd run ui:test-render --prefix apps/mobile",
+      "scope": "Node SSR; not browser layout, image loading, or click validation"
+    },
+    "isolation": {
+      "status": "PASS",
+      "command": "npm.cmd run ui:test-isolation --prefix apps/mobile",
+      "commit": "c0691e8f3bae79029ffa7c036bf2eee20454d400",
+      "dirty": true,
+      "results": [
+        {
+          "variant": "production",
+          "status": "PASS",
+          "bundleCount": 1,
+          "files": 84,
+          "previewAssetMatches": 0
+        },
+        {
+          "variant": "showcase",
+          "status": "PASS",
+          "bundleCount": 1,
+          "files": 87,
+          "previewAssetMatches": 0
+        }
+      ],
+      "scope": "Android JavaScript export only; not signed or installed"
+    },
+    "http": {
+      "html": 200,
+      "bundle": 200,
+      "bytes": 15826789,
+      "preview": true,
+      "currentMarkers": {
+        "replacesGame": true,
+        "requestNavigation": true,
+        "ownedTickets": true,
+        "collectionProgress": true
+      }
+    },
+    "independentReview": {
+      "status": "PASS",
+      "model": "GPT-6 Astra",
+      "reasoning": "medium",
+      "initialFindings": 1,
+      "resolved": 1,
+      "remainingConfirmedFindings": 0,
+      "regressionTests": 3
+    },
+    "browser": {
+      "status": "BLOCKED",
+      "reason": "CUA: Browser is not available: iab; apps=[], browsers=[]"
+    },
+    "androidInstalledVariants": {
+      "production": "NOT_RUN",
+      "showcase": "NOT_RUN"
+    },
+    "deployment": "NOT_RUN",
+    "realApiAuthWalletChain": "NOT_RUN",
+    "focused": {
+      "status": "PASS",
+      "tests": 27,
+      "command": "cd apps/mobile && node --import tsx --test src/ui-preview/*.test.ts"
+    }
+  },
+  "fixes": [
+    "홈 빈 뽑기권",
+    "코인 종류별 4등급",
+    "일반 뽑기 중복 소모",
+    "리롤/NFT 불가 상태",
+    "편집 및 게임 이탈 확인",
+    "저장 실패 안내와 재시도",
+    "검색 유지/관심 가게 로컬 저장",
+    "기존 소스 시험 CRLF 정규화",
+    "Metro CI 감시 비활성화로 남던 이전 번들 복구"
+  ],
+  "limitations": [
+    "가상 로컬 모델이며 운영 규칙이 아님",
+    "브라우저 클릭/새로고침 복원/시각 비교 미검증",
+    "Android 설치/서명/큰 글씨/TalkBack 미검증"
+  ],
+  "sourceHashesAtReportTime": [
+    {
+      "path": "apps/mobile/README.md",
+      "sha256": "dca71e3dd0489d0a5ecf2f5764cd8d224029ad5b7620758709878cfba4e1898a"
+    },
+    {
+      "path": "apps/mobile/app.config.ts",
+      "sha256": "57840784a563cda76735912f49aacf3bacb469ff9c2be41632e4616b23f849b5"
+    },
+    {
+      "path": "apps/mobile/metro.config.js",
+      "sha256": "aabd3373ff0a05f00f8b440fabb52d98a550fed060ede602dfbe387964cdaf30"
+    },
+    {
+      "path": "apps/mobile/package.json",
+      "sha256": "a88212fc93121e5733dc823d73fe4c6a42ce406f57f7fcf9d5255bcb32e1d41f"
+    },
+    {
+      "path": "apps/mobile/src/app/_layout.tsx",
+      "sha256": "09e955119115c3b9c239b99f536fe337689c4d8962e745f286eb76ff18d120fa"
+    },
+    {
+      "path": "apps/mobile/src/config/build-environment.test.ts",
+      "sha256": "7a9adbca8c0611485d4c1b2b86e4e15ec07057c0a914be07193a3683a6db4010"
+    },
+    {
+      "path": "apps/mobile/src/screens/account-settings/index.test.ts",
+      "sha256": "bc9ba439c54bfbd6a0cf7778643e956170138bc2f9fb21c7b4d161b3292bcfcc"
+    },
+    {
+      "path": "apps/mobile/src/screens/claim-redeem/index.test.ts",
+      "sha256": "b4db0dfd14f7549c3138365e2c5b19f6a8efba42fa4f9496b6bf6691b3459968"
+    },
+    {
+      "path": "apps/mobile/src/screens/collection/collectible-reveal.test.ts",
+      "sha256": "253cf450652f953c6702ba8e5a776440a4b53b545e745ec0516ef0a58da2fc2a"
+    },
+    {
+      "path": "apps/mobile/src/screens/consent/index.test.ts",
+      "sha256": "a315277defe4f242d821c88a006c7797a4ca81b930093e2f733d1d2050867873"
+    },
+    {
+      "path": "apps/mobile/src/screens/shop/history-section.test.ts",
+      "sha256": "c1f2679a3cd3c1123b1494869c6c2b73e26f589c7e804e46f964e81c997dfeb6"
+    },
+    {
+      "path": "apps/mobile/src/ui/fold.test.ts",
+      "sha256": "26236ce9752e62d94e83bea7fb212ca5b6aaa8abc7ffa61918137469afa7a435"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/00-home.png",
+      "sha256": "a30da768ad9a550b307ce609613f3176266be97d14a529c9b9ee8552bedb3839"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/01-friends.png",
+      "sha256": "6ef1a53699acbc1a613c4e204833bfd486322713dee05200c9cb90b422c2cdc9"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/03-room-edit.png",
+      "sha256": "717eee72702f278fb7d87e7235b8b0b0b89c9716e234a3b062c1ab81418ba954"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/04-customization.png",
+      "sha256": "a4565c91647438057378e71bbd3a98d1fe7e3beef39cd35e0ec34259cc4a2c30"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/05-room-visitors.png",
+      "sha256": "7af7d6b88138c73157f31695335e2166b1a64a0ded218b05528d46282327eb1e"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/06-store-neighbors.png",
+      "sha256": "70d57e0cb0659de2a4386d3fea075e64bf4ef8d8b57e60b5e60fb6adfbed788b"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/07-explore.png",
+      "sha256": "b9dda3833228b0380b64c5efc98db13aac8cfbbb880f05f1bed1ac3b56e7c712"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/08-visit.png",
+      "sha256": "028aa1e8d2f367b1a1143ddfda13d1e256f7e613ecf3ff1f081100939847dffb"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/09-draw.png",
+      "sha256": "acf177c6513321408108b4351b63ae128d1532c05a8ce6175abf8f6a12df7613"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/10-collection.png",
+      "sha256": "67cfe15cab75e612fcc9456ff8467ba859ad35863b9b5334811e7d52ffd81633"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/11-reroll.png",
+      "sha256": "ac35e47ff6ff955056305165a3d51fa0c1284daed93861f15136f0a8aa526cd0"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/12-nft.png",
+      "sha256": "9ed4e62c6a874ab605514c5b7642e9b62816298e22a986be3fcf74c7c0da76a5"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/13-shop.png",
+      "sha256": "8c8791b70b41440b7750a417421b4760544c75f37420211d44b5580422891ac0"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/14-inventory.png",
+      "sha256": "176822c44e69d0778a3c8b4b3ee482b8a9c70b550ef9b415a78e4d1f148d00d1"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/15-play-start.png",
+      "sha256": "5591056dc2727eaa7f1478d2cf30468093cee7320634b39b2a4f244a2234e0d3"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/16-play-games.png",
+      "sha256": "cfa80b03c37316be94bce5dbaa2382909b528df9c4f92ffad68d0e4eb2b3dbf8"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/18-profile.png",
+      "sha256": "766378a596e59cffcf2d84411def9487d41f8491812eee7429e301fe20f9448a"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/19-mail-missions.png",
+      "sha256": "9e8cf72790057800edcfe00ba3a4bd88d3364505b866961890f51aadea64b5a3"
+    },
+    {
+      "path": "apps/mobile/assets/images/ui-preview/SOURCES.md",
+      "sha256": "b2a285b08c950eab8cfa504539d2366e5cd3d3808f2e6b49f56215b148385af2"
+    },
+    {
+      "path": "apps/mobile/scripts/start-ui-preview.cjs",
+      "sha256": "782fc13b19362693d26fe707d0130260fcc3e90ec54e13fed5b6c705d896144a"
+    },
+    {
+      "path": "apps/mobile/scripts/test-ui-preview-render.cjs",
+      "sha256": "73de052732c4e77aa05f147415d71dae05131a958a673258bc590671c0f2128f"
+    },
+    {
+      "path": "apps/mobile/scripts/verify-ui-preview-isolation.cjs",
+      "sha256": "1e3982c5ead0b079e293abe6ed7bb48ebe409f6209f24866f0129ede180393dc"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/account-screens.tsx",
+      "sha256": "616e4710c3fbb5806952466efaf60451d4ecea68bbd863eed6a7faa5b8ab3c03"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/app.tsx",
+      "sha256": "6ccbb2dce66692715d14d68c2ae3c08cf514351744d9a91fc65a10d1aa9df207"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/art.tsx",
+      "sha256": "def43444046756b029f1072ac52cbe04e3064fcb2d344d065248336c96ec4173"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/catalog.ts",
+      "sha256": "cc1e74391e19f3970e511ccb7398e5e03a53e8bc4207131935243875643b6c45"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/commerce-screens.tsx",
+      "sha256": "8773645fa3e3661ee899e4acbafb99e27677ecb2f6f70c66eb8e06716b40e40d"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/components.tsx",
+      "sha256": "470a6ce187a6d8ac9e1ed455053cce0bf8951a3faafa19b39a996db661b323c7"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/entry.tsx",
+      "sha256": "7a75d2c2e711134c67acf899f2a4bd81f1be8c61d98ce0444204d7e040bf80c9"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/game-model.ts",
+      "sha256": "07fd9f38c401fabc8686f5a24df438919881a4b67ea27a2b21330dfbbc73c8c6"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/gate.cjs",
+      "sha256": "17fdc6f3ccc7df14244bbcc904669f3d3e9b756ee9e035e62a1ab82419aaa586"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/launcher.test.ts",
+      "sha256": "0109ef6ad1f15252f657f7ff559c8616e53b14d5cd47da60cf916ff67e275639"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/model.test.ts",
+      "sha256": "42ffed919b9926f322542e04f68cfa2dd9a6085034770f593d4c72f143bb22f7"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/model.ts",
+      "sha256": "5be0b0e41df651e1584f67c7697d00713a791f83bb38ac9005f9ad95ea0e292e"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/navigation.test.ts",
+      "sha256": "80f87ba3d41e85cb2bcbc2d52a80c282b10b3f298e39cd59fa63068051343563"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/navigation.ts",
+      "sha256": "ff938217b75e53cc5776f636ed4fedb777d7a940788799239b1ae7aa0853642b"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/play-screens.tsx",
+      "sha256": "5321cd4b2f0260c4910c9662baed9afc05d2917ef1abd76d9c8aa9e0ac4aafb7"
+    },
+    {
+      "path": "apps/mobile/src/ui-preview/social-screens.tsx",
+      "sha256": "09083674eb7db4a186ab941c06fcef73aaa6bb763610921400d4c2ef23bea9ea"
+    }
+  ],
+  "independentPrototypeReference": {
+    "path": "C:/Hack/MassCOM-UI-Sandbox-20261007",
+    "source": "사용자 전달 독립 HTML 시제품; 이 세션에서는 증거 파일만 열람",
+    "auditSha256": "3b1ad398c578377461e4e9498bddba202684369f39bae92bef3395f4cdd0a422",
+    "desktopStates": 67,
+    "mobileStates": 67,
+    "reportedDesktopClean": true,
+    "reportedMobileClean": true,
+    "reportedFlows": 15,
+    "reportedFlowsAllTrue": true,
+    "notAcceptedAsExpoBrowserEvidence": true,
+    "pixelPerfect": false
+  },
+  "prPreparation": {
+    "recordedAt": "2026-10-07T07:03:50.924Z",
+    "sourceHashRecheck": {
+      "status": "PASS",
+      "files": 50
+    },
+    "secretCheckerRegression": {
+      "status": "PASS",
+      "command": "bash tests/bootstrap/check_secrets_test.sh"
+    },
+    "bootstrapRegression": {
+      "status": "PASS",
+      "command": "bash tests/bootstrap/verify_bootstrap_test.sh"
+    },
+    "changedFilesSecretScan": {
+      "status": "PASS",
+      "files": 59,
+      "command": "bash scripts/check-secrets.sh <changed-files-copy>"
+    },
+    "prKorean": {
+      "status": "PASS",
+      "command": "bash scripts/check-pr-korean.sh \"$PR_TITLE\" \"$PR_BODY\""
+    },
+    "mergePolicy": "PR only; no merge or auto-merge",
+    "remoteMain": "51e2df21",
+    "latestMainIntegration": "NOT_RUN"
+  }
+}
