@@ -52,6 +52,23 @@ pg() { if [[ -n "${PG_EXEC:-}" ]]; then "${pg_prefix[@]}" "$@"; else "$@"; fi; }
 
 base="${url%%\?*}"
 query="${url#"$base"}"
+# libpq query parameters override URI path/authority; inspect every decoded key,
+# including duplicates, before passing the otherwise unchanged TLS query to any client.
+remaining_query="${query#\?}"
+while [[ -n "$remaining_query" ]]; do
+  query_pair="${remaining_query%%&*}"
+  if [[ "$remaining_query" == *'&'* ]]; then remaining_query="${remaining_query#*&}"; else remaining_query=""; fi
+  query_key="${query_pair%%=*}"
+  # Restrict the encoded form before printf so raw backslash escapes cannot be interpreted.
+  [[ "$query_key" =~ ^([A-Za-z0-9_]|%[0-9A-Fa-f]{2})+$ && "$query_key" != *%00* ]] || {
+    echo 'invalid database URL query key' >&2; exit 1;
+  }
+  printf -v query_key '%b' "${query_key//%/\\x}"
+  case "$(LC_ALL=C tr '[:upper:]' '[:lower:]' <<<"$query_key")" in
+    dbname|service|host|hostaddr|port)
+      echo 'database-selecting query key is not allowed' >&2; exit 1 ;;
+  esac
+done
 source_db="${base##*/}"
 if [[ -z "$source_db" || "$source_db" == "$base" ]]; then
   echo "DRILL_DATABASE_URL must name a database" >&2

@@ -15,6 +15,7 @@ mkdir -p "$fakebin" "$work"
 
 cat >"$fakebin/pg_dump" <<'FAKE'
 #!/usr/bin/env bash
+if [[ -n "${FAKE_PG_URL_LOG:-}" ]]; then printf 'pg_dump:%s\n' "${@: -1}" >>"$FAKE_PG_URL_LOG"; fi
 if [[ "${FAKE_PG_DUMP_FAIL:-}" == 1 ]]; then
   printf 'PARTIAL'
   echo 'pg_dump: error: connection to server failed' >&2
@@ -120,14 +121,40 @@ out="$(TMPDIR="$work" run_drill 2>&1)" || status=$?
 [[ "$status" == 0 ]] || { echo "temporary-dump drill failed ($status): $out" >&2; exit 1; }
 [[ -z "$(find "$work" -name 'masscom-backup.*' -print -quit)" ]] || { echo 'temporary dump outlived the drill' >&2; exit 1; }
 
-# TLS 옵션은 dump뿐 아니라 scratch DB 생성·복원·조회·삭제 연결에도 유지한다.
+# DB 선택 키는 중복·대소문자·percent encoding과 무관하게 첫 DB 호출 전에 거절한다.
 url_log="$scratch/urls.log"
-tls_query='?sslmode=verify-full&sslrootcert=/tmp/test-ca.pem&connect_timeout=3'
+rejected_queries=0
+for unsafe_query in \
+  'dbname=masscom' 'dbname=' 'DBNAME=masscom' 'DbNaMe=masscom' \
+  '%64bname=masscom' 'd%62name=masscom' 'db%6Eame=masscom' \
+  '%64%62%6e%61%6d%65=masscom' '%44%42%4E%41%4D%45=masscom' \
+  'dbname=masscom_test&dbname=masscom' \
+  'dbname=masscom_test&sslmode=verify-full&%64bname=masscom' \
+  'service=production' 'SERVICE=production' '%73ervice=production' \
+  'host=other-db' 'HOST=other-db' '%68ost=other-db' \
+  'hostaddr=127.0.0.2' 'HOSTADDR=127.0.0.2' '%68ostaddr=127.0.0.2' \
+  'port=5433' 'PORT=5433' '%70ort=5433'; do
+  : >"$url_log"
+  printf 'PREVIOUS' >"$work/rejected.dump"
+  status=0
+  out="$(FAKE_PG_URL_LOG="$url_log" DRILL_DATABASE_URL="postgresql://drill@127.0.0.1:1/masscom_test?sslmode=verify-full&$unsafe_query" run_drill "$work/rejected.dump" 2>&1)" || status=$?
+  [[ "$status" != 0 ]] || { echo 'drill accepted a database-selecting query key' >&2; exit 1; }
+  grep -q 'database-selecting query key is not allowed' <<<"$out" || { echo "query refusal failed for an unrelated reason: $out" >&2; exit 1; }
+  [[ ! -s "$url_log" ]] || { echo 'unsafe URL reached a PostgreSQL command' >&2; exit 1; }
+  [[ "$(<"$work/rejected.dump")" == PREVIOUS && "$(leftovers)" == 0 ]] || { echo 'query refusal changed a backup or left a partial dump' >&2; exit 1; }
+  rejected_queries=$((rejected_queries + 1))
+done
+
+# TLS 옵션과 인코딩된 값은 scratch DB 생성·복원·조회·삭제 연결에도 원문 그대로 유지한다.
+: >"$url_log"
+tls_query='?sslmode=verify-full&sslrootcert=/tmp/test-ca.pem&sslcert=/tmp/client%20cert.pem&sslkey=/tmp/dbname%3Dkey.pem&connect_timeout=3'
 status=0
 out="$(FAKE_PG_URL_LOG="$url_log" DRILL_DATABASE_URL="postgresql://drill@127.0.0.1:1/masscom_test$tls_query" run_drill "$work/tls.dump" 2>&1)" || status=$?
 [[ "$status" == 0 ]] || { echo "TLS drill failed ($status): $out" >&2; exit 1; }
+grep -Fxq "pg_dump:postgresql://drill@127.0.0.1:1/masscom_test$tls_query" "$url_log" || { echo 'source dump lost TLS options' >&2; exit 1; }
 [[ "$(grep -Fxc "postgresql://drill@127.0.0.1:1/postgres$tls_query" "$url_log" || true)" -eq 2 ]] || { echo 'admin create/drop connections lost TLS options' >&2; exit 1; }
-grep -Eq "^pg_restore:postgresql://drill@127\.0\.0\.1:1/masscom_[0-9]+_restore_test\\?sslmode=verify-full&sslrootcert=/tmp/test-ca.pem&connect_timeout=3$" "$url_log" || { echo 'restore connection lost TLS options' >&2; exit 1; }
-grep -Eq "^postgresql://drill@127\.0\.0\.1:1/masscom_[0-9]+_restore_test\\?sslmode=verify-full&sslrootcert=/tmp/test-ca.pem&connect_timeout=3$" "$url_log" || { echo 'scratch snapshot lost TLS options' >&2; exit 1; }
+scratch_url="$(grep -E '^pg_restore:postgresql://drill@127\.0\.0\.1:1/masscom_[0-9]+_restore_test\?' "$url_log")"
+[[ "${scratch_url#pg_restore:}" == *"$tls_query" ]] || { echo 'restore connection lost TLS options' >&2; exit 1; }
+grep -Fxq "${scratch_url#pg_restore:}" "$url_log" || { echo 'scratch snapshot lost TLS options' >&2; exit 1; }
 
-echo "restore drill backup-file tests passed"
+echo "restore drill backup-file tests passed ($rejected_queries unsafe queries refused; TLS query preserved)"
