@@ -40,7 +40,7 @@
 
 ## 이 측정에서 찾은 결함
 
-아래 결함은 [PR #405](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/405)에서 수정했다. 공개본 재배포 뒤 다시 측정하고 결과를 이 문서에 이어서 적는다.
+아래 결함은 [PR #405](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/405)에서 수정했다. 수정본이 올라간 공개 `/play/`(소스 `9f5ebfa6`)를 다시 측정했고 4건 모두 FIXED였다. 결과는 [재측정 기록](../submission-2026-10-08-recheck/README.md)을 따른다.
 
 | 캡처 | 결함 |
 | --- | --- |

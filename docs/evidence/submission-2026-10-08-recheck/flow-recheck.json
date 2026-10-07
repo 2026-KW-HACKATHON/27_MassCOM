@@ -1,0 +1,557 @@
+{
+  "target": "https://demo-api.masscom.kr/play/",
+  "viewport": "390x844",
+  "recordedAt": "2026-10-07T18:47:09.904Z",
+  "pace": 1.65,
+  "entry": "entry-bf096d15e2c9fd7c9a6b8bc41de15c48.js",
+  "video": {
+    "file": "demo-flow-390.webm",
+    "bytes": 10053739,
+    "mb": 9.59,
+    "wallClockSec": 245.9,
+    "durationSec": 248.3,
+    "durationMmSs": "4:08",
+    "resolution": "390x844"
+  },
+  "steps": [
+    {
+      "n": "01",
+      "name": "role",
+      "pass": true,
+      "memo": "가치 한 줄 O · 3단계 O · 역할 2개 O",
+      "files": [
+        "flow-01-role.png"
+      ],
+      "videoStartSec": 0.1,
+      "sec": 7.6
+    },
+    {
+      "n": "02",
+      "name": "guest",
+      "pass": true,
+      "memo": "임시 계정 안내 확인 후 체험 시작",
+      "files": [
+        "flow-02-guest.png"
+      ],
+      "videoStartSec": 9.2,
+      "sec": 8.1
+    },
+    {
+      "n": "03",
+      "name": "terms",
+      "pass": true,
+      "memo": "필수 동의 → 시작 활성 → 홈 진입 O",
+      "files": [
+        "flow-03-terms.png"
+      ],
+      "videoStartSec": 18.8,
+      "sec": 9.1
+    },
+    {
+      "n": "04",
+      "name": "home",
+      "pass": true,
+      "memo": "신규 상태 문구 O · 마일리지 100,000",
+      "files": [
+        "flow-04-home.png"
+      ],
+      "videoStartSec": 29.4,
+      "sec": 7.1
+    },
+    {
+      "n": "05",
+      "name": "explore",
+      "pass": true,
+      "memo": "목록 가게 3곳 · 위치 미확인 3곳",
+      "files": [
+        "flow-05-explore.png"
+      ],
+      "videoStartSec": 38,
+      "sec": 3.9
+    },
+    {
+      "n": "06",
+      "name": "store-detail",
+      "pass": true,
+      "memo": "URL /merchants/showcase-local-merchant",
+      "files": [
+        "flow-06-store-detail.png"
+      ],
+      "videoStartSec": 43.5,
+      "sec": 5.1
+    },
+    {
+      "n": "07",
+      "name": "test-visit",
+      "pass": true,
+      "memo": "도장 쾅! +150 마일리지 · POST /showcase/test-visits 201 · 중복 버튼 0 · 텍스트 겹침 0 · 화면 전체 덮음 true",
+      "files": [
+        "flow-07b-stamp-celebration.png",
+        "flow-07a-claim.png"
+      ],
+      "videoStartSec": 50,
+      "sec": 12.8
+    },
+    {
+      "n": "08",
+      "name": "envelope",
+      "pass": true,
+      "memo": "봉투 → 카드 → 도감 보관 안내 O",
+      "files": [
+        "flow-08a-envelope.png",
+        "flow-08b-reveal-card.png",
+        "flow-08c-reveal-stored.png"
+      ],
+      "videoStartSec": 64.3,
+      "sec": 19.3
+    },
+    {
+      "n": "09",
+      "name": "album",
+      "pass": true,
+      "memo": "URL /collection · 배지 배지 1/9",
+      "files": [
+        "flow-09-album.png"
+      ],
+      "videoStartSec": 85.1,
+      "sec": 5.4
+    },
+    {
+      "n": "10",
+      "name": "shop-gacha",
+      "pass": true,
+      "memo": "브론즈 1회(100P) 결과 표시 · 남은 100,050P · 브론즈 · 가게 코인",
+      "files": [
+        "flow-10a-shop.png",
+        "flow-10b-gacha-confirm.png",
+        "flow-10c-gacha-result.png"
+      ],
+      "videoStartSec": 92,
+      "sec": 23.5
+    },
+    {
+      "n": "11",
+      "name": "myroom-exhibit",
+      "pass": true,
+      "memo": "코인 전시 선택 → 저장 알림 O · 1/6개 전시",
+      "files": [
+        "flow-11a-myroom-studio.png",
+        "flow-11b-exhibit-pick.png",
+        "flow-11c-exhibit-saved.png"
+      ],
+      "videoStartSec": 117,
+      "sec": 17.3
+    },
+    {
+      "n": "12",
+      "name": "neighbors",
+      "pass": true,
+      "memo": "랜덤 방 결과: 지금 둘러볼 공개 방이 없어요. 나중에 다시 찾아보세요. · URL /room-explore",
+      "files": [
+        "flow-12a-neighbors.png",
+        "flow-12b-neighbors-random.png"
+      ],
+      "videoStartSec": 135.8,
+      "sec": 14.5
+    },
+    {
+      "n": "13",
+      "name": "play-hub-game",
+      "pass": true,
+      "memo": "/room-explore 에서 놀이 탭 → /play-tab (허브 O) · 주문표 [[\"연습 그림 2\",2],[\"연습 그림 4\",1]] → 1/4 · 결과 저장 O",
+      "files": [
+        "flow-13a-play-hub.png",
+        "flow-13b-game-prep.png",
+        "flow-13c-game-playing.png",
+        "flow-13d-game-filled.png",
+        "flow-13e-game-delivered.png",
+        "flow-13f-game-result.png"
+      ],
+      "videoStartSec": 151.8,
+      "sec": 29.3
+    },
+    {
+      "n": "14",
+      "name": "my-info",
+      "pass": true,
+      "memo": "임시 체험 계정 · 하단 탭 이동: 탐색→/search 도감→/collection 홈→/ 상점→/shop",
+      "files": [
+        "flow-14-my-info.png"
+      ],
+      "videoStartSec": 182.6,
+      "sec": 37.6
+    },
+    {
+      "n": "15",
+      "name": "owner",
+      "pass": true,
+      "memo": "점주 화면 \"나의 체험 가게\" 진입 · URL /appearance · 탭 오늘·현황, 가게 꾸미기",
+      "files": [
+        "flow-15b-owner.png",
+        "flow-15a-role-again.png",
+        "flow-15-owner-today.png",
+        "flow-15-owner-decorate.png"
+      ],
+      "videoStartSec": 221.7,
+      "sec": 20.3
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "netFails": [],
+  "abortedMedia": [],
+  "probes": {
+    "celebration": {
+      "buttons": [
+        "도장 축하 다음 보상 보기",
+        "받은 수집품 열기",
+        "도감 보기",
+        "상점 뽑기",
+        "이 가게 어땠나요? 선택",
+        "동네 탐험가 브론즈 배지 공유",
+        "닫기",
+        "축하 화면 닫기"
+      ],
+      "dupButtons": [],
+      "textOverlaps": 0,
+      "dialogCoversScreen": true
+    }
+  },
+  "files": [
+    "flow-01-role.png",
+    "flow-02-guest.png",
+    "flow-03-terms.png",
+    "flow-04-home.png",
+    "flow-05-explore.png",
+    "flow-06-store-detail.png",
+    "flow-07a-claim.png",
+    "flow-07b-stamp-celebration.png",
+    "flow-08a-envelope.png",
+    "flow-08b-reveal-card.png",
+    "flow-08c-reveal-stored.png",
+    "flow-09-album.png",
+    "flow-10a-shop.png",
+    "flow-10b-gacha-confirm.png",
+    "flow-10c-gacha-result.png",
+    "flow-11a-myroom-studio.png",
+    "flow-11b-exhibit-pick.png",
+    "flow-11c-exhibit-saved.png",
+    "flow-12a-neighbors.png",
+    "flow-12b-neighbors-random.png",
+    "flow-13a-play-hub.png",
+    "flow-13b-game-prep.png",
+    "flow-13c-game-playing.png",
+    "flow-13d-game-filled.png",
+    "flow-13e-game-delivered.png",
+    "flow-13f-game-result.png",
+    "flow-14-my-info.png",
+    "flow-15a-role-again.png",
+    "flow-15b-owner.png",
+    "flow-15-owner-today.png",
+    "flow-15-owner-decorate.png"
+  ],
+  "allPass": true,
+  "servedEntry": {
+    "url": "https://demo-api.masscom.kr/play/",
+    "entryFile": "entry-bf096d15e2c9fd7c9a6b8bc41de15c48.js",
+    "htmlReferencesEntry": true,
+    "entryHttpStatus": 200,
+    "expectedSource": "9f5ebfa"
+  },
+  "defectRecheck": {
+    "a": {
+      "verdict": "FIXED",
+      "what": "하위 화면에서 하단 놀이 탭 -> 놀이 허브(/play-tab), 404(/-tab) 아님",
+      "screens": [
+        {
+          "key": "studio",
+          "label": "마이룸 꾸미기",
+          "from": "/studio",
+          "to": "/play-tab",
+          "hub": true,
+          "notFound": false,
+          "file": "fix-a-studio-after-play-tab.png"
+        },
+        {
+          "key": "my-coins",
+          "label": "내 코인·시리즈",
+          "from": "/coin-collection",
+          "to": "/play-tab",
+          "hub": true,
+          "notFound": false,
+          "file": "fix-a-my-coins-after-play-tab.png"
+        },
+        {
+          "key": "neighbors",
+          "label": "가게 이웃 방",
+          "from": "/room-explore",
+          "to": "/play-tab",
+          "hub": true,
+          "notFound": false,
+          "file": "fix-a-neighbors-after-play-tab.png"
+        },
+        {
+          "key": "my-info",
+          "label": "내 정보",
+          "from": "/settings",
+          "to": "/play-tab",
+          "hub": true,
+          "notFound": false,
+          "file": "fix-a-my-info-after-play-tab.png"
+        },
+        {
+          "key": "friends",
+          "label": "친구",
+          "from": "/friends",
+          "to": "/play-tab",
+          "hub": true,
+          "notFound": false,
+          "file": "fix-a-friends-after-play-tab.png"
+        }
+      ],
+      "directUrlMatrix": [
+        {
+          "p": "studio",
+          "to": "/play-tab"
+        },
+        {
+          "p": "profile",
+          "to": "/play-tab"
+        },
+        {
+          "p": "coin-shop",
+          "to": "/play-tab"
+        },
+        {
+          "p": "coin-collection",
+          "to": "/play-tab"
+        },
+        {
+          "p": "friends",
+          "to": "/play-tab"
+        },
+        {
+          "p": "home/exhibit",
+          "to": "/play-tab"
+        },
+        {
+          "p": "home/missions",
+          "to": "/play-tab"
+        },
+        {
+          "p": "room-explore",
+          "to": "/play-tab"
+        },
+        {
+          "p": "settings",
+          "to": "/play-tab"
+        },
+        {
+          "p": "search",
+          "to": "/play-tab"
+        }
+      ],
+      "flowStep": "13 (이웃 방에서 놀이 탭 -> 허브)",
+      "files": [
+        "fix-a-studio-after-play-tab.png",
+        "fix-a-my-coins-after-play-tab.png",
+        "fix-a-neighbors-after-play-tab.png",
+        "fix-a-my-info-after-play-tab.png",
+        "fix-a-friends-after-play-tab.png"
+      ]
+    },
+    "b": {
+      "verdict": "FIXED",
+      "what": "도장 쾅! 축하 화면 불투명, 겹침·중복 버튼 없음",
+      "probe": {
+        "dialogCoversScreen": true,
+        "dupButtons": [],
+        "textOverlaps": 0,
+        "buttons": [
+          "도장 축하 다음 보상 보기",
+          "받은 수집품 열기",
+          "도감 보기",
+          "상점 뽑기",
+          "이 가게 어땠나요? 선택",
+          "동네 탐험가 브론즈 배지 공유",
+          "닫기",
+          "축하 화면 닫기"
+        ]
+      },
+      "cornerPixels": "좌상/우상 rgb(192,227,255), 좌하/우하 rgb(247,251,255): 뒤 화면 비침 없음",
+      "files": [
+        "fix-b-stamp-celebration.png",
+        "fix-b-stamp-celebration-bottom.png",
+        "fix-d-dark-stamp-celebration.png",
+        "flow-07b-stamp-celebration.png"
+      ]
+    },
+    "c": {
+      "verdict": "FIXED",
+      "what": "내 정보·친구에서 하단 탭 이동",
+      "results": [
+        {
+          "screen": "my-info",
+          "tab": "탐색",
+          "to": "/search",
+          "moved": true,
+          "file": "fix-c-my-info-탐색.png"
+        },
+        {
+          "screen": "my-info",
+          "tab": "도감",
+          "to": "/collection",
+          "moved": true,
+          "file": "fix-c-my-info-도감.png"
+        },
+        {
+          "screen": "my-info",
+          "tab": "홈",
+          "to": "/",
+          "moved": true,
+          "file": "fix-c-my-info-홈.png"
+        },
+        {
+          "screen": "my-info",
+          "tab": "상점",
+          "to": "/shop",
+          "moved": true,
+          "file": "fix-c-my-info-상점.png"
+        },
+        {
+          "screen": "my-info",
+          "tab": "놀이",
+          "to": "/play-tab",
+          "moved": true,
+          "file": "fix-c-my-info-놀이.png"
+        },
+        {
+          "screen": "friends",
+          "tab": "탐색",
+          "to": "/search",
+          "moved": true,
+          "file": "fix-c-friends-탐색.png"
+        },
+        {
+          "screen": "friends",
+          "tab": "도감",
+          "to": "/collection",
+          "moved": true,
+          "file": "fix-c-friends-도감.png"
+        },
+        {
+          "screen": "friends",
+          "tab": "홈",
+          "to": "/",
+          "moved": true,
+          "file": "fix-c-friends-홈.png"
+        },
+        {
+          "screen": "friends",
+          "tab": "상점",
+          "to": "/shop",
+          "moved": true,
+          "file": "fix-c-friends-상점.png"
+        },
+        {
+          "screen": "friends",
+          "tab": "놀이",
+          "to": "/play-tab",
+          "moved": true,
+          "file": "fix-c-friends-놀이.png"
+        }
+      ],
+      "files": [
+        "fix-c-my-info-탐색.png",
+        "fix-c-my-info-도감.png",
+        "fix-c-my-info-홈.png",
+        "fix-c-my-info-상점.png",
+        "fix-c-friends-탐색.png",
+        "fix-c-friends-도감.png",
+        "fix-c-friends-홈.png",
+        "fix-c-friends-상점.png"
+      ]
+    },
+    "d": {
+      "verdict": "FIXED",
+      "what": "다크 390: 하단 흰 띠 없음, 코인 카드(내 수집품) 어두운 색",
+      "bottomStrip": "하단 40px 최대 밝기(0-255): 마이룸 65, 꾸미기 65, 내 정보 65, 내 코인 65 (흰색이면 ~250)",
+      "coinCardColors": [
+        {
+          "label": "+ 가상 첫 방문 수집품 가상 점포 A",
+          "bg": "rgb(29, 52, 49)",
+          "bgLum": 47,
+          "color": "rgb(0, 0, 0)"
+        },
+        {
+          "label": "+ 가상 첫 방문 수집품 가상 점포 B",
+          "bg": "rgb(29, 52, 49)",
+          "bgLum": 47,
+          "color": "rgb(0, 0, 0)"
+        }
+      ],
+      "files": [
+        "fix-d-dark-myroom.png",
+        "fix-d-dark-myroom-bottom.png",
+        "fix-d-dark-studio.png",
+        "fix-d-dark-studio-bottom.png",
+        "fix-d-dark-studio-coin-exhibit.png",
+        "fix-d-dark-studio-coin-pick.png",
+        "fix-d-dark-studio-coin-saved.png",
+        "fix-d-dark-my-info.png",
+        "fix-d-dark-my-info-bottom.png",
+        "fix-d-dark-my-coins.png",
+        "fix-d-dark-my-coins-bottom.png",
+        "fix-d-dark-album.png"
+      ],
+      "residual": "대표 수집 코인 칩은 다크에서도 흰색(새 발견 3)"
+    },
+    "consoleErrors": [],
+    "netFails": []
+  },
+  "newFindings": [
+    {
+      "id": 1,
+      "severity": "low",
+      "title": "가게 이웃 방(월계 방 탐험)에서 하단 탭이 홈이 아니라 탐색을 선택 표시",
+      "evidence": "flow-12a-neighbors.png, flow-12b-neighbors-random.png",
+      "detail": "홈에서 진입했는데 /room-explore에서 role=tab 두 벌이 보이고 두 번째 벌은 탐색만 aria-selected=true."
+    },
+    {
+      "id": 2,
+      "severity": "low-medium",
+      "title": "웹 브라우저 뒤로 가기가 앱 안 이전 화면이 아니라 앱 밖(about:blank)으로 나감",
+      "evidence": "extraProbes.backNav",
+      "detail": "이웃 방 -> 탐색 탭(/search) -> 뒤로 가기 = about:blank. 웹 체험에서 뒤로 가기 누르면 체험이 끊긴다."
+    },
+    {
+      "id": 3,
+      "severity": "low",
+      "title": "다크 모드 마이룸 꾸미기의 대표 수집 코인 칩이 흰색 그대로",
+      "evidence": "fix-d-dark-studio-coin-saved.png, fix-d-dark-studio-coin-pick.png"
+    },
+    {
+      "id": 4,
+      "severity": "low",
+      "title": "플로팅 하단 탭 바 아래 8px 틈과 모서리로 스크롤 콘텐츠가 비침(라이트·다크 공통)",
+      "evidence": "fix-d-dark-album.png, fix-d-dark-myroom.png, flow-04-home.png",
+      "detail": "탭 바 y=772..836, 뷰포트 844. 바 아래 8px에 카드 테두리·이미지 일부가 보인다."
+    }
+  ],
+  "extraProbes": {
+    "backNav": {
+      "steps": "게스트 시작 -> 가게 이웃 만나기 -> 탐색 탭 -> page.goBack()",
+      "before": "/play/search",
+      "after": "about:blank",
+      "historyLength": 3
+    },
+    "tabHighlightNeighbors": {
+      "path": "/room-explore",
+      "tabsAriaSelected": "1세트 홈=true, 2세트 탐색=true"
+    }
+  },
+  "saved": {
+    "folder": "/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/docs-final/docs/evidence/submission-2026-10-08-recheck/",
+    "fileCount": 70
+  }
+}

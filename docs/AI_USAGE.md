@@ -1,8 +1,14 @@
 # AI 사용 기록
 
+## 2026-10-08 병합·수정본 재측정·PR #402 리뷰 (Issue #401)
+
+Claude sonnet이 수정본이 올라간 공개 `/play/`(소스 `9f5ebfa6`)의 5분 시연을 Playwright로 다시 측정했다. 이전 실측의 결함 4건이 모두 FIXED였고 15단계가 PASS, 콘솔 오류·HTTP 4xx/5xx 0건이었으며 낮은 결함 4건을 새로 찾았다. 원자료·캡처 68장·대체 시연 영상은 [재측정 기록](evidence/submission-2026-10-08-recheck/README.md)·[flow-recheck.json](evidence/submission-2026-10-08-recheck/flow-recheck.json)에 보존한다. Claude sonnet은 팀원 PragmoB가 작성한 PR #402(뽑기 `CONSENT_REQUIRED`를 "동의 확인하기"로 연결)의 독립 리뷰도 맡았고, #402와 main의 문서 충돌 해결은 Claude가 맡았다. 병합 순서는 #403 → #404 → #405 → #402다.
+
+2026-10-08부터 소유자 지시로 Codex는 이미지 생성 외에는 쓰지 않는다. 이 문서 갱신은 Claude sonnet이 제공 사실·저장소·`git log`만 근거로 했고 git 조작, `apps/**`·`infra/**`·`scripts/**` 수정, 기존 재측정 캡처·영상·JSON 수정은 하지 않았다. 실제 실행한 문서 검사는 [TEST_STATUS](TEST_STATUS.md)에 기록한다. AI를 팀원·공동 작성자로 기재하지 않는다.
+
 ## 2026-10-08 운영 배포·새 설치본·공개 체험 후속 (Issue #401)
 
-Claude sonnet이 배포 직후 공개 웹의 5분 시연 17단계를 실측했다. 기능 PASS, 콘솔 오류·HTTP 4xx/5xx 0건이며 결함 4건을 발견했다. 원자료와 캡처 67장은 [공개 체험 기록](evidence/submission-2026-10-08/README.md)·[flow-result.json](evidence/submission-2026-10-08/flow-result.json)에 보존한다. Codex가 `9f5ebfa6`에서 수정했고 독립 Codex `gpt-6.1-sol` high 리뷰 APPROVE와 모바일 1,876/1,876·typecheck·lint·접근성·gate PASS를 기록했다. 수정 후 공개 `/play/` 전환·재측정은 예정이다.
+Claude sonnet이 배포 직후 공개 웹의 5분 시연 17단계를 실측했다. 기능 PASS, 콘솔 오류·HTTP 4xx/5xx 0건이며 결함 4건을 발견했다. 원자료와 캡처 67장은 [공개 체험 기록](evidence/submission-2026-10-08/README.md)·[flow-result.json](evidence/submission-2026-10-08/flow-result.json)에 보존한다. Codex가 `9f5ebfa6`에서 수정했고 독립 Codex `gpt-6.1-sol` high 리뷰 APPROVE와 모바일 1,876/1,876·typecheck·lint·접근성·gate PASS를 기록했다. 수정 후 공개 `/play/` 전환·재측정은 이후 완료했다(위 절).
 
 이번 Codex 문서 작업은 사용자 제공 사실을 기존 증거 JSON·설치 안내·현재 요약에 반영했다. 문서 담당과 검사 통합을 분리했으며 실제 실행한 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 기록한다. git 조작·`apps/**` 수정·캡처 폴더 수정·원격 배포는 하지 않았다. 운영 배포 사실과 새 APK 게시 사실을 최신 설치본 실기 수용으로 바꾸지 않는다.
 

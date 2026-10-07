@@ -1,5 +1,42 @@
 # 테스트 상태
 
+## 2026-10-08 병합·공개 반영·수정본 재측정 (Issue #401 후속)
+
+기준 main `a742e32dd76f36555e6969082b400946c048ad6b`, 작업 브랜치 `docs/submission-1008-final`, 수정 번들 소스 `9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49`. 병합·배포·게시 행은 사용자 제공 2026-10-08 KST 기록이며 이번 문서 작업의 원격 재검증이 아니다. 재측정 행의 원자료는 [flow-recheck.json](evidence/submission-2026-10-08-recheck/flow-recheck.json)에 보존했다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| PR 병합 | PASS | #403(`2d483ed8`) → #404(`09dfceb0`) → #405(`08f125b4`) → #402(`a742e32d`). Issue #401은 #403 병합으로 닫힘 |
+| PR #402 | PASS — 병합 | 팀원 PragmoB의 뽑기 `CONSENT_REQUIRED` "동의 확인하기" 연결. main 문서 충돌 해결·`INTERNAL_ERROR` 문구 일반화·동의 문구 시험 고정 뒤 병합. 모바일 1,878/1,878·gate 통과, 독립 리뷰 승인 |
+| 운영 API·웹 재배포 | PASS | main `08f125b4`, `scripts/deploy-lightsail.sh`, `backward_compatible=yes`, API 코드 변경 없음, migration 68건 유지(직전 `09dfceb0` 배포에서 43→68). 별도 증거 JSON은 아직 없음 |
+| 공개 `/open`·설치본 | PASS | `/open`이 운영 test.12·시연 Preview 21을 가리킴. test.12 `MassCOM-operating-android-9f5ebfa.apk` SHA-256 `266c64795ace1e1bbf0ba2bac4224e3638d88a9e6a1633e343ed309a9f4febd3`, Preview 21 `MassCOM-showcase-android-9f5ebfa.apk` SHA-256 `f8c484a60e06084d64e7fe913091ec3901b53c1ce715e932fb9af0b78a807cc4`. 익명 다운로드 해시가 게시 값과 일치. 설치·실기 수용은 NOT_RUN |
+| 시연 API·`/play/` | PASS | 시연 API `2d483ed`(migration 68건), `/play/` 소스 `9f5ebfa6`·entry `entry-bf096d15e2c9fd7c9a6b8bc41de15c48.js`. 공개 HTML이 이 entry를 참조하고 HTTP 200 |
+| 수정본 재측정: 결함 4건 | PASS | Playwright, 시연 서버 임시 계정만. (a) 놀이 탭: 하위 화면 5곳·직접 URL 10곳 모두 허브로 이동 FIXED, (b) "도장 쾅!" 불투명·중복 버튼 0·겹침 0 FIXED, (c) 내 정보·친구 하단 탭 5개 모두 이동 FIXED, (d) 다크 390 마이룸·꾸미기·내 정보·내 코인 하단 40px 최대 밝기 65(흰 띠 없음)·코인 카드 rgb(29,52,49) FIXED. [판정표·근거 파일](evidence/submission-2026-10-08-recheck/README.md) |
+| 수정본 재측정: 5분 시연 15단계 | PASS | 15단계 전부 PASS, `console.error`·`pageerror`·4xx/5xx·요청 실패 0건. 대체 시연 영상 `demo-flow-390.webm` 10,053,739바이트·4분 8초·390×844, SHA-256 `d05301abb9857a9f330d4fa440f323228851109f14417781df95719d29a095ae`. 캡처 68장(`fix-*` 37, `flow-*` 31) |
+| 재측정에서 새로 본 낮은 결함 | 미수정 | 이웃 방 하단 탭 두 벌 렌더링·두 번째만 "탐색" 선택, 이웃 방→탐색 뒤 브라우저 뒤로 가기가 앱 밖(`about:blank`, 새 탭에서 시작한 측정 조건)으로 나감, 다크 꾸미기 "대표 수집 코인" 칩 흰색, 떠 있는 탭 바 아래 8px 틈으로 콘텐츠 비침 |
+| #402 변경의 공개 반영 | NOT_RUN | 상점 동의 오류 단추·문구는 공개 설치본(test.12·Preview 21)과 `/play/`에 아직 없음. 다음 빌드에서 반영 |
+| 실제 점주·이용자 현장 자료 | NOT_RUN | 소유자 수동 항목 |
+| 설치본 실기·TalkBack | NOT_RUN | 최신 APK 실제 휴대전화 설치·로그인·QR·접근성은 별도 |
+
+지도 키가 없어 시연·설치본은 목록 기반 탐색이다. 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. braces·node-forge 보안 예외는 2026-10-31에 만료된다. 아래 절은 당시 이력이다.
+
+### 이번 문서 작업의 로컬 검사
+
+환경: macOS, `docs/submission-1008-final` worktree, 2026-10-08 KST. 다음은 이번 세션에서 직접 실행한 문서·정적 검사다.
+
+| 명령 | 결과 |
+| --- | --- |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/operations_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/demo_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/judging_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_project_site_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_bootstrap_test.sh` | PASS (exit 0) |
+
+여덟 검사 모두 첫 실행에 통과했고 검사 스크립트·기대값은 바꾸지 않았다. 문서 안 상대 링크 대상 파일이 모두 존재함을 확인했다. 재측정 폴더의 기존 캡처·영상·JSON은 수정하지 않았고 README만 새로 만들었다. git 조작과 `apps/**`·`infra/**`·`scripts/**` 수정은 하지 않았다.
+
 ## 2026-10-08 운영 배포·새 설치본·공개 체험 실측 (Issue #401 후속)
 
 기준 main `09dfceb0b39beaa8afe39bcc4bced471f9eb582c`, 작업 브랜치 `fix/play-web-navigation`, 수정·APK 소스 `9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49`. 다음 표는 사용자 제공 2026-10-08 KST 실행 사실이며 이번 문서 작업의 원격 재검증이 아니다.
@@ -7,12 +44,12 @@
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |
 | 운영 배포 | PASS | `scripts/deploy-lightsail.sh --deploy`, 이전 `aae64d88`→main `09dfceb0`; 백업 186,604바이트·mode 600, migration 43→68건, API·웹 healthy, Caddy 재생성, retention 첫 실행 success. `backward_compatible=no`, 자동 복귀 금지. [배포 증거](evidence/production-deployment-09dfceb-2026-10-08.json) |
-| 공개 확인 | PASS | 운영 health 200·coin-shop 401, www `/`·`/app/`·`/admin/`·`/open` 200; `/open`은 test.11·Preview 20 링크. 시연 health·play 200 유지 |
+| 공개 확인 | PASS | 운영 health 200·coin-shop 401, www `/`·`/app/`·`/admin/`·`/open` 200; `/open`은 당시 test.11·Preview 20 링크(이후 test.12·Preview 21로 전환). 시연 health·play 200 유지 |
 | 배포 직후 공개 웹 5분 시연 | PASS | 17단계 기능 PASS, 콘솔 오류·HTTP 4xx/5xx 0건. [캡처 67장·README](evidence/submission-2026-10-08/README.md)·[원자료](evidence/submission-2026-10-08/flow-result.json). 발견 결함 4건은 `9f5ebfa6` 수정 |
 | 내비게이션·축하 화면 수정 | PASS | 제공 기록: 모바일 1,876/1,876·typecheck·lint·접근성·gate PASS, 독립 Codex `gpt-6.1-sol` high APPROVE |
 | 시연 Preview 21 게시 | PASS | `9f5ebfa`, 약 330MB·시연 package·시연 키·demo-api만 내장·RECORD_AUDIO 없음. [릴리스 증거](evidence/showcase-preview21-release-2026-10-08.json). 실기 수용 NOT_RUN |
 | 운영 test.12 게시 | PASS | `9f5ebfa`, 약 324MB·운영 package·업로드 키·AAB 서명·지갑 표면·RECORD_AUDIO 없음. 첫 signReleaseBundle 일시 실패 뒤 데몬 정리·재시도 PASS. [릴리스 증거](evidence/operating-android-test12-2026-10-08.json). 실기 수용 NOT_RUN |
-| 수정 후 공개 반영·재측정 | NOT_RUN | 이 PR 병합→운영 웹 재배포(API 변경·migration 없음)→`/play/` 9f5ebfa 번들 전환→같은 흐름 재측정 |
+| 수정 후 공개 반영·재측정 | PASS (후속) | 당시 NOT_RUN이었다. 이후 병합·운영 웹 재배포·`/play/` 전환·재측정을 마쳤다. 위 최신 절과 [재측정 기록](evidence/submission-2026-10-08-recheck/README.md)을 따른다 |
 
 두 APK 내부 versionName/Code는 `0.1.0-test.2`/`2`다. 필수 36개 ID의 기존 집계는 변경하지 않는다. 아래 배포 진행 중·이전 설치본 기록은 당시 이력이다.
 
