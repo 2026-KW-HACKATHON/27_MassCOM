@@ -53,6 +53,14 @@ test('방문 축하의 주요 행동은 요약 다음, 보상 상세 목록보�
   assert.equal(source.match(/onPress=\{onPrimaryAction\}/g)?.length, 1);
 });
 
+test('방문 축하 화면은 웹 SVG 기본 크기 밖에서도 뒤 화면을 가린다', () => {
+  for (const [palette, medal] of [[lightColors, lightMedalColors], [darkColors, darkMedalColors]] as const) {
+    assert.equal(makeGamificationStyles(palette, medal).fullScreen.backgroundColor, medal.sky[2]);
+  }
+  const source = readFileSync(new URL('./celebration.tsx', import.meta.url), 'utf8');
+  assert.match(source, /<Svg style=\{\[StyleSheet\.absoluteFill, \{ width: '100%', height: '100%' \}\]\}/);
+});
+
 test('줄 바뀌는 축하 링크에는 홀로 남을 구분점이 없다', () => {
   const source = readFileSync(new URL('./celebration.tsx', import.meta.url), 'utf8');
   const links = source.slice(source.indexOf('accessibilityLabel="도감 보기"'), source.indexOf('{featured ? ('));

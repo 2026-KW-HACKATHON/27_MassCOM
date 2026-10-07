@@ -506,11 +506,11 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
           <Text style={[styles.subheading, { color: palette.secondaryLabel }]}>가게 코인</Text>
           {coinSources.slice(coinPage * 12, coinPage * 12 + 12).map(({ source, merchantName, displayName }) => {
             const checked = draft.coinSlots?.some((item) => item.sourceKind === source.sourceKind && item.sourceId === source.sourceId) ?? false;
-            return <View key={`${source.sourceKind}:${source.sourceId}`} style={styles.goalRow}><Pressable accessibilityRole="checkbox" accessibilityState={{ checked }}
+            return <View key={`${source.sourceKind}:${source.sourceId}`} style={[styles.goalRow, { backgroundColor: palette.surface, borderColor: palette.separator }]}><Pressable accessibilityRole="checkbox" accessibilityState={{ checked }}
               onPress={() => toggleCoinSource({ sourceKind: source.sourceKind, sourceId: source.sourceId })}
-              style={[styles.row, styles.ownedRow, checked && styles.rowSelected, { flex: 1 }]}>
-              <Text style={styles.checkbox}>{checked ? '✓' : '+'}</Text>
-              <View style={styles.rowText}><Text style={styles.rowTitle}>{displayName}</Text><Text style={styles.rowMeta}>{merchantName}</Text></View>
+              style={[styles.row, styles.ownedRow, checked && styles.rowSelected, { flex: 1, backgroundColor: checked ? palette.primaryContainer : palette.surface, borderColor: checked ? palette.primary : palette.separator }]}>
+              <Text style={[styles.checkbox, { color: palette.primary }]}>{checked ? '✓' : '+'}</Text>
+              <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{merchantName}</Text></View>
             </Pressable><Pressable accessibilityRole="button" disabled={experience.saving}
               onPress={() => void experience.save({ coinSource: { sourceKind: source.sourceKind, sourceId: source.sourceId } })}
               style={styles.goButton}><Text style={styles.goText}>대표</Text></Pressable></View>;
@@ -524,9 +524,10 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         {owned.length ? <View style={styles.list}>{page.items.map((item) => {
           const selectedItem = draft.slots.includes(item.entitlementId);
           return <Pressable key={item.entitlementId} accessibilityRole="checkbox" accessibilityState={{ checked: selectedItem }}
-            onPress={() => toggleSlot(item.entitlementId)} style={[styles.row, styles.ownedRow, selectedItem && styles.rowSelected]}>
-            <Text style={styles.checkbox}>{selectedItem ? '✓' : '+'}</Text>
-            <View style={styles.rowText}><Text style={styles.rowTitle}>{item.displayName}</Text><Text style={styles.rowMeta}>{item.merchantName}</Text></View>
+            onPress={() => toggleSlot(item.entitlementId)} style={[styles.row, styles.ownedRow, selectedItem && styles.rowSelected,
+              { backgroundColor: selectedItem ? palette.primaryContainer : palette.surface, borderColor: selectedItem ? palette.primary : palette.separator }]}>
+            <Text style={[styles.checkbox, { color: palette.primary }]}>{selectedItem ? '✓' : '+'}</Text>
+            <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{item.displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{item.merchantName}</Text></View>
           </Pressable>;
         })}
           {page.totalPages > 1 ? <View style={styles.pagination}>

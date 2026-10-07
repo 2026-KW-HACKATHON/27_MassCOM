@@ -1,9 +1,10 @@
 export const primaryDestinations = [
-  { href: '/search', label: '탐색', glyph: 'map' },
-  { href: '/collection', label: '도감', glyph: 'collection' },
-  { href: '/', label: '홈', glyph: 'home' },
-  { href: '/play-tab', label: '놀이', glyph: 'play' },
-  { href: '/shop', label: '상점', glyph: 'shop' },
+  // Qualify the group so Expo's /play base URL stripping cannot consume /play-tab.
+  { href: '/(tabs)/search', label: '탐색', glyph: 'map' },
+  { href: '/(tabs)/collection', label: '도감', glyph: 'collection' },
+  { href: '/(tabs)', label: '홈', glyph: 'home' },
+  { href: '/(tabs)/play-tab', label: '놀이', glyph: 'play' },
+  { href: '/(tabs)/shop', label: '상점', glyph: 'shop' },
 ] as const;
 export function contextualTab(path: string): number | null {
   if (['/', '/search', '/collection', '/play-tab', '/shop', '/claim', '/play', '/wallet'].includes(path)) return null;
