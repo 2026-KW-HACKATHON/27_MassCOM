@@ -10,6 +10,23 @@ const queryA: DiscoveryQuery = { bounds, zoom: 14, query: 'A' };
 const queryB: DiscoveryQuery = { bounds, zoom: 14, query: 'B' };
 const page = (id: string, nextCursor: string | null = null): DiscoveryPage => ({ schemaVersion: 1, asOf: '2026-10-06T00:00:00Z', merchants: [{ id, name: id, roadAddress: '도로', category: null, demo: false, profileVersion: 1, position: {latitude: 37.62, longitude: 127.03}, positionBasis: 'OWNED', positionExpiresAt: null, floor: null, entranceNote: null, thumbnail: null, business: {state:'UNKNOWN',basis:'UNKNOWN',evaluatedAt:'2026-10-06T00:00:00Z',nextChangeAt:null,informationUpdatedAt:null,acceptingOrders:null,lastOrderAt:null}, campaign:null,distance:null }], clusters: [], nextCursor, unlocatedCount: 0 });
 
+test('계정 초기화는 이전 검색·좌표·오류·통계와 늦은 조회를 모두 버린다', () => {
+  const state = createDiscoveryState();
+  state.setFilters({ query: 'A의 검색어' });
+  state.setOrigin({ latitude: 37.621, longitude: 127.055, basis: 'MANUAL' });
+  state.resolve(state.begin(queryA), { ...page('A'), unlocatedCount: 7 });
+  const request = state.begin(queryA);
+  state.reject(request, 'NETWORK_ERROR');
+  state.restore(null);
+  state.resolve(request, page('A'));
+  assert.equal(state.snapshot().filters.query, '');
+  assert.equal(state.snapshot().origin, null);
+  assert.equal(state.snapshot().manualOrigin, null);
+  assert.equal(state.snapshot().error, null);
+  assert.equal(state.snapshot().unlocatedCount, 0);
+  assert.deepEqual(state.snapshot().merchants, []);
+});
+
 test('late A cannot replace better B; cursor is tied to active filters', () => {
   const state = createDiscoveryState();
   const a = state.begin(queryA); const b = state.begin(queryB);

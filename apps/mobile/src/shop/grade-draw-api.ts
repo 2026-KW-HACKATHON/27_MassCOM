@@ -61,21 +61,30 @@ export function parseGradeDrawResult(value: unknown): GradeDrawResult {
     quantity: value.quantity, balance: value.balance as number, replayed: value.replayed };
 }
 
-export function createGradeDrawApi(input: { apiUrl: string; credential: AccountCredential; onSessionInvalid?: () => Promise<void>; fetcher?: typeof fetch }) {
+export function createGradeDrawApi(input: { apiUrl: string; credential: AccountCredential; onSessionInvalid?: () => Promise<void>; fetcher?: typeof fetch; timeoutMs?: number }) {
   const fetcher = input.fetcher ?? fetch;
   async function request(path: string, init?: RequestInit): Promise<unknown> {
-    let response: Response;
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { reject(new ShopApiError(0, 'REQUEST_TIMEOUT')); controller.abort(); }, input.timeoutMs ?? 15_000);
+    });
     try {
-      response = await fetcher(`${input.apiUrl.replace(/\/+$/, '')}${path}`, { ...init,
-        headers: { Accept: 'application/json', ...headersForCredential(input.credential), ...(init?.headers as Record<string, string> | undefined) } });
-    } catch { throw new ShopApiError(0, 'NETWORK_ERROR'); }
-    const body: unknown = await response.json().catch(() => undefined);
-    if (!response.ok) {
-      const code = object(body) && string(body.code) ? body.code : `HTTP_${response.status}`;
-      if (shouldInvalidateSession(input.credential, response.status, code)) await input.onSessionInvalid?.();
-      throw new ShopApiError(response.status, code);
-    }
-    return body;
+      return await Promise.race([deadline, (async () => {
+        let response: Response;
+        try {
+          response = await fetcher(`${input.apiUrl.replace(/\/+$/, '')}${path}`, { ...init, signal: controller.signal,
+            headers: { Accept: 'application/json', ...headersForCredential(input.credential), ...(init?.headers as Record<string, string> | undefined) } });
+        } catch { throw new ShopApiError(0, 'NETWORK_ERROR'); }
+        const body: unknown = await response.json().catch(() => undefined);
+        if (!response.ok) {
+          const code = object(body) && string(body.code) ? body.code : `HTTP_${response.status}`;
+          if (shouldInvalidateSession(input.credential, response.status, code)) await input.onSessionInvalid?.();
+          throw new ShopApiError(response.status, code);
+        }
+        return body;
+      })()]);
+    } finally { clearTimeout(timer!); }
   }
   return {
     getShop: async () => parseGradeDrawShop(await request('/shop/draw-pools')),

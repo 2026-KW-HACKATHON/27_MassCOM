@@ -1,4 +1,5 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
+import { shouldInvalidateSession } from '@/auth/session-invalid';
 
 export type NotificationCategory = 'REWARD_AVAILABLE' | 'COUPON_EXPIRING' | 'CAMPAIGN_EXPIRING';
 export type NotificationItem = {
@@ -10,13 +11,18 @@ export type NotificationPreferences = {
 };
 
 export class NotificationApiClient {
-  constructor(private readonly apiUrl: string, private readonly credential: AccountCredential) {}
+  constructor(private readonly apiUrl: string, private readonly credential: AccountCredential, private readonly onSessionInvalid?: () => void | Promise<void>) {}
   private async request(path: string, method = 'GET', body?: unknown): Promise<any> {
     const response = await fetch(`${this.apiUrl}${path}`, {
       method, headers: { ...headersForCredential(this.credential), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    if (!response.ok) throw new Error(`NOTIFICATION_API_${response.status}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => undefined);
+      const code = payload && typeof payload.code === 'string' ? payload.code : '';
+      if (shouldInvalidateSession(this.credential, response.status, code)) await this.onSessionInvalid?.();
+      throw new Error(`NOTIFICATION_API_${response.status}`);
+    }
     return response.status === 204 ? undefined : response.json();
   }
   async list(): Promise<NotificationItem[]> { const result = await this.request('/api/notifications'); return result.items; }

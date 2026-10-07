@@ -28,9 +28,10 @@ export function useShop(api: ShopApiClient) {
   const refreshQuietly = useCallback(() => loader.load(true), [loader]);
   const applyReroll = useCallback((result: ShopRerollResult) => loader.applyReroll(result), [loader]);
   const applyAvatar = useCallback((avatar: string | null) => loader.applyAvatar(avatar), [loader]);
+  const applyBalance = useCallback((balance: number) => loader.applyBalance(balance), [loader]);
 
   return {
     snapshot: state.snapshot, status: state.status, error: state.error, retrying,
-    retry, refreshQuietly, applyReroll, applyAvatar,
+    retry, refreshQuietly, applyReroll, applyAvatar, applyBalance,
   };
 }

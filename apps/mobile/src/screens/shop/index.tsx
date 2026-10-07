@@ -94,6 +94,11 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       if (!saved) await writeFurniturePending(furnitureKey, attempt);
       setFurniturePending(attempt);
       const result = await furnitureApi.purchaseFurniture(attempt.itemId, attempt.requestId);
+      shop.applyBalance(result.balance);
+      drawRequestGeneration.current += 1;
+      setStoredDrawShop((previous) => previous?.key === drawScopeKey
+        ? { ...previous, value: { ...previous.value, balance: result.balance } } : previous);
+      void refreshDrawShop();
       await clearFurniturePending(furnitureKey);
       setFurniturePending(undefined); setFurnitureChoice(undefined);
       setFurnitureMessage('가구를 보관함에 넣었어요. 마이룸에서 배치할 수 있어요.');
@@ -121,14 +126,16 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const drawError = storedDrawError?.key === drawScopeKey ? storedDrawError.value : undefined;
   const drawLoading = !drawShop && !drawError;
   const drawApiRef = useRef(drawApi);
+  const drawRequestGeneration = useRef(0);
   useEffect(() => { drawApiRef.current = drawApi; }, [drawApi]);
   const refreshDrawShop = useCallback(async () => {
+    const generation = ++drawRequestGeneration.current;
     try {
       const next = await drawApi.getShop();
-      if (drawApiRef.current !== drawApi) return false;
+      if (drawApiRef.current !== drawApi || drawRequestGeneration.current !== generation) return false;
       setStoredDrawShop({ key: drawScopeKey, value: next }); setStoredDrawError(undefined); return true;
     } catch (error) {
-      if (drawApiRef.current !== drawApi) return false;
+      if (drawApiRef.current !== drawApi || drawRequestGeneration.current !== generation) return false;
       setStoredDrawError({ key: drawScopeKey, value: shopErrorMessage(error) }); return false;
     }
   }, [drawApi, drawScopeKey]);

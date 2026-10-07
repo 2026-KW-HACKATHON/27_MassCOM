@@ -365,6 +365,8 @@ export function shopErrorMessage(error: unknown): string {
       return '로그인이 만료됐어요. 다시 로그인해 주세요.';
     case 'NETWORK_ERROR':
       return '네트워크에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.';
+    case 'REQUEST_TIMEOUT':
+      return '응답이 늦어졌어요. 이전 뽑기 결과를 같은 요청으로 다시 확인해 주세요.';
     case 'INVALID_RESPONSE':
       return '서버 응답을 확인하지 못했어요. 잠시 뒤에 다시 시도해 주세요.';
     default:

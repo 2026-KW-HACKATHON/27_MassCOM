@@ -13,5 +13,5 @@ export default function NotificationsRoute() {
   if (!publicApiConfig.available) return <SkyBackdrop><SkyScrollView header={<BackHeader title="알림함" />}>
     <DemoConfigurationRequired title="알림함에 API 연결이 필요합니다." missing={['EXPO_PUBLIC_API_URL']} />
   </SkyScrollView></SkyBackdrop>;
-  return <NotificationCenter key={auth.accountId} apiUrl={publicApiConfig.apiUrl} credential={auth.credential} />;
+  return <NotificationCenter key={auth.accountId} apiUrl={publicApiConfig.apiUrl} credential={auth.credential} onSessionInvalid={auth.invalidateSession} />;
 }
