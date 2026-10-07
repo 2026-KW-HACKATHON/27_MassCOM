@@ -1,0 +1,4 @@
+/* 한국어 안내가 어절 중간에서 끊기지 않게 해요. */
+html, body, #root, #root * {
+  word-break: keep-all !important;
+}

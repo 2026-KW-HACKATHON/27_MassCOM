@@ -1,5 +1,23 @@
 # AI 사용 기록
 
+## 2026-10-08 운영 배포·새 설치본·공개 체험 후속 (Issue #401)
+
+Claude sonnet이 배포 직후 공개 웹의 5분 시연 17단계를 실측했다. 기능 PASS, 콘솔 오류·HTTP 4xx/5xx 0건이며 결함 4건을 발견했다. 원자료와 캡처 67장은 [공개 체험 기록](evidence/submission-2026-10-08/README.md)·[flow-result.json](evidence/submission-2026-10-08/flow-result.json)에 보존한다. Codex가 `9f5ebfa6`에서 수정했고 독립 Codex `gpt-6.1-sol` high 리뷰 APPROVE와 모바일 1,876/1,876·typecheck·lint·접근성·gate PASS를 기록했다. 수정 후 공개 `/play/` 전환·재측정은 예정이다.
+
+이번 Codex 문서 작업은 사용자 제공 사실을 기존 증거 JSON·설치 안내·현재 요약에 반영했다. 문서 담당과 검사 통합을 분리했으며 실제 실행한 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 기록한다. git 조작·`apps/**` 수정·캡처 폴더 수정·원격 배포는 하지 않았다. 운영 배포 사실과 새 APK 게시 사실을 최신 설치본 실기 수용으로 바꾸지 않는다.
+
+## 2026-10-08 배포 기록·설치 링크 후속 (Issue #401)
+
+Codex가 사용자가 제공한 배포·복원·Android 릴리스 사실을 기존 JSON·문서 형식으로 기록하고 `/open`을 test.11·Preview 20으로 갱신했다. 현재 요약 4문서는 독립 담당이 갱신했으며 이전 설치본 실기 결과를 최신 결과로 재사용하지 않았다. 기존 버튼 구조·검사기를 유지하고 고정 릴리스 기대값만 갱신했다. 서버·릴리스·git 상태 변경과 `docs/evidence/submission-2026-10-08/` 캡처 폴더 변경은 없다.
+
+이번 로컬 문서 검사 결과는 [TEST_STATUS](TEST_STATUS.md)의 배포 기록·설치 링크 검사 절에 기록한다. 서버 사실은 제공 기록이며 이번 세션의 원격 재검증이 아니다. 운영 배포·공개 `/open` 반영·최신 APK 실기는 후속 검증이다.
+
+## 2026-10-08 전체 점검 결함 수정과 제출 준비 (Issue #401)
+
+Claude Opus 5.5가 지휘·통합·커밋을 맡았고 Codex `gpt-6.1-sol`이 구현(high, UI는 medium)을 맡았다. 리뷰는 Codex `gpt-6.1-sol` xhigh/high와 Claude sonnet 보안 교차 리뷰로 진행했다. UI 시각 점검·경쟁 서비스 조사는 Claude sonnet이 웹 출처 19건을 직접 열람했다. 독립 리뷰 지적 수정 후 재리뷰는 진행 중이다.
+
+이 문서 갱신은 제공 사실과 `git log --oneline 8b336ece..HEAD`를 근거로 README·시험 상태·프로젝트 상태·AI 사용·현재 인수인계만 정리한다. git 상태 변경은 하지 않는다. 로컬 검증은 [TEST_STATUS](TEST_STATUS.md), 배포 조건은 [HANDOFF](HANDOFF.md)에 구분하며 PR·CI·공개 반영 완료를 주장하지 않는다.
+
 ## 2026-10-07 등급 전체 뽑기 오류 문구 구분
 
 Claude Code가 뽑기 실패가 모두 "요청을 처리하지 못했어요"로 보이던 문제를 재현 조사했다. 로컬 DB에서 뽑기 서비스 자체는 성공했고, 앱이 동의 필요·뽑기 미준비·서버 오류 코드의 안내 문구를 갖지 않던 점만 `shop-api.ts`와 시험에 고쳤다. 서버 규칙·보상·확률은 바꾸지 않았다. 모바일 `shop-api` 시험 10/10과 타입 통과, 전체 모바일은 main에도 있는 기존 실패 7건 외 변화 없음. 실제 원인 계정의 동의 상태는 `NOT_RUN`.

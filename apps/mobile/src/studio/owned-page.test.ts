@@ -30,8 +30,8 @@ test('선택 화면은 페이지 항목만 표시하고 확대 글자의 이름�
   const source = readFileSync(new URL('../screens/studio/index.tsx', import.meta.url), 'utf8');
   assert.match(source, /page\.items\.map\(/);
   assert.doesNotMatch(source, /owned\.map\(/);
-  assert.match(source, /<Text style={styles\.rowTitle}>{item\.displayName}<\/Text>/);
-  assert.match(source, /<Text style={styles\.rowMeta}>{item\.merchantName}<\/Text>/);
+  assert.match(source, /<Text style=\{\[styles\.rowTitle, \{ color: palette\.label \}\]\}>\{item\.displayName\}<\/Text>/);
+  assert.match(source, /<Text style=\{\[styles\.rowMeta, \{ color: palette\.secondaryLabel \}\]\}>\{item\.merchantName\}<\/Text>/);
   assert.match(source, /accessibilityRole="button" accessibilityState={{ disabled: !page\.hasNext }}/);
   assert.match(source, /setCollectionPage\(page\.page \+ 1\)/);
   assert.match(source, /setCollectionPage\(page\.page - 1\)/);

@@ -249,6 +249,13 @@ test('discovery keeps same-name branches, unlocated stores and ended campaigns d
 
   const report = await service.report('rw-reporter', 'rw-a', { kind: 'HOURS', note: '운영시간 확인 요청' });
   assert.equal((await service.reports('rw-owner', 'rw-a'))[0]?.id, report.id);
+  const singleConnection = new Pool({ connectionString, max: 1, connectionTimeoutMillis: 1000 });
+  t.after(() => singleConnection.end());
+  const singleConnectionService = new PostgresRealWorldService(singleConnection, { accountLifecycle: lifecycle });
+  const parallelReports = await Promise.all([1, 2].map(index => singleConnectionService.report('rw-reporter', 'rw-a',
+    { kind: 'HOURS', note: `단일 연결 확인 ${index}` })));
+  assert.equal(parallelReports.length, 2);
+  assert.ok(parallelReports.every(item => item.merchantId === 'rw-a'));
   assert.equal((await service.resolveReport('rw-owner', 'rw-a', report.id,
     { status: 'RESOLVED', resolution: '점주가 확인함' })).status, 'RESOLVED');
   const eventId = randomUUID();

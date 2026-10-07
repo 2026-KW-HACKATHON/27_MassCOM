@@ -194,6 +194,34 @@ test('R02 a repeated enrollment request is idempotent and does not reuse a secon
   assert.equal(state.rows[0]?.enrolled_count, 1);
 });
 
+test('R02 unique-conflict recovery reuses its held database connection', async t => {
+  const pool = new Pool({ connectionString: requiredTestDatabaseUrl(), max: 1, connectionTimeoutMillis: 200 });
+  t.after(() => pool.end());
+  await runMigrations(pool);
+  await seedEnrollmentFixture(pool);
+  await seedCampaign(pool, { merchantId: 'merchant-unique', campaignId: 'campaign-unique', capacity: 3 });
+  await pool.query(`INSERT INTO campaign_enrollments (id,campaign_id,account_id,enrolled_at)
+    VALUES ($1,'campaign-unique','account-unique',now())`, ['70000000-0000-4000-8001-000000000099']);
+  await pool.query(`UPDATE campaigns SET enrolled_count=1 WHERE id='campaign-unique'`);
+  // 첫 조회만 경합 직전의 오래된 결과로 대체해 실제 UNIQUE 충돌 복구 분기를 실행한다.
+  let staleRead = true;
+  const singleConnectionPool = { query: pool.query.bind(pool), connect: async () => {
+    const client = await pool.connect();
+    return { query: async (sql: string, params?: unknown[]) => {
+      if (staleRead && sql.includes('FROM campaign_enrollments')) {
+        staleRead = false;
+        return { rows: [] };
+      }
+      return client.query(sql, params);
+    }, release: () => client.release() };
+  } } as unknown as Pool;
+  const service = new PostgresCampaignEnrollmentService(singleConnectionPool,
+    { now: () => new Date('2026-09-20T03:00:00.000Z') });
+  const result = await service.enroll({ campaignId: 'campaign-unique', accountId: 'account-unique' });
+  assert.equal(result.created, false);
+  assert.equal(result.enrollmentId, '70000000-0000-4000-8001-000000000099');
+});
+
 test('R02 rejects enrollment into a missing or non-public campaign', async (t) => {
   const pool = new Pool({ connectionString: requiredTestDatabaseUrl() });
   t.after(() => pool.end());

@@ -1313,7 +1313,7 @@ export function createApiServer(
           if (request.method === 'POST') {
             if (body.platform !== 'android') throw new NotificationError('INVALID_NOTIFICATION');
             await notifications.registerDevice(accountId, deviceId, requireString(body, 'token'), body.platform, requireBearerToken(request));
-          } else await notifications.unregisterDevice(accountId, deviceId);
+          } else await notifications.unregisterDevice(accountId, deviceId, requireBearerToken(request));
           response.writeHead(204).end();
         } else if (readMatch && request.method === 'POST') {
           await notifications.markRead(accountId, decodePathParameter(readMatch[1]!));

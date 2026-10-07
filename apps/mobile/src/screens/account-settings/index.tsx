@@ -11,7 +11,7 @@ import type { StoredAuthSessionV1 } from '@/auth/session-store';
 import { guestTrialAccountLabel, guestTrialRestartLabel, guestTrialRestartConfirmation } from '@/auth/guest-trial-copy';
 import { accountContextLabel } from '@/config/app-context';
 import { canOpenMerchantDemo, demoRuntimeConfig } from '@/config/demo-runtime';
-import { canOpenShowcaseTour } from '@/navigation/showcase-entry';
+import { canOpenShowcaseTour, showShowcaseRoleEntry } from '@/navigation/showcase-entry';
 import {
   AccountDeletionApiClient,
   AccountDeletionApiError,
@@ -303,10 +303,10 @@ export function AccountSettingsScreen({
             <Text selectable style={styles.intro}>
               로그인과 개인정보를 관리합니다. 외부 지갑은 앱 계정과 별도로 관리됩니다.
             </Text>
-            <Text selectable style={styles.accountDiagnostic}>
+            {!showShowcaseRoleEntry(getAppPackageId()) ? <Text selectable style={styles.accountDiagnostic}>
               현재 계정 {shortAccountId(accountId)} · {credential.kind === 'bearer'
                 ? `${accountContextLabel(getAppPackageId())} 세션` : '개발 DEMO'}
-            </Text>
+            </Text> : null}
             {session?.guest ? <Text selectable style={styles.intro}>{guestTrialAccountLabel(session.expiresAt)}</Text> : null}
             {experience.snapshot ? <Text style={styles.intro}>대표 배지 {experience.snapshot.catalog.badges.find((badge) => badge.id === experience.snapshot?.profile.badgeId)?.name ?? '미장착'} · 대표 코인 {experience.snapshot.profile.coinEntitlementId ? '설정됨' : '미설정'}</Text> : null}
             <Link href="/studio" asChild><Pressable accessibilityRole="button"><Text style={styles.intro}>아바타와 배지 꾸미기 ›</Text></Pressable></Link>

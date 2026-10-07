@@ -1,4 +1,4 @@
-import { usePathname, useRouter } from 'expo-router';
+import { usePathname, useRouter, useSegments } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Keyboard, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { TabSlot } from './floating-tab-bar';
 export function ContextTabBar({ onFootprint }: { onFootprint?: (height: number) => void }) {
   const pathname = usePathname();
   const router = useRouter();
+  const insideTabs = useSegments()[0] === '(tabs)';
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
   const { appearance } = useTabAppearance();
@@ -30,6 +31,6 @@ export function ContextTabBar({ onFootprint }: { onFootprint?: (height: number) 
     boxShadow: '0 3px 18px rgba(20, 56, 45, 0.10)' }}>
     {primaryDestinations.map((destination, index) => <TabSlot key={destination.href} name={destination.glyph} home={index === 2}
       label={destination.label} selected={active === index} colors={colors} filled={appearance.icons === 'filled'}
-      onPress={() => router.dismissTo(destination.href)} />)}
+      onPress={() => insideTabs ? router.navigate(destination.href) : router.dismissTo(destination.href)} />)}
   </View>;
 }

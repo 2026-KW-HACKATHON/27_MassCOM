@@ -1,5 +1,87 @@
 # 테스트 상태
 
+## 2026-10-08 운영 배포·새 설치본·공개 체험 실측 (Issue #401 후속)
+
+기준 main `09dfceb0b39beaa8afe39bcc4bced471f9eb582c`, 작업 브랜치 `fix/play-web-navigation`, 수정·APK 소스 `9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49`. 다음 표는 사용자 제공 2026-10-08 KST 실행 사실이며 이번 문서 작업의 원격 재검증이 아니다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 운영 배포 | PASS | `scripts/deploy-lightsail.sh --deploy`, 이전 `aae64d88`→main `09dfceb0`; 백업 186,604바이트·mode 600, migration 43→68건, API·웹 healthy, Caddy 재생성, retention 첫 실행 success. `backward_compatible=no`, 자동 복귀 금지. [배포 증거](evidence/production-deployment-09dfceb-2026-10-08.json) |
+| 공개 확인 | PASS | 운영 health 200·coin-shop 401, www `/`·`/app/`·`/admin/`·`/open` 200; `/open`은 test.11·Preview 20 링크. 시연 health·play 200 유지 |
+| 배포 직후 공개 웹 5분 시연 | PASS | 17단계 기능 PASS, 콘솔 오류·HTTP 4xx/5xx 0건. [캡처 67장·README](evidence/submission-2026-10-08/README.md)·[원자료](evidence/submission-2026-10-08/flow-result.json). 발견 결함 4건은 `9f5ebfa6` 수정 |
+| 내비게이션·축하 화면 수정 | PASS | 제공 기록: 모바일 1,876/1,876·typecheck·lint·접근성·gate PASS, 독립 Codex `gpt-6.1-sol` high APPROVE |
+| 시연 Preview 21 게시 | PASS | `9f5ebfa`, 약 330MB·시연 package·시연 키·demo-api만 내장·RECORD_AUDIO 없음. [릴리스 증거](evidence/showcase-preview21-release-2026-10-08.json). 실기 수용 NOT_RUN |
+| 운영 test.12 게시 | PASS | `9f5ebfa`, 약 324MB·운영 package·업로드 키·AAB 서명·지갑 표면·RECORD_AUDIO 없음. 첫 signReleaseBundle 일시 실패 뒤 데몬 정리·재시도 PASS. [릴리스 증거](evidence/operating-android-test12-2026-10-08.json). 실기 수용 NOT_RUN |
+| 수정 후 공개 반영·재측정 | NOT_RUN | 이 PR 병합→운영 웹 재배포(API 변경·migration 없음)→`/play/` 9f5ebfa 번들 전환→같은 흐름 재측정 |
+
+두 APK 내부 versionName/Code는 `0.1.0-test.2`/`2`다. 필수 36개 ID의 기존 집계는 변경하지 않는다. 아래 배포 진행 중·이전 설치본 기록은 당시 이력이다.
+
+### 이번 문서 작업의 로컬 검사
+
+환경: macOS, 현재 `fix/play-web-navigation` worktree, 2026-10-08 KST. 다음은 이번 세션에서 직접 실행한 문서·정적 검사다.
+
+| 명령 | 결과 |
+| --- | --- |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/demo_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/judging_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/operations_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_project_site_test.sh` | PASS (exit 0) |
+| `bash tests/site/check_site_accessibility_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0) |
+| `node --test tests/site/legal-pages.test.mjs tests/site/public-entry.test.mjs` | PASS (14/14, exit 0) |
+| `node --test tests/ops/lightsail_readme_current_test.mjs` | PASS (2/2, exit 0) |
+
+첫 공개 진입 시험은 정규식에 남은 test.11·preview.20 때문에 FAIL했다. 기대 태그와 정규식을 test.12·preview.21로 함께 갱신한 뒤 14/14 PASS다. Lightsail 현재 상태 시험도 이전 배포 JSON 고정으로 처음 FAIL했고 새 운영 배포 증거의 SHA·migration 수를 대조하도록 갱신한 뒤 2/2 PASS다. 신규 증거 JSON 3개와 복원 증거는 구문·40자리 소스 SHA를 확인했다. 캡처 폴더의 모든 파일 해시·목록은 수정 전후 일치했다. git 조작·앱 수정·원격 재배포는 하지 않았다.
+
+## 2026-10-08 배포 기록·설치 링크 문서 검사 (Issue #401 후속)
+
+환경: 현재 `docs/submission-1008-deploy` worktree, 기준 main `2d483ed8`. 아래 결과는 이번 세션에서 직접 실행한 로컬 문서 검사이며 제공된 서버·APK 사실의 원격 재검증이 아니다. git 조작·커밋·배포와 캡처 폴더 변경은 하지 않았다.
+
+| 명령 | 결과 |
+| --- | --- |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/demo_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/judging_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/operations_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_project_site_test.sh` | PASS (exit 0) |
+| `bash tests/site/check_site_accessibility_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0) |
+| `node --test tests/site/legal-pages.test.mjs tests/site/public-entry.test.mjs` | PASS (14/14, exit 0) |
+
+포털 검사의 첫 실행은 검사기가 test.10·Preview 19를 고정해 FAIL했다. 기존 검사 방식과 상단 버튼 구조는 유지하고 최신 릴리스 기대값을 test.11·Preview 20으로 갱신한 뒤 PASS했다. 새 증거 JSON 4개는 구문·40자리 소스 SHA를 확인했다. API/모바일 로직 변경은 없으며 운영 신규 배포·공개 `/open` 최신 링크·최신 APK 설치/실기는 `NOT_RUN`이다. 기존 필수 36개 상태 합계는 변경하지 않는다.
+
+## 2026-10-08 배포·복원 리허설 후속 (Issue #401)
+
+| 대상 | 결과 | 근거와 경계 |
+| --- | --- | --- |
+| 시연 DB 복원 | PASS | 서버 안 `scripts/db-restore-drill.sh`: 107개 테이블 행 수·migration 목록 일치, 임시 dump 4,138,147바이트·SHA-256 `5cc3a8863a8d7af5629a22d310697f7c584ab23e3da539c1a7b5cc6ceb20ed2d`(종료 시 삭제). 배포 전 백업은 별도 보존. [배포 기록](evidence/showcase-deployment-2d483ed-2026-10-08.json) |
+| 시연 API·웹 | PASS | main `2d483ed8645151b502253ac35860b3546e3473c5`, migration 43→68건(마지막 `0067_room_guestbook.sql`); `demo-api /health`·`/play/`·가상 점포 collectible-preview 200, 새 `/coin-shop` 401(인증 필요). retention 재설치·수동 실행 `Result=success`·`--verify` PASS. 지도 키 부재로 목록 기반 탐색. |
+| 시연 Android Preview 20 | PASS — 게시·다운로드 | 태그 `showcase-android-v0.1.0-preview.20`, APK SHA-256 `ac27151a1fdf49fbe8b59502746ef470df175d44802c0b0feaf1819db885603c`; 익명 다운로드 해시 일치. 설치·실기 수용은 별도. [릴리스 기록](evidence/showcase-preview20-release-2026-10-08.json) |
+| 운영 Android test.11 | PASS — 게시·다운로드 | 태그 `android-v0.1.0-test.11`, APK SHA-256 `f7d89fd4786459d40754739966ce78d989b6ff1cd59cdb142a95a490ec9c04be`; AAB 서명·지갑 표면·익명 다운로드 해시 PASS. 설치·실기 수용은 별도. [릴리스 기록](evidence/operating-android-test11-2026-10-08.json) |
+| 운영 DB 복원·migration 리허설(P03) | PASS | 서버 안 실제 복원: 107개 테이블 행 수 일치, 임시 dump 186,604바이트·SHA-256 `1360fdf8c3a5db62214b36f4541ad66e57515c093e46a9a7ff55a47a8c19cdd5`(삭제). 복제본 migration 43→68건·1.8초, `account_consents` 5=5·공개 점포 0; 복제본 삭제. 운영 DB 첫 실제 복원 증거. [리허설 기록](evidence/production-restore-rehearsal-2026-10-08.json) |
+| 운영 배포 | 진행 중 | 이 문서 PR 병합 직후 `backward_compatible=no`로 `scripts/deploy-lightsail.sh --deploy` 예정. 현재 운영 `api.masscom.kr/health`·`www`·`/app/` 200은 기존 서비스 유지 확인. 새 API·DB 배포 결과는 후속 기록. |
+
+## 2026-10-08 제출 준비 결함 수정 (Issue #401, 당시 로컬 검사)
+
+브랜치 `fix/submission-readiness`, 기준 main `8b336ece`. 2026-10-07 전체 점검 보고서는 저장소 밖에 있으며 아래 로컬 결과는 제공된 실행 기록이다. 수정 커밋은 `git log --oneline 8b336ece..HEAD`로 확인한다(문서 작성 시 최신 `439471d5`).
+
+| 검사 | 결과 | 환경·범위와 제한 |
+| --- | --- | --- |
+| API 단위·PostgreSQL | 567/567 PASS · 524 PASS / 3 SKIP | 전용 55435 hosted seed 컨테이너 조건; API typecheck·build PASS |
+| 모바일 | 1,872/1,872 PASS | typecheck·lint, 운영·시연 Android export, variant 자산·접근성 의미 PASS; 설치본 수용과 별도 |
+| 사이트 | PASS | legal·showcase·design tokens·production web·real-world merchant·collectible·commercial·build_public_site·aws routes |
+| 운영 | PASS | deploy_lightsail·rollback·restore drill 실DB·compose push token·lightsail readme; 공개 운영 DB 복원·배포와 별도 |
+| 통합 gate | PASS | 2026-10-08 이 브랜치의 `bash tools/gate.sh` 제공 기록 |
+| 독립 리뷰·CI | 재리뷰 진행 중 · CI 대기 | Codex Sol 6.1 xhigh(서버·운영·모바일 인증), high(웹·모바일 UI)의 지적 수정 후 재리뷰; CI는 PR에서 확인 |
+| 공개 반영 | NOT_RUN | 운영·시연 공개본 `db280032` 유지. 병합·시연 배포·운영 실데이터 리허설은 별도 |
+
+당시 제출 준비 문서 작업에서 직접 실행한 검사(2026-10-08, `fix/submission-readiness`): `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/bootstrap/demo_submission_readiness_test.sh`, `bash tests/bootstrap/judging_submission_readiness_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tools/gate.sh` 모두 PASS(각 종료 0).
+
+수정 범위와 배포 조건은 [PROJECT_STATE](PROJECT_STATE.md), 다음 순서는 [HANDOFF](HANDOFF.md)를 따른다. 기존 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 추가 로컬 검사로 변경하지 않는다.
+
 ## 2026-10-07 뽑기 동의 필요 오류와 동의 확인 경로
 
 브랜치 `fix/grade-draw-error-messages`, 기준 main `8b336ece`, 커밋 3469ed8a·fdd72d2a. 등급 전체 뽑기가 서버의 `CONSENT_REQUIRED`(403)를 일반 실패 문구로만 보여 주던 결함을 고쳤다. Windows 11 로컬에서 모바일 타입 검사 PASS, 린트 PASS, `shop-api` 10/10·`consent-flow` 9/9·상점 `index` 19/19·`consent-recheck` PASS, 전체 모바일 1832 PASS/7 FAIL이다. 실패 7건은 변경 전 main에서도 같은 항목이 실패하며 이번 변경과 무관하다. 로컬 테스트 DB에서 뽑기 서비스를 직접 호출해 서비스 자체는 정상임을 확인했고 원인은 HTTP 단계의 동의 검사였다.

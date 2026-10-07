@@ -338,7 +338,7 @@ function SkyBackdrop({ theme }: { theme: GamificationTheme }) {
   const { medal, scheme } = theme;
   const cloud = scheme === 'dark' ? 0.06 : 0.55;
   return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Svg style={[StyleSheet.absoluteFill, { width: '100%', height: '100%' }]} pointerEvents="none">
       <Defs>
         <LinearGradient id="celebrationSky" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={medal.sky[0]} />

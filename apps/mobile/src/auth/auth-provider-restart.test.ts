@@ -4,6 +4,7 @@ import { after, afterEach, before, beforeEach, mock, test } from 'node:test';
 
 import type { AuthSessionContextValue } from './auth-provider';
 import type { StoredAuthSessionV1 } from './session-store';
+import { discoveryState } from '../merchant/discovery-state';
 
 const authSessionKey = 'masscom.auth.session.v1';
 const bindingKey = '@masscom:social-push-binding:v1';
@@ -39,6 +40,7 @@ let friendLinkModule: typeof import('../friends/pending-friend-link');
 const platform = { OS: 'web' };
 let pushTokenListener: ((token: unknown) => void) | undefined;
 let notificationResponseListener: ((response: unknown) => void) | undefined;
+let unregisterNotificationDevice: () => Promise<void> = async () => undefined;
 const notifications = {
   getPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
   requestPermissionsAsync: async () => ({ granted: true, status: 'granted' }),
@@ -243,7 +245,7 @@ before(async () => {
     if (request === 'expo-secure-store') return secureStore;
     if (request === 'expo-crypto') return { randomUUID: () => 'notification-device-1' };
     if (request === 'expo-device') return { isDevice: true };
-    if (request === '@/notifications/native') return { unregisterCurrentNotificationDevice: async () => undefined };
+    if (request === '@/notifications/native') return { unregisterCurrentNotificationDevice: () => unregisterNotificationDevice() };
     if (request === 'react-native-nitro-google-signin') return { GoogleOneTapSignIn: {} };
     if (request === '@/wallet/appkit') return { createAccountScopedAppKit: () => null, walletRuntimeConfig: { available: false } };
     if (request === '@/wallet/appkit-storage') return { listAppKitStorageKeys: async () => [], removeAppKitStorageKeys: async () => undefined };
@@ -263,9 +265,11 @@ beforeEach(() => {
   resetRenderer();
   secureStorage.clear();
   asyncStorage.clear();
+  discoveryState.restore(null);
   platform.OS = 'web';
   pushTokenListener = undefined;
   notificationResponseListener = undefined;
+  unregisterNotificationDevice = async () => undefined;
   friendLinkModule.clearPendingFriendLink();
   storageModule.resetSocialPushStorageMutationQueueForTest();
 });
@@ -387,4 +391,41 @@ test('provider restart keeps durable old push cleanup intent when server delete 
     pendingUnregisterTokens: [],
   });
   assert.deepEqual(readAuthSession(), newSession);
+});
+
+test('logout clears the local session when social push deletion never replies', async () => {
+  seedAuthSession(oldSession);
+  seedPushBinding({ apiUrl: 'http://127.0.0.1:8787', accountId: oldSession.accountId, token: 'ExponentPushToken[old]', appVariant: 'ANDROID', status: 'REGISTERED', deviceId: 'device-1', bindingRevision: 1 });
+  seedDeviceState(1);
+  const fetcher = installProviderFetch({ holdPushDelete: true });
+  const value = await renderUntilSignedIn();
+  discoveryState.setFilters({ query: 'A의 검색어' });
+  discoveryState.setOrigin({ latitude: 37.621, longitude: 127.055, basis: 'MANUAL' });
+  const logout = value.logout();
+  await waitFor(() => fetcher.heldPushDeletes.length === 1);
+  await logout;
+  assert.equal(readAuthSession(), undefined);
+  assert.ok(fetcher.calls.some((call) => call.path === '/auth/logout'));
+  renderProvider();
+  runPendingEffects();
+  assert.equal(discoveryState.snapshot().filters.query, '');
+  assert.equal(discoveryState.snapshot().origin, null);
+});
+
+test('logout clears the local session when notification device deletion never replies', async () => {
+  seedAuthSession(oldSession);
+  installProviderFetch();
+  unregisterNotificationDevice = () => new Promise(() => undefined);
+  const value = await renderUntilSignedIn();
+  await value.logout();
+  assert.equal(readAuthSession(), undefined);
+});
+
+test('account switch reaches local session cleanup when notification deletion never replies', async () => {
+  seedAuthSession(oldSession);
+  installProviderFetch();
+  unregisterNotificationDevice = () => new Promise(() => undefined);
+  const value = await renderUntilSignedIn();
+  await assert.rejects(value.switchAccount());
+  assert.equal(readAuthSession(), undefined);
 });

@@ -148,7 +148,7 @@ export function makeGamificationStyles(palette: AppColors, medal: MedalColors) {
     bigInkStampText: { color: medal.stampInk, fontSize: 24, fontWeight: '900', letterSpacing: 1.5, textAlign: 'center' },
 
     // Reveal & celebration
-    fullScreen: { flex: 1 },
+    fullScreen: { flex: 1, backgroundColor: medal.sky[2] },
     celebrationScroll: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 24, paddingBottom: 32 },
     celebrationClose: { position: 'absolute', right: 8, zIndex: 2 },
     stage: { width: 220, height: 220, alignItems: 'center', justifyContent: 'center' },

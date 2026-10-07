@@ -1,0 +1,65 @@
+{
+  "observedAt": "2026-10-08 KST",
+  "sourceCommit": "2d483ed8645151b502253ac35860b3546e3473c5",
+  "sourceBranch": "main (PR #403 병합)",
+  "equivalentTreeCommit": "74e47887c1c56da255271cdf1651f1f14c9044a3",
+  "issues": [
+    401
+  ],
+  "scope": "시연 API·DB·호스트 시드·웹 체험 배포 완료. 운영 배포는 진행 중이며 이 문서 PR 병합 직후 예정이다.",
+  "showcase": {
+    "restoreDrill": {
+      "status": "PASS",
+      "command": "scripts/db-restore-drill.sh (서버 안 실행)",
+      "tables": 107,
+      "comparison": "테이블 행 수·migration 목록 일치",
+      "dumpBytes": 4138147,
+      "dumpSha256": "5cc3a8863a8d7af5629a22d310697f7c584ab23e3da539c1a7b5cc6ceb20ed2d",
+      "cleanup": "임시 dump는 종료 시 삭제"
+    },
+    "backup": "/opt/masscom-showcase/backups/pre-2d483ed-20261008.dump: 4138147바이트, mode 600",
+    "image": "masscom-showcase-api:2d483ed (서버 빌드, 415MB)",
+    "schemaMigrationsBefore": 43,
+    "schemaMigrationsAfter": 68,
+    "migration": "PASS; 약 5초, 마지막 0067_room_guestbook.sql",
+    "apiContainer": "healthy; 2026-10-07T16:24:49Z 시작",
+    "seed": "SHOWCASE_HOST_SEEDED; A·B {bronze,gold,silver}, C {bronze,prism,silver}; 세 캠페인 종료 2026-11-06 16:24:56 UTC",
+    "retentionTimer": "PASS; install.sh 재설치·수동 실행 Result=success·install.sh --verify 통과",
+    "webTrialBundle": {
+      "status": "PASS",
+      "sourceCommit": "74e47887c1c56da255271cdf1651f1f14c9044a3",
+      "lang": "ko",
+      "releaseDirectory": "/opt/masscom-showcase/web/releases/74e47887c1c56da255271cdf1651f1f14c9044a3",
+      "activation": "current 전환·edge Caddy 재시작",
+      "servedEntry": "entry-ebddb4fbc0c546e5c1cc333fd76e7a62.js"
+    },
+    "public": {
+      "https://demo-api.masscom.kr/health": 200,
+      "https://demo-api.masscom.kr/play/": 200,
+      "collectible-preview": "200; 가상 점포",
+      "/coin-shop": "401; 인증 필요, 경로 존재"
+    },
+    "maps": "TMAP/NAVER 지도 키 없음; 목록 기반 탐색"
+  },
+  "operating": {
+    "deploy": "배포 진행 중; 이 문서 PR 병합 커밋으로 backward_compatible=no 증거와 scripts/deploy-lightsail.sh --deploy 실행 예정. 결과는 후속 기록.",
+    "restoreEvidence": "docs/evidence/production-restore-rehearsal-2026-10-08.json"
+  },
+  "externalHttps": {
+    "status200": [
+      "https://api.masscom.kr/health",
+      "https://www.masscom.kr/",
+      "https://www.masscom.kr/app/"
+    ],
+    "openPage": {
+      "note": "이 문서 PR의 test.11·Preview 20 링크는 운영 웹 배포 뒤 공개 반영된다. 공개 /open 링크 확인은 NOT_RUN."
+    }
+  },
+  "notRun": [
+    "운영 신규 API·웹 배포 결과",
+    "공개 /open 최신 링크 확인",
+    "새 APK 실제 휴대전화·로그인·QR·지갑",
+    "브라우저 웹 체험",
+    "TalkBack"
+  ]
+}

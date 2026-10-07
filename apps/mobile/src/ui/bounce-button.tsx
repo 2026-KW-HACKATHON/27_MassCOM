@@ -28,6 +28,7 @@ export function BounceButton({ label, onPress, variant = 'primary', disabled }: 
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ disabled }}
       disabled={disabled}
       onPressIn={() => { if (enabled) scale.set(withSpring(motion.pressScale, motion.spring)); }}

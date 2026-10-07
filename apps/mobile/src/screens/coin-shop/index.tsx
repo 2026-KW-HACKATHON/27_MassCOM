@@ -51,12 +51,14 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const current = useRef(true);
   const inFlight = useRef(false);
   const focusEpoch = useRef(0);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async (showLoading = false) => {
+    const generation = ++loadGeneration.current;
     if (showLoading) setLoading(true);
-    try { const next = await api.getShop(); if (current.current) { setShop(next); setNow(Date.now()); } }
-    catch (error) { if (current.current) setMessage(coinErrorMessage(error)); }
-    finally { if (current.current) setLoading(false); }
+    try { const next = await api.getShop(); if (current.current && loadGeneration.current === generation) { setShop(next); setNow(Date.now()); } }
+    catch (error) { if (current.current && loadGeneration.current === generation) setMessage(coinErrorMessage(error)); }
+    finally { if (current.current && loadGeneration.current === generation) setLoading(false); }
   }, [api]);
 
   const recover = useCallback(async () => {
@@ -74,6 +76,8 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       if (!current.current) return;
       setPending(undefined);
       setMessage('가게 뽑기권 한 장을 받았어요. 사용하면 코인 한 개가 나와요.');
+      loadGeneration.current += 1;
+      setLoading(false);
       setShop((old) => old && { ...old, mileage: { ...old.mileage, balance: purchased.balance },
         tickets: [purchased.ticket, ...old.tickets.filter((ticket) => ticket.id !== purchased.ticket.id)] });
       void load();
@@ -116,6 +120,8 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       await clearCoinPending(pendingKey);
       if (!current.current) return;
       setPending(undefined);
+      loadGeneration.current += 1;
+      setLoading(false);
       setShop((old) => old && { ...old, mileage: { ...old.mileage, balance: purchased.balance },
         tickets: [purchased.ticket, ...old.tickets.filter((ticket) => ticket.id !== purchased.ticket.id)] });
       setMessage('가게 뽑기권 한 장을 받았어요. 아래에서 사용할 수 있어요.');
@@ -138,6 +144,8 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       if (!current.current) return;
       await AsyncStorage.removeItem(ticketUseKey);
       setPendingTicketId(undefined);
+      loadGeneration.current += 1;
+      setLoading(false);
       setShop((old) => old && { ...old, tickets: old.tickets.map((ticket) => ticket.id === ticketId ? used.ticket : ticket) });
       setResult(used.coin);
       setResultTicketId(used.ticket.id);
@@ -203,7 +211,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       action={{ label: '다시 불러오기', onPress: () => void load(true) }} /> : null}
     {shop ? <>
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>받은 뽑기권</Text>
-      {shop.tickets.filter((ticket) => ticket.status === 'UNUSED').length === 0 ? <Text style={{ color: palette.secondaryLabel }}>아직 사용할 뽑기권이 없어요.</Text> :
+      {shop.tickets.filter((ticket) => ticket.status === 'UNUSED').length === 0 ? <StateScene kind="empty" title="아직 사용할 뽑기권이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
         shop.tickets.filter((ticket) => ticket.status === 'UNUSED').map((ticket) => {
           const pool = shop.pools.find((candidate) => candidate.id === ticket.poolId);
           const totalWeight = pool?.entries.reduce((sum, item) => sum + item.weight, 0) ?? 0;

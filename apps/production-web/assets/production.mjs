@@ -5,6 +5,7 @@ const COLLECTION_URL = '/api/web/collection';
 const BADGES_URL = '/api/web/badges';
 const BADGES_TIMEOUT_MS = 8000;
 const CONSENT_URL = '/api/web/consent';
+const REQUEST_TIMEOUT_MS = 8000;
 // index.html이 보여 주는 이용약관·개인정보 문구의 버전(Issue #253). 서버 상수와 공개 페이지의 버전은 시험이 서로 비교한다.
 // 서버가 다른 버전을 요구하면 이 화면의 문구에는 동의를 받지 않고 새로 열도록 안내한다.
 const CONSENT_TERMS_VERSION = 'terms-2026-10-06';
@@ -117,16 +118,34 @@ async function fetchBadges(fetcher, timeoutMs) {
   }
 }
 
-// 서버가 "동의 필요"라고 하지 않은 경우에만 도감을 읽는다. 확인하지 못하면 막힌 채로 두지 않고 다시 시도를 보인다.
-async function readConsent(fetcher) {
+// 헤더뿐 아니라 본문 수신까지 제한한다. 응답이 멈춰도 화면의 재시도·로그아웃을 되살린다.
+async function requestJson(fetcher, url, options, timeoutMs, readBody = true) {
+  const controller = new AbortController();
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => { controller.abort(); reject(new Error('request timeout')); }, timeoutMs);
+  });
+  const request = (async () => {
+    const response = await fetcher(url, { ...options, signal: controller.signal });
+    const data = response.ok && readBody ? await response.json() : undefined;
+    return { response, data };
+  })();
   try {
-    const response = await fetcher(CONSENT_URL, {
+    return await Promise.race([request, timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// 서버가 "동의 필요"라고 하지 않은 경우에만 도감을 읽는다. 확인하지 못하면 막힌 채로 두지 않고 다시 시도를 보인다.
+async function readConsent(fetcher, timeoutMs) {
+  try {
+    const { response, data } = await requestJson(fetcher, CONSENT_URL, {
       method: 'GET', credentials: 'same-origin', cache: 'no-store',
       headers: { Accept: 'application/json' },
-    });
+    }, timeoutMs);
     if (response.status === 401) return { kind: 'unauthenticated' };
     if (!response.ok) return { kind: 'failed' };
-    const data = await response.json();
     if (data === null || typeof data !== 'object' || typeof data.required !== 'boolean'
       || !isText(data.termsVersion) || !isText(data.privacyVersion)) return { kind: 'failed' };
     if (!data.required) return { kind: 'accepted' };
@@ -176,7 +195,7 @@ function showConsent(doc) {
   return true;
 }
 
-function bindConsentControls(fetcher, doc, refresh) {
+function bindConsentControls(fetcher, doc, refresh, timeoutMs) {
   const nodes = consentNodes(doc);
   if (!nodes) return;
   const boxes = ['consent-age', 'consent-terms', 'consent-privacy'].map((name) => nodes[name]);
@@ -194,21 +213,20 @@ function bindConsentControls(fetcher, doc, refresh) {
     nodes['consent-submit'].disabled = true;
     nodes['consent-message'].textContent = '';
     try {
-      const response = await fetcher(CONSENT_URL, {
+      const { response, data } = await requestJson(fetcher, CONSENT_URL, {
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
         body: JSON.stringify({
           termsVersion: CONSENT_TERMS_VERSION, privacyVersion: CONSENT_PRIVACY_VERSION,
           ageConfirmed: true, termsAccepted: true, privacyAccepted: true,
         }),
-      });
+      }, timeoutMs);
       if (response.status === 401) { await refresh(); return; }
       if (response.status === 409) {
         nodes['consent-message'].textContent = '이용약관이나 개인정보 처리방침이 새로 바뀌었어요. 페이지를 새로 연 뒤 다시 시도해 주세요.';
         return;
       }
       if (!response.ok) throw new Error('consent unavailable');
-      const data = await response.json();
       if (data === null || typeof data !== 'object' || data.required !== false) throw new Error('consent not recorded');
       await refresh();
     } catch {
@@ -388,14 +406,14 @@ function renderBadges(doc, nodes, badges, counts) {
   nodes['badge-content'].hidden = false;
 }
 
-export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TIMEOUT_MS } = {}) {
+export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TIMEOUT_MS, requestTimeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const nodes = collectionNodes(doc);
   if (!nodes) return;
   const requestId = (collectionRequests.get(doc) ?? 0) + 1;
   collectionRequests.set(doc, requestId);
   clearCollection(nodes);
   nodes['collection-status'].textContent = '내 도감을 확인하는 중입니다.';
-  const consent = await readConsent(fetcher);
+  const consent = await readConsent(fetcher, requestTimeoutMs);
   if (collectionRequests.get(doc) !== requestId) return;
   // 동의가 필요한 경우에만 동의 화면이 남는다. 그 밖의 결과(로그인 필요·확인 실패·버전 불일치·동의함)에서는 닫는다.
   if (consent.kind !== 'required') hideConsent(doc);
@@ -407,6 +425,7 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
   if (consent.kind === 'failed') {
     nodes['collection-status'].textContent = '동의 상태를 확인하지 못했습니다. 다시 시도해 주세요.';
     nodes['collection-retry'].hidden = false;
+    nodes['collection-logout'].hidden = false;
     return;
   }
   if (consent.kind === 'outdated') {
@@ -430,10 +449,10 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
   let counts;
 
   try {
-    const response = await fetcher(COLLECTION_URL, {
+    const { response, data } = await requestJson(fetcher, COLLECTION_URL, {
       method: 'GET', credentials: 'same-origin', cache: 'no-store',
       headers: { Accept: 'application/json' },
-    });
+    }, requestTimeoutMs);
     if (collectionRequests.get(doc) !== requestId) return;
     if (response.status === 401) {
       nodes['collection-status'].textContent = '내 도감을 보려면 Google 계정으로 로그인해 주세요.';
@@ -441,8 +460,6 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
       return;
     }
     if (!response.ok) throw new Error('collection unavailable');
-    const data = await response.json();
-    if (collectionRequests.get(doc) !== requestId) return;
     if (!isCollection(data)) throw new Error('invalid collection');
 
     for (const visit of data.visits) {
@@ -481,6 +498,7 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
     clearCollection(nodes);
     nodes['collection-status'].textContent = '도감을 불러올 수 없습니다. 다시 시도해 주세요.';
     nodes['collection-retry'].hidden = false;
+    nodes['collection-logout'].hidden = false;
   }
   if (!collectionShown) return;
 
@@ -491,7 +509,7 @@ export async function loadCollection(fetcher, doc, { badgesTimeoutMs = BADGES_TI
   else nodes['badge-note'].textContent = '탐험 메달을 불러오지 못했어요. 방문 기록과 수집품은 아래에서 볼 수 있어요.';
 }
 
-export function bindCollectionControls(fetcher, doc) {
+export function bindCollectionControls(fetcher, doc, { requestTimeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const nodes = collectionNodes(doc);
   if (!nodes) return;
   const Channel = doc.defaultView?.BroadcastChannel;
@@ -502,8 +520,8 @@ export function bindCollectionControls(fetcher, doc) {
     clearCollection(nodes);
     nodes['collection-status'].textContent = '내 도감을 다시 확인해 주세요.';
   };
-  const refresh = () => loadCollection(fetcher, doc);
-  bindConsentControls(fetcher, doc, refresh);
+  const refresh = () => loadCollection(fetcher, doc, { requestTimeoutMs });
+  bindConsentControls(fetcher, doc, refresh, requestTimeoutMs);
   if (channel) {
     channel.onmessage = (event) => {
       if (event.data !== 'refresh') return;
@@ -522,20 +540,21 @@ export function bindCollectionControls(fetcher, doc) {
   doc.defaultView?.addEventListener('pageshow', (event) => {
     if (event?.persisted !== false) return refresh();
   });
-  nodes['collection-retry'].addEventListener('click', () => { void loadCollection(fetcher, doc); });
+  nodes['collection-retry'].addEventListener('click', () => { void refresh(); });
   nodes['collection-logout'].addEventListener('click', async () => {
     invalidate();
     nodes['collection-status'].textContent = '로그아웃하는 중입니다.';
     try {
-      const response = await fetcher('/api/web/logout', {
+      const { response } = await requestJson(fetcher, '/api/web/logout', {
         method: 'POST', credentials: 'same-origin', cache: 'no-store',
-      });
+      }, requestTimeoutMs, false);
       if (!response.ok) throw new Error('logout unavailable');
       channel?.postMessage('refresh');
       await refresh();
     } catch {
       nodes['collection-status'].textContent = '로그아웃을 확인하지 못했습니다. 다시 확인해 주세요.';
       nodes['collection-retry'].hidden = false;
+      nodes['collection-logout'].hidden = false;
     }
   });
   return refresh().then(() => { channel?.postMessage('refresh'); });
@@ -558,6 +577,8 @@ export async function loadMerchants(fetcher, doc) {
   const status = doc.getElementById('merchant-status');
   const list = doc.getElementById('merchant-list');
   if (!status || !list) return;
+  const empty = doc.getElementById('merchant-empty');
+  if (empty) empty.hidden = true;
 
   try {
     const response = await fetcher(MERCHANTS_URL, {
@@ -608,8 +629,9 @@ export async function loadMerchants(fetcher, doc) {
       }
       list.append(card);
     }
+    if (empty) empty.hidden = merchants.length !== 0;
     status.textContent = merchants.length === 0
-      ? '현재 공개된 음식점이 없습니다.'
+      ? '현재 공개된 음식점이 없습니다. 아직 입점 준비 중이에요.'
       : `${merchants.length}곳의 음식점을 불러왔습니다.`;
   } catch {
     list.replaceChildren();

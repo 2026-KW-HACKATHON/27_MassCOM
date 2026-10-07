@@ -288,7 +288,9 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
         ORDER BY ticket.acquired_at DESC LIMIT 100`, [accountId, now]),
       this.pool.query<PoolRow>(`${poolSql} WHERE pool.status = 'ACTIVE' AND merchant.status = 'ACTIVE'
         AND pool.purchase_starts_at <= $1 AND pool.purchase_ends_at > $1
-        ORDER BY pool.created_at DESC LIMIT 100`, [now]),
+        AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
+          WHERE trial.merchant_id = merchant.id AND trial.account_id <> $2)
+        ORDER BY pool.created_at DESC LIMIT 100`, [now, accountId]),
       this.balance(this.pool, accountId),
     ]);
     const tickets = [...liveTickets.rows, ...oldTickets.rows]
@@ -468,7 +470,10 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
         if (previous.pool_id !== input.poolId || previous.source !== source) throw new CoinEconomyError('COIN_REQUEST_CONFLICT');
         return { ticket: viewTicket(previous, this.now()), balance: mileage.balance, replayed: true };
       }
-      const pool = (await client.query<PoolRow>(`${poolSql} WHERE pool.id = $1 FOR UPDATE OF pool`, [input.poolId])).rows[0];
+      const pool = (await client.query<PoolRow>(`${poolSql} WHERE pool.id = $1
+        AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
+          WHERE trial.merchant_id = merchant.id AND trial.account_id <> $2)
+        FOR UPDATE OF pool`, [input.poolId, input.accountId])).rows[0];
       if (!pool) throw new CoinEconomyError('COIN_POOL_UNAVAILABLE');
       const now = this.now();
       if (pool.use_expires_at <= now) throw new CoinEconomyError('COIN_POOL_EXPIRED');
@@ -593,7 +598,9 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
         FROM collectible_publications publication
         JOIN merchants merchant ON merchant.id = publication.merchant_id
         JOIN collectible_publication_grades grade ON grade.publication_id = publication.id
-        WHERE publication.id IN (
+        WHERE NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
+          WHERE trial.merchant_id = merchant.id AND trial.account_id <> $1)
+        AND publication.id IN (
           SELECT publication_id FROM campaign_collectible_publications link JOIN campaigns campaign
             ON campaign.id = link.campaign_id WHERE campaign.status = 'ACTIVE' AND campaign.is_public
               AND campaign.starts_at <= $2 AND campaign.ends_at > $2

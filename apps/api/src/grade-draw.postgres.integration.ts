@@ -138,3 +138,40 @@ test('parallel requests serialize the balance and media withdrawal redacts histo
   assert.equal(history.reward.name, '공개가 중단된 코인');
   assert.equal(history.reward.kind === 'COIN' && history.reward.artwork, undefined);
 });
+
+test('personal trial coins stay in their owner catalogs and draw pool', async t => {
+  const { pool, service, coinEconomy, select } = await setup(t);
+  const publicationId = await publishCoin(pool);
+  const outsiderBefore = (await service.getShop(accountId)).pools[0]!;
+  const coinPoolId = randomUUID();
+  await pool.query(`INSERT INTO coin_pools (id,merchant_id,event_name,grade,price,purchase_starts_at,
+    purchase_ends_at,use_expires_at,per_account_limit,issuance_cap)
+    VALUES ($1,'grade-shop','시험','BRONZE',1,'2026-01-01','2027-01-01','2027-02-01',1,10)`, [coinPoolId]);
+  await pool.query(`INSERT INTO coin_pool_entries (pool_id,publication_id,grade_id,weight)
+    VALUES ($1,$2,'bronze-coin',1)`, [coinPoolId, publicationId]);
+  await pool.query(`INSERT INTO showcase_guest_trials (account_id,merchant_id,created_at,expires_at)
+    VALUES ('trial-owner','grade-shop','2026-10-01','2026-10-09')`);
+
+  const outsider = (await service.getShop(accountId)).pools[0]!;
+  const owner = (await service.getShop('trial-owner')).pools[0]!;
+  assert.equal(outsider.counts.COIN, 0);
+  assert.equal(owner.counts.COIN, 1);
+  assert.notEqual(outsider.version, outsiderBefore.version);
+  assert.equal(owner.version, outsiderBefore.version);
+  assert.equal((await coinEconomy.getShop(accountId)).pools.some(pool => pool.id === coinPoolId), false);
+  assert.equal((await coinEconomy.getShop('trial-owner')).pools.some(pool => pool.id === coinPoolId), true);
+  assert.equal((await coinEconomy.getCollection(accountId)).catalog.some(row => row.merchantId === 'grade-shop'), false);
+  assert.equal((await coinEconomy.getCollection('trial-owner')).catalog.some(row => row.merchantId === 'grade-shop'), true);
+  await assert.rejects(coinEconomy.purchase({ accountId, poolId: coinPoolId, requestId: 'foreign-trial' }),
+    { code: 'COIN_POOL_UNAVAILABLE' });
+  await pool.query(`INSERT INTO mileage_credits (id,account_id,amount,reason,source_id,business_date)
+    VALUES ($1,'trial-owner',10,'DRAW_BONUS','trial-credit','2026-10-07')`, [randomUUID()]);
+  assert.equal((await coinEconomy.purchase({ accountId: 'trial-owner', poolId: coinPoolId,
+    requestId: 'own-trial' })).ticket.poolId, coinPoolId);
+  select(0);
+  assert.notEqual((await service.draw({ accountId, grade: 'BRONZE', requestId: 'outsider-draw',
+    expectedPoolVersion: outsider.version })).reward.kind, 'COIN');
+  await pool.query(`UPDATE campaigns SET is_public=false WHERE id='grade-campaign'`);
+  assert.equal((await service.getShop(accountId)).pools[0]!.version, outsider.version);
+  assert.notEqual((await service.getShop('trial-owner')).pools[0]!.version, owner.version);
+});

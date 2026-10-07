@@ -163,7 +163,7 @@ const env = { ...process.env,
 };
 delete env.MASSCOM_SHOWCASE_STORE_PASSWORD;
 delete env.MASSCOM_SHOWCASE_KEY_PASSWORD;
-const result = spawnSync('./gradlew', ['assembleRelease', 'bundleRelease', '--console=plain'], {
+const result = spawnSync('./gradlew', [':app:assembleRelease', ':app:bundleRelease', '--console=plain'], {
   cwd: process.argv[2], env, stdio: 'inherit',
 });
 process.exit(result.status ?? 1);

@@ -115,6 +115,35 @@ test('send converts timeout and network failures into retryable tickets', async 
   ]);
 });
 
+test('헤더 이후 멈춘 본문도 전송·receipt 요청의 제한 시간 안에 중단한다', async () => {
+  for (const status of [200, 400, 503]) {
+    for (const operation of ['send', 'receipts'] as const) {
+      let signal: AbortSignal | undefined;
+      const gateway = new ExpoPushGateway({
+        timeoutMs: 10,
+        fetchFn: (async (_url, init) => {
+          signal = init!.signal!;
+          const stream = new ReadableStream({
+            start(controller) {
+              const fallback = setTimeout(() => controller.close(), 100);
+              signal!.addEventListener('abort', () => {
+                clearTimeout(fallback);
+                controller.error(new DOMException('aborted', 'AbortError'));
+              }, { once: true });
+            },
+          });
+          return new Response(stream, { status });
+        }) as typeof fetch,
+      });
+      const result = operation === 'send'
+        ? await gateway.send([message()])
+        : [...(await gateway.getReceipts(['ticket-1'])).values()];
+      assert.equal(signal!.aborted, true, `${operation}: HTTP ${status}`);
+      assert.deepEqual(result, [{ status: 'error', code: 'EXPO_TIMEOUT', retryable: true }]);
+    }
+  }
+});
+
 test('getReceipts posts ids and leaves missing receipt ids absent from the result map', async () => {
   const gateway = new ExpoPushGateway({
     fetchFn: (async (url, init) => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, BackHandler, Linking, Pressable, ScrollView, Text, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, BackHandler, Linking, Pressable, Text, View, useColorScheme } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { CommerceApiError, createCommerceApiClient, type ShowcaseAccessRequest, type ShowcaseAccessState } from '@/commerce/commerce-api';
@@ -13,6 +13,11 @@ import { queueNotificationTarget } from '@/notifications/pending-target';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseAccessAdminScreen } from '@/screens/showcase-access-admin';
 import { ACCESS_CONTACT_ADDRESSES, accessMailtoUrl, accessUiState, requestAccessFailureMessage } from '@/showcase/access-copy';
+import { BackHeader } from '@/ui/back-header';
+import { BounceButton } from '@/ui/bounce-button';
+import { Mascot } from '@/ui/mascot';
+import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colorsForScheme } from '@/theme/palette';
 import { createAccessPoller, decidePermissionRecheck, shouldHandleHardwareBack } from './access-poll';
 
@@ -28,6 +33,7 @@ type Props = {
 
 export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse, onReturnToRole, onLogout, onSessionInvalid }: Props) {
   const colors = colorsForScheme(useColorScheme());
+  const insets = useSafeAreaInsets();
   const [retry, setRetry] = useState(0);
   const [tour, setTour] = useState(false);
   const [artOpen, setArtOpen] = useState(false);
@@ -236,22 +242,24 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
     />;
   }
 
-  return <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', gap: 20, padding: 28, backgroundColor: colors.background }}>
+  return <SkyScrollView header={<BackHeader title="점주 체험" onBack={onReturnToRole} />}
+    contentInsetAdjustmentBehavior="automatic" style={{ backgroundColor: colors.background }}
+    contentContainerStyle={{ flexGrow: 1, gap: 20, padding: 20, paddingBottom: insets.bottom + 24 }}>
     {showAdminEntry ? <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
       <Pressable accessibilityRole="button" onPress={() => setAdminOpen(true)} style={{ minHeight: 48, justifyContent: 'center' }}>
         <Text style={{ color: colors.primary, fontWeight: '700' }}>권한 요청 관리</Text>
       </Pressable>
     </View> : null}
-    <Text accessibilityRole="header" style={{ color: colors.label, fontSize: 28, fontWeight: '700' }}>점주 체험</Text>
+    <View style={{ alignItems: 'center' }}><Mascot pose="puzzled" size={100} /></View>
     <Text selectable style={{ color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 }}>
-      이 화면은 가상 점포 체험용입니다. 역할 선택만으로 점주 권한이 생기지 않으며, 서버에서 방문 확인 권한을 확인합니다.
+      가상 점포를 체험하는 화면이에요. 역할 선택만으로 점주 권한이 생기지 않아요. 서버에서 방문 확인 권한을 확인해요.
     </Text>
     <View accessibilityLiveRegion="polite" style={{ gap: 12 }}>
       {status === 'loading' ? <ActivityIndicator color={colors.primary} /> : null}
       <Text selectable style={{ color: colors.label, fontSize: 16 }}>
-        {status === 'loading' ? '점포 권한을 확인하는 중입니다.'
-          : status === 'denied' ? '이 계정에는 가상 점포의 방문 확인 권한이 없습니다.'
-            : '점포 정보를 확인하지 못했습니다. 연결을 확인하고 다시 시도해 주세요.'}
+        {status === 'loading' ? '점포 권한을 확인하고 있어요.'
+          : status === 'denied' ? '이 계정에는 가상 점포의 방문 확인 권한이 없어요.'
+            : '점포 정보를 확인하지 못했어요. 연결을 확인하고 다시 시도해 주세요.'}
       </Text>
     </View>
     {status === 'denied' && accessUi ? <View accessibilityLiveRegion="polite" style={{ gap: 12 }}>
@@ -260,14 +268,14 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
       </Pressable> : null}
       {accessUi.kind === 'pending' ? <>
         <Text selectable style={{ color: colors.label, fontSize: 16 }}>요청 번호 {accessUi.code} · 검토 대기 중</Text>
-        <Text style={{ color: colors.secondaryLabel, fontSize: 14 }}>수락되면 점주 체험이 열립니다.</Text>
+        <Text style={{ color: colors.secondaryLabel, fontSize: 14 }}>수락되면 점주 체험이 열려요.</Text>
         <Pressable accessibilityRole="button" onPress={() => openMail(accessUi.code)} style={{ minHeight: 48, justifyContent: 'center' }}>
           <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>메일로 알리기</Text>
         </Pressable>
-        {mailFallback ? <Text selectable style={{ color: colors.secondaryLabel, fontSize: 14 }}>메일 앱을 열지 못했습니다. 다음 주소로 직접 보내 주세요: {ACCESS_CONTACT_ADDRESSES.join(', ')}</Text> : null}
+        {mailFallback ? <Text selectable style={{ color: colors.secondaryLabel, fontSize: 14 }}>메일 앱을 열지 못했어요. 다음 주소로 직접 보내 주세요: {ACCESS_CONTACT_ADDRESSES.join(', ')}</Text> : null}
       </> : null}
       {accessUi.kind === 'approved' ? <>
-        <Text selectable style={{ color: colors.label, fontSize: 16 }}>수락되었습니다.</Text>
+        <Text selectable style={{ color: colors.label, fontSize: 16 }}>수락됐어요.</Text>
         {permissionStuck ? <>
           <Text selectable style={{ color: colors.secondaryLabel, fontSize: 14 }}>수락됐지만 아직 점주 화면을 열 수 없어요. 잠시 뒤 다시 확인해 주세요.</Text>
           <Pressable accessibilityRole="button" onPress={manualRecheck} style={{ minHeight: 48, justifyContent: 'center' }}>
@@ -276,21 +284,15 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
         </> : null}
       </> : null}
       {accessUi.kind === 'rejected' ? <>
-        <Text selectable style={{ color: colors.label, fontSize: 16 }}>요청이 거절되었습니다.</Text>
+        <Text selectable style={{ color: colors.label, fontSize: 16 }}>요청이 거절됐어요.</Text>
         <Pressable accessibilityRole="button" disabled={requesting} onPress={() => void startRequest()} style={{ minHeight: 48, justifyContent: 'center' }}>
           <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>다시 문의하기</Text>
         </Pressable>
       </> : null}
       {requestError ? <Text accessibilityLiveRegion="polite" selectable style={{ color: colors.error, fontSize: 14 }}>{requestError}</Text> : null}
     </View> : null}
-    {status === 'error' ? <Pressable accessibilityRole="button" onPress={() => { setState({ status: 'loading' }); setRetry((value) => value + 1); }} style={{ minHeight: 48, justifyContent: 'center' }}>
-      <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>다시 시도</Text>
-    </Pressable> : null}
-    <Pressable accessibilityRole="button" onPress={onReturnToRole} style={{ minHeight: 48, justifyContent: 'center' }}>
-      <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>역할 선택으로</Text>
-    </Pressable>
-    <Pressable accessibilityRole="button" onPress={onBrowse} style={{ minHeight: 48, justifyContent: 'center' }}>
-      <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>고객으로 둘러보기</Text>
-    </Pressable>
-  </ScrollView>;
+    {status === 'error' ? <BounceButton label="다시 시도" onPress={() => { setState({ status: 'loading' }); setRetry((value) => value + 1); }} /> : null}
+    <BounceButton label="역할 선택으로" variant="secondary" onPress={onReturnToRole} />
+    <BounceButton label="고객으로 둘러보기" variant="secondary" onPress={onBrowse} />
+  </SkyScrollView>;
 }

@@ -20,6 +20,12 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { CoinCouponUse } from './coupon-use';
 
+export function coinCollectionDisplayState(coins: readonly Pick<OwnedCoin, 'quantity'>[], sources: readonly Pick<CoinSource, 'nftStatus'>[]) {
+  const hasCoins = coins.some((coin) => coin.quantity > 0);
+  const hasNftStatus = sources.some((source) => source.nftStatus === 'PENDING' || source.nftStatus === 'COMPLETED');
+  return { showEmpty: !hasCoins && !hasNftStatus, showCollectionLink: hasCoins || hasNftStatus, showShopLink: hasCoins };
+}
+
 export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionInvalid }: {
   apiUrl: string; accountId: string; credential: AccountCredential; onSessionInvalid: () => Promise<void>;
 }) {
@@ -126,6 +132,8 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
     finally { inFlight.current = false; if (current.current) setBusyId(undefined); }
   }
 
+  const displayState = coinCollectionDisplayState(collection?.coins ?? [], collection?.reroll.sources ?? []);
+
   return <SkyBackdrop><SkyScrollView header={<BackHeader title="내 코인·시리즈" />}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} progressViewOffset={insets.top} onRefresh={() => { setRefreshing(true); void load(); }} />}>
     <Text style={[styles.intro, { color: palette.secondaryLabel }]}>방문으로 얻은 코인과 뽑기로 얻은 코인을 함께 모아요. 쿠폰을 받아도 코인은 사라지지 않아요.</Text>
@@ -198,7 +206,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
         </FloatingCard>;
       })}
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>내 코인 상세</Text>
-      {collection.coins.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>아직 모은 코인이 없어요. 가게 방문이나 뽑기권으로 수집해 보세요.</Text> :
+      {displayState.showEmpty ? <StateScene kind="empty" title="아직 모은 코인이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
         collection.coins.map((coin) => <FloatingCard key={`${coin.publicationId}:${coin.gradeId}`} style={styles.card}>
           {parseCollectibleArtwork(coin.summary) ? <Image source={{ uri: parseCollectibleArtwork(coin.summary)!.thumbnailDataUrl }}
             accessibilityLabel={`${coin.name} 코인 그림`} style={styles.coinImage} resizeMode="contain" /> : null}
@@ -264,16 +272,16 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
         }} style={styles.link}><Text style={{ color: palette.primary }}>마이룸 전시하기 ›</Text></Pressable>
       </FloatingCard> : null}
       {experience.error ? <Text style={{ color: palette.error }}>{experience.error}</Text> : null}
-      <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/collection')} style={styles.link}>
+      {displayState.showCollectionLink ? <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/collection')} style={styles.link}>
         <Text style={{ color: palette.primary }}>방문 수집품 NFT 발급·상태 확인 ›</Text>
-      </Pressable>
+      </Pressable> : null}
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인 시리즈</Text>
       {collection.series.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>지금 진행 중인 시리즈가 없어요. 실제 가게의 쿠폰 조건이 정해지면 표시돼요.</Text> :
         collection.series.map((series) => <SeriesCard key={series.id} series={series} busy={Boolean(busyId)}
           onClaim={() => void claim(series.id)} onUse={() => setUsingCoupon(series)} palette={palette} />)}
-      <Pressable accessibilityRole="button" onPress={() => router.push('/coin-shop')} style={styles.link}>
+      {displayState.showShopLink ? <Pressable accessibilityRole="button" onPress={() => router.push('/coin-shop')} style={styles.link}>
         <Text style={{ color: palette.primary }}>가게 뽑기권 보러 가기 ›</Text>
-      </Pressable>
+      </Pressable> : null}
     </> : null}
   </SkyScrollView>
     {usingCoupon?.coupon ? <CoinCouponUse key={usingCoupon.coupon.id} series={usingCoupon}

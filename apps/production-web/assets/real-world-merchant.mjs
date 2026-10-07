@@ -3,20 +3,35 @@ const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
 const mounted = new WeakMap();
 const fields = form => form.elements;
 const optional = value => value.trim() || null;
+// JSONB는 객체 키 순서를 보존하지 않으므로 값 비교에만 정렬을 사용한다.
+const profileKey = profile => JSON.stringify(profile, (_, value) => value && typeof value === 'object' && !Array.isArray(value)
+  ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
 
 /** @param {unknown} [body] */
-async function request(fetcher, path, method = 'GET', body) {
-  const response = await fetcher(path, {
-    method, credentials: 'same-origin', cache: 'no-store',
-    headers: body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+export async function request(fetcher, path, method = 'GET', body, timeoutMs = 10_000) {
+  const controller = new AbortController();
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(Object.assign(new Error('요청 시간이 초과되었습니다. 다시 시도해 주세요.'), { code: 'REQUEST_TIMEOUT' }));
+    }, timeoutMs);
   });
-  if (!response.ok) {
-    const error = Object.assign(new Error('request failed'), { status: response.status, code: '' });
-    try { error.code = (await response.json()).code; } catch { /* status is enough */ }
-    throw error;
-  }
-  return response.json();
+  try {
+    return await Promise.race([(async () => {
+      const response = await fetcher(path, {
+        method, credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+        headers: body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (!response.ok) {
+        const error = Object.assign(new Error('request failed'), { status: response.status, code: '' });
+        try { error.code = (await response.json()).code; } catch { /* status is enough */ }
+        throw error;
+      }
+      return response.json();
+    })(), timeout]);
+  } finally { clearTimeout(timer); }
 }
 
 /** @returns {never} */
@@ -198,14 +213,16 @@ function localDateTime(value) {
 
 function updatePhotoOptions(doc, photos, items) {
   const rows = [...doc.querySelectorAll('#real-world-menu-rows [data-real-menu]')];
-  rows.forEach((row, i) => {
+  const saved = items && new Map(items.map(item => [item.id, item.photoId]));
+  rows.forEach(row => {
     const select = row.querySelector('[name="menuPhoto"]');
+    const selected = saved ? saved.get(row.dataset.id) ?? '' : select.value;
     select.replaceChildren();
     const none = doc.createElement('option'); none.value = ''; none.textContent = '없음'; select.append(none);
     for (const photo of photos.filter(photo => photo.kind === 'MENU')) {
       const option = doc.createElement('option'); option.value = photo.id; option.textContent = photo.caption || '메뉴 사진'; select.append(option);
     }
-    select.value = items[i]?.photoId ?? '';
+    select.value = photos.some(photo => photo.kind === 'MENU' && photo.id === selected) ? selected : '';
   });
 }
 
@@ -307,7 +324,8 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
     input.setAttribute('aria-label', `${weekdays[i]}요일 영업 구간`);
     input.placeholder = '09:00-18:00'; label.append(input); weekly.append(label);
   }
-  let view, generation = 0, busy = false, members = merchants;
+  let view, generation = 0, busy = false, conflict = false, members = merchants;
+  const conflictMessage = '서버 값과 초안이 달라 충돌 상태입니다. 저장하지 않은 초안은 폼에 남아 있습니다. 필요한 내용을 복사한 뒤 정보 다시 불러오기로 서버 값을 확인해 주세요. 다시 불러오면 폼이 서버 값으로 바뀝니다.';
   const load = async () => {
     const token = ++generation, id = select.value;
     view = undefined; busy = false; form.hidden = true;
@@ -321,7 +339,7 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
     try {
       const next = await request(fetcher, `${base(id, channel)}/real-world-profile`);
       if (token !== generation || id !== select.value) return;
-      view = next; fill(doc, form, next); showReadiness(doc, next.readiness);
+      view = next; conflict = false; fill(doc, form, next); showReadiness(doc, next.readiness);
       form.hidden = channel === 'merchant' && members.find(item => item.id === id)?.role !== 'OWNER';
       showPhotos(doc, next.photos, deletePhoto, channel, id, !form.hidden);
       doc.getElementById('real-world-photo-form').hidden = form.hidden;
@@ -333,7 +351,32 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
       if (token === generation) { view = undefined; form.hidden = true; status.textContent = errorMessage(error); }
     }
   };
-  const saveView = next => { view = next; doc.getElementById('real-world-preview').replaceChildren(); fill(doc, form, next); showReadiness(doc, next.readiness); showPhotos(doc, next.photos, deletePhoto, channel, select.value, !form.hidden); };
+  const saveView = (next, keepDraft = false) => {
+    view = next; doc.getElementById('real-world-preview').replaceChildren();
+    if (keepDraft) updatePhotoOptions(doc, next.photos); else fill(doc, form, next);
+    showReadiness(doc, next.readiness); showPhotos(doc, next.photos, deletePhoto, channel, select.value, !form.hidden);
+  };
+  const reconcileWrite = async (id, token, error, sentProfile) => {
+    if (error.status && error.status < 500) {
+      if (error.status === 409) conflict = true;
+      status.textContent = conflict ? conflictMessage : errorMessage(error); return;
+    }
+    const expectedProfile = sentProfile ?? view.profile;
+    status.textContent = '저장 결과를 확인하는 중입니다.';
+    try {
+      const latest = await request(fetcher, `${base(id, channel)}/real-world-profile`);
+      if (token !== generation || id !== select.value) return;
+      saveView(latest, true);
+      conflict = profileKey(expectedProfile) !== profileKey(latest.profile);
+      status.textContent = conflict ? conflictMessage : sentProfile
+        ? '서버 값이 보낸 값과 같아 실제 정보 저장을 확인했습니다. 폼의 추가 초안은 유지했습니다.'
+        : '사진 처리 결과가 불확실합니다. 사진 목록을 다시 불러왔습니다. 목록을 확인한 뒤 필요한 사진만 다시 선택해 주세요. 초안은 유지했습니다.';
+    } catch {
+      if (token !== generation || id !== select.value) return;
+      view = undefined;
+      status.textContent = '저장 결과를 확인하지 못했습니다. 정보 다시 불러오기로 서버 상태를 확인해 주세요.';
+    }
+  };
   const engagement = async (id, token) => {
     const list = doc.getElementById('real-world-engagement'); list.replaceChildren();
     try {
@@ -347,14 +390,16 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
     } catch { if (token === generation) list.textContent = '익명 반응을 불러오지 못했습니다.'; }
   };
   const deletePhoto = async photoId => {
-    if (!view || busy || form.hidden || !globalThis.confirm?.('이 실제 사진을 삭제할까요?')) return;
+    if (!view || busy || form.hidden) return;
+    if (conflict) { status.textContent = conflictMessage; return; }
+    if (!globalThis.confirm?.('이 실제 사진을 삭제할까요?')) return;
     const token = generation, id = select.value;
-    busy = true;
+    busy = true; status.textContent = '실제 사진을 삭제하는 중입니다.';
     try {
       const next = await request(fetcher, `${base(id, channel)}/photos/${encodeURIComponent(photoId)}`, 'DELETE', { expectedVersion: view.version });
       if (token !== generation || id !== select.value) return;
-      saveView(next); status.textContent = '실제 사진을 삭제했습니다.';
-    } catch (error) { if (token === generation) status.textContent = errorMessage(error); }
+      saveView(next, true); status.textContent = '실제 사진을 삭제했습니다.';
+    } catch (error) { if (token === generation) await reconcileWrite(id, token, error); }
     finally { if (token === generation) busy = false; }
   };
   const reports = async (id, token) => {
@@ -403,7 +448,7 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
     doc.getElementById('real-world-refresh').addEventListener('click', load);
     doc.getElementById('real-world-add-menu').addEventListener('click', () => {
       const row = menuRow(doc); doc.getElementById('real-world-menu-rows').append(row);
-      updatePhotoOptions(doc, view?.photos ?? [], view?.profile.menuItems ?? []);
+      updatePhotoOptions(doc, view?.photos ?? []);
     });
     doc.getElementById('real-world-clear-location').addEventListener('click', () => {
       for (const name of ['latitude', 'longitude', 'entranceLatitude', 'entranceLongitude', 'floor', 'unit', 'entranceNote', 'verificationNote']) fields(form)[name].value = '';
@@ -414,39 +459,48 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
     });
     form.addEventListener('submit', async event => {
       event.preventDefault(); if (!view || busy) return;
+      if (conflict) { status.textContent = conflictMessage; return; }
       const token = generation, id = select.value;
       let profile;
       try { profile = profileFromForm(form, view.profile, new Date(), channel === 'admin' ? 'ADMIN_DOCUMENTED' : 'OWNER_DECLARED'); }
       catch (error) { status.textContent = error.message; return; }
-      busy = true;
+      busy = true; status.textContent = '실제 정보를 저장하는 중입니다.';
       try {
         const next = await request(fetcher, `${base(id, channel)}/real-world-profile`, 'PUT', { expectedVersion: view.version, profile });
         if (token !== generation || id !== select.value) return;
         saveView(next); status.textContent = '실제 정보를 저장했습니다.';
-      } catch (error) { if (token === generation) status.textContent = errorMessage(error); }
+      } catch (error) { if (token === generation) await reconcileWrite(id, token, error, profile); }
       finally { if (token === generation) busy = false; }
     });
     doc.getElementById('real-world-photo-form').addEventListener('submit', async event => {
       event.preventDefault(); if (!view || busy) return;
+      if (conflict) { status.textContent = conflictMessage; return; }
       const token = generation, id = select.value;
       const photoForm = event.currentTarget, input = fields(photoForm), file = input.photo.files?.[0];
       if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || !input.rightsConfirmed.checked) {
         status.textContent = 'JPEG·PNG·WebP 사진과 게시 권리 확인이 필요합니다.'; return;
       }
       const version = view.version;
-      busy = true;
+      let uploadStarted = false;
+      busy = true; status.textContent = '실제 사진을 등록하는 중입니다.';
       try {
         const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file);
         });
         if (token !== generation || id !== select.value) return;
+        uploadStarted = true;
         const next = await request(fetcher, `${base(id, channel)}/photos`, 'POST', {
           expectedVersion: version, kind: input.kind.value, caption: optional(input.caption.value),
           rightsConfirmed: true, mimeType: file.type, base64: String(dataUrl).split(',')[1],
         });
         if (token !== generation || id !== select.value) return;
-        saveView(next); photoForm.reset(); status.textContent = '실제 사진을 등록했습니다.';
-      } catch (error) { if (token === generation) status.textContent = errorMessage(error); }
+        saveView(next, true); photoForm.reset(); status.textContent = '실제 사진을 등록했습니다.';
+      } catch (error) {
+        if (token === generation) {
+          if (uploadStarted && (!error.status || error.status >= 500)) input.photo.value = '';
+          await reconcileWrite(id, token, error);
+        }
+      }
       finally { if (token === generation) busy = false; }
     });
     doc.getElementById('real-world-candidates-form').addEventListener('submit', async event => {

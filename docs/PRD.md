@@ -33,7 +33,7 @@
 
 | RQ-023 | 사진 수집품 제작·보유품 재생 | 사진 원본과 초안 보존, 3모양·보정·스티커·동적 등급·재질·동작·음성·장면, 기존 목표 외형 연결과 획득 당시 게시 버전, 보유자 도감 재생. [요구사항 연결](COLLECTIBLE_CREATOR.md) | `IN_PROGRESS` |
 | RQ-024 | 마일리지 상점(코스메틱 캐릭터 재뽑기) | 서버가 방문·도감 기록으로 마일리지를 계산(저장하지 않음)하고, 같은 등급 안 균등 무작위 재뽑기로 코스메틱 캐릭터를 얻어 대표로 설정. 현금 충전·양도·환전 없음, 방문 보상·NFT·쿠폰 규칙 불변. [D-063](DECISIONS.md) | `IN_PROGRESS` |
-| RQ-025 | 로그인 없이 쓰는 시연 웹 체험 | 같은 Expo 코드베이스를 showcase variant로 웹 빌드해 `demo-api.masscom.kr/play/`에서 연다. Google 계정 없이 24시간 임시 계정(`/auth/guest-trial`)으로 고객 기능과 자기만의 개인 체험 가게(점주 역할)를 써 볼 수 있고, 운영·시연 Android 앱은 Google 로그인만 그대로 쓴다. [D-065](DECISIONS.md) | `IN_PROGRESS` |
+| RQ-025 | 로그인 없이 쓰는 시연 체험 | 같은 Expo 코드베이스를 showcase variant로 빌드한다. 운영 Android는 Google 로그인을 사용한다. 시연 Android와 시연 웹 `demo-api.masscom.kr/play/`은 Google 계정 없이 24시간 임시 체험 계정(`/auth/guest-trial`)으로 고객 기능과 자기만의 개인 체험 가게(점주 역할)를 써 볼 수 있다. [D-065](DECISIONS.md), [공개 Preview 19 진입 증거](evidence/showcase-preview19-release-2026-10-05.json) | `IN_PROGRESS` |
 
 계정 삭제·개인정보·출시 경계의 상세 수용 기준은 [PRIVACY_DELETION.md](PRIVACY_DELETION.md)와 [RELEASE_READINESS.md](RELEASE_READINESS.md)에 연결합니다. 외부 HTTPS·첫 모바일 Google 로그인·upload-key 서명 AAB 자동 gate와 A02 설치·App Links는 PASS했습니다. 운영 fresh reauthentication 삭제·두 계정 전환·Play 제출은 완료로 간주하지 않습니다.
 

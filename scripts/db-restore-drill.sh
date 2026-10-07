@@ -51,6 +51,24 @@ read -r -a pg_prefix <<<"${PG_EXEC:-} "
 pg() { if [[ -n "${PG_EXEC:-}" ]]; then "${pg_prefix[@]}" "$@"; else "$@"; fi; }
 
 base="${url%%\?*}"
+query="${url#"$base"}"
+# libpq query parameters override URI path/authority; inspect every decoded key,
+# including duplicates, before passing the otherwise unchanged TLS query to any client.
+remaining_query="${query#\?}"
+while [[ -n "$remaining_query" ]]; do
+  query_pair="${remaining_query%%&*}"
+  if [[ "$remaining_query" == *'&'* ]]; then remaining_query="${remaining_query#*&}"; else remaining_query=""; fi
+  query_key="${query_pair%%=*}"
+  # Restrict the encoded form before printf so raw backslash escapes cannot be interpreted.
+  [[ "$query_key" =~ ^([A-Za-z0-9_]|%[0-9A-Fa-f]{2})+$ && "$query_key" != *%00* ]] || {
+    echo 'invalid database URL query key' >&2; exit 1;
+  }
+  printf -v query_key '%b' "${query_key//%/\\x}"
+  case "$(LC_ALL=C tr '[:upper:]' '[:lower:]' <<<"$query_key")" in
+    dbname|service|host|hostaddr|port)
+      echo 'database-selecting query key is not allowed' >&2; exit 1 ;;
+  esac
+done
 source_db="${base##*/}"
 if [[ -z "$source_db" || "$source_db" == "$base" ]]; then
   echo "DRILL_DATABASE_URL must name a database" >&2
@@ -60,8 +78,8 @@ fi
 # The process id keeps two drills apart and means an existing database is never dropped by name.
 scratch_db="${source_db%_test}_$$_restore_test"
 server="${base%/*}"
-scratch_url="$server/$scratch_db"
-admin_url="$server/postgres"
+scratch_url="$server/$scratch_db$query"
+admin_url="$server/postgres$query"
 
 counts_sql="SELECT table_name || ' ' || (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', table_schema, table_name), false, true, '')))[1]::text
   FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
@@ -84,8 +102,25 @@ pg psql "$admin_url" --no-psqlrc --quiet --set ON_ERROR_STOP=1 \
 created_scratch=1
 pg pg_restore --no-owner --exit-on-error --dbname "$scratch_url" <"$backup"
 
-if ! diff <(snapshot "$url") <(snapshot "$scratch_url"); then
+# Process substitution does not propagate snapshot failures to diff; check each query first.
+if ! source_snapshot="$(snapshot "$url")"; then
+  echo "restore drill FAILED: source snapshot query failed" >&2
+  exit 1
+fi
+if [[ -z "${source_snapshot//[[:space:]]/}" ]]; then
+  echo "restore drill FAILED: source snapshot is empty" >&2
+  exit 1
+fi
+if ! scratch_snapshot="$(snapshot "$scratch_url")"; then
+  echo "restore drill FAILED: scratch snapshot query failed" >&2
+  exit 1
+fi
+if [[ -z "${scratch_snapshot//[[:space:]]/}" ]]; then
+  echo "restore drill FAILED: scratch snapshot is empty" >&2
+  exit 1
+fi
+if ! diff <(printf '%s\n' "$source_snapshot") <(printf '%s\n' "$scratch_snapshot"); then
   echo "restore drill FAILED: restored data differs from the source" >&2
   exit 1
 fi
-echo "restore drill passed: $(snapshot "$scratch_url" | wc -l | tr -d ' ') table counts and migration versions match"
+echo "restore drill passed: $(printf '%s\n' "$scratch_snapshot" | wc -l | tr -d ' ') table counts and migration versions match"

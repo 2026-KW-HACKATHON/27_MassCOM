@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
+// Issue #401 회귀를 기존 CI 검사에서도 실행한다.
+import './production-recovery.test.mjs';
 
 import * as productionWeb from '../../apps/production-web/assets/production.mjs';
 import { bindAdmin, campaignDraftPayload, couponVoidMessage, formatKst, loadAdmin, parseMenuLines } from '../../apps/production-web/assets/admin.mjs';
@@ -576,7 +578,7 @@ test('실제 공개 응답 0건은 빈 상태를 표시한다', async () => {
     assert.equal(options.method, 'GET');
     return { ok: true, json: async () => ({ merchants: [] }) };
   }, doc);
-  assert.equal(status.textContent, '현재 공개된 음식점이 없습니다.');
+  assert.equal(status.textContent, '현재 공개된 음식점이 없습니다. 아직 입점 준비 중이에요.');
   assert.equal(list.children.length, 0);
 });
 

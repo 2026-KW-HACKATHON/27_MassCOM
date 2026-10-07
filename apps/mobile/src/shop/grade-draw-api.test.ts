@@ -53,3 +53,17 @@ test('draw uses the same UUID and pool version on the authenticated endpoint', a
   assert.deepEqual(calls[1], { url: 'https://api.example.test/shop/draws', authorization: 'Bearer session',
     body: { grade: 'BRONZE', requestId: 'same-id', expectedPoolVersion: 'version-1' } });
 });
+
+test('draw stops waiting when the response body never finishes', async () => {
+  const requestIds: string[] = [];
+  const api = createGradeDrawApi({ apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    timeoutMs: 10, fetcher: async (_, init) => {
+      requestIds.push(JSON.parse(String(init?.body)).requestId);
+      return requestIds.length === 1 ? ({ ok: true, status: 200, json: () => new Promise(() => {}) }) as Response : Response.json(result);
+    } });
+  const attempt = { grade: 'BRONZE' as const, requestId: 'same-id', expectedPoolVersion: 'version-1' };
+  await assert.rejects(api.draw(attempt),
+    (error: unknown) => error instanceof ShopApiError && error.code === 'REQUEST_TIMEOUT');
+  assert.deepEqual(await api.draw(attempt), result);
+  assert.deepEqual(requestIds, ['same-id', 'same-id']);
+});

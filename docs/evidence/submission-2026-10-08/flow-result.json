@@ -1,0 +1,475 @@
+{
+  "results": [
+    {
+      "n": "01",
+      "name": "role",
+      "pass": true,
+      "memo": "가치 한 줄 O · 3단계(가게 찾기/방문 인증/수집·꾸미기) O · 역할 2개 O",
+      "files": [
+        "play-390-01-role.png",
+        "play-390-dark-01-role.png",
+        "play-360-01-role.png",
+        "play-360-dark-01-role.png"
+      ],
+      "ms": 6203
+    },
+    {
+      "n": "02",
+      "name": "guest",
+      "pass": true,
+      "memo": "임시 계정 안내(24시간) 확인 후 체험 시작 클릭",
+      "files": [
+        "play-390-02-guest.png"
+      ],
+      "ms": 2803
+    },
+    {
+      "n": "03",
+      "name": "terms",
+      "pass": true,
+      "memo": "필수 3개 동의 → 시작 활성 → 홈 진입 O",
+      "files": [
+        "play-390-03-terms.png",
+        "play-390-03b-terms-checked.png"
+      ],
+      "ms": 2520
+    },
+    {
+      "n": "04",
+      "name": "home-new",
+      "pass": true,
+      "memo": "신규 상태 문구 O · 마일리지 100,000 · 주 행동 후보 링크: 가게 찾기/친구/방문 인증",
+      "files": [
+        "play-390-04-home-new.png",
+        "play-390-04-home-new-bottom.png",
+        "play-390-dark-04-home-new.png",
+        "play-360-04-home-new.png",
+        "play-360-dark-04-home-new.png"
+      ],
+      "ms": 4521
+    },
+    {
+      "n": "05",
+      "name": "explore-list",
+      "pass": true,
+      "memo": "목록 가게 3곳 · 위치 미확인 3곳",
+      "files": [
+        "play-390-05-explore-list.png"
+      ],
+      "ms": 1129
+    },
+    {
+      "n": "06",
+      "name": "store-detail",
+      "pass": true,
+      "memo": "URL /play/merchants/showcase-local-merchant",
+      "files": [
+        "play-390-06-store-detail.png",
+        "play-390-06-store-detail-bottom.png"
+      ],
+      "ms": 2405
+    },
+    {
+      "n": "07",
+      "name": "claim",
+      "pass": true,
+      "memo": "테스트 방문(가상 점포 A) 선택",
+      "files": [
+        "play-390-07-claim.png"
+      ],
+      "ms": 2179
+    },
+    {
+      "n": "08",
+      "name": "visit-done",
+      "pass": true,
+      "memo": "방문 인증 완료 · +150 마일리지 · POST /showcase/test-visits 201",
+      "files": [
+        "play-390-08-visit-done.png",
+        "play-390-dark-08-visit-done.png",
+        "play-360-08-visit-done.png",
+        "play-360-dark-08-visit-done.png"
+      ],
+      "ms": 6973
+    },
+    {
+      "n": "09",
+      "name": "envelope",
+      "pass": true,
+      "memo": "봉투 → 카드(NEW, 브론즈) → 도감 보관 안내 O",
+      "files": [
+        "play-390-09-envelope.png",
+        "play-390-10-reveal-card.png",
+        "play-390-11-reveal-stored.png"
+      ],
+      "ms": 8473
+    },
+    {
+      "n": "12",
+      "name": "album",
+      "pass": true,
+      "memo": "URL /play/collection · 배지 배지 1/9",
+      "files": [
+        "play-390-12-album.png",
+        "play-390-12-album-bottom.png",
+        "play-390-dark-12-album.png",
+        "play-360-12-album.png",
+        "play-360-dark-12-album.png"
+      ],
+      "ms": 4457
+    },
+    {
+      "n": "13",
+      "name": "my-coins",
+      "pass": true,
+      "memo": "보유 1개 확인 · 코인 시리즈 진행 중 시리즈 없음(빈 상태)",
+      "files": [
+        "play-390-13-my-coins.png",
+        "play-390-13-my-coins-bottom.png"
+      ],
+      "ms": 2397
+    },
+    {
+      "n": "14",
+      "name": "coin-tickets",
+      "pass": true,
+      "memo": "받은 뽑기권 없음 · 판매 중 없음(빈 상태, 실제 가게 등록 대기)",
+      "files": [
+        "play-390-14-coin-tickets.png"
+      ],
+      "ms": 3332
+    },
+    {
+      "n": "15",
+      "name": "shop",
+      "pass": true,
+      "memo": "마일리지 100,150P · 가구 상품 전부 가격 미정/구매 불가(판매 준비 중)",
+      "files": [
+        "play-390-15-shop.png",
+        "play-390-15-shop-bottom.png",
+        "play-390-dark-15-shop.png",
+        "play-360-15-shop.png",
+        "play-360-dark-15-shop.png"
+      ],
+      "ms": 8549
+    },
+    {
+      "n": "16",
+      "name": "gacha",
+      "pass": true,
+      "memo": "브론즈 1회(100P) 결과 표시 · 남은 100,050P · 브론즈 · 테마 꾸미기",
+      "files": [
+        "play-390-16-gacha-confirm.png",
+        "play-390-17-gacha-result.png"
+      ],
+      "ms": 7295
+    },
+    {
+      "n": "18",
+      "name": "myroom-studio",
+      "pass": true,
+      "memo": "코인 전시 선택 → 저장 알림 O · 1/6개 전시",
+      "files": [
+        "play-390-18-myroom-studio.png",
+        "play-390-19-myroom-exhibit-pick.png",
+        "play-390-20-myroom-exhibit-saved.png",
+        "play-390-dark-18-myroom-studio.png",
+        "play-360-18-myroom-studio.png",
+        "play-360-dark-18-myroom-studio.png"
+      ],
+      "ms": 10680
+    },
+    {
+      "n": "21",
+      "name": "neighbors",
+      "pass": true,
+      "memo": "랜덤 방 결과: 지금 둘러볼 공개 방이 없어요. 나중에 다시 찾아보세요. · 공개 범위 기본 '나만 보기'",
+      "files": [
+        "play-390-21-neighbors.png",
+        "play-390-22-neighbors-random.png"
+      ],
+      "ms": 5767
+    },
+    {
+      "n": "23",
+      "name": "play-tab-from-subpage",
+      "pass": false,
+      "memo": "/play/room-explore 에서 놀이 탭 → /play/-tab (Unmatched Route / 404 화면)",
+      "files": [
+        "play-390-23-play-tab-from-subpage.png"
+      ],
+      "ms": 1596
+    },
+    {
+      "n": "24",
+      "name": "play-hub",
+      "pass": true,
+      "memo": "URL /play/play-tab (홈에서 탭 이동은 정상) · 게임 4종 카드",
+      "files": [
+        "play-390-24-play-hub.png",
+        "play-390-24-play-hub-bottom.png",
+        "play-390-dark-24-play-hub.png",
+        "play-360-24-play-hub.png",
+        "play-360-dark-24-play-hub.png"
+      ],
+      "ms": 7798
+    },
+    {
+      "n": "25",
+      "name": "game",
+      "pass": true,
+      "memo": "주문표 [[\"연습 그림 1\",1],[\"연습 그림 4\",2]] 정확히 담아 전달 → 1/4 · 종료 후 결과 저장 O",
+      "files": [
+        "play-390-25-game-prep.png",
+        "play-390-26-game-playing.png",
+        "play-390-27-game-filled.png",
+        "play-390-28-game-delivered.png",
+        "play-390-29-game-result.png"
+      ],
+      "ms": 8740
+    },
+    {
+      "n": "30",
+      "name": "my-info",
+      "pass": true,
+      "memo": "임시 체험 계정 · 24시간 남음. 이 화면에서 하단 탭 이동: 탐색→/settings 도감→/settings 홈→/settings 상점→/settings",
+      "files": [
+        "play-390-30-my-info.png",
+        "play-390-30-my-info-bottom.png",
+        "play-390-dark-30-my-info.png",
+        "play-360-30-my-info.png",
+        "play-360-dark-30-my-info.png"
+      ],
+      "ms": 10234
+    },
+    {
+      "n": "31",
+      "name": "owner",
+      "pass": true,
+      "memo": "점주 화면 \"나의 체험 가게\" 진입 · URL /play/appearance · 탭 오늘·현황, 가게 꾸미기",
+      "files": [
+        "play-390-32-owner.png",
+        "play-390-31-role-again.png",
+        "play-390-33-owner-today.png",
+        "play-390-33-owner-decorate.png"
+      ],
+      "ms": 6959
+    },
+    {
+      "n": "35",
+      "name": "tab-matrix",
+      "pass": false,
+      "memo": "하위 화면에서 놀이 탭: studio→/-tab · profile→/-tab · coin-shop→/-tab · coin-collection→/-tab · friends→/-tab · home/exhibit→/-tab · home/missions→/-tab · room-explore→/-tab · settings→/-tab · search→/play-tab",
+      "files": [],
+      "ms": 29384
+    },
+    {
+      "n": "34",
+      "name": "desktop-role",
+      "pass": true,
+      "memo": "1280x800 역할 선택",
+      "files": [
+        "play-1280-01-role.png"
+      ],
+      "ms": 5287
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "netFails": [
+    {
+      "step": "23 play-tab-from-subpage",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "24 play-hub",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "35 tab-matrix",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    }
+  ],
+  "files": [
+    "play-390-01-role.png",
+    "play-390-dark-01-role.png",
+    "play-360-01-role.png",
+    "play-360-dark-01-role.png",
+    "play-390-02-guest.png",
+    "play-390-03-terms.png",
+    "play-390-03b-terms-checked.png",
+    "play-390-04-home-new.png",
+    "play-390-04-home-new-bottom.png",
+    "play-390-dark-04-home-new.png",
+    "play-360-04-home-new.png",
+    "play-360-dark-04-home-new.png",
+    "play-390-05-explore-list.png",
+    "play-390-06-store-detail.png",
+    "play-390-06-store-detail-bottom.png",
+    "play-390-07-claim.png",
+    "play-390-08-visit-done.png",
+    "play-390-dark-08-visit-done.png",
+    "play-360-08-visit-done.png",
+    "play-360-dark-08-visit-done.png",
+    "play-390-09-envelope.png",
+    "play-390-10-reveal-card.png",
+    "play-390-11-reveal-stored.png",
+    "play-390-12-album.png",
+    "play-390-12-album-bottom.png",
+    "play-390-dark-12-album.png",
+    "play-360-12-album.png",
+    "play-360-dark-12-album.png",
+    "play-390-13-my-coins.png",
+    "play-390-13-my-coins-bottom.png",
+    "play-390-14-coin-tickets.png",
+    "play-390-15-shop.png",
+    "play-390-15-shop-bottom.png",
+    "play-390-dark-15-shop.png",
+    "play-360-15-shop.png",
+    "play-360-dark-15-shop.png",
+    "play-390-16-gacha-confirm.png",
+    "play-390-17-gacha-result.png",
+    "play-390-18-myroom-studio.png",
+    "play-390-19-myroom-exhibit-pick.png",
+    "play-390-20-myroom-exhibit-saved.png",
+    "play-390-dark-18-myroom-studio.png",
+    "play-360-18-myroom-studio.png",
+    "play-360-dark-18-myroom-studio.png",
+    "play-390-21-neighbors.png",
+    "play-390-22-neighbors-random.png",
+    "play-390-23-play-tab-from-subpage.png",
+    "play-390-24-play-hub.png",
+    "play-390-24-play-hub-bottom.png",
+    "play-390-dark-24-play-hub.png",
+    "play-360-24-play-hub.png",
+    "play-360-dark-24-play-hub.png",
+    "play-390-25-game-prep.png",
+    "play-390-26-game-playing.png",
+    "play-390-27-game-filled.png",
+    "play-390-28-game-delivered.png",
+    "play-390-29-game-result.png",
+    "play-390-30-my-info.png",
+    "play-390-30-my-info-bottom.png",
+    "play-390-dark-30-my-info.png",
+    "play-360-30-my-info.png",
+    "play-360-dark-30-my-info.png",
+    "play-390-31-role-again.png",
+    "play-390-32-owner.png",
+    "play-390-33-owner-today.png",
+    "play-390-33-owner-decorate.png",
+    "play-1280-01-role.png"
+  ],
+  "probes": {
+    "visitDialog": {
+      "dialog": {
+        "pos": "fixed",
+        "bg": "rgba(0, 0, 0, 0)",
+        "w": 390,
+        "h": 844,
+        "z": "0"
+      },
+      "kids": [
+        {
+          "tag": "DIV",
+          "pos": "relative",
+          "bg": "rgba(0, 0, 0, 0)",
+          "op": "1",
+          "w": 390,
+          "h": 844,
+          "x": 0,
+          "y": 0
+        }
+      ],
+      "imgs": [
+        {
+          "w": 73,
+          "h": 73,
+          "nw": 360,
+          "nh": 360,
+          "src": "mascot-stamp.b6d0473c84d091440fefe38a285",
+          "pos": "absolute"
+        },
+        {
+          "w": 62,
+          "h": 62,
+          "nw": 160,
+          "nh": 160,
+          "src": "Z",
+          "pos": "absolute"
+        }
+      ],
+      "bg": [
+        {
+          "w": 73,
+          "h": 73,
+          "bg": "url(\"https://demo-api.masscom.kr/play/assets/assets/images/m"
+        },
+        {
+          "w": 62,
+          "h": 62,
+          "bg": "url(\"data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAASABIAAD/wAAR"
+        }
+      ]
+    }
+  }
+}

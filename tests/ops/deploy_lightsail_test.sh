@@ -69,6 +69,24 @@ fi
 printf 'from=%040d\nto=%s\nbackward_compatible=yes\n' 0 \
   "$(git -C "$clean_repo" rev-parse HEAD)" >"$evidence"
 
+# Issue #401: 하위 비호환 릴리스도 허용하되 자동 복귀 정책을 원격에 전달한다.
+sed 's/backward_compatible=yes/backward_compatible=no/' "$evidence" >"$scratch/no.evidence"
+chmod 600 "$scratch/no.evidence"
+MASSCOM_LIGHTSAIL_HOST=example.invalid \
+  MASSCOM_LIGHTSAIL_KEY_FILE="$key" \
+  MASSCOM_RUNTIME_ENV_FILE="$runtime" \
+  MASSCOM_MIGRATION_COMPATIBILITY_EVIDENCE_FILE="$scratch/no.evidence" \
+  bash "$deploy" --dry-run >/dev/null
+sed 's/backward_compatible=yes/backward_compatible=unknown/' "$evidence" >"$scratch/unknown.evidence"
+chmod 600 "$scratch/unknown.evidence"
+if MASSCOM_LIGHTSAIL_HOST=example.invalid \
+  MASSCOM_LIGHTSAIL_KEY_FILE="$key" \
+  MASSCOM_RUNTIME_ENV_FILE="$runtime" \
+  MASSCOM_MIGRATION_COMPATIBILITY_EVIDENCE_FILE="$scratch/unknown.evidence" \
+  bash "$deploy" --dry-run >/dev/null 2>&1; then
+  echo '알 수 없는 migration 호환성 허용' >&2; exit 1
+fi
+
 dirty_repo="$scratch/dirty-deploy-repo"
 mkdir -p "$dirty_repo/scripts" "$dirty_repo/apps/api/src" "$dirty_repo/infra/lightsail"
 cp "$deploy" "$dirty_repo/scripts/deploy-lightsail.sh"

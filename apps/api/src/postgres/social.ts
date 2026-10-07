@@ -249,18 +249,23 @@ export class PostgresSocialService implements SocialService {
     const requestId = parseRequestId(input.requestId);
     if (!uuidPattern.test(input.friendshipId)) throw new SocialError('SOCIAL_FRIENDSHIP_NOT_FOUND');
     return this.transaction(async (client) => {
-      const replay = await client.query<GiftRow>(
-        `SELECT * FROM friendship_gifts WHERE sender_account_id = $1 AND sender_request_id = $2`,
-        [input.accountId, requestId],
-      );
-      if (replay.rows[0]) {
-        if (replay.rows[0].friendship_id !== input.friendshipId) throw new SocialError('SOCIAL_REQUEST_CONFLICT');
-        return this.giftResult(client, replay.rows[0], input.accountId, true);
-      }
+      const replay = async () => {
+        const row = (await client.query<GiftRow>(
+          `SELECT * FROM friendship_gifts WHERE sender_account_id = $1 AND sender_request_id = $2`,
+          [input.accountId, requestId],
+        )).rows[0];
+        if (!row) return null;
+        if (row.friendship_id !== input.friendshipId) throw new SocialError('SOCIAL_REQUEST_CONFLICT');
+        return this.giftResult(client, row, input.accountId, true);
+      };
+      const existing = await replay();
+      if (existing) return existing;
 
       const friendship = await this.requireFriendship(client, input.friendshipId, input.accountId);
       const other = otherAccount(friendship, input.accountId);
       await this.accountLifecycle.assertAllActive(client, [input.accountId, other]);
+      const lockedReplay = await replay();
+      if (lockedReplay) return lockedReplay;
       await this.requireFriendship(client, input.friendshipId, input.accountId);
 
       const pending = await client.query(
@@ -392,16 +397,21 @@ export class PostgresSocialService implements SocialService {
     const body = parseMessageBody(input.body);
     if (!body) throw new SocialError('INVALID_REQUEST');
     return this.transaction(async (client) => {
-      const existing = await this.mailBySenderRequest(client, input.accountId, requestId);
-      if (existing) {
+      const replay = async () => {
+        const existing = await this.mailBySenderRequest(client, input.accountId, requestId);
+        if (!existing) return null;
         if (existing.type !== 'MESSAGE' || existing.friendship_id !== input.friendshipId || existing.body !== body) {
           throw new SocialError('SOCIAL_REQUEST_CONFLICT');
         }
         return { ...await this.mailDetail(input.accountId, existing.id, client), replayed: true };
-      }
+      };
+      const existing = await replay();
+      if (existing) return existing;
       const friendship = await this.requireFriendship(client, input.friendshipId, input.accountId);
       const other = otherAccount(friendship, input.accountId);
       await this.accountLifecycle.assertAllActive(client, [input.accountId, other]);
+      const lockedReplay = await replay();
+      if (lockedReplay) return lockedReplay;
       await this.requireFriendship(client, input.friendshipId, input.accountId);
       const mailId = await this.insertMail(client, {
         sender: input.accountId,
@@ -427,8 +437,9 @@ export class PostgresSocialService implements SocialService {
     const parsed = parseMealInvitation(input, this.now());
     if (!parsed) throw new SocialError('INVALID_REQUEST');
     return this.transaction(async (client) => {
-      const existing = await this.mailBySenderRequest(client, input.accountId, requestId);
-      if (existing) {
+      const replay = async () => {
+        const existing = await this.mailBySenderRequest(client, input.accountId, requestId);
+        if (!existing) return null;
         if (existing.type !== 'MEAL_INVITATION' || existing.friendship_id !== input.friendshipId) {
           throw new SocialError('SOCIAL_REQUEST_CONFLICT');
         }
@@ -440,14 +451,21 @@ export class PostgresSocialService implements SocialService {
           throw new SocialError('SOCIAL_REQUEST_CONFLICT');
         }
         return { ...await this.mailDetail(input.accountId, existing.id, client), replayed: true };
-      }
+      };
+      const existing = await replay();
+      if (existing) return existing;
       const friendship = await this.requireFriendship(client, input.friendshipId, input.accountId);
       const other = otherAccount(friendship, input.accountId);
       await this.accountLifecycle.assertAllActive(client, [input.accountId, other]);
+      const lockedReplay = await replay();
+      if (lockedReplay) return lockedReplay;
       await this.requireFriendship(client, input.friendshipId, input.accountId);
       const merchant = await client.query<{ id: string; name: string; road_address: string }>(
-        `SELECT id, name, road_address FROM merchants WHERE id = $1 AND status = 'ACTIVE'`,
-        [parsed.merchantId],
+        `SELECT m.id, m.name, m.road_address FROM merchants m
+         WHERE m.id = $1 AND m.status = 'ACTIVE' AND m.published_at IS NOT NULL
+           AND ($2::boolean OR NOT m.is_demo)
+           AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials t WHERE t.merchant_id = m.id)`,
+        [parsed.merchantId, this.appVariant === 'SHOWCASE_APP'],
       );
       const merchantRow = merchant.rows[0];
       if (!merchantRow) throw new SocialError('INVALID_REQUEST');
