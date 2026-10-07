@@ -33,7 +33,7 @@ export interface NotificationService {
   preferences(accountId: string): Promise<NotificationPreferences>;
   updatePreferences(accountId: string, patch: Partial<NotificationPreferences>): Promise<NotificationPreferences>;
   registerDevice(accountId: string, deviceId: string, token: string, platform: 'android', sessionToken: string): Promise<void>;
-  unregisterDevice(accountId: string, deviceId: string): Promise<void>;
+  unregisterDevice(accountId: string, deviceId: string, sessionToken: string): Promise<void>;
   markRead(accountId: string, id: string): Promise<void>;
   enqueue(input: NotificationInput): Promise<boolean>;
   enqueueDueReminders(): Promise<number>;

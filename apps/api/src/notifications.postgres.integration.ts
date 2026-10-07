@@ -117,6 +117,43 @@ test('같은 세션은 기기를 재등록하고 토큰을 갱신할 수 있다'
   assert.deepEqual((await pool.query('SELECT * FROM notification_deliveries')).rows, deliveries);
 });
 
+test('지연된 옛 세션 해제는 같은 계정의 새 세션 바인딩을 보존하고 같은 세션 해제는 삭제한다', { skip }, async t => {
+  const { pool, service, tokenA, tokenB } = await setup(t);
+  await pool.query('UPDATE auth_sessions SET account_id=$1 WHERE token_hash=$2',
+    ['account-a', createHash('sha256').update(tokenB).digest()]);
+  await service.registerDevice('account-a', deviceId, 'old-token', 'android', tokenA);
+
+  // 풀 연결을 점유해 옛 DELETE를 대기시킨 뒤 다른 연결로 새 세션을 등록한다.
+  const delayedPool = new Pool({ connectionString: testUrl, max: 1 });
+  t.after(() => delayedPool.end());
+  const delayedService = new PostgresNotificationService(delayedPool, { accountLifecycle, now: () => now });
+  const held = await delayedPool.connect();
+  const oldDelete = delayedService.unregisterDevice('account-a', deviceId, tokenA);
+  try {
+    assert.equal(delayedPool.waitingCount, 1);
+    await service.registerDevice('account-a', deviceId, 'new-token', 'android', tokenB);
+  } finally {
+    held.release();
+    await oldDelete;
+  }
+  const newSession = (await pool.query('SELECT id FROM auth_sessions WHERE token_hash=$1',
+    [createHash('sha256').update(tokenB).digest()])).rows[0].id;
+  assert.deepEqual((await pool.query('SELECT account_id, session_id, token FROM notification_devices WHERE device_id=$1', [deviceId])).rows,
+    [{ account_id: 'account-a', session_id: newSession, token: 'new-token' }]);
+
+  await service.unregisterDevice('account-a', deviceId, tokenB);
+  assert.equal((await pool.query('SELECT 1 FROM notification_devices WHERE device_id=$1', [deviceId])).rowCount, 0);
+});
+
+test('기기 해제는 다른 계정의 바인딩을 삭제하지 않는다', { skip }, async t => {
+  const { pool, service, tokenA, tokenB } = await setup(t);
+  await service.registerDevice('account-a', deviceId, 'fcm-a', 'android', tokenA);
+  const devices = (await pool.query('SELECT * FROM notification_devices')).rows;
+  await service.unregisterDevice('account-b', deviceId, tokenB);
+  await service.unregisterDevice('account-b', deviceId, tokenA);
+  assert.deepEqual((await pool.query('SELECT * FROM notification_devices')).rows, devices);
+});
+
 test('계정이 달라도 같은 토큰의 동시 등록은 최신 세션 하나로 수렴한다', { skip }, async t => {
   const { pool, service, tokenA, tokenB } = await setup(t);
   const latestDevice = randomUUID();

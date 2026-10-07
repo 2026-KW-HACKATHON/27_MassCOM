@@ -5399,6 +5399,10 @@ test('notification API binds token to the resolved account and bearer session; r
   const preferences = { pushEnabled: false, rewardAvailable: true, couponExpiring: true, campaignExpiring: true };
   let agreed = false;
   const args: Parameters<typeof startFixture> = [t];
+  args[1] = createBearerAccountResolver(authSessionFixture({ resolve: async token => {
+    if (token !== 'session-token') throw new AuthSessionError('SESSION_INVALID');
+    return 'player';
+  } }));
   args[26] = consentFixture({ status: async () => ({ required: !agreed, ...consentVersions }) });
   args[37] = { notifications: {
     list: async () => [], preferences: async () => preferences,
@@ -5411,7 +5415,14 @@ test('notification API binds token to the resolved account and bearer session; r
     deliverDue: async () => ({ sent: 0, failed: 0, skipped: 0 }),
   } };
   const base = await startFixture(...args);
-  const headers = { 'x-account-id': 'player', authorization: 'Bearer session-token', 'content-type': 'application/json' };
+  const headers = { 'x-account-id': 'victim', authorization: 'Bearer session-token', 'content-type': 'application/json' };
+  for (const token of ['', 'expired-session', 'deleted-session', 'revoked-session']) {
+    const denied = await webRequest(base, '/api/notifications/devices', { method: 'DELETE',
+      headers: { ...headers, authorization: token ? `Bearer ${token}` : '' }, body: '{"deviceId":"device"}' });
+    assert.equal(denied.status, 401);
+    assert.deepEqual(await denied.json(), { code: token ? 'SESSION_INVALID' : 'SESSION_REQUIRED' });
+  }
+  assert.deepEqual(calls, []);
   assert.equal((await webRequest(base, '/api/notifications', { headers })).status, 200);
   assert.equal((await webRequest(base, '/api/notifications/preferences', { method: 'PATCH', headers,
     body: '{"pushEnabled":true}' })).status, 403);
@@ -5424,7 +5435,7 @@ test('notification API binds token to the resolved account and bearer session; r
     body: '{"deviceId":"device","token":"fcm-token","platform":"android"}' })).status, 204);
   assert.equal((await webRequest(base, '/api/notifications/preferences', { method: 'PATCH', headers,
     body: '{"pushEnabled":"true"}' })).status, 400);
-  assert.deepEqual(calls, [['player','device'], ['player','device','fcm-token','android','session-token']]);
+  assert.deepEqual(calls, [['player','device','session-token'], ['player','device','fcm-token','android','session-token']]);
 });
 
 test('merchant self-service uses web session and CSRF, forwards campaign CAS, and returns a downloadable UTF-8 CSV', async (t) => {

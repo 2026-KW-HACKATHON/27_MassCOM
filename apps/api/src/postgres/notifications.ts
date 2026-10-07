@@ -117,9 +117,11 @@ export class PostgresNotificationService implements NotificationService {
           OR (SELECT created_at FROM auth_sessions WHERE id=notification_devices.session_id) < $6`, [deviceId, accountId, session.rows[0].id, token, platform, session.rows[0].created_at]);
     });
   }
-  async unregisterDevice(accountId: string, deviceId: string): Promise<void> {
+  async unregisterDevice(accountId: string, deviceId: string, sessionToken: string): Promise<void> {
     if (!uuid.test(deviceId)) throw new NotificationError('INVALID_NOTIFICATION');
-    await this.pool.query('DELETE FROM notification_devices WHERE account_id=$1 AND device_id=$2', [accountId, deviceId]);
+    await this.pool.query(`DELETE FROM notification_devices WHERE account_id=$1 AND device_id=$2
+      AND session_id=(SELECT id FROM auth_sessions WHERE account_id=$1 AND token_hash=$3)`,
+    [accountId, deviceId, createHash('sha256').update(sessionToken).digest()]);
   }
   async markRead(accountId: string, id: string): Promise<void> {
     if (!uuid.test(id)) throw new NotificationError('INVALID_NOTIFICATION');
