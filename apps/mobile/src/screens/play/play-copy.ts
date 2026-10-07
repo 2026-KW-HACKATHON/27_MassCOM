@@ -8,6 +8,13 @@ export const gameCopy: Record<GameKind, { title: string; tag: string; rule: stri
   orders: { title: '꾸러미 주문 작업대', tag: '조합', rule: '등록된 메뉴와 연습 그림으로 만든 주문표의 물건 세 개를 담아 전달해요. 순서는 자유이고 잘못 담으면 고칠 수 있어요.', color: '#D7A14E' },
 };
 
+export const gamePrompt: Record<GameKind, string> = {
+  stack: '상자가 아래 층과 겹칠 때 눌러 6층을 쌓아요',
+  memory: '카드 두 장을 골라 같은 그림 6쌍을 찾아요',
+  delivery: '공사 상자를 피해 길을 바꾸며 12구간을 지나가요',
+  orders: '주문표의 물건 3개를 담고 전달해요',
+};
+
 export const themeNames: Record<string, string> = { daylight: '햇살 방', evening: '노을 방', garden: '정원 방' };
 
 export const skillCopy: Record<GameKind, { badge: string; goal: string; reward: string; metric: string }> = {
@@ -17,15 +24,15 @@ export const skillCopy: Record<GameKind, { badge: string; goal: string; reward: 
   orders: { badge: '주문 박사', goal: '틀린 전달 없이 물건 8개를 연속 포장하기', reward: '주문 박사 장식', metric: '연속 포장한 물건' },
 };
 
-/** Legacy highest is meaningful only when a legacy run was completed. */
+/** Server play counts include completed runs only; a saved partial attempt can still be awaiting its first finish. */
 export function playRecordLabel(record: PlayRecord | undefined): string {
-  if (!record) return '첫 기록에 도전';
+  if (!record) return '첫 완주에 도전';
   if (record.version2BestScore === undefined || record.version2Plays === undefined) {
-    return record.plays > 0 ? `기존 규칙 최고 ${record.bestScore.toLocaleString()}점 · ${record.plays}회 완주` : '첫 기록에 도전';
+    return record.plays > 0 ? `이전 놀이 최고 ${record.bestScore.toLocaleString()}점 · ${record.plays}회 완주` : '첫 완주에 도전';
   }
-  const current = record.version2Plays > 0 ? `새 규칙 최고 ${record.version2BestScore.toLocaleString()}점 · ${record.version2Plays}회 완주` : '새 규칙 첫 기록에 도전';
+  const current = record.version2Plays > 0 ? `현재 최고 ${record.version2BestScore.toLocaleString()}점 · ${record.version2Plays}회 완주` : '첫 완주에 도전';
   const legacyPlays = Math.max(0, record.plays - record.version2Plays);
-  return legacyPlays > 0 ? `${current} · 기존 규칙 최고 ${record.bestScore.toLocaleString()}점 · ${legacyPlays}회 완주` : current;
+  return legacyPlays > 0 ? `${current} · 이전 놀이 최고 ${record.bestScore.toLocaleString()}점 · ${legacyPlays}회 완주` : current;
 }
 
 export const practiceTokens = [

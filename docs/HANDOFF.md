@@ -1,9 +1,26 @@
 # HANDOFF
 
+## 2026-10-07 PR·이슈 점검 전달 결과
+
+필요한 제품 기능 PR #397은 음수 잔액 조회/재전송 결함 수정 후 HEAD `3fcf3175`의 CI37590339244 전체 PASS로 main `76205cd0`에 병합했고 #395가 닫혔다. #396은 저장 손상만 고쳐 Draft 보존, main 미병합이다. 새 PR #398은 #315의 렌더링 3결함 수정이며 이전 HEAD `5e64eada`의 CI37589437411 전체 PASS 뒤 최신 main을 통합했다. 문서 3개만 충돌했고 양쪽 기록을 보존했다. 신규 HEAD CI는 별도 확인하며 PR은 열린 상태로 남긴다. #309는 남은 체험 수용을 #206으로 이관 후 종료, #393은 #394 중복으로 종료했다. #206·#380·#394는 확인할 범위가 남아 유지한다. 기존 primary QA export 디렉터리와 다른 작업트리는 보존했다. 공개 배포 없음.
+
 ## 2026-10-07 미착수 이슈 #315 수정 PR 준비
 
 `fix/315-living-overlays`는 main `51e2df21` 기준으로 김 범위·스티커 재질·모양 자르기 세 결함만 수정했다. 사이트 519/519·집중 회귀·실제 Canvas/게시 sprite·독립 검토를 확인했다. [근거](evidence/315-living-overlays-2026-10-07/README.md). 새 PR로 제출하며 공개 배포하지 않는다. #396은 제품 기능과 별개인 대규모 개발 목업으로 판단해 Draft 보존한다. #309 구현 종료 후 전체 체험 수용은 #206으로 이관했고 #393은 #394 중복으로 종료했다. #380은 #382의 기존 crop 수정 뒤 시각 수용, #395는 별도 구현 진행 중이다.
 
+
+## 2026-10-07 PR #397 방문 취소 잔액 리뷰 수정
+
+`fix/pr397-negative-balance`에서 기존 음수 잔액 계약과 조회/재전송 복구를 맞췄다. 모바일1805/1805·타입/lint, 독립 코드 결함0·구조CLEAR. 원래 PR #397 브랜치에 fast-forward push 후 최신 HEAD CI를 확인한다. 배포는 migration 0061 → 모든 API 인스턴스 교체 → 새 앱 제공 순서로 진행한다. `grade_draws`에 첫 거래가 기록된 이후에는 해당 지출을 합산하지 않는 구 API로 단순 rollback하지 않는다. rollback이 필요하면 쓰기를 먼저 중지하고 grade_draws 잔액 합산을 유지하는 호환 버전으로 복구한다. 이번 작업에서는 운영 배포를 실행하지 않는다.
+
+
+## 2026-10-07 등급 전체 뽑기·놀이·코인 재질 (Issue #395)
+
+작업 브랜치 `feat/grade-random-draw`, 기준은 main `51e2df21`이다. [설계](superpowers/specs/2026-10-07-grade-draw-play-material-design.md), [계획](superpowers/plans/2026-10-07-grade-draw-play-material.md), [QA](GRADE_DRAW_PLAY_MATERIAL_QA_2026-10-07.md)를 따른다. 개별 아이템 동일 확률·보상 하나·중복 허용·100/200/400P는 사용자 확정이다. Migration `0061`과 새 뽑기 API/모바일 흐름, 기존 놀이의 화면 연결, 수집품 재질 표현이 작업 범위다.
+
+현 기록의 자동 검사: 모바일1803/1803 및 API558/558 PASS. PG 전체508 PASS+SKIP3, 타입/lint/build/접근성·소스 비밀/개인정보·독립 검토와 최신 private APK 빌드/서명/ZIP16KiB PASS. 브라우저 재질 시각 판정92점과 투명 프레임 보존을 확인했다. APK 설치는 NOT_RUN이다. 브라우저 합성 QA에서는 쌓기74 미완주, 짝찾기 미완주, 배달790 완주, 주문 순서는810점·3/4 미완주. 실제 휴대폰 연결이 어려워 센서/진동과 실기 화면은 `NOT_RUN`; 에뮬레이터는 조작하지 않는다. 임시 QA 데이터와 화면은 `.tmp/grade-finish/`로, Git에 포함하지 않는다.
+
+[PR #397](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/397)을 생성하고 게시된 제목/본문의 한국어 검사를 통과했다. 구현 소스는 `9606258d`이며 문서 후속까지 포함한 정확한 최신 HEAD의 CI/병합을 실제 PR에서 확인한다. 재개 시 `gh pr view 397 --json state,headRefOid,mergeCommit,statusCheckRollup`와 primary `git status -sb`를 읽고, 병합됐으면 primary를 ff-only로 갱신한다. 공개 서버·APK·Play 배포는 이번 작업의 완료 증거로 간주하지 않는다.
 
 ## 2026-10-07 가게 코인·방 탐험·시리즈 보상과 시연 역할 전환 (Issue #391)
 

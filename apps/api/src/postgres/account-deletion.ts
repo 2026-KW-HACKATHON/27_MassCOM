@@ -266,6 +266,7 @@ async function pseudonymizeAccount(
   now: Date,
 ): Promise<void> {
   // 공개 방과 코인 소비권은 계정 삭제와 같은 lifecycle 잠금으로 직렬화한다.
+  await client.query('DELETE FROM grade_draws WHERE account_id=$1', [accountId]);
   await client.query(`DELETE FROM room_stamp_reports WHERE reporter_account_id=$1 OR stamp_id IN
     (SELECT id FROM room_stamps WHERE author_account_id=$1 OR room_id IN (SELECT id FROM public_rooms WHERE account_id=$1))`, [accountId]);
   await client.query('UPDATE room_stamp_reports SET moderated_by_account_id=$2 WHERE moderated_by_account_id=$1', [accountId, deletedAlias]);

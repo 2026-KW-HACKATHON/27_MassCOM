@@ -1,3 +1,5 @@
+import type { CollectibleAngleFrames } from '@/commerce/collectible-artwork';
+
 export type ParticlePoint = { x: number; y: number; color: string };
 
 /** 옆면 경계(±90도)는 앞면으로 고정해 부동소수점 cos 부호에 의존하지 않는다. */
@@ -34,6 +36,14 @@ export function particleAt(kind: string, i: number, phase: number): ParticlePoin
  * 중간 각도에서 합산 불투명도가 1보다 낮아져 그 아래 갈색 옆면 틴트가 비친다(WP4 리뷰 4). */
 export function angleFrameOpacities(blend: number): { lower: number; upper: number } {
   return { lower: 1, upper: Math.min(1, Math.max(0, blend)) };
+}
+
+/** 웹 CSS 마스크에도 화면의 두 스프라이트 칸과 같은 합성 알파를 전달한다. */
+export function angleFrameWebMask(frames: CollectibleAngleFrames, index: number, next: number, blend: number): string {
+  const rows = Math.ceil(frames.count / frames.columns);
+  const image = (cell: number, opacity: number) => `<image href="${frames.dataUrl}" x="${-(cell % frames.columns)}" y="${-Math.floor(cell / frames.columns)}" width="${frames.columns}" height="${rows}" preserveAspectRatio="none" opacity="${opacity}"/>`;
+  const alpha = angleFrameOpacities(blend);
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1">${image(index, alpha.lower)}${alpha.upper > 0 ? image(next, alpha.upper) : ''}</svg>`)}`;
 }
 
 const ANGLE_FRAME_START = -82.5, ANGLE_FRAME_STEP = 15, ANGLE_FRAME_COUNT = 12;

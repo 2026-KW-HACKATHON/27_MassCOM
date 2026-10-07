@@ -26,6 +26,18 @@ test('앞면·뒷면 정면에서는 모서리 가로 이동이 정확히 0이�
   for (const angle of [0, 180, -180]) assert.equal(collectibleEdgeOffset(angle, 12), 0, `${angle}°`);
 });
 
+test('게시 사진과 각도별 프레임은 앞뒷면 공통 윤곽으로 잘린다', () => {
+  assert.match(detail, /function FaceImage\([\s\S]*?overflow: 'hidden', borderRadius:/);
+  assert.match(detail, /function FaceImage\([\s\S]*?<ClipPath id=\{clipId\}>[\s\S]*?<CollectibleFaceOutline shape=\{shape\}/);
+  assert.match(detail, /clipPath: collectibleWebClipPath\(shape\)/);
+  assert.match(detail, /<FaceImage uri=\{snapshot\.backImageDataUrl\} shape=\{snapshot\.shape\}/);
+  assert.match(detail, /<FaceImage uri=\{picture\} shape=\{snapshot\.shape\}/);
+  assert.match(detail, /<SpriteCell frames=\{snapshot\.angleFrames\}[^>]*shape=\{snapshot\.shape\}/);
+  assert.match(detail, /<Image source=\{\{ uri: frames\.dataUrl \}\} resizeMode="stretch"/);
+  assert.match(detail, /<ClipPath id=\{lightClipId\}>[\s\S]*?<CollectibleFaceOutline shape=\{snapshot\.shape\}/);
+  assert.match(detail, /fill=\"url\(#collectible-light\)\" clipPath=\{Platform\.OS === 'web' \? undefined : `url\(#\$\{lightClipId\}\)`\}/);
+});
+
 test('뒷면 그림이 없을 때 기본 뒷면을 사용한다', () => {
   assert.match(detail, /snapshot\.backImageDataUrl\s*\?[\s\S]*?\)\s*:\s*\(\s*<View[\s\S]*?<CollectibleDefaultBack\b/);
 });
@@ -64,7 +76,8 @@ test('기본 뒷면은 공통 등급 판별과 프리즘 무지개·골드 금�
 test('앞면·사용자 뒷면·기본 뒷면은 회전 부모 안에서 같은 조명 입력과 시계를 쓴다', () => {
   assert.equal((detail.match(/<GradeMaterialLayer\b/g) ?? []).length, 3);
   assert.equal((detail.match(/tilt=\{materialTilt\} clock=\{materialClock\}/g) ?? []).length, 3);
-  assert.match(detail, /faceUri=\{snapshot\.backImageDataUrl\}/);
+  assert.match(detail, /<GradeMaterialLayer material=\{material\} size=\{displayFace\} shape=\{snapshot\.shape\}/);
+  assert.match(detail, /clipPath: collectibleWebClipPath\(snapshot\.shape\)/);
   assert.match(detail, /intensityScale=\{animationFrame\.light \? \.9 : 1\}/);
   // 상세는 Modal 안이라 제스처 루트를 다시 둬야 한다(#358: 없으면 개발 빌드는 렌더 오류, 릴리스는 재질·끌기가 빠진다).
   assert.match(detail, /<GestureHandlerRootView style=\{\{ flex: 1 \}\}>\s*<ScrollView/);

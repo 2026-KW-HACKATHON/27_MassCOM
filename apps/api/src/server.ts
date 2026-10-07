@@ -81,6 +81,7 @@ import { ReversalError, type ReversalService } from './reversal.js';
 import { MileageShopError, type MileageShopService } from './mileage-shop.js';
 import { CoinEconomyError, type CoinEconomyService, type PublishCoinPoolInput, type PublishCoinSeriesInput } from './coin-economy.js';
 import { RoomCommunityError, type RoomCommunityService } from './room-community.js';
+import { GradeDrawError, type GradeDrawService } from './grade-draw.js';
 import { isMileageGrade } from './mileage-rules.js';
 import { VisitorFeedbackError, type VisitorFeedbackService } from './visitor-feedback.js';
 import {
@@ -100,6 +101,7 @@ import { PostgresFriendService } from './postgres/friends.js';
 import { PostgresPlayService } from './postgres/play.js';
 import { PostgresCoinEconomyService } from './postgres/coin-economy.js';
 import { PostgresRoomCommunityService } from './postgres/room-community.js';
+import { PostgresGradeDrawService } from './postgres/grade-draw.js';
 import { PostgresMerchantOverviewService } from './postgres/merchant-overview.js';
 import { PostgresCollectiblePreviewService, PostgresMerchantDetailViewService } from './postgres/merchant-discovery.js';
 import { PostgresAdminFunnelService } from './postgres/admin-funnel.js';
@@ -226,6 +228,7 @@ export const developmentHeaderReauthenticationGuard: ReauthenticationGuard = (
 };
 
 export type ExperienceServices = {
+  gradeDraw?: GradeDrawService | undefined;
   coinEconomy?: CoinEconomyService | undefined;
   roomCommunity?: RoomCommunityService | undefined;
   collectionExperience?: CollectionExperienceService | undefined;
@@ -295,7 +298,7 @@ export function createApiServer(
   storeTickets?: StoreTicketService,
   social?: SocialService,
 ) {
-  const { collectionExperience, merchantOperations, notifications, realWorld, tmap, mapProvider, coinEconomy, roomCommunity } = experienceServices;
+  const { collectionExperience, merchantOperations, notifications, realWorld, tmap, mapProvider, coinEconomy, roomCommunity, gradeDraw } = experienceServices;
   const requireCustomerScan = async (accountId: string, merchantId: string): Promise<void> => {
     if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
     try { await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' }); }
@@ -1371,6 +1374,27 @@ export function createApiServer(
         sendJson(response, 200, await play.getStudio(accountId));
         return;
       }
+      if (path === '/shop/draw-pools' || path === '/shop/draws') {
+        if (!gradeDraw) throw new RequestError(503, 'GRADE_DRAW_NOT_CONFIGURED');
+        const accountId = await resolveAccountId(request);
+        await requireCurrentPlayConsent(accountId);
+        if (request.method === 'GET' && path === '/shop/draw-pools') {
+          sendJson(response, 200, await gradeDraw.getShop(accountId)); return;
+        }
+        if (request.method !== 'POST' || path !== '/shop/draws') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+        const decision = coinWriteLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'DRAW_RATE_LIMITED');
+        }
+        const body = await readJson(request);
+        requireOnlyKeys(body, ['grade', 'requestId', 'expectedPoolVersion']);
+        const grade = requireString(body, 'grade');
+        if (!isMileageGrade(grade)) throw new RequestError(400, 'INVALID_REQUEST');
+        const result = await gradeDraw.draw({ accountId, grade, requestId: requireString(body, 'requestId'),
+          expectedPoolVersion: requireString(body, 'expectedPoolVersion') });
+        sendJson(response, result.replayed ? 200 : 201, result); return;
+      }
       if (path === '/coin-shop' || path === '/coin-shop/purchases' || path === '/me/coins' ||
           /^\/(coin-tickets\/[^/]+\/use|coin-series\/[^/]+\/claim)$/.test(path)) {
         if (!coinEconomy) throw new RequestError(503, 'COIN_ECONOMY_NOT_CONFIGURED');
@@ -2167,6 +2191,10 @@ export function createApiServer(
       if (error instanceof CoinEconomyError) {
         sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
           : error.code === 'COIN_TICKET_NOT_FOUND' ? 404 : 409, { code: error.code }); return;
+      }
+      if (error instanceof GradeDrawError) {
+        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
+          : error.code === 'DRAW_RATE_LIMITED' ? 429 : 409, { code: error.code }); return;
       }
       if (error instanceof RoomCommunityError) {
         sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410
@@ -3176,6 +3204,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
     {
+      gradeDraw: pool && accountLifecycle ? new PostgresGradeDrawService(pool, accountLifecycle, { ...allAccess.mileageShop }) : undefined,
       coinEconomy: pool && accountLifecycle ? new PostgresCoinEconomyService(pool, { accountLifecycle, ...allAccess.mileageShop }) : undefined,
       roomCommunity: pool && accountLifecycle && play ? new PostgresRoomCommunityService(pool, { accountLifecycle, play }) : undefined,
       collectionExperience: pool && accountLifecycle ? new PostgresCollectionExperienceService(pool, accountLifecycle) : undefined,

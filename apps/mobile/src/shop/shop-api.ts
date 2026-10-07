@@ -333,7 +333,16 @@ export function shopErrorMessage(error: unknown): string {
     case 'INVALID_REQUEST':
       return '요청을 처리하지 못했어요. 상점을 다시 불러와 주세요.';
     case 'SHOP_INSUFFICIENT_MILEAGE':
+    case 'DRAW_INSUFFICIENT_MILEAGE':
       return '마일리지가 모자라요.';
+    case 'DRAW_STATE_CHANGED':
+      return '뽑기 목록이 바뀌었어요. 요금은 빠지지 않았어요. 최신 확률을 확인해 주세요.';
+    case 'DRAW_COIN_UNAVAILABLE':
+      return '가게 코인 공개 상태가 바뀌었어요. 요금은 빠지지 않았어요.';
+    case 'DRAW_REQUEST_CONFLICT':
+      return '이전 뽑기 요청을 확인하지 못했어요. 상점을 다시 불러와 주세요.';
+    case 'DRAW_RATE_LIMITED':
+      return '잠시 후 다시 뽑아 주세요.';
     case 'SHOP_GRADE_COMPLETE':
       return '이 등급은 이미 모두 모았어요.';
     case 'SHOP_STATE_CHANGED':

@@ -22,7 +22,7 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { BadgeArt, CosmeticArt } from '@/illustration/artwork';
 import { StateScene } from '@/ui/state-scene';
 import { Companion, GameToken, ownedGameArt, type OwnedArt } from './play-art';
-import { gameCopy, playRecordLabel, skillCopy, skillRewardArt, themeNames } from './play-copy';
+import { gameCopy, gamePrompt, playRecordLabel, skillCopy, skillRewardArt, themeNames } from './play-copy';
 import { GameSession } from './game-session';
 import { QualityGameSession } from './quality-session';
 import { fetchPlayContent, playContent, PlayContentLoadError, startWithCurrentContent, type PlayContent } from './play-content';
@@ -185,6 +185,11 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
         <Text style={[styles.rule, { color: palette.secondaryLabel }]}>{gameCopy[selection].rule}</Text>
       </View>
       <View style={styles.prepCompanion}><Companion avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} /><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>{avatar ? '선택한 동행과 함께' : avatarLoaded ? '동행은 상점에서 고를 수 있어요' : '동행 정보를 확인하지 못했어요'}{record ? ` · ${playRecordLabel(record)}` : ''}</Text></View>
+      <View style={[styles.prepCallout, { backgroundColor: palette.primaryContainer }]}><Text style={[styles.prepCalloutTitle, { color: palette.onPrimaryContainer }]}>이번 놀이</Text><Text style={[styles.rule, { color: palette.onPrimaryContainer }]}>{gamePrompt[selection]}</Text><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>완주 기록은 내 방 배경으로, 실력 목표는 동행 꾸미기로 이어져요.</Text></View>
+      {startError ? <Text style={[styles.error, { color: palette.error }]}>{startError}</Text> : null}
+      {startNeedsConsent ? <BounceButton label={consentRecheckLabel} variant="secondary" onPress={recheckConsent} /> : null}
+      <BounceButton label={startBusy ? '시작 준비 중' : `${gameCopy[selection].title} 시작`} disabled={startBusy} onPress={() => void start(selection)} />
+      <BounceButton label="다른 게임" variant="secondary" onPress={() => setSelection(undefined)} />
       <View style={[styles.skillPreview, { backgroundColor: palette.surface, borderColor: gameCopy[selection].color }]}>
         <View style={styles.rewardArt}><BadgeArt id={gameSkills[selection].id} size={72} /><CosmeticArt id={skillRewardArt[selection]} size={88} /></View><Text style={[styles.unlockTitle, { color: palette.label }]}>{skillCopy[selection].badge} 배지</Text>
         <Text style={[styles.rule, { color: palette.secondaryLabel }]}>{skillCopy[selection].goal}</Text>
@@ -193,13 +198,10 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
           `${snapshot?.achievements?.find((entry) => entry.id === gameSkills[selection].id)?.progress ?? 0}/${gameSkills[selection].target} 최고 진행`}</Text>
       </View>
       <UnlockPreview snapshot={snapshot} label={palette.label} muted={palette.secondaryLabel} />
-      {startError ? <Text style={[styles.error, { color: palette.error }]}>{startError}</Text> : null}
-      {startNeedsConsent ? <BounceButton label={consentRecheckLabel} variant="secondary" onPress={recheckConsent} /> : null}
-      <BounceButton label={startBusy ? '시작 준비 중' : '시작하기'} disabled={startBusy} onPress={() => void start(selection)} />
-      <BounceButton label="다른 게임" variant="secondary" onPress={() => setSelection(undefined)} />
+      <BounceButton label="내 방에서 해금한 배경 보기" variant="secondary" onPress={() => router.push('/studio')} />
     </> : <>
       <ImageBackground source={require('../../../assets/images/play/room-daylight.png')} resizeMode="cover" style={styles.hero} imageStyle={styles.heroImage}>
-        <View style={styles.heroShade}><Companion avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} /><Text style={styles.heroTitle}>오늘은 뭘 해볼까요?</Text></View>
+        <View style={styles.heroShade}><Companion avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} /><View style={styles.heroCopy}><Text style={styles.heroTitle}>동네 그림으로 놀아요</Text><Text style={styles.heroSubtitle}>완주 기록을 쌓아 방 배경을 열고, 실력 배지로 동행을 꾸며요</Text></View></View>
       </ImageBackground>
       {loading && !snapshot ? <StateScene kind="loading" title="놀이 기록을 불러오는 중" /> : null}
       {loadError ? <View style={styles.loadIssue}><Text style={[styles.error, { color: palette.error }]}>{loadError}</Text><BounceButton label={loadNeedsConsent ? consentRecheckLabel : '기록 다시 불러오기'} variant="secondary" onPress={loadNeedsConsent ? recheckConsent : () => void load()} /></View> : null}
@@ -209,7 +211,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
         const achievement = snapshot?.achievements?.find((entry) => entry.id === gameSkills[kind].id);
         return <Pressable key={kind} accessibilityRole="button" accessibilityLabel={`${copy.title} 준비하기`} onPress={() => setSelection(kind)} style={[styles.gameCard, { borderColor: copy.color, backgroundColor: palette.surface }]}>
           <View style={[styles.gameMark, { backgroundColor: copy.color }]}><GameToken value={gameKinds.indexOf(kind)} art={art} size={44} /></View>
-          <View style={styles.gameDetail}><Text style={[styles.gameTitle, { color: palette.label }]}>{copy.title}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{copy.tag} · {snapshot ? playRecordLabel(best) : '기록 확인 전'}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{skillCopy[kind].badge} · {achievement?.achieved ? '획득' : `${achievement?.progress ?? 0}/${achievement?.target ?? 1}`}</Text></View>
+          <View style={styles.gameDetail}><Text style={[styles.gameTitle, { color: palette.label }]}>{copy.title}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{gamePrompt[kind]}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{snapshot ? playRecordLabel(best) : '기록 확인 전'} · {skillCopy[kind].badge} {achievement?.achieved ? '획득' : `${achievement?.progress ?? 0}/${achievement?.target ?? 1}`}</Text></View>
           <Text style={[styles.chevron, { color: palette.secondaryLabel }]}>›</Text>
         </Pressable>;
       })}</View>
@@ -221,6 +223,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
         <Text style={[styles.chevron, { color: palette.primary }]}>›</Text>
       </Pressable>
       <UnlockPreview snapshot={snapshot} label={palette.label} muted={palette.secondaryLabel} />
+      <View style={styles.hubActions}><BounceButton label="내 방 꾸미기" variant="secondary" onPress={() => router.push('/studio')} /><BounceButton label="내 코인 도감" variant="secondary" onPress={() => router.push('/collection')} /></View>
       {art.length ? <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>네 놀이에 방문한 가게와 수집품 그림 {art.length}개가 이어져요.</Text> : <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>{artLoaded ? '연습 꾸러미로 먼저 놀아 보세요. 방문하면 내 가게 그림으로 놀이가 넓어져요.' : '수집품 그림을 확인하지 못했어요.'}</Text>}
       <Text style={[styles.rewardNote, { color: palette.secondaryLabel }]}>게임별 실력 배지로 동행 꾸미기를 해금하고, 완주 기록으로 공간 배경을 열어요.</Text>
     </>}
@@ -234,8 +237,8 @@ const styles = StyleSheet.create({
   activeBackText: { color: '#FFF', fontSize: 32, lineHeight: 38 },
   activeHeaderTitle: { fontSize: 18, fontWeight: '800' },
   hero: { minHeight: 104, borderRadius: 20, overflow: 'hidden', justifyContent: 'flex-end' },
-  heroImage: { borderRadius: 20 }, heroShade: { minHeight: 72, paddingHorizontal: 16, paddingBottom: 12, flexDirection: 'row', alignItems: 'flex-end', gap: 10, backgroundColor: 'rgba(24,49,44,0.63)' },
-  heroTitle: { color: '#FFF', fontSize: 22, fontWeight: '900', flexShrink: 1 },
+  heroImage: { borderRadius: 20 }, heroShade: { minHeight: 92, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(24,49,44,0.72)' },
+  heroCopy: { flex: 1, gap: 4 }, heroTitle: { color: '#FFF', fontSize: 21, fontWeight: '900' }, heroSubtitle: { color: '#FFF', fontSize: 13, lineHeight: 18 },
   gameList: { gap: 10 }, gameCard: { minHeight: 80, borderRadius: 16, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
   gameMark: { width: 54, height: 54, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, gameMarkText: { color: '#FFF', fontSize: 29, fontWeight: '800' },
   gameDetail: { flex: 1, gap: 4 }, gameTitle: { fontSize: 18, fontWeight: '800' }, gameTag: { fontSize: 13 }, chevron: { fontSize: 27 },
@@ -245,6 +248,7 @@ const styles = StyleSheet.create({
   roomName: { fontSize: 13, fontWeight: '800' }, roomRequirement: { fontSize: 12 },
   ownedNote: { fontSize: 13 }, rewardNote: { fontSize: 13, lineHeight: 19 },
   prepHead: { gap: 12, paddingTop: 14, paddingBottom: 10 }, eyebrow: { fontSize: 14, fontWeight: '800' }, prepTitle: { fontSize: 29, fontWeight: '900' }, rule: { fontSize: 16, lineHeight: 24 },
+  prepCallout: { gap: 6, borderRadius: 16, padding: 16 }, prepCalloutTitle: { fontSize: 14, fontWeight: '900' }, hubActions: { gap: 8 },
   prepCompanion: { minHeight: 90, flexDirection: 'row', alignItems: 'center', gap: 12 }, prepMeta: { flex: 1, fontSize: 14 }, error: { fontSize: 14, lineHeight: 20 }, loadIssue: { gap: 10 },
   rewardArt: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 },
   skillPreview: { gap: 6, borderWidth: 2, borderRadius: 8, padding: 14 },

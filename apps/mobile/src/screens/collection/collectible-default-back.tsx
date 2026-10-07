@@ -21,16 +21,25 @@ export function collectibleGradeColors(gradeId: string, gradeName: string, schem
   return medals.bronze;
 }
 
+export const collectibleSerratedPoints = Array.from({ length: 48 }, (_, index) => {
+  const angle = -Math.PI / 2 + index * Math.PI * 2 / 48;
+  const radius = index % 2 ? 36.8 : 46;
+  return [50 + Math.cos(angle) * radius, 50 + Math.sin(angle) * radius] as const;
+});
+
+/** SVG 안팎의 웹 사진·재질광이 발행된 한 윤곽을 공유한다. */
+export function collectibleWebClipPath(shape: string): string {
+  if (shape === 'stamp') return 'inset(4% 9% round 6%)';
+  if (shape === 'serrated' || shape === 'gear') return `polygon(${collectibleSerratedPoints.map(([x, y]) => `${x}% ${y}%`).join(',')})`;
+  return 'circle(46% at 50% 50%)';
+}
+
 /** 얼굴과 옆면이 같은 윤곽을 공유한다. 알려지지 않은 형태는 원형이다. */
 export function CollectibleFaceOutline({ shape, fill, stroke, strokeWidth }: { shape: string; fill: string; stroke?: string; strokeWidth?: number }) {
   return shape === 'stamp'
     ? <Rect x={9} y={4} width={82} height={92} rx={6} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />
     : shape === 'serrated' || shape === 'gear'
-      ? <Polygon fill={fill} stroke={stroke} strokeWidth={strokeWidth} points={Array.from({ length: 48 }, (_, index) => {
-        const angle = -Math.PI / 2 + index * Math.PI * 2 / 48;
-        const radius = index % 2 ? 36.8 : 46;
-        return `${50 + Math.cos(angle) * radius},${50 + Math.sin(angle) * radius}`;
-      }).join(' ')} />
+      ? <Polygon fill={fill} stroke={stroke} strokeWidth={strokeWidth} points={collectibleSerratedPoints.map(([x, y]) => `${x},${y}`).join(' ')} />
       : <Circle cx={50} cy={50} r={46} fill={fill} stroke={stroke} strokeWidth={strokeWidth} />;
 }
 

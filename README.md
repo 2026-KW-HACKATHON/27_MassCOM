@@ -8,6 +8,8 @@
 
 가게별 코인 뽑기권·중복 수량·시리즈 쿠폰과 공개 동의 기반 방 탐험은 [설정·검증 기록](docs/COIN_COMMUNITY_QA_2026-10-07.md)을 따른다. 실제 점포/확률 풀과 동의받은 쿠폰 조건을 등록하기 전에는 빈 상태이며 기존 보유 권리를 삭제하지 않는다. 새 설치/운영 반영에는 API migration 0059·0060이 먼저 필요하다. 시연앱은 점주 화면의 뒤로가기/메뉴와 고객 내 정보의 ‘역할 선택으로’에서 고객·점주 체험을 다시 고른다. 역할 선택 자체로 점주 권한을 부여하지 않는다.
 
+등급 전체 랜덤 뽑기·놀이 화면·코인 재질 개선은 Issue #395의 로컬 작업이다. 등급별 가격은 100/200/400P이며 풀의 개별 코인·테마·캐릭터를 동일 확률로 하나 지급하고 중복을 허용한다. 기존 네 게임 규칙은 유지한다. [검증 기록](docs/GRADE_DRAW_PLAY_MATERIAL_QA_2026-10-07.md)의 최신 항목에 모바일/API 자동 검사와 합성 브라우저 결과, 남은 PG·APK·실기 검증을 구분해 적는다. 새 작업은 운영 서버·공개 APK에 아직 반영되지 않았다.
+
 <p align="center">
   <img alt="React Native" src="https://img.shields.io/badge/React_Native-Android-2358C7?logo=react&amp;logoColor=white">
   <img alt="Expo SDK 57" src="https://img.shields.io/badge/Expo-SDK_57-152A4A?logo=expo&amp;logoColor=white">

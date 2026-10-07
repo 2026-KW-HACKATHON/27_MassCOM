@@ -183,3 +183,12 @@ test('physical tilt holds metal reflections still while input remains unchanged'
       reflectionAt({ ...input, tiltX: -.5, timeMs: 40000 }, preset).bandOffset);
   }
 });
+
+test('고정 광원에서는 기울임에 따라 금속 표면과 가장자리의 광량이 달라진다', () => {
+  for (const preset of Object.values(gradeMaterialPresets)) {
+    const face = reflectionAt({ tiltX: 0, tiltY: 0, timeMs: 0, ambient: false }, preset);
+    const edge = reflectionAt({ tiltX: 1, tiltY: 1, timeMs: 9000, ambient: false }, preset);
+    assert.ok(face.specular > edge.specular, `${preset.material} 표면 반사`);
+    assert.ok(face.fresnel < edge.fresnel, `${preset.material} 측면 반사`);
+  }
+});
