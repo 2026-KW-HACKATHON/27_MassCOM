@@ -225,8 +225,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       {merchant.thumbnail?<Text style={styles.muted}>점주 제공 실제 사진 · {photoKindLabel(merchant.thumbnail.kind)}</Text>:null}
       <View style={styles.actions}>{button('상세',()=>openMerchant(merchant.id,source))}{merchant.position?button('코스에 추가',()=>updateCourse([...course.filter(stop=>stop.merchantId!==merchant.id),...(!course.some(stop=>stop.merchantId===merchant.id)&&course.length<5?createCourse([merchant.id]):[])])):null}</View>
     </View></Pressable>;
-  const controls=<>
-    <AppHeader title="탐색" subtitle="가게와 코스 찾기" compact /><View style={styles.header}><View style={styles.actions}>{button('지도',()=>discoveryState.setMode('map'),state.mode==='map')}{button('목록',()=>discoveryState.setMode('list'),state.mode==='list')}<Pressable accessibilityRole="button" onPress={refresh} style={styles.button}><Text style={styles.buttonText}>새로고침</Text></Pressable></View></View>
+  const searchTools=<>
     <TextInput value={state.filters.query} onChangeText={query=>discoveryState.setFilters({query})} placeholder="가게 이름·주소 검색" placeholderTextColor={world.cardMuted} accessibilityLabel="가게 검색" style={[styles.input,styles.searchInput]} returnKeyType="search"/>
     <ScrollView horizontal keyboardShouldPersistTaps="handled" style={styles.filters} contentContainerStyle={[styles.actions,styles.filterRow]}>
       {button('전체',()=>discoveryState.setFilters({category:null,campaignOnly:false,openOnly:false,unvisitedOnly:false,interestedOnly:false}))}
@@ -236,6 +235,12 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       {interested.size?button('목표 수집품 가게',()=>discoveryState.setFilters({interestedOnly:!state.filters.interestedOnly}),state.filters.interestedOnly):null}
       {merchantCategories.map(category=><View key={category}>{button(category,()=>discoveryState.setFilters({category:state.filters.category===category?null:category}),state.filters.category===category)}</View>)}
     </ScrollView>
+  </>;
+  const filterSummary=[state.filters.query.trim()&&`검색: ${state.filters.query.trim()}`,state.filters.category,
+    state.filters.openOnly&&'영업 중',state.filters.campaignOnly&&'캠페인',state.filters.unvisitedOnly&&'미방문',state.filters.interestedOnly&&'목표 수집품 가게'].filter(Boolean).join(' · ');
+  const controls=<>
+    <AppHeader title="탐색" subtitle="가게와 코스 찾기" compact /><View style={styles.header}><View style={styles.actions}>{button('지도',()=>discoveryState.setMode('map'),state.mode==='map')}{button('목록',()=>discoveryState.setMode('list'),state.mode==='list')}<Pressable accessibilityRole="button" onPress={refresh} style={styles.button}><Text style={styles.buttonText}>새로고침</Text></Pressable></View></View>
+    {state.mode==='map'?<View style={styles.mapSearch}><Fold title="검색·필터" summary={filterSummary||undefined}>{searchTools}</Fold></View>:searchTools}
   </>;
   const panels=<View style={[styles.content,{paddingBottom:state.mode==='map'?20:clearance}]}>
       {state.mode==='map'&&(state.filters.unvisitedOnly||state.filters.interestedOnly)?<Text style={styles.muted}>지도 숫자는 범위의 전체 가게 수입니다. 개인 방문·목표 필터는 불러온 목록과 가게 선택에 적용됩니다.</Text>:null}
@@ -279,10 +284,11 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
     </ScrollView>
     <StatusBarScrim scrollY={scrim.scrollY} />
   </View> : <View style={[styles.screen,{paddingBottom:clearance}]}>
-    {isLargeText(fontScale)?<ScrollView keyboardShouldPersistTaps="handled" style={styles.largeMapControls}>{controls}</ScrollView>:controls}
+    {isLargeText(fontScale)?<ScrollView keyboardShouldPersistTaps="handled" onScroll={scrim.onScroll} scrollEventThrottle={16} style={styles.largeMapControls}>{controls}</ScrollView>:controls}
     <View style={[styles.mapCanvas,fontScale>=1.8&&{minHeight:100}]}><TmapMap camera={camera} markers={mapMarkers} selectedId={state.selectedId} route={route?.geometry??null} padding={{top:0,right:0,bottom:0,left:0}} active={focused&&foreground} style={{flex:1}}
       onReady={()=>undefined} onError={()=>setOriginMessage('지도를 열지 못했어요. 목록에서 가게를 찾아볼 수 있어요.')} onViewport={viewport} onSelect={(id:string)=>{const server=state.clusters.find(item=>clusterMarkerId(item.id)===id);if(server){openServerCluster(server);return;}select(id,'map');const matches=sameBuilding(id);if(matches.length>1)setClusterIds(matches.map(m=>m.id));}} onCluster={cluster}/></View>
     <ScrollView keyboardShouldPersistTaps="handled" style={styles.mapPanel}>{panels}</ScrollView>
+    <StatusBarScrim scrollY={scrim.scrollY} />
   </View>;
 
 }

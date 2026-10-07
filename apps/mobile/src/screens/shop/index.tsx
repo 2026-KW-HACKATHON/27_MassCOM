@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
+import { Alert, Image, Pressable, RefreshControl, Text, View, useColorScheme, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -14,7 +14,6 @@ import { colorsForScheme } from '@/theme/palette';
 import { AppHeader } from '@/ui/app-header';
 import { BounceButton } from '@/ui/bounce-button';
 import { FloatingCard } from '@/ui/floating-card';
-import { heroMascotSize } from '@/ui/large-text';
 import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
@@ -59,7 +58,6 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const styles = useShopStyles();
-  const { fontScale } = useWindowDimensions();
 
   const api = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shop = useShop(api);
@@ -273,13 +271,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     ]);
   }
 
-  const header = (
-    <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE} compact>
-      <View style={styles.hero}>
-        <Mascot interactive pose="gift" size={heroMascotSize(fontScale, 72)} />
-      </View>
-    </AppHeader>
-  );
+  const header = <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE} compact />;
   // extra는 뽑기 연출 모달 자리다. retryScroll은 로딩/오류 화면에서만 ref와 content-size 보정을 연결한다.
   const sky = (body: ReactNode, extra?: ReactNode, retryScroll?: boolean) => (
     <SkyBackdrop>
@@ -344,6 +336,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
           <View style={styles.mileageRow}>
             <Image source={mileageCoinArt} style={styles.coin} accessible={false} accessibilityIgnoresInvertColors />
             <Text accessibilityLabel={`마일리지 ${snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(snapshot.mileage.balance)}</Text>
+            <Mascot interactive pose="gift" size={56} />
           </View>
           {pending ? <BounceButton label="이전 구매 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
