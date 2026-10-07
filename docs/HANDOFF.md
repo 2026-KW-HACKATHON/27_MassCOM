@@ -6,7 +6,7 @@
 
 현 기록의 자동 검사: 모바일1803/1803 및 API558/558 PASS. PG 전체508 PASS+SKIP3, 타입/lint/build/접근성·소스 비밀/개인정보·독립 검토와 최신 private APK 빌드/서명/ZIP16KiB PASS. 브라우저 재질 시각 판정92점과 투명 프레임 보존을 확인했다. APK 설치는 NOT_RUN이다. 브라우저 합성 QA에서는 쌓기74 미완주, 짝찾기 미완주, 배달790 완주, 주문 순서는810점·3/4 미완주. 실제 휴대폰 연결이 어려워 센서/진동과 실기 화면은 `NOT_RUN`; 에뮬레이터는 조작하지 않는다. 임시 QA 데이터와 화면은 `.tmp/grade-finish/`로, Git에 포함하지 않는다.
 
-PR은 아직 생성되지 않았다. 계속 진행할 때는 최종 검증 결과를 위 QA 문서에 반영한 뒤 한국어 PR 검사를 하고, 정확한 HEAD의 CI를 확인한 다음 병합과 primary fast-forward를 기록한다. 공개 서버·APK·Play 배포는 이번 작업의 완료 증거로 간주하지 않는다.
+[PR #397](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/397)을 생성하고 게시된 제목/본문의 한국어 검사를 통과했다. 구현 소스는 `9606258d`이며 문서 후속까지 포함한 정확한 최신 HEAD의 CI/병합을 실제 PR에서 확인한다. 재개 시 `gh pr view 397 --json state,headRefOid,mergeCommit,statusCheckRollup`와 primary `git status -sb`를 읽고, 병합됐으면 primary를 ff-only로 갱신한다. 공개 서버·APK·Play 배포는 이번 작업의 완료 증거로 간주하지 않는다.
 
 ## 2026-10-07 가게 코인·방 탐험·시리즈 보상과 시연 역할 전환 (Issue #391)
 

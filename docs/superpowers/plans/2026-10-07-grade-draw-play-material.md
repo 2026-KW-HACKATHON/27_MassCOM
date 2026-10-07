@@ -19,4 +19,4 @@
 - [x] play 네 게임 준비/입력 목표/진행/결과/프로젝트 동선과 기본 달수 표현. 서버 규칙/점수 유지, 목표수량·수명 테스트.
 - [x] 루트 전체 타입/lint/build·API/모바일/PG·접근성/소스 검사와 독립 검토 마무리. 현재 기록: 모바일1803·API558 PASS, PG508 PASS+3 SKIP(총511) 최종 전체 재실행 PASS.
 - [x] 비공개APK 최종 동일서명/키제외/16KiB 검사. 사용자가 실폰 연결이 어렵다고 알려 실제 폰의 개봉/놀이/센서·진동 확인은 `NOT_RUN`; 브라우저 시각92/100 PASS, 실물 검증과 분리.
-- [x] QA 보고서와 README/DESIGN/AI_USAGE/HANDOFF 갱신. 한국어PR검사·commit/push/attach·최종HEAD CI·merge·primary ff-only는 아직 대기.
+- [x] QA 보고서와 README/DESIGN/AI_USAGE/HANDOFF 갱신. 한국어PR검사·commit/push/attach 완료. 최종HEAD CI·merge는 [PR #397](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/397)의 실제 상태를 따른다.

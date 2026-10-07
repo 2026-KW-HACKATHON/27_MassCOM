@@ -1,6 +1,6 @@
 # 등급 뽑기·놀이·코인 재질 QA — 2026-10-07
 
-[Issue #395](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/395). 구현은 [설계](superpowers/specs/2026-10-07-grade-draw-play-material-design.md)와 [계획](superpowers/plans/2026-10-07-grade-draw-play-material.md)을 따른다. 이 문서는 로컬 브랜치의 검증 상태이며 PR·병합·운영 반영을 뜻하지 않는다.
+[Issue #395](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/395). 구현은 [설계](superpowers/specs/2026-10-07-grade-draw-play-material-design.md)와 [계획](superpowers/plans/2026-10-07-grade-draw-play-material.md)을 따른다. 구현 소스 `9606258d`의 로컬 검증을 기록한다. [PR #397](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/397)의 실제 최신 HEAD CI·병합 상태를 별도로 따른다. 운영 반영은 하지 않았다.
 
 ## 변경 범위
 
@@ -34,7 +34,8 @@
 | 독립 검토 | PASS | 웹 투명도 누락 수정 후 남은 소스 finding 없음, 관련 회귀 32/32 |
 | 비공개 Android APK | PASS 빌드/서명/정렬 | 최신 APK SHA-256 `3da75d5fdd37b06cd09a809c000ebc8d70ec4cf9a5da25af9cc1fa8f708dd2a1`, 기존 dev 서명 일치·native32·ZIP16KiB. 설치 NOT_RUN |
 | 실물 휴대폰·센서·진동 | NOT_RUN | 사용자가 현재 휴대폰 연결이 어렵다고 알림. 연결된 에뮬레이터는 조작하지 않음 |
-| PR·CI·병합·공개 배포 | NOT_RUN | PR이 아직 생성되지 않음 |
+| PR·CI·병합 | [PR #397](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/397) | 정확한 최신 HEAD의 CI·병합 상태는 실제 PR을 확인한다 |
+| 운영 반영·공개 배포 | NOT_RUN | migration/API/공개 APK/Play 변경 없음 |
 
 다음 전달 단계는 정확한 소스 HEAD의 PR CI를 확인하고 병합하는 것이다. 실물 센서 반응과 진동 체감은 별도 휴대폰 수용이 필요하다.
 
