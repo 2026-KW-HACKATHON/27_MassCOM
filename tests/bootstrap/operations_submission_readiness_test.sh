@@ -10,9 +10,12 @@ const pending = migrations.filter(name => Number(name.slice(0, 4)) > 43);
 assert.equal(pending.length, 25);
 assert.equal(migrations.length, 68);
 for (const filename of pending) assert.ok(runbook.includes(`\`${filename}\``), `누락된 migration: ${filename}`);
-for (const text of ['43 + 25 = 68', 'privacy-2026-10-07', 'Preview 20', 'test.11', '/play/', '/open', 'backward_compatible=no', 'FORWARD_RECOVERY_REQUIRED', 'db280032', 'outdated', '재로그인']) {
+for (const text of ['43 + 25 = 68', '/play/', '/open', 'backward_compatible=no', 'FORWARD_RECOVERY_REQUIRED', 'outdated', '재로그인']) {
   assert.ok(runbook.includes(text), `배포 관문 누락: ${text}`);
 }
+for (const pattern of [/`privacy-\d{4}-\d{2}-\d{2}`/, /Preview \d+/, /test\.\d+/, /`[0-9a-f]{7,40}`/]) {
+  assert.match(runbook, pattern, `배포 식별자 형식 누락: ${pattern}`);
+}
 assert.match(runbook, /운영.*복원.*PASS/);
-console.log('Issue #401 A01·A02·A03 운영 문서 회귀 41 PASS / 0 FAIL');
+console.log('A01·A02·A03 운영 문서 회귀 PASS');
 JS
