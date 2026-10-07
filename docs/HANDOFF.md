@@ -1,5 +1,11 @@
 # HANDOFF
 
+## 2026-10-07 전체 모바일 UI 구현·실기 진행 (Issue #388)
+
+지도 PR #389는 source dd232f35의 CI37546309486 전체 PASS 후 mainc0691e8f로 병합됐다. primary main은 ff-only로 갱신했고 기존 세 QA export 디렉터리는 보존했다. UI 브랜치 `feat/ui-refresh-388`의 source23cb0dcb는 이 main 위에 재배치했으며 앱 파일 해시가 실기 후보 APK와 같다. 모바일1777·타입/lint·접근성·소스 비밀/개인정보·독립 검토·private build PASS.
+
+기본 실기 홈은 큰 공백 감소·큰 아이콘·네 진입/탐색 첫 화면을 확인했다. 다른 탭·연결 흐름·다크·200%/작은 화면 실기 수용을 이어간다. [UI QA](UI_REFRESH_QA_2026-10-07.md)가 최신 범위와 증거이며 원래 기기 설정을 정확히 복원한다. 키·APK·원시 로그·위치·사용자 식별자와 공급자 지도 타일은 Git에 넣지 않는다. 공개 배포/진동 체감/TalkBack 수용과 분리한다.
+
 ## 2026-10-07 Android 주 지도·보행선과 후속 전체 UI
 
 PR #386은 source eb6db635의 CI37535335626 전체 PASS 후 main2bb8491a로 병합됐다. 연결된 Samsung SM-S928N에서 발견한 TMAP 렌더 자식 0×0·초기 제어 카메라·기본 alpha0 보행선을 `fix/tmap-native-layout`에서 수정하고 비공개 실기 수용을 통과했다. 원격 최종 HEAD CI·병합은 PR에서 별도 확인한다. [Issue #387](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/387), [실기/비공개 APK/검증 경계](TMAP_ANDROID_QA_2026-10-07.md)를 따른다. 임시 진단 코드와 자격 증명·APK는 Git에 넣지 않는다. 공개 서버·설치본·Play는 변경하지 않는다.

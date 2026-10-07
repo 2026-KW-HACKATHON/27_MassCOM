@@ -1,0 +1,26 @@
+{
+  "scope": "synthetic local API/DB, actual Samsung SM-S928N Android16; not real merchant/account acceptance",
+  "artifactSha256": "d7ff35081ab03a1b6e6e2470ddf3310864f9d52dad0c37d0f7a028efec18d3fb",
+  "defaultHome": "PASS",
+  "defaultCollectionPlayShopExplore": "PASS",
+  "home360dp": "PASS",
+  "homeDark": "PASS",
+  "gpsPurposeThenCancelWithoutOsRequest": "PASS",
+  "mapClusterAndScrollablePanelButtons": "PASS",
+  "storeTicketsAndBack": "PASS",
+  "missionErrorUi": "PASS",
+  "missionReadyData": "NOT_RUN - private harness did not configure BadgeRewardService",
+  "font200Percent": "NOT_RUN - USB repeatedly disconnected",
+  "width320And390": "NOT_RUN - USB repeatedly disconnected",
+  "otherDarkTabs": "NOT_RUN - USB repeatedly disconnected",
+  "originalSettings": {
+    "size": "1080x2340 physical, no override",
+    "density": "450 physical, no override",
+    "fontScale": 1,
+    "night": "no"
+  },
+  "restoreStatus": "density/font/size confirmed; last known night=yes after dark home and USB loss, pending physical restore",
+  "realGpsUsed": false,
+  "realCouponIssued": false,
+  "publicRelease": false
+}
