@@ -2,9 +2,13 @@
 
 ## 2026-10-07 사용자 후속 요청: PR만 생성, 머지 금지 (Issue #394)
 
-사용자의 최신 지시는 **PR만 생성하고 머지하지 않기**다. `feat/mint-ui-local-preview`의 검증된 작업을 커밋·push하고 Draft PR로 제출한다. 실제 브라우저 클릭·시안 일치가 미검증이므로 구현 완료/운영 적용으로 주장하지 않는다. 최종 생성 결과는 이 항목에 기록한다. 머지·자동 머지·배포는 실행하지 않는다.
+사용자의 최신 지시는 **PR만 생성하고 머지하지 않기**다. [Draft PR #396](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/396)을 생성했다. 브랜치 `feat/mint-ui-local-preview`, 제출 소스 커밋 `2d50ac09ed9f0e0b609bc3510f09f8f36ee5ad24`. 이 인수인계는 문서 후속 변경이며 앱 소스는 동일하다. GitHub에서 `open`, `draft=true`, `merged=false`, `auto_merge=null`을 확인했다. **머지·자동 머지·배포하지 않았다.** 실제 브라우저 클릭·시안 일치가 미검증이므로 구현 완료/운영 적용으로 주장하지 않는다.
 
-fetch 기준 `origin/main`은 `51e2df21`이며 로컬 기준 `c0691e8f`보다 2커밋 앞선다. 이 별도 UI/코인·방 기능을 덮어쓰거나 미리보기 성과에 합치지 않는다. 최신 main 통합 재검증은 아직 하지 않았다. 기존 50개 모바일 변경 파일은 보존한 검증 시점 SHA-256과 모두 일치한다.
+fetch 기준 `origin/main`은 `51e2df21`이며 로컬 기준 `c0691e8f`보다 2커밋 앞선다. GitHub는 PR을 `mergeable_state=dirty`(충돌)로 판정했다. 별도 UI/코인·방 기능을 덮어쓰거나 미리보기 성과에 합치지 않았고 충돌 해결·최신 main 통합 재검증은 남아 있다. 모바일 변경 50개는 검증 시점 SHA-256과 일치함을 제출 전 확인했다.
+
+로컬 Git 작성자 설정이 없어 인증된 GitHub 계정의 비공개 대체 이메일을 해당 커밋에만 사용했다. CLI push는 다른 캐시 계정의 권한 부족403으로 실패해 인증 설정을 바꾸지 않고 권한이 확인된 GitHub 커넥터로 게시했다. 업로드59개 blob SHA와 전체 tree `411ba5623e2544dd658776b08b50d422ce90c41c`가 로컬 커밋 `6c0b7ccbd96520b7d3bca61214a0d913ccacf8c9`와 일치한다. 원래 로컬 커밋은 `backup/ui-preview-local-6c0b7ccb`에 보존하고 작업 브랜치는 원격 소스와 맞췄다. 공유 이력 force push·키 생성·작성일 조작 없음.
+
+다음 명령: `git status --short --branch`, `git log -2 --oneline`으로 최신 문서 HEAD를 확인하고 PR #396의 충돌/CI와 브라우저 미검증 항목을 따로 확인한다. 로컬 시연은 `npm.cmd run ui:preview --prefix apps/mobile` → `http://localhost:8091`. 별도 사용자 요청 없이 머지하거나 최신 main을 덮어쓰지 않는다.
 
 ## 2026-10-07 최종 67화면 로컬 UI 재개 (Issue #394)
 

@@ -349,5 +349,23 @@
     "mergePolicy": "PR only; no merge or auto-merge",
     "remoteMain": "51e2df21",
     "latestMainIntegration": "NOT_RUN"
+  },
+  "publication": {
+    "recordedAt": "2026-10-07T07:17:40.183Z",
+    "pr": 396,
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/396",
+    "state": "open",
+    "draft": true,
+    "merged": false,
+    "autoMerge": null,
+    "mergeableState": "dirty",
+    "sourceCommit": "2d50ac09ed9f0e0b609bc3510f09f8f36ee5ad24",
+    "localSourceCommit": "6c0b7ccbd96520b7d3bca61214a0d913ccacf8c9",
+    "verifiedIdenticalGitTree": "411ba5623e2544dd658776b08b50d422ce90c41c",
+    "uploadedBlobHashesMatched": 59,
+    "transport": "GitHub connector; CLI cached account push failed 403",
+    "cliAuthChanged": false,
+    "localBackupBranch": "backup/ui-preview-local-6c0b7ccb",
+    "sourceChecksScope": "Tests above precede publication; Git blob/tree equality verifies the same committed source. Follow-up changes are documentation only."
   }
 }

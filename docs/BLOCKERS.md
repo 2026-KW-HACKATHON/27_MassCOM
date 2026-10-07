@@ -1,5 +1,9 @@
 # BLOCKERS
 
+## 2026-10-07 로컬 UI PR #396의 최신 main 통합
+
+GitHub `GET /repos/2026-KW-HACKATHON/27_MassCOM/pulls/396`에서 `mergeable_state=dirty`, `mergeable=false`를 확인했다. 기준 `c0691e8f`의 미리보기와 최신 main `51e2df21` 사이 충돌 해결·통합 재검증은 미완료다. 사용자 요청은 PR 생성만이며 머지는 금지다. 기존 자동 시험을 통합 결과나 브라우저 시각 수용으로 대체하지 않는다.
+
 ## 2026-10-07 Issue #394 로컬 UI 브라우저 검증
 
 `BLOCKED`: 현재 CUA에서 `cua.createBrowserTab("iab", "http://localhost:8091", { visible: true })`는 `Browser is not available: iab`, 이어 `cua.getState()`는 `apps: [], browsers: []`를 반환했다. 로컬 HTML/번들 HTTP 200과 Node의 67개 화면 렌더는 PASS지만 실제 터치·시안 비교·저장 후 새로고침·좁은 화면/큰 글씨는 검증하지 못했다. 브라우저 제어 연결을 복구한 뒤 [재현 순서](UI_LOCAL_PREVIEW_2026-10-07.md)를 실행한다. 같은 환경에서 의미 없는 재시도나 다른 자동화 우회는 하지 않는다. 운영/시연 Android 설치본 검증도 별도 NOT_RUN이다.
