@@ -136,7 +136,7 @@ export class PostgresCampaignEnrollmentService implements CampaignEnrollmentServ
         throw new CampaignEnrollmentError('ACCOUNT_DELETED');
       }
       if (isPostgresConstraint(error, 'campaign_enrollments_unique_account')) {
-        const existing = await findEnrollment(this.pool, input.campaignId, input.accountId);
+        const existing = await findEnrollment(client, input.campaignId, input.accountId);
         if (existing) {
           return enrollmentResult(existing, false);
         }

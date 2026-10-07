@@ -36,6 +36,7 @@ export async function runMigrations(pool: Pool): Promise<void> {
       const sql = await readFile(new URL(filename, migrationsDirectory), 'utf8');
       await client.query('BEGIN');
       try {
+        await client.query("SET LOCAL lock_timeout = '10s'");
         await client.query(sql);
         await client.query('INSERT INTO schema_migrations (filename) VALUES ($1)', [filename]);
         await client.query('COMMIT');

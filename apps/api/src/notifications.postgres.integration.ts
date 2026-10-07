@@ -63,6 +63,36 @@ test('device ownership follows the authenticated session and revoked session can
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM notification_deliveries')).rows[0].n, 1);
 });
 
+test('같은 토큰의 다른 기기 등록에서도 최신 세션과 대기 알림을 보존한다', { skip }, async t => {
+  const { pool, service, tokenA, tokenB } = await setup(t);
+  const latestDevice = randomUUID();
+  const delayedDevice = randomUUID();
+  await service.updatePreferences('account-b', { pushEnabled: true });
+  await service.registerDevice('account-b', latestDevice, 'shared-token', 'android', tokenB);
+  await service.enqueue({ accountId: 'account-b', category: 'REWARD_AVAILABLE', dedupeKey: 'latest', title: 'B', body: 'B', targetPath: '/collection' });
+  await service.registerDevice('account-a', delayedDevice, 'shared-token', 'android', tokenA);
+  assert.deepEqual((await pool.query('SELECT device_id, account_id, token FROM notification_devices')).rows,
+    [{ device_id: latestDevice, account_id: 'account-b', token: 'shared-token' }]);
+  assert.equal((await pool.query('SELECT count(*)::int AS n FROM notification_deliveries')).rows[0].n, 1);
+
+  // 더 최신 세션으로의 정상적인 토큰 이동은 계속 허용한다.
+  await service.registerDevice('account-a', delayedDevice, 'rotated-token', 'android', tokenA);
+  await service.registerDevice('account-b', latestDevice, 'rotated-token', 'android', tokenB);
+  assert.deepEqual((await pool.query('SELECT device_id, account_id, token FROM notification_devices')).rows,
+    [{ device_id: latestDevice, account_id: 'account-b', token: 'rotated-token' }]);
+});
+
+test('계정이 달라도 같은 토큰의 동시 등록은 최신 세션 하나로 수렴한다', { skip }, async t => {
+  const { pool, service, tokenA, tokenB } = await setup(t);
+  const latestDevice = randomUUID();
+  await Promise.all([
+    service.registerDevice('account-a', randomUUID(), 'concurrent-token', 'android', tokenA),
+    service.registerDevice('account-b', latestDevice, 'concurrent-token', 'android', tokenB),
+  ]);
+  assert.deepEqual((await pool.query('SELECT device_id, account_id FROM notification_devices')).rows,
+    [{ device_id: latestDevice, account_id: 'account-b' }]);
+});
+
 test('FCM accepted request marks delivery SENT while receipt is still unproven', { skip }, async t => {
   const { pool, tokenA } = await setup(t);
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
