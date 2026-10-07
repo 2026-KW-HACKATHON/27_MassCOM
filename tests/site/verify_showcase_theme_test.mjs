@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 const chromePath = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../apps/showcase-web');
 const expected = {
-  light: { '--paper': '#ffffff', '--surface': '#f5f7fa', '--ink': '#192331', '--muted': '#58677d', '--stream': '#2456d6', '--moon': '#ebf1ff', '--night': '#2456d6', '--focus': '#2456d6' },
-  dark: { '--paper': '#14171d', '--surface': '#20252f', '--ink': '#f3f5f9', '--muted': '#a6b0c0', '--stream': '#9bb8ff', '--moon': '#25334f', '--night': '#25334f', '--focus': '#9bb8ff' },
+  light: { '--paper': '#fafaf5', '--surface': '#f3f5f0', '--ink': '#163d46', '--muted': '#48646a', '--stream': '#076f64', '--moon': '#e1f7ef', '--night': '#076f64', '--focus': '#076f64' },
+  dark: { '--paper': '#112724', '--surface': '#1d3431', '--ink': '#f3f5f9', '--muted': '#b4c6bf', '--stream': '#83dcca', '--moon': '#234c43', '--night': '#234c43', '--focus': '#83dcca' },
 };
 
 const delay = (ms) => new Promise((done) => setTimeout(done, ms));
