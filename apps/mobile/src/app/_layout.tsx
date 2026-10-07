@@ -27,6 +27,7 @@ import { SocialPushProvider } from '@/social/push-runtime';
 import { ContextTabBar } from '@/navigation/context-tab-bar';
 import { TabAppearanceProvider } from '@/navigation/tab-appearance-provider';
 import { colorsForScheme } from '@/theme/palette';
+import { worldForScheme } from '@/theme/world';
 import { NotificationSessionBridge } from '@/notifications/session-bridge';
 import { consumeMerchantNotificationRole, consumeNotificationTarget, subscribeMerchantNotificationRole, subscribeNotificationTarget } from '@/notifications/pending-target';
 
@@ -44,6 +45,7 @@ function Routes() {
   const auth = useAuthSession();
   const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
+  const world = worldForScheme(useColorScheme());
   const projectId = expoProjectId();
   const openMail = useCallback((mailId: string) => {
     if (!auth.accountId || !auth.credential) return;
@@ -77,7 +79,7 @@ function Routes() {
       onSessionInvalid={auth.invalidateSession}
       onOpenMail={openMail}
     >
-      <View style={{ flex: 1, paddingBottom: contextFootprint }}>
+      <View style={{ flex: 1, paddingBottom: contextFootprint, backgroundColor: world.page }}>
       <Stack
         screenOptions={{
           headerShadowVisible: false,

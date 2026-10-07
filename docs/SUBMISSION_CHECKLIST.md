@@ -2,6 +2,8 @@
 
 이 문서는 준비용입니다. 제출 버전 고정·최종 제출은 사용자 승인 전 실행하지 않습니다.
 
+2026-10-08 KST 현재 운영 API·웹은 main `09dfceb0`로 배포됐고 시연 API는 `2d483ed8`입니다([운영 배포](evidence/production-deployment-09dfceb-2026-10-08.json), [시연 배포](evidence/showcase-deployment-2d483ed-2026-10-08.json)). 소스 `9f5ebfa6`의 운영 test.12·시연 Preview 21 APK는 게시됐습니다([운영](evidence/operating-android-test12-2026-10-08.json), [시연](evidence/showcase-preview21-release-2026-10-08.json)). [공개 체험 원자료](evidence/submission-2026-10-08/README.md)의 5분 17단계는 PASS였으나, 발견한 4건을 고친 `/play/` 번들의 공개 전환·재측정과 라이브 `/open`의 새 링크 반영은 남았습니다.
+
 ## 코드·저장소
 
 - [ ] 제출 commit SHA를 main CI 성공 run과 함께 기록
@@ -22,7 +24,7 @@
 
 ## 발표·현장
 
-- [ ] 3분·5분 리허설 시간 기록
+- [ ] 3분·5분 리허설 시간 기록(5분 공개 체험 17단계 기능 PASS 기록은 있으나 발표 전체 시간 기록은 별도)
 - [ ] 실제 시연과 사전 저장 증거를 구분
 - [ ] 현장 참여 동의와 빈 결과지 사용
 - [ ] 존재하지 않는 협약·매출·테스터·승인 삭제

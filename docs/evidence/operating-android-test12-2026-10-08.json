@@ -1,0 +1,50 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; 실제 휴대전화·로그인 흐름·Google Play는 NOT_RUN이다.",
+  "verifiedAt": "2026-10-08",
+  "sourceCommit": "9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49",
+  "issues": [
+    401
+  ],
+  "checks": {
+    "aab": "PASS; AAB 서명·릴리스 지갑 표면 검사",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한 없음",
+    "apkSignature": "PASS; 업로드 인증서 SHA-256 확인"
+  },
+  "acceptedArtifact": {
+    "apk": "MassCOM-operating-android-9f5ebfa.apk",
+    "apkSha256": "266c64795ace1e1bbf0ba2bac4224e3638d88a9e6a1633e343ed309a9f4febd3",
+    "apkSize": "약 324MB",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.12",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.12",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-9f5ebfa.apk",
+        "sha256": "266c64795ace1e1bbf0ba2bac4224e3638d88a9e6a1633e343ed309a9f4febd3"
+      }
+    ]
+  },
+  "physicalAndroid": {
+    "device": "NOT_RUN",
+    "apkInstall": "NOT_RUN",
+    "launch": "NOT_RUN",
+    "usage": "NOT_RUN",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "실제 휴대전화 설치·실행",
+    "로그인 흐름",
+    "지갑",
+    "실제 QR",
+    "TalkBack",
+    "글자 200%",
+    "Google Play 업로드·심사·배포"
+  ],
+  "buildNote": "첫 AAB 빌드는 signReleaseBundle 일시 오류로 실패. 데몬 정리 후 재시도 PASS. 약 324MB.",
+  "recordBasis": "2026-10-08 KST 사용자 제공 게시·빌드 기록; 이번 문서 작업에서 원격 재검증하지 않음"
+}

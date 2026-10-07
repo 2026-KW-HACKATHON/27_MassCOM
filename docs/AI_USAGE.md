@@ -1,5 +1,11 @@
 # AI 사용 기록
 
+## 2026-10-08 운영 배포·새 설치본·공개 체험 후속 (Issue #401)
+
+Claude sonnet이 배포 직후 공개 웹의 5분 시연 17단계를 실측했다. 기능 PASS, 콘솔 오류·HTTP 4xx/5xx 0건이며 결함 4건을 발견했다. 원자료와 캡처 67장은 [공개 체험 기록](evidence/submission-2026-10-08/README.md)·[flow-result.json](evidence/submission-2026-10-08/flow-result.json)에 보존한다. Codex가 `9f5ebfa6`에서 수정했고 독립 Codex `gpt-6.1-sol` high 리뷰 APPROVE와 모바일 1,876/1,876·typecheck·lint·접근성·gate PASS를 기록했다. 수정 후 공개 `/play/` 전환·재측정은 예정이다.
+
+이번 Codex 문서 작업은 사용자 제공 사실을 기존 증거 JSON·설치 안내·현재 요약에 반영했다. 문서 담당과 검사 통합을 분리했으며 실제 실행한 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 기록한다. git 조작·`apps/**` 수정·캡처 폴더 수정·원격 배포는 하지 않았다. 운영 배포 사실과 새 APK 게시 사실을 최신 설치본 실기 수용으로 바꾸지 않는다.
+
 ## 2026-10-08 배포 기록·설치 링크 후속 (Issue #401)
 
 Codex가 사용자가 제공한 배포·복원·Android 릴리스 사실을 기존 JSON·문서 형식으로 기록하고 `/open`을 test.11·Preview 20으로 갱신했다. 현재 요약 4문서는 독립 담당이 갱신했으며 이전 설치본 실기 결과를 최신 결과로 재사용하지 않았다. 기존 버튼 구조·검사기를 유지하고 고정 릴리스 기대값만 갱신했다. 서버·릴리스·git 상태 변경과 `docs/evidence/submission-2026-10-08/` 캡처 폴더 변경은 없다.

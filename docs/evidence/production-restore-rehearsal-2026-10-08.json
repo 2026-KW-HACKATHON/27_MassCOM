@@ -34,12 +34,12 @@
     }
   },
   "operating": {
-    "deploy": "배포 진행 중; 이 문서 PR 병합 직후 병합 커밋으로 scripts/deploy-lightsail.sh --deploy 진행 예정",
-    "migrationCompatibility": "backward_compatible=no 증거와 함께 배포 예정",
-    "result": "NOT_RUN; 후속 기록"
+    "deploy": "PASS; main 09dfceb0 운영 배포 완료",
+    "migrationCompatibility": "backward_compatible=no; 자동 복귀 금지",
+    "result": "PASS; 별도 배포 증거 참조",
+    "evidence": "docs/evidence/production-deployment-09dfceb-2026-10-08.json"
   },
   "notRun": [
-    "운영 신규 API·웹 배포 결과",
     "운영 실제 로그인·점포·QR·지갑 흐름"
   ]
 }
