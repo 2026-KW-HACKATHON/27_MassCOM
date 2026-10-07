@@ -25,6 +25,12 @@ test('home keeps room, visit, rewards and friends one tap away', () => {
   assert.doesNotMatch(overview, /<HomeCollectionDisplay|<HomeMissionsPanel|<CollectibleReveal|tickets\.map\(/);
 });
 
+test('방문 기록이 없는 홈은 탐색을 주 행동으로 보여주고 방문 인증을 보조로 남긴다', () => {
+  assert.match(overview, /data\?\.collection\?\.visits\.length === 0/);
+  assert.match(overview, /<Link href="\/search" asChild>[\s\S]*?accessibilityLabel="가게 찾기"[\s\S]*?가게 찾기/);
+  assert.match(overview, /<Link href="\/claim" asChild>/);
+});
+
 test('home keeps account access and refresh controls inside safe scrolling', () => {
   assert.match(home, /<AppHeader title="홈" showFriendsEntry showMailEntry compact \/>/);
   assert.match(home, /contentContainerStyle=\{\{ paddingBottom: clearance \+ 8 \}\}/);

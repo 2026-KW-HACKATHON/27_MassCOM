@@ -6,6 +6,7 @@
     <meta name="description" content="월계 마스코트 운영 서비스의 공개 음식점 목록과 웹 도감 이용 안내">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src data: blob:; base-uri 'none'; form-action 'none'">
     <title>월계 마스코트 · 음식점 찾기</title>
+    <link rel="icon" type="image/png" href="assets/mascot-stamp.png">
     <link rel="stylesheet" href="assets/production.css">
     <link rel="stylesheet" href="assets/collectible-viewer.css">
     <script type="module" src="assets/production.mjs"></script>
@@ -32,7 +33,19 @@
           <h2 id="merchants-title">음식점</h2>
           <p>운영 중인 공개 목록</p>
         </div>
-        <p id="merchant-status" class="status" role="status" aria-live="polite">음식점 목록을 불러오는 중입니다.</p>
+        <div class="status">
+          <p id="merchant-status" role="status" aria-live="polite">음식점 목록을 불러오는 중입니다.</p>
+          <div id="merchant-empty" class="merchant-empty" hidden>
+            <img src="assets/mascot-stamp.png" alt="" width="88" height="88">
+            <div>
+              <p>가게 방문부터 수집까지, 시연 웹에서 먼저 체험해 보세요.</p>
+              <div class="collection-actions">
+                <a class="collection-action" href="https://demo-api.masscom.kr/play/">시연 웹으로 바로 체험하기</a>
+                <a class="collection-action secondary" href="/open">Android 설치 안내</a>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="merchant-list" class="merchant-list" aria-label="공개 음식점 목록"></div>
       </section>
 

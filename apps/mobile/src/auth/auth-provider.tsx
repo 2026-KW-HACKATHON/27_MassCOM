@@ -27,6 +27,8 @@ import { createAccountScopedAppKit, walletRuntimeConfig } from '@/wallet/appkit'
 import { listAppKitStorageKeys, removeAppKitStorageKeys } from '@/wallet/appkit-storage';
 import { forgetWalletSession } from '@/wallet/forget-wallet-session';
 import { unregisterCurrentNotificationDevice } from '@/notifications/native';
+import { discoveryState } from '@/merchant/discovery-state';
+import { waitForRemoteCleanup } from './remote-cleanup';
 
 export type { AuthSessionState } from './auth-startup';
 
@@ -95,12 +97,12 @@ const startup = resolveAuthStartup({
 
 async function revokeSocialPushBindingForAuthSession(accountId?: string, credential?: AccountCredential): Promise<void> {
   beginSocialPushBindingRevocation();
-  await revokeSocialPushBindings({
+  await waitForRemoteCleanup(() => revokeSocialPushBindings({
     apiUrl: publicApiConfiguration.available ? publicApiConfiguration.apiUrl : undefined,
     accountId,
     credential,
     appVariant: appVariantForPackage(getAppPackageId()),
-  });
+  }));
 }
 
 
@@ -142,6 +144,13 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     : state.status === 'demo'
       ? state.accountId
       : undefined;
+  const previousDiscoveryAccountRef = useRef(accountId);
+  useEffect(() => {
+    if (previousDiscoveryAccountRef.current !== accountId) {
+      discoveryState.restore(null);
+      previousDiscoveryAccountRef.current = accountId;
+    }
+  }, [accountId]);
   const credential = state.status === 'signedIn' || state.status === 'demo'
     ? state.credential
     : undefined;
@@ -224,7 +233,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
         return;
       }
       if (publicApiConfiguration.available && credential?.kind === 'bearer') {
-        await unregisterCurrentNotificationDevice(publicApiConfiguration.apiUrl, credential).catch(() => undefined);
+        await waitForRemoteCleanup(() => unregisterCurrentNotificationDevice(publicApiConfiguration.apiUrl, credential));
       }
       await controllerRef.current?.logout();
     },
@@ -236,7 +245,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       await revokeSocialPushBindingForAuthSession(previousAccountId, previousCredential);
       if (!controllerRef.current) throw new Error('AUTH_CONFIGURATION_REQUIRED');
       if (publicApiConfiguration.available && credential?.kind === 'bearer') {
-        await unregisterCurrentNotificationDevice(publicApiConfiguration.apiUrl, credential).catch(() => undefined);
+        await waitForRemoteCleanup(() => unregisterCurrentNotificationDevice(publicApiConfiguration.apiUrl, credential));
       }
       await controllerRef.current.switchAccount();
     },

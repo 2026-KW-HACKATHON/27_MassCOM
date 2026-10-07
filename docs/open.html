@@ -25,9 +25,15 @@
       <header>
         <p class="context">Android 공개 사전 릴리스 · Google Play 일반 공개 전</p>
         <h1>월계 마스코트 앱 열기</h1>
-        <p class="lede">운영 테스트 앱이 설치돼 있으면 이 주소가 앱의 음식점 탐색 화면으로 연결됩니다.</p>
+        <p class="lede">운영 앱은 실제 등록 점포를, 시연 앱은 가상 점포를 보여 줍니다. Google Play 승인본은 아닙니다.</p>
+        <div class="overview-actions open-actions">
+          <a class="primary-action" href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.10">운영 APK 받기</a>
+          <a class="secondary-action" href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.19">시연 APK 받기</a>
+        </div>
       </header>
 
+      <details class="legal-summary">
+        <summary>설치 방법·검증 범위 보기</summary>
       <p class="legal-warning"><strong>앱이 열리지 않나요?</strong> Android의 링크 자동 열기 설정이 꺼져 있으면 브라우저에 이 안내가 남을 수 있습니다. 아래 운영 test.10와 최신 시연 Preview 19 APK는 GitHub 로그인 없이 받을 수 있습니다. 시연 앱은 가상 데이터를 사용하며 Google Play 승인본이 아닙니다.</p>
 
       <p class="legal-warning"><strong>앱을 업데이트해 주세요.</strong> 개인정보 처리방침이 바뀌었으므로 이전 설치본은 아래 운영 test.10 또는 시연 Preview 19로 업데이트해야 합니다. 세 가지 필수 항목에 동의해야 시작할 수 있습니다. 운영 test.10 로그인은 <code>NOT_RUN</code>이고 시연 Preview 19는 동의 화면 표시와 동의 거절 뒤 로그아웃까지 확인했습니다.</p>
@@ -44,6 +50,7 @@
       <h2>시연 앱 · 최신 공개 시험본</h2>
       <p><a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.3">이전 시연 Android Preview 3</a>은 같은 계정의 기존 15분 수령 QR 카메라 촬영→수령까지 확인한 공개 APK입니다. 새 시연 API에서는 이 버전의 직원 발급 요청이 호환되지 않으므로 새 방문 시연에는 사용하지 마세요.</p>
       <p><a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.19">최신 시연 Android Preview 19</a>은 공개 GitHub Release에서 받을 수 있습니다. main <code>db28003</code>으로 만들었고 APK와 AAB 모두 <code>https://demo-api.masscom.kr</code>만 품고 운영 API 주소는 없음을 확인했습니다. 이제 <strong>로그인 없이 바로 체험</strong>을 제공합니다. Android 에뮬레이터(720×1280, 글꼴 100%)에서 이전 Preview 위 설치, Google 로그인과 체험 버튼·설명 표시, 임시 체험 시작, 사용자 선택 뒤 필수 체크 세 개가 있는 동의 화면, 동의하지 않고 로그아웃한 뒤 정상 첫 화면 복귀를 확인했습니다. 공개 서버에서 동의를 수락하지 않았으므로 홈·테스트 방문·가상 점포 C 프리즘·체험 처음부터 다시·체험 점포 점주 화면은 <code>NOT_RUN</code>입니다. 실제 휴대전화·실제 QR·지갑·TalkBack·글자 200%도 <code>NOT_RUN</code>입니다. 운영 앱과 package·API·데이터가 다르며 가상 점포 A/B/C는 실제 영업점·방문 혜택이 아닙니다. 설치하지 않고 보려면 <a href="https://www.masscom.kr/preview/">읽기 전용 시연 웹</a>을 여세요. <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/evidence/showcase-preview19-release-2026-10-05.json">검증 범위</a>를 확인하세요.</p>
+      </details>
 
       <h2>안전 경계</h2>
       <p>이 테스트 앱은 Google Play 승인본이 아닙니다. 외부 지갑 비밀번호, 개인키, 복구 문구를 입력하지 마세요. 앱은 주소 확인용 서명만 요청하며 송금·승인·스왑·구매를 요청하지 않습니다.</p>

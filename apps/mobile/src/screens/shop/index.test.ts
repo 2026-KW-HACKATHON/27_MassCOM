@@ -10,6 +10,66 @@ import { fileURLToPath } from 'node:url';
 const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
 const machine = readFileSync(fileURLToPath(new URL('./gacha-machine.tsx', import.meta.url)), 'utf8');
 
+test('가구 구매 성공 잔액은 상점과 등급 뽑기에 즉시 반영되고 낡은 조회는 버린다', () => {
+  const buyFurniture = screen.slice(screen.indexOf('async function buyFurniture('), screen.indexOf('const drawScopeKey ='));
+  assert.match(buyFurniture, /shop\.applyBalance\(result\.balance\)/);
+  assert.match(buyFurniture, /setStoredDrawShop\(\(previous\) => previous\?\.key === drawScopeKey[\s\S]*?balance: result\.balance/);
+  assert.match(buyFurniture, /void refreshDrawShop\(\)/);
+  assert.match(screen, /drawRequestGeneration\.current/);
+});
+
+test('가구 구매가 첫 등급 목록 조회보다 먼저 끝나도 등급 목록과 새 잔액을 표시한다', async () => {
+  const refreshSource = screen.slice(screen.indexOf('const refreshDrawShop = useCallback('), screen.indexOf('useEffect(() => {\n    const timer', screen.indexOf('const refreshDrawShop =')));
+  const purchaseSource = screen.slice(screen.indexOf('shop.applyBalance(result.balance);'), screen.indexOf('await clearFurniturePending(furnitureKey);'));
+  type Stored = { key: string; value: { balance: number } };
+  let stored: Stored | undefined;
+  let finishOld: (value: { balance: number }) => void = () => {};
+  let gets = 0;
+  const drawApi = { getShop: () => {
+    gets += 1;
+    return gets === 1 ? new Promise<{ balance: number }>((resolve) => { finishOld = resolve; }) : Promise.resolve({ balance: 200 });
+  } };
+  const deps = {
+    useCallback: (fn: unknown) => fn, drawApi, drawApiRef: { current: drawApi }, drawRequestGeneration: { current: 0 },
+    drawScopeKey: 'account-1', shop: { applyBalance: () => {} }, shopErrorMessage: () => '', setStoredDrawError: () => {},
+    setStoredDrawShop: (update: Stored | ((previous: Stored | undefined) => Stored | undefined)) => {
+      stored = typeof update === 'function' ? update(stored) : update;
+    },
+  };
+  const actions = new Function('deps', `with (deps) { ${refreshSource}; return { refreshDrawShop, purchase: (result) => { ${purchaseSource} } }; }`)(deps) as
+    { refreshDrawShop: () => Promise<boolean>; purchase: (result: { balance: number }) => void };
+  const oldGet = actions.refreshDrawShop();
+  actions.purchase({ balance: 200 });
+  finishOld({ balance: 400 });
+  assert.equal(await oldGet, false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(gets, 2);
+  assert.equal(stored?.value.balance, 200);
+});
+
+test('등급 뽑기 요청 오류는 같은 요청 복구와 닫기를 다시 허용한다', () => {
+  const draw = readFileSync(fileURLToPath(new URL('./grade-draw-machine.tsx', import.meta.url)), 'utf8');
+  assert.match(draw, /onRecover \? <Control label="이전 뽑기 결과 다시 확인"/);
+  const startSource = draw.slice(draw.indexOf('const start = async () => {'), draw.indexOf('const displayedBalance ='));
+  const run = new Function('onDraw', 'onClose', 'setPhase', 'setCloseNotice', 'crank', 'jiggle', 'openingScale', 'pool', 'balance', 'busy', 'phase',
+    `${startSource}; return { start, close };`) as (...args: unknown[]) => { start: () => Promise<void>; close: () => void };
+  let phase = 'detail';
+  let closed = false;
+  let drawing = false;
+  const setPhase = (value: string) => { phase = value; };
+  const drawPromise = new Promise<boolean>((resolve) => { setTimeout(() => resolve(false), 0); });
+  const common = [() => { drawing = true; return drawPromise; }, () => { closed = true; }, setPhase, () => {}, { set: () => {} }, { set: () => {} }, { set: () => {} }, { total: 1, price: 100 }, 200];
+  const active = run(...common, false, phase);
+  const pending = active.start();
+  assert.equal(drawing, true);
+  assert.equal(phase, 'pending');
+  return pending.then(() => {
+    assert.equal(phase, 'detail');
+    run(...common, false, phase).close();
+    assert.equal(closed, true);
+  });
+});
+
 test('GET refresh does not clear unresolved POST pending; only replay success/state-change handling clears storage', () => {
   const quietRefreshFn = screen.slice(screen.indexOf('const quietRefresh ='), screen.indexOf('useFocusEffect(', screen.indexOf('const quietRefresh =')));
   assert.match(screen, /const refreshGachaSnapshot = shop\.refreshQuietly;/);

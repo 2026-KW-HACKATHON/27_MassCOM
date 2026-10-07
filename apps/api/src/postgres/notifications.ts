@@ -104,16 +104,24 @@ export class PostgresNotificationService implements NotificationService {
     await this.withActiveAccount(accountId, async client => {
       const session = await client.query<{ id: string; created_at: Date }>(`SELECT id, created_at FROM auth_sessions WHERE account_id=$1 AND token_hash=$2 AND revoked_at IS NULL AND expires_at>$3`, [accountId, createHash('sha256').update(sessionToken).digest(), this.now()]);
       if (!session.rows[0]) throw new NotificationError('INVALID_NOTIFICATION');
-      // Tokens rotate; a token may also be reissued after reinstall. A fresh authenticated registration owns it.
+      // 같은 세션의 재등록은 허용하고, 다른 세션에는 생성 시각이 더 최신일 때만 소유권을 넘긴다.
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`notification-token:${token}`]);
+      const conflict = await client.query(`SELECT 1 FROM notification_devices device
+        JOIN auth_sessions existing ON existing.id=device.session_id
+        WHERE (device.token=$1 OR device.device_id=$2) AND existing.id<>$4 AND existing.created_at>=$3`, [token, deviceId, session.rows[0].created_at, session.rows[0].id]);
+      if (conflict.rowCount) return;
       await client.query('DELETE FROM notification_devices WHERE token=$1 AND device_id<>$2', [token, deviceId]);
       await client.query(`INSERT INTO notification_devices(device_id,account_id,session_id,token,platform) VALUES($1,$2,$3,$4,$5)
         ON CONFLICT(device_id) DO UPDATE SET account_id=excluded.account_id, session_id=excluded.session_id, token=excluded.token, platform=excluded.platform, updated_at=now()
-        WHERE (SELECT created_at FROM auth_sessions WHERE id=notification_devices.session_id) <= $6`, [deviceId, accountId, session.rows[0].id, token, platform, session.rows[0].created_at]);
+        WHERE notification_devices.session_id=excluded.session_id
+          OR (SELECT created_at FROM auth_sessions WHERE id=notification_devices.session_id) < $6`, [deviceId, accountId, session.rows[0].id, token, platform, session.rows[0].created_at]);
     });
   }
-  async unregisterDevice(accountId: string, deviceId: string): Promise<void> {
+  async unregisterDevice(accountId: string, deviceId: string, sessionToken: string): Promise<void> {
     if (!uuid.test(deviceId)) throw new NotificationError('INVALID_NOTIFICATION');
-    await this.pool.query('DELETE FROM notification_devices WHERE account_id=$1 AND device_id=$2', [accountId, deviceId]);
+    await this.pool.query(`DELETE FROM notification_devices WHERE account_id=$1 AND device_id=$2
+      AND session_id=(SELECT id FROM auth_sessions WHERE account_id=$1 AND token_hash=$3)`,
+    [accountId, deviceId, createHash('sha256').update(sessionToken).digest()]);
   }
   async markRead(accountId: string, id: string): Promise<void> {
     if (!uuid.test(id)) throw new NotificationError('INVALID_NOTIFICATION');

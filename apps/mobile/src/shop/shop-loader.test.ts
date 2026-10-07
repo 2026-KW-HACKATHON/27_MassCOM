@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import type { ShopRerollResult, ShopSnapshot } from './shop-api';
-import { createShopLoader, failed, initialShopLoad, loaded, withAvatar, withReroll } from './shop-loader';
+import { createShopLoader, failed, initialShopLoad, loaded, withAvatar, withBalance, withReroll } from './shop-loader';
 
 function snapshot(overrides: Partial<ShopSnapshot> = {}): ShopSnapshot {
   return {
@@ -85,6 +85,19 @@ test('withAvatar sets the chosen character without touching anything else', () =
   const state = loaded(snapshot());
   assert.equal(withAvatar(state, 'cook-cat').snapshot!.avatar, 'cook-cat');
   assert.equal(withAvatar(initialShopLoad, 'cook-cat'), initialShopLoad, 'no snapshot yet: nothing to update');
+});
+
+test('a confirmed furniture purchase updates balance and rejects an older shop GET', async () => {
+  let state = loaded(snapshot());
+  let finishGet: (value: ShopSnapshot) => void = () => {};
+  const loader = createShopLoader({ getShop: () => new Promise<ShopSnapshot>((resolve) => { finishGet = resolve; }) },
+    (update) => { state = update(state); });
+  const pendingGet = loader.load(true);
+  loader.applyBalance(200);
+  finishGet(snapshot());
+  assert.equal(await pendingGet, false);
+  assert.equal(state.snapshot?.mileage.balance, 200);
+  assert.equal(withBalance(loaded(snapshot()), 200).snapshot?.mileage.balance, 200);
 });
 
 test('createShopLoader applies only the newest answer and ignores a stale one that resolves late', async () => {

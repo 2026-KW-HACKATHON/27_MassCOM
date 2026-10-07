@@ -137,8 +137,8 @@ async function addFriendship(pool: Pool, a: string, b: string): Promise<string> 
 
 async function addMerchant(pool: Pool, id = 'shop-a'): Promise<void> {
   await pool.query(
-    `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
-     VALUES ($1, $2, 'story', $3, 0, 'ACTIVE', true)
+    `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo, published_at)
+     VALUES ($1, $2, 'story', $3, 0, 'ACTIVE', false, now())
      ON CONFLICT (id) DO NOTHING`,
     [id, `가상 ${id}`, `서울 ${id}`],
   );
@@ -512,6 +512,63 @@ test('messages and mail are visible only to sender and receiver', async (t) => {
     social.sendMessage({ accountId: 'mallory', friendshipId, requestId: 'bad', body: 'x' }),
     rejectsWith('SOCIAL_FRIENDSHIP_NOT_FOUND'),
   );
+});
+
+test('concurrent identical gift, message, and invitation requests replay after the account lock', async (t) => {
+  const { pool, social, lifecycle } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  await addMerchant(pool);
+  const requests = [
+    () => social.sendFriendshipGift({ accountId: 'alice', friendshipId, requestId: 'race-gift' }),
+    () => social.sendMessage({ accountId: 'alice', friendshipId, requestId: 'race-message', body: '같은 쪽지' }),
+    () => social.createMealInvitation({ accountId: 'alice', friendshipId, requestId: 'race-invite',
+      merchantId: 'shop-a', date: '2026-10-05', kind: 'CONFIRMED', time: '12:00' }),
+  ];
+  for (const request of requests) {
+    const blocker = await pool.connect();
+    await blocker.query('BEGIN');
+    await lifecycle.lockForDeletion(blocker, 'alice');
+    await lifecycle.lockForDeletion(blocker, 'bob');
+    const first = request();
+    const second = request();
+    try {
+      await waitForAsync(async () => (await pool.query<{ n: number }>(
+        `SELECT count(*)::integer AS n FROM pg_stat_activity
+         WHERE datname = current_database() AND wait_event_type = 'Lock'
+           AND query LIKE 'SELECT pg_advisory_xact_lock(hashtextextended%'`,
+      )).rows[0]!.n >= 2);
+    } finally {
+      await blocker.query('ROLLBACK');
+      blocker.release();
+    }
+    const results = await Promise.all([first, second]);
+    assert.deepEqual(results.map((result) => result.replayed).sort(), [false, true]);
+    const original = results.find((result) => !result.replayed)!;
+    const replayed = results.find((result) => result.replayed)!;
+    assert.deepEqual({ ...replayed, replayed: false }, original);
+  }
+});
+
+test('meal invitations reject unpublished, production demo, and another guest trial merchant', async (t) => {
+  const { pool, social, lifecycle, gateway, state } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  await addMerchant(pool, 'hidden');
+  await pool.query(`UPDATE merchants SET published_at = NULL WHERE id = 'hidden'`);
+  await addMerchant(pool, 'demo');
+  await pool.query(`UPDATE merchants SET is_demo = true WHERE id = 'demo'`);
+  await addMerchant(pool, 'guest');
+  await pool.query(`INSERT INTO showcase_guest_trials (account_id, merchant_id, expires_at)
+                    VALUES ('other-guest', 'guest', now() + interval '1 day')`);
+  const invite = (merchantId: string) => ({ accountId: 'alice', friendshipId,
+    requestId: `visibility-${merchantId}`, merchantId, date: '2026-10-05',
+    kind: 'CONFIRMED' as const, time: '12:00' });
+  for (const id of ['hidden', 'demo', 'guest']) {
+    await assert.rejects(social.createMealInvitation(invite(id)), rejectsWith('INVALID_REQUEST'));
+  }
+  const showcase = new PostgresSocialService(pool, { accountLifecycle: lifecycle, gateway,
+    appVariant: 'SHOWCASE_APP', now: () => state.now });
+  assert.equal((await showcase.createMealInvitation(invite('demo'))).mealInvitation?.merchant.id, 'demo');
+  await assert.rejects(showcase.createMealInvitation(invite('guest')), rejectsWith('INVALID_REQUEST'));
 });
 
 test('meal invitations snapshot merchant data, validate range responses, and create one response mail/outbox on races', async (t) => {

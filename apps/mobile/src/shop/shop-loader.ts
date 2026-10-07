@@ -60,6 +60,11 @@ export function withAvatar(state: ShopLoad, avatar: string | null): ShopLoad {
   return state.snapshot ? { ...state, snapshot: { ...state.snapshot, avatar } } : state;
 }
 
+export function withBalance(state: ShopLoad, balance: number): ShopLoad {
+  return state.snapshot ? { ...state, snapshot: { ...state.snapshot,
+    mileage: { ...state.snapshot.mileage, balance } } } : state;
+}
+
 /** 상점 한 판(me.snapshot)을 불러오고 각 변화를 apply로 알린다. 더 새로운 요청이나 teardown 뒤에 끝난 응답은 버린다. */
 export function createShopLoader(
   api: Pick<ShopApiClient, 'getShop'>,
@@ -99,6 +104,11 @@ export function createShopLoader(
       if (disposed) return;
       gate.invalidate();
       apply((state) => withAvatar(state, avatar));
+    },
+    applyBalance(balance: number): void {
+      if (disposed) return;
+      gate.invalidate();
+      apply((state) => withBalance(state, balance));
     },
     dispose(): void {
       disposed = true;

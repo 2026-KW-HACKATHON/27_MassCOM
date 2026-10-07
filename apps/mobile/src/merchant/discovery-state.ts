@@ -47,7 +47,7 @@ export function createDiscoveryState(initial: DiscoveryNavigation = navigationDe
   return {
     snapshot: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    restore(raw: string | null) { const restored = restoreDiscoveryNavigation(raw); generation++; update({ ...restored, merchants: [], clusters: [], nextCursor: null, loading: false, query: null, origin: restored.manualOrigin ? {...restored.manualOrigin,basis:'MANUAL'} : null }); },
+    restore(raw: string | null) { const restored = restoreDiscoveryNavigation(raw); generation++; update({ ...restored, merchants: [], clusters: [], nextCursor: null, unlocatedCount: 0, loading: false, error: null, query: null, origin: restored.manualOrigin ? {...restored.manualOrigin,basis:'MANUAL'} : null }); },
     setMode(mode: 'map' | 'list') { update({ mode }); },
     select(selectedId: string | null) { update({ selectedId }); },
     setOrigin(origin: DiscoverySnapshot['origin'], expiresAt?: string) { if (expiresAt && (Date.parse(expiresAt) <= Date.now() || Date.parse(expiresAt) >= Date.now()+86400000)) return;

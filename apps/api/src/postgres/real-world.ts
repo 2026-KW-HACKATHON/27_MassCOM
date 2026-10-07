@@ -98,8 +98,8 @@ export class PostgresRealWorldService {
     return this.accountLifecycle;
   }
 
-  private async visible(id: string): Promise<MerchantRow> {
-    const result = await this.pool.query<MerchantRow>(
+  private async visible(id: string, db: Pool | PoolClient = this.pool): Promise<MerchantRow> {
+    const result = await db.query<MerchantRow>(
       `SELECT m.id, m.name, m.road_address, m.category, m.is_demo, m.version, m.story,
               m.consent_document_ref,
               m.business_hours, m.minimum_spend_won, m.menu_items AS legacy_menu_items,
@@ -442,7 +442,7 @@ export class PostgresRealWorldService {
         typeof input.note !== 'string' || !input.note.trim() || input.note.length > 1000) throw new RealWorldError('REPORT_INVALID');
     return this.transaction(async client => {
       await this.requireLifecycle().assertActive(client, accountId);
-      await this.visible(id);
+      await this.visible(id, client);
       const result = await client.query<ReportRow>(`INSERT INTO merchant_real_world_reports
         (id, merchant_id, reporter_account_id, kind, note, created_at, updated_at)
         VALUES ($1,$2,$3,$4,$5,$6,$6)

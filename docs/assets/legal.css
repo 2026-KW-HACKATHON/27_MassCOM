@@ -172,6 +172,18 @@
   margin-bottom: 0;
 }
 
+.legal-main details > summary {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.open-actions {
+  margin-top: 1.25rem;
+}
+
 .legal-warning {
   border-radius: var(--mc-radius-control);
   background: var(--mc-accent-container);

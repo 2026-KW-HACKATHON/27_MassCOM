@@ -1,3 +1,5 @@
+import './global.css';
+
 import { getAppPackageId } from '@/config/app-identity';
 import Constants from 'expo-constants';
 import { AppKit, AppKitProvider, useAppKitTheme } from '@reown/appkit-react-native';

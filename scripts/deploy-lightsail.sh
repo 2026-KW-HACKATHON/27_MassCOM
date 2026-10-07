@@ -74,10 +74,11 @@ fi
 
 commit="$(git -C "$repo_root" rev-parse --verify HEAD)"
 compatibility_from="$(sed -n 's/^from=//p' "$compatibility_evidence")"
+backward_compatible="$(sed -n 's/^backward_compatible=//p' "$compatibility_evidence")"
 [[ "$compatibility_from" =~ ^[0-9a-f]{40}$ ]] &&
   grep -qx "to=$commit" "$compatibility_evidence" &&
-  grep -qx 'backward_compatible=yes' "$compatibility_evidence" || {
-    echo 'MIGRATION_COMPATIBILITY_EVIDENCE_INVALID: require from=<live commit>, to=<HEAD>, backward_compatible=yes' >&2
+  [[ "$backward_compatible" == yes || "$backward_compatible" == no ]] || {
+    echo 'MIGRATION_COMPATIBILITY_EVIDENCE_INVALID: require from=<live commit>, to=<HEAD>, backward_compatible=yes|no' >&2
     exit 1
   }
 release_id="${commit:0:12}"
@@ -135,7 +136,7 @@ COPYFILE_DISABLE=1 tar -C "$repo_root" -czf - "${deployment_paths[@]}" \
 scp "${ssh_options[@]}" -q "$runtime_env" "$target:$remote_tmp_env"
 
 ssh "${ssh_options[@]}" "$target" bash -s -- \
-  "$remote_release" "$remote_env" "$remote_tmp_env" "$release_id" "$commit" "$compatibility_from" <<'REMOTE'
+  "$remote_release" "$remote_env" "$remote_tmp_env" "$release_id" "$commit" "$compatibility_from" "$backward_compatible" <<'REMOTE'
 set -Eeuo pipefail
 
 release="$1"
@@ -144,6 +145,7 @@ temporary_env="$3"
 release_id="$4"
 commit="$5"
 compatibility_from="$6"
+backward_compatible="$7"
 compose_file="$release/infra/lightsail/compose.yml"
 trap 'sudo rm -f "$temporary_env"' EXIT
 
@@ -282,6 +284,16 @@ migration_started=false
 rollback() {
   local code="${1:-1}" failed=false
   trap - ERR
+  # 새 원장과 하위 비호환인 배포는 migration 시작부터 구 API 복귀를 금지한다.
+  if [[ "$migration_started" == true && "$backward_compatible" == no ]]; then
+    compose_no_stdin stop api || failed=true
+    echo "FORWARD_RECOVERY_REQUIRED: API writes stopped; keep new env/schema; release=$release backup=$db_backup; inspect applied migrations and recover with a compatible API; do not restart the old API or restore the backup over new writes" >&2
+    if [[ "$failed" == true ]]; then
+      echo 'API_WRITE_STOP_FAILED: block API traffic before manual recovery' >&2
+      exit 1
+    fi
+    exit "$code"
+  fi
   if [[ "$rollback_started" == true ]]; then
     sudo install -o root -g root -m 600 "$env_backup" "$runtime_env" || failed=true
     if [[ "$postgres_recreated" == true ]]; then
@@ -356,6 +368,10 @@ if ! postgres_log_settings_ok; then
   error_verbosity="$(trap - ERR; postgres_setting log_error_verbosity)" || { postgres_check_failed verbosity; false; }
   [[ "$error_verbosity" == terse ]] || { postgres_check_failed verbosity; false; }
   echo 'POSTGRES_RECREATED_FOR_LOG_SETTINGS'
+fi
+# 구 API가 새 스키마에 쓰지 못하게 migration 전에 같은 project의 API를 멈춘다.
+if [[ "$backward_compatible" == no ]]; then
+  compose_no_stdin stop api
 fi
 migration_started=true
 compose_no_stdin run --rm -T migrate

@@ -17,6 +17,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { AppHeader } from '@/ui/app-header';
 import { BounceButton } from '@/ui/bounce-button';
 import { FloatingCard } from '@/ui/floating-card';
+import { Fold } from '@/ui/fold';
 import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
@@ -94,6 +95,11 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       if (!saved) await writeFurniturePending(furnitureKey, attempt);
       setFurniturePending(attempt);
       const result = await furnitureApi.purchaseFurniture(attempt.itemId, attempt.requestId);
+      shop.applyBalance(result.balance);
+      drawRequestGeneration.current += 1;
+      setStoredDrawShop((previous) => previous?.key === drawScopeKey
+        ? { ...previous, value: { ...previous.value, balance: result.balance } } : previous);
+      void refreshDrawShop();
       await clearFurniturePending(furnitureKey);
       setFurniturePending(undefined); setFurnitureChoice(undefined);
       setFurnitureMessage('가구를 보관함에 넣었어요. 마이룸에서 배치할 수 있어요.');
@@ -121,14 +127,16 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const drawError = storedDrawError?.key === drawScopeKey ? storedDrawError.value : undefined;
   const drawLoading = !drawShop && !drawError;
   const drawApiRef = useRef(drawApi);
+  const drawRequestGeneration = useRef(0);
   useEffect(() => { drawApiRef.current = drawApi; }, [drawApi]);
   const refreshDrawShop = useCallback(async () => {
+    const generation = ++drawRequestGeneration.current;
     try {
       const next = await drawApi.getShop();
-      if (drawApiRef.current !== drawApi) return false;
+      if (drawApiRef.current !== drawApi || drawRequestGeneration.current !== generation) return false;
       setStoredDrawShop({ key: drawScopeKey, value: next }); setStoredDrawError(undefined); return true;
     } catch (error) {
-      if (drawApiRef.current !== drawApi) return false;
+      if (drawApiRef.current !== drawApi || drawRequestGeneration.current !== generation) return false;
       setStoredDrawError({ key: drawScopeKey, value: shopErrorMessage(error) }); return false;
     }
   }, [drawApi, drawScopeKey]);
@@ -504,6 +512,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
             <Text accessibilityLabel={`마일리지 ${drawShop?.balance ?? snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(drawShop?.balance ?? snapshot.mileage.balance)}</Text>
             <Mascot interactive pose="gift" size={56} />
           </View>
+          {(drawShop?.balance ?? snapshot.mileage.balance) === 0 ? <StateScene kind="empty" title="마일리지가 아직 없어요" action={{ label: '가게 방문하고 마일리지 모으기', onPress: () => router.push('/search') }} framed={false} /> : null}
           {pending ? <BounceButton label="이전 구매 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {drawPending ? <BounceButton label="이전 뽑기 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
@@ -538,7 +547,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         </View>
       </Stagger>
 
-      <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
+      <Fold title="마일리지 획득 안내"><Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text></Fold>
 
       <Stagger index={2}>
         <View style={styles.section}>
@@ -622,7 +631,7 @@ function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
           <Text style={styles.gradeOwned}>코인 {grade.counts.COIN} · 테마 {grade.counts.THEME} · 캐릭터 {grade.counts.CHARACTER}</Text>
         </View>
       </View>
-      <Text style={styles.disclosure}>전체 {grade.total}종 각 {(grade.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}% · 중복 가능</Text>
+      <Fold title="뽑기 확률 보기"><Text style={styles.disclosure}>전체 {grade.total}종 각 {(grade.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}% · 중복 가능</Text></Fold>
       {button.reason || (purchaseBusy && !busy) ? <Text style={styles.disabledReason}>{button.reason ?? '다른 작업을 처리하고 있어요'}</Text> : null}
       <BounceButton
         label={busy ? '뽑는 중…' : '뽑기'}

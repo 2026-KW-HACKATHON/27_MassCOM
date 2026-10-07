@@ -31,6 +31,8 @@ const liveCoinSql = `SELECT publication.id AS publication_id, grade.grade_id,
     AND grade.grade_id = publication.reward_grades ->> $1
   WHERE merchant.status = 'ACTIVE' AND campaign.status = 'ACTIVE' AND campaign.is_public
     AND campaign.starts_at <= $2 AND campaign.ends_at > $2 AND publication.media_removed_at IS NULL
+    AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
+      WHERE trial.merchant_id = merchant.id AND trial.account_id <> $3)
   ORDER BY publication.id, grade.grade_id`;
 
 function rewardFromCoin(row: CoinRow): GradeReward {
@@ -66,9 +68,10 @@ export class PostgresGradeDrawService implements GradeDrawService {
     return earned + this.showcaseBonusMileage - spent;
   }
 
-  private async poolFor(db: Queryable, grade: MileageGrade, now: Date, lock: boolean): Promise<GradeDrawPool> {
+  private async poolFor(db: Queryable, grade: MileageGrade, now: Date, lock: boolean,
+    accountId: string): Promise<GradeDrawPool> {
     const rows = await db.query<CoinRow>(`${liveCoinSql}${lock ? ' FOR SHARE OF link, campaign, merchant, publication' : ''}`,
-      [gradeGoal[grade], now]);
+      [gradeGoal[grade], now, accountId]);
     const rewards = [...catalogRewards(grade), ...rows.rows.map(rewardFromCoin)];
     const counts = { COIN: rows.rows.length,
       THEME: rewards.filter((reward) => reward.kind === 'THEME').length,
@@ -101,7 +104,7 @@ export class PostgresGradeDrawService implements GradeDrawService {
     const now = this.now();
     const [balance, pools, rows] = await Promise.all([
       this.balance(this.pool, accountId),
-      Promise.all(grades.map((grade) => this.poolFor(this.pool, grade, now, false))),
+      Promise.all(grades.map((grade) => this.poolFor(this.pool, grade, now, false, accountId))),
       this.pool.query<DrawRow>(`SELECT * FROM grade_draws WHERE account_id = $1
         ORDER BY created_at DESC, id DESC LIMIT 20`, [accountId]),
     ]);
@@ -137,7 +140,7 @@ export class PostgresGradeDrawService implements GradeDrawService {
         + (SELECT count(*) FROM mileage_spends WHERE account_id = $1 AND created_at > $2)
       )::integer AS n`, [input.accountId, new Date(now.getTime() - 60 * 60 * 1000)]);
       if (recent.rows[0]!.n >= 30) throw new GradeDrawError('DRAW_RATE_LIMITED');
-      const pool = await this.poolFor(client, input.grade, now, true);
+      const pool = await this.poolFor(client, input.grade, now, true, input.accountId);
       if (pool.version !== input.expectedPoolVersion) throw new GradeDrawError('DRAW_STATE_CHANGED');
       const balance = await this.balance(client, input.accountId);
       if (balance < pool.price) throw new GradeDrawError('DRAW_INSUFFICIENT_MILEAGE');

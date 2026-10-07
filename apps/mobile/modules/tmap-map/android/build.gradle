@@ -17,6 +17,8 @@ android {
 
 dependencies {
   implementation 'com.google.flatbuffers:flatbuffers-java:24.3.25'
+  // TMAP AAR의 테마가 Material 속성을 참조한다. 앱이 이미 쓰는 같은 버전(expo-router·react-native-screens)으로 release 리소스 검증을 통과시킨다.
+  implementation 'com.google.android.material:material:1.13.0'
   implementation files('libs/tmap-sdk-3.7.aar')
   implementation files('libs/vsm-tmap-sdk-v2-eaa-2.0.14.aar')
 }

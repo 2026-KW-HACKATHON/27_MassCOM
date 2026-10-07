@@ -5,6 +5,11 @@ import test from 'node:test';
 const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
 const page = readFileSync(new URL('../../../../../docs/account-deletion.html', import.meta.url), 'utf8');
 
+test('시연 내 정보는 내부 계정 진단을 숨기고 시스템 내비게이션 인셋을 확보한다', () => {
+  assert.match(screen, /!showShowcaseRoleEntry\(getAppPackageId\(\)\) \? <Text selectable style=\{styles\.accountDiagnostic\}>/);
+  assert.match(screen, /paddingBottom: 40 \+ insets\.bottom/);
+});
+
 test('blocked account deletion offers the HTTPS request page with a link role and open failure feedback', () => {
   assert.match(screen, /https:\/\/www\.masscom\.kr\/account-deletion/);
   assert.match(screen, /웹에서 계정 삭제 요청/);

@@ -87,9 +87,8 @@ export class ExpoPushGateway implements PushGateway {
   > {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    let response: Response;
     try {
-      response = await this.fetchFn(url, {
+      const response = await this.fetchFn(url, {
         method: 'POST',
         headers: {
           Accept: 'application/json',
@@ -99,24 +98,24 @@ export class ExpoPushGateway implements PushGateway {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
+      if (response.status === 429 || response.status >= 500) {
+        await drainResponse(response);
+        return { kind: 'retryable', code: `EXPO_HTTP_${response.status}` };
+      }
+      if (!response.ok) {
+        await drainResponse(response);
+        return { kind: 'fatal', code: `EXPO_HTTP_${response.status}` };
+      }
+      try {
+        return { kind: 'ok', body: await response.json() };
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        return { kind: 'shape' };
+      }
     } catch (error) {
+      return { kind: 'retryable', code: controller.signal.aborted || isAbortError(error) ? 'EXPO_TIMEOUT' : 'EXPO_NETWORK' };
+    } finally {
       clearTimeout(timeout);
-      return { kind: 'retryable', code: isAbortError(error) ? 'EXPO_TIMEOUT' : 'EXPO_NETWORK' };
-    }
-    clearTimeout(timeout);
-
-    if (response.status === 429 || response.status >= 500) {
-      await drainResponse(response);
-      return { kind: 'retryable', code: `EXPO_HTTP_${response.status}` };
-    }
-    if (!response.ok) {
-      await drainResponse(response);
-      return { kind: 'fatal', code: `EXPO_HTTP_${response.status}` };
-    }
-    try {
-      return { kind: 'ok', body: await response.json() };
-    } catch {
-      return { kind: 'shape' };
     }
   }
 }
@@ -202,7 +201,8 @@ function isAbortError(error: unknown): boolean {
 async function drainResponse(response: Response): Promise<void> {
   try {
     await response.arrayBuffer();
-  } catch {
+  } catch (error) {
+    if (isAbortError(error)) throw error;
     // The caller only needs the HTTP class. Body parse failures must not expose response content.
   }
 }

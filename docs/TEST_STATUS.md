@@ -1,5 +1,23 @@
 # 테스트 상태
 
+## 2026-10-08 제출 준비 결함 수정 (Issue #401)
+
+브랜치 `fix/submission-readiness`, 기준 main `8b336ece`. 2026-10-07 전체 점검 보고서는 저장소 밖에 있으며 아래 로컬 결과는 제공된 실행 기록이다. 수정 커밋은 `git log --oneline 8b336ece..HEAD`로 확인한다(문서 작성 시 최신 `439471d5`).
+
+| 검사 | 결과 | 환경·범위와 제한 |
+| --- | --- | --- |
+| API 단위·PostgreSQL | 567/567 PASS · 524 PASS / 3 SKIP | 전용 55435 hosted seed 컨테이너 조건; API typecheck·build PASS |
+| 모바일 | 1,872/1,872 PASS | typecheck·lint, 운영·시연 Android export, variant 자산·접근성 의미 PASS; 설치본 수용과 별도 |
+| 사이트 | PASS | legal·showcase·design tokens·production web·real-world merchant·collectible·commercial·build_public_site·aws routes |
+| 운영 | PASS | deploy_lightsail·rollback·restore drill 실DB·compose push token·lightsail readme; 공개 운영 DB 복원·배포와 별도 |
+| 통합 gate | PASS | 2026-10-08 이 브랜치의 `bash tools/gate.sh` 제공 기록 |
+| 독립 리뷰·CI | 재리뷰 진행 중 · CI 대기 | Codex Sol 6.1 xhigh(서버·운영·모바일 인증), high(웹·모바일 UI)의 지적 수정 후 재리뷰; CI는 PR에서 확인 |
+| 공개 반영 | NOT_RUN | 운영·시연 공개본 `db280032` 유지. 병합·시연 배포·운영 실데이터 리허설은 별도 |
+
+이번 문서 작업에서 직접 실행한 검사(2026-10-08, 같은 브랜치): `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/bootstrap/demo_submission_readiness_test.sh`, `bash tests/bootstrap/judging_submission_readiness_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tools/gate.sh` 모두 PASS(각 종료 0).
+
+수정 범위와 배포 조건은 [PROJECT_STATE](PROJECT_STATE.md), 다음 순서는 [HANDOFF](HANDOFF.md)를 따른다. 기존 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 추가 로컬 검사로 변경하지 않는다.
+
 ## 2026-10-07 전체 고객 UI 통합 (Issue #399)
 
 첨부 23보드/67상태의 자동·DB·HTTP·브라우저·Android 변형 검사 결과는 [UI QA](UI_BOARDS_QA_2026-10-07.md)에 명령과 환경별로 기록한다. 로컬 가상 점포 HTTP 흐름은 실제 운영 가게/카메라/GPS/NFT 체인 발행 수용과 구분한다. [상태별 대응표](UI_BOARDS_STATUS_2026-10-07.md)는 원본 보드 ID를 유지한다.

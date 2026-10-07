@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, useColorScheme, View } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -24,6 +24,8 @@ export function MessageComposeScreen({ apiUrl, credential, onSessionInvalid, fri
   const palette = colorsForScheme(useColorScheme());
   const api = useMemo(() => createSocialApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const [body, setBody] = useState('');
+  const messageRequestId = useRef<string | undefined>(undefined);
+  useEffect(() => { messageRequestId.current = undefined; }, [friendshipId, apiUrl, credential]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
 
@@ -32,7 +34,8 @@ export function MessageComposeScreen({ apiUrl, credential, onSessionInvalid, fri
     setBusy(true);
     setNotice(undefined);
     try {
-      await api.sendMessage({ friendshipId, requestId: createSocialRequestId('message'), body });
+      await api.sendMessage({ friendshipId, requestId: messageRequestId.current ??= createSocialRequestId('message'), body });
+      messageRequestId.current = undefined;
       router.replace('/mail');
     } catch (caught) {
       setNotice(socialErrorMessage(caught));
@@ -49,7 +52,7 @@ export function MessageComposeScreen({ apiUrl, credential, onSessionInvalid, fri
             <Text accessibilityRole="header" style={{ color: palette.label, fontWeight: '900', fontSize: 20 }}>친구에게 쪽지 보내기</Text>
             <TextInput
               value={body}
-              onChangeText={setBody}
+              onChangeText={value => { if (value !== body) { setBody(value); messageRequestId.current = undefined; } }}
               multiline
               maxLength={500}
               placeholder="500자까지 쓸 수 있어요."
@@ -98,6 +101,8 @@ export function MealInviteScreen({ apiUrl, credential, onSessionInvalid, friends
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [kind, setKind] = useState<'CONFIRMED' | 'RANGE'>('CONFIRMED');
+  const mealRequestId = useRef<string | undefined>(undefined);
+  useEffect(() => { mealRequestId.current = undefined; }, [friendshipId, apiUrl, credential, merchantId]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string>();
   const plannedTime = /^\d{4}-\d{2}-\d{2}$/.test(date) && isHHmm(kind === 'CONFIRMED' ? time : startTime)
@@ -116,7 +121,8 @@ export function MealInviteScreen({ apiUrl, credential, onSessionInvalid, friends
     setBusy(true);
     setNotice(undefined);
     try {
-      await api.createMealInvitation({ friendshipId, requestId: createSocialRequestId('meal-invite'), merchantId, date, schedule });
+      await api.createMealInvitation({ friendshipId, requestId: mealRequestId.current ??= createSocialRequestId('meal-invite'), merchantId, date, schedule });
+      mealRequestId.current = undefined;
       router.replace('/mail');
     } catch (caught) {
       setNotice(socialErrorMessage(caught));
@@ -152,17 +158,17 @@ export function MealInviteScreen({ apiUrl, credential, onSessionInvalid, friends
             ) : null}
             {plannedBusiness ? <Text style={{ color: palette.secondaryLabel }}>제안한 시간 기준 {businessLabel[plannedBusiness.state]} · 시간표와 임시 변경 정보 기준</Text> : null}
             <Text style={{ color: palette.secondaryLabel }}>선택한 날짜와 시간은 친구에게 보내는 약속 제안입니다. 친구 간 약속 · 매장 예약 아님. 방문 전 가게 위치와 최신 영업 상태를 확인해 주세요.</Text>
-            <TextInput value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" accessibilityLabel="초대 날짜" placeholderTextColor={palette.secondaryLabel} style={{ ...fieldStyle, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }} />
+            <TextInput value={date} onChangeText={value => { if (value !== date) { setDate(value); mealRequestId.current = undefined; } }} placeholder="YYYY-MM-DD" accessibilityLabel="초대 날짜" placeholderTextColor={palette.secondaryLabel} style={{ ...fieldStyle, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 1 }}><BounceButton label="확정 시간" variant={kind === 'CONFIRMED' ? 'primary' : 'secondary'} onPress={() => setKind('CONFIRMED')} /></View>
-              <View style={{ flex: 1 }}><BounceButton label="시간 범위" variant={kind === 'RANGE' ? 'primary' : 'secondary'} onPress={() => setKind('RANGE')} /></View>
+              <View style={{ flex: 1 }}><BounceButton label="확정 시간" variant={kind === 'CONFIRMED' ? 'primary' : 'secondary'} onPress={() => { if (kind !== 'CONFIRMED') { setKind('CONFIRMED'); mealRequestId.current = undefined; } }} /></View>
+              <View style={{ flex: 1 }}><BounceButton label="시간 범위" variant={kind === 'RANGE' ? 'primary' : 'secondary'} onPress={() => { if (kind !== 'RANGE') { setKind('RANGE'); mealRequestId.current = undefined; } }} /></View>
             </View>
             {kind === 'CONFIRMED' ? (
-              <TextInput value={time} onChangeText={setTime} placeholder="HH:mm" accessibilityLabel="확정 시간" placeholderTextColor={palette.secondaryLabel} style={{ ...fieldStyle, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }} />
+              <TextInput value={time} onChangeText={value => { if (value !== time) { setTime(value); mealRequestId.current = undefined; } }} placeholder="HH:mm" accessibilityLabel="확정 시간" placeholderTextColor={palette.secondaryLabel} style={{ ...fieldStyle, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }} />
             ) : (
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextInput value={startTime} onChangeText={setStartTime} placeholder="시작 HH:mm" accessibilityLabel="시작 시간" placeholderTextColor={palette.secondaryLabel} style={[fieldStyle, { flex: 1, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }]} />
-                <TextInput value={endTime} onChangeText={setEndTime} placeholder="끝 HH:mm" accessibilityLabel="끝 시간" placeholderTextColor={palette.secondaryLabel} style={[fieldStyle, { flex: 1, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }]} />
+                <TextInput value={startTime} onChangeText={value => { if (value !== startTime) { setStartTime(value); mealRequestId.current = undefined; } }} placeholder="시작 HH:mm" accessibilityLabel="시작 시간" placeholderTextColor={palette.secondaryLabel} style={[fieldStyle, { flex: 1, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }]} />
+                <TextInput value={endTime} onChangeText={value => { if (value !== endTime) { setEndTime(value); mealRequestId.current = undefined; } }} placeholder="끝 HH:mm" accessibilityLabel="끝 시간" placeholderTextColor={palette.secondaryLabel} style={[fieldStyle, { flex: 1, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }]} />
               </View>
             )}
             <BounceButton label={busy ? '보내는 중…' : '초대 보내기'} disabled={busy || !selectedMerchant || detail?.id !== merchantId} onPress={() => { void send(); }} />

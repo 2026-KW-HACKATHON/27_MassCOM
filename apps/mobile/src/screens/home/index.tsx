@@ -103,6 +103,11 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
       contentContainerStyle={{ paddingBottom: clearance + 8 }}>
       <AppHeader title="홈" showFriendsEntry showMailEntry compact />
       <View style={{ width: '100%', maxWidth: 540, alignSelf: 'center', gap: 10, paddingHorizontal: 16 }}>
+        {data?.collection?.visits.length === 0 ? <Link href="/search" asChild><Pressable accessibilityRole="button" accessibilityLabel="가게 찾기"
+          style={{ minHeight: 56, borderRadius: 18, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+          <TabGlyph name="explore" color={palette.onPrimary} size={24} />
+          <Text style={{ color: palette.onPrimary, fontWeight: '800', fontSize: 16 }}>가게 찾기</Text>
+        </Pressable></Link> : null}
         {compactHome ? <View style={{ flexDirection: 'row', gap: 12 }}>
           <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link>
           <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>
