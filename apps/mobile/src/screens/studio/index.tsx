@@ -1,7 +1,7 @@
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Image, Platform, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -31,9 +31,11 @@ import { ConfirmDialog } from '@/ui/confirm-dialog';
 import { Fold } from '@/ui/fold';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { spaceToggles } from '@/ui/space-toggles';
 import { StateScene } from '@/ui/state-scene';
 
 const themeLabels: Record<StudioTheme, string> = { daylight: '낮', evening: '저녁', garden: '정원' };
+const layoutLabels = { shelf: '선반', gallery: '갤러리' } as const;
 const accentColors = { mint: '#68BAAC', rose: '#E78F9B', sky: '#72A7E6' } as const;
 type StudioMode = 'room' | 'coins' | 'companion' | 'goal';
 const studioModes: { id: StudioMode; label: string }[] = [
@@ -320,7 +322,10 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       : [...(draft.coinSlots ?? []), source] });
   }
 
-  function chooseGoal(goal: StudioGoal) { setDraft((current) => current ? { ...current, goal } : current); }
+  // pointerEvents="none" does not stop the keyboard, so Enter (onPress) and Space share these saving guards, as toggleSlot does.
+  function chooseGoal(goal: StudioGoal) { if (saving) return; setDraft((current) => current ? { ...current, goal } : current); }
+  function chooseAvatar(id: string) { if (avatarSaving || clothingSaving) return; setAvatarChoice(id); }
+  function chooseClothing(id: string | null) { if (avatarSaving || clothingSaving) return; setClothingChoice(id); }
   function refreshIfClean() {
     if (dirty || saving) { setNotice('저장하지 않은 편집이 있어요. 저장하거나 편집 취소 후 새로고침해 주세요.'); return; }
     void load(true);
@@ -366,6 +371,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       {notice ? <Text accessibilityRole="alert" style={[styles.notice, { color: palette.success }]}>{notice}</Text> : null}
       <View accessibilityRole="radiogroup" style={styles.modeChoices}>{studioModes.map((option) => <Pressable key={option.id}
         accessibilityRole="radio" accessibilityState={{ checked: mode === option.id }} aria-checked={mode === option.id} onPress={() => setModeChoice({ requestKey, mode: option.id })}
+        {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => setModeChoice({ requestKey, mode: option.id })) } : {})}
         style={[styles.modeChoice, { backgroundColor: mode === option.id ? palette.primaryContainer : palette.surface,
           borderColor: mode === option.id ? palette.primary : palette.separator }]}>
         <Text style={[styles.modeText, { color: mode === option.id ? palette.onPrimaryContainer : palette.label }]}>{option.label}</Text>
@@ -399,11 +405,13 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
             </View> : null}
             {(['wall', 'floor'] as const).map((surface) => <View key={surface}>
               <Text style={[styles.subheading, { color: palette.label }]}>{surface === 'wall' ? '벽' : '바닥'}</Text>
-              <View style={styles.choices}><Pressable accessibilityRole="radio" accessibilityState={{ checked: draft[surface] === null }}
-                onPress={() => setDraft({ ...draft, [surface]: null })} style={[styles.choice, draft[surface] === null && styles.choiceSelected]}>
+              <View style={styles.choices}><Pressable accessibilityRole="radio" accessibilityLabel="기본" accessibilityState={{ checked: draft[surface] === null, selected: draft[surface] === null }}
+                aria-checked={draft[surface] === null} onPress={() => setDraft({ ...draft, [surface]: null })}
+                {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => setDraft({ ...draft, [surface]: null })) } : {})} style={[styles.choice, draft[surface] === null && styles.choiceSelected]}>
                 <Text style={styles.choiceText}>{draft[surface] === null ? '✓ ' : ''}기본</Text></Pressable>
                 {(['daylight', 'garden', 'evening'] as const).filter((theme) => theme === 'daylight' || snapshot.unlockedThemes.includes(theme)).map((theme) => <Pressable key={theme} accessibilityRole="radio"
-                  accessibilityState={{ selected: draft[surface] === theme }} onPress={() => setDraft({ ...draft, [surface]: theme })}
+                  accessibilityLabel={themeLabels[theme]} accessibilityState={{ checked: draft[surface] === theme, selected: draft[surface] === theme }} aria-checked={draft[surface] === theme}
+                  onPress={() => setDraft({ ...draft, [surface]: theme })} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => setDraft({ ...draft, [surface]: theme })) } : {})}
                   style={[styles.choice, draft[surface] === theme && styles.choiceSelected]}>
                   <Text style={styles.choiceText}>{draft[surface] === theme ? '✓ ' : ''}{themeLabels[theme]}</Text></Pressable>)}</View>
             </View>)}
@@ -427,7 +435,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         <Text style={[styles.heading, { color: palette.label }]}>동행과 의상</Text>
         {shop.items.some((item) => item.owned) ? <View style={styles.avatarList}>{shop.items.filter((item) => item.owned).map((item) => <Pressable
           key={item.id} accessibilityRole="radio" accessibilityLabel={`${item.name} 동행 선택`}
-          accessibilityState={{ selected: avatarChoice === item.id }} onPress={() => setAvatarChoice(item.id)}
+          accessibilityState={{ selected: avatarChoice === item.id }} aria-checked={avatarChoice === item.id} onPress={() => chooseAvatar(item.id)}
+          {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => chooseAvatar(item.id)) } : {})}
           style={[styles.avatarOption, avatarChoice === item.id && styles.rowSelected]}>
           {friendArt[item.id] ? <Image source={friendArt[item.id]} style={styles.avatarImage} resizeMode="contain" /> : null}
           <Text numberOfLines={2} style={styles.avatarName}>{item.name}</Text>
@@ -438,14 +447,16 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         <Text style={[styles.subheading, { color: palette.secondaryLabel }]}>동행 옷</Text>
         <View style={styles.avatarList}>
           <Pressable key="none" accessibilityRole="radio" accessibilityLabel="옷 입히지 않기"
-            accessibilityState={{ selected: clothingChoice === null }} onPress={() => setClothingChoice(null)}
+            accessibilityState={{ selected: clothingChoice === null }} aria-checked={clothingChoice === null} onPress={() => chooseClothing(null)}
+            {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => chooseClothing(null)) } : {})}
             style={[styles.clothingOption, clothingChoice === null && styles.rowSelected]}>
             <View style={styles.noClothingBadge}><Text style={styles.noClothingText}>—</Text></View>
             <Text numberOfLines={2} style={styles.avatarName}>없음</Text>
           </Pressable>
           {shop.clothing.items.filter((item) => item.owned).map((item) => <Pressable
             key={item.id} accessibilityRole="radio" accessibilityLabel={`${item.name} 착용 선택`}
-            accessibilityState={{ selected: clothingChoice === item.id }} onPress={() => setClothingChoice(item.id)}
+            accessibilityState={{ selected: clothingChoice === item.id }} aria-checked={clothingChoice === item.id} onPress={() => chooseClothing(item.id)}
+            {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => chooseClothing(item.id)) } : {})}
             style={[styles.clothingOption, clothingChoice === item.id && styles.rowSelected]}>
             <View style={styles.clothingBadge}><AvatarWardrobe clothing={clothingArtForId(item.id)} size={42} /></View>
             <Text numberOfLines={2} style={styles.avatarName}>{item.name}</Text>
@@ -466,7 +477,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       {experience.snapshot && owned.length ? <View style={styles.section}>
         <Text style={[styles.heading, { color: palette.label }]}>대표 수집 코인</Text>
         <View style={styles.choices}>{page.items.map((item) => <Pressable key={item.entitlementId}
-          accessibilityRole="button" accessibilityState={{ selected: experience.snapshot?.profile.coinEntitlementId === item.entitlementId }}
+          accessibilityRole="button" accessibilityLabel={item.displayName} accessibilityState={{ selected: experience.snapshot?.profile.coinEntitlementId === item.entitlementId }}
+          aria-pressed={experience.snapshot?.profile.coinEntitlementId === item.entitlementId}
           disabled={experience.saving} onPress={() => void experience.save({ coinEntitlementId: experience.snapshot?.profile.coinEntitlementId === item.entitlementId ? null : item.entitlementId })}
           style={[styles.choice, experience.snapshot?.profile.coinEntitlementId === item.entitlementId && styles.choiceSelected]}>
           <Text style={styles.choiceText}>{experience.snapshot?.profile.coinEntitlementId === item.entitlementId ? '✓ ' : ''}{item.displayName}</Text>
@@ -479,7 +491,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         <View style={styles.choices}>
           {(['daylight', 'evening', 'garden'] as const).map((theme) => {
             const unlocked = theme === 'daylight' || snapshot.unlockedThemes.includes(theme);
-            return <Pressable key={theme} accessibilityRole="button" accessibilityState={{ selected: draft.theme === theme, disabled: !unlocked }}
+            return <Pressable key={theme} accessibilityRole="button" accessibilityLabel={`${themeLabels[theme]}${unlocked ? '' : ' · 잠김'}`}
+              accessibilityState={{ selected: draft.theme === theme, disabled: !unlocked }} aria-pressed={draft.theme === theme}
               disabled={!unlocked} onPress={() => setDraft({ ...draft, theme })}
               style={[styles.choice, draft.theme === theme && styles.choiceSelected, !unlocked && styles.locked]}>
               <Text style={styles.choiceText}>{draft.theme === theme ? '✓ ' : ''}{themeLabels[theme]}{unlocked ? '' : ' · 잠김'}</Text>
@@ -488,15 +501,15 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         </View>
         <Text style={[styles.subheading, { color: palette.secondaryLabel }]}>배치</Text>
         <View style={styles.choices}>
-          {(['shelf', 'gallery'] as const).map((layout) => <Pressable key={layout} accessibilityRole="button" accessibilityState={{ selected: draft.layout === layout }}
+          {(['shelf', 'gallery'] as const).map((layout) => <Pressable key={layout} accessibilityRole="button" accessibilityLabel={layoutLabels[layout]} accessibilityState={{ selected: draft.layout === layout }} aria-pressed={draft.layout === layout}
             onPress={() => setDraft({ ...draft, layout })} style={[styles.choice, draft.layout === layout && styles.choiceSelected]}>
-            <Text style={styles.choiceText}>{draft.layout === layout ? '✓ ' : ''}{layout === 'shelf' ? '선반' : '갤러리'}</Text>
+            <Text style={styles.choiceText}>{draft.layout === layout ? '✓ ' : ''}{layoutLabels[layout]}</Text>
           </Pressable>)}
         </View>
         <Text style={[styles.subheading, { color: palette.secondaryLabel }]}>포인트 색</Text>
         <View style={styles.choices}>
           {(['mint', 'rose', 'sky'] as const).map((accent) => <Pressable key={accent} accessibilityRole="button" accessibilityLabel={`${accent === 'mint' ? '민트' : accent === 'rose' ? '로즈' : '스카이'} 색`}
-            accessibilityState={{ selected: draft.accent === accent }} onPress={() => setDraft({ ...draft, accent })}
+            accessibilityState={{ selected: draft.accent === accent }} aria-pressed={draft.accent === accent} onPress={() => setDraft({ ...draft, accent })}
             style={[styles.swatch, { backgroundColor: accentColors[accent] }, draft.accent === accent && styles.swatchSelected]} />)}
         </View>
       </View>
@@ -509,8 +522,9 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
           <Text style={[styles.subheading, { color: palette.secondaryLabel }]}>가게 코인</Text>
           {coinSources.slice(coinPage * 12, coinPage * 12 + 12).map(({ source, merchantName, displayName }) => {
             const checked = draft.coinSlots?.some((item) => item.sourceKind === source.sourceKind && item.sourceId === source.sourceId) ?? false;
-            return <View key={`${source.sourceKind}:${source.sourceId}`} style={[styles.goalRow, { backgroundColor: palette.surface, borderColor: palette.separator }]}><Pressable accessibilityRole="checkbox" accessibilityState={{ checked }}
-              onPress={() => toggleCoinSource({ sourceKind: source.sourceKind, sourceId: source.sourceId })}
+            const toggle = () => toggleCoinSource({ sourceKind: source.sourceKind, sourceId: source.sourceId });
+            return <View key={`${source.sourceKind}:${source.sourceId}`} style={[styles.goalRow, { backgroundColor: palette.surface, borderColor: palette.separator }]}><Pressable accessibilityRole="checkbox" accessibilityState={{ checked }} aria-checked={checked}
+              onPress={toggle} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggle) } : {})}
               style={[styles.row, styles.ownedRow, checked && styles.rowSelected, { flex: 1, backgroundColor: checked ? palette.primaryContainer : palette.surface, borderColor: checked ? palette.primary : palette.separator }]}>
               <Text style={[styles.checkbox, { color: palette.primary }]}>{checked ? '✓' : '+'}</Text>
               <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{merchantName}</Text></View>
@@ -526,8 +540,9 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         </> : null}
         {owned.length ? <View style={styles.list}>{page.items.map((item) => {
           const selectedItem = draft.slots.includes(item.entitlementId);
-          return <Pressable key={item.entitlementId} accessibilityRole="checkbox" accessibilityState={{ checked: selectedItem }}
-            onPress={() => toggleSlot(item.entitlementId)} style={[styles.row, styles.ownedRow, selectedItem && styles.rowSelected,
+          const toggle = () => toggleSlot(item.entitlementId);
+          return <Pressable key={item.entitlementId} accessibilityRole="checkbox" accessibilityState={{ checked: selectedItem }} aria-checked={selectedItem}
+            onPress={toggle} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggle) } : {})} style={[styles.row, styles.ownedRow, selectedItem && styles.rowSelected,
               { backgroundColor: selectedItem ? palette.primaryContainer : palette.surface, borderColor: selectedItem ? palette.primary : palette.separator }]}>
             <Text style={[styles.checkbox, { color: palette.primary }]}>{selectedItem ? '✓' : '+'}</Text>
             <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{item.displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{item.merchantName}</Text></View>
@@ -560,13 +575,15 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
             : wantedStatus.label}</Text>
           {wantedGoal?.merchantId ? <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: wantedGoal.merchantId! } })} style={styles.goButton}><Text style={styles.goText}>획득 경로 확인</Text></Pressable> : null}
         </View> : null}
-        <Pressable accessibilityRole="radio" accessibilityState={{ checked: !draft.goal }} onPress={() => chooseGoal(null)} style={[styles.row, !draft.goal && styles.rowSelected]}>
+        <Pressable accessibilityRole="radio" accessibilityState={{ checked: !draft.goal }} aria-checked={!draft.goal} onPress={() => chooseGoal(null)}
+          {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => chooseGoal(null)) } : {})} style={[styles.row, !draft.goal && styles.rowSelected]}>
           <Text style={styles.rowTitle}>아직 정하지 않기</Text>
         </Pressable>
         {options.map((option) => {
           const selectedGoal = JSON.stringify(draft.goal) === JSON.stringify(option.goal);
           return <View key={`${option.goal.kind}:${option.merchantId ?? option.goal.gameKind}`} style={[styles.goalRow, selectedGoal && styles.rowSelected]}>
-            <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedGoal }} onPress={() => chooseGoal(option.goal)} style={styles.goalPick}>
+            <Pressable accessibilityRole="radio" accessibilityState={{ checked: selectedGoal }} aria-checked={selectedGoal} onPress={() => chooseGoal(option.goal)}
+              {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => chooseGoal(option.goal)) } : {})} style={styles.goalPick}>
               <Text numberOfLines={2} style={styles.rowTitle}>{option.label}</Text><Text style={styles.rowMeta}>{option.progress}</Text>
             </Pressable>
             {option.merchantId ? <Pressable accessibilityRole="button" accessibilityLabel={`${option.label} 가게 보기`}

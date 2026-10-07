@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Pressable, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 import {
   type createCommerceApiClient,
@@ -7,6 +7,7 @@ import {
   type RecentVisit,
   type VisitCancelReason,
 } from '@/commerce/commerce-api';
+import { spaceToggles } from '@/ui/space-toggles';
 import type { makeMerchantClaimStyles } from './styles';
 import {
   cancelConfirmText,
@@ -134,9 +135,11 @@ export function StaffReversalCards({ api, merchantId, styles, refreshSignal = 0,
                 key={option.code}
                 accessibilityRole="radio"
                 accessibilityState={{ selected }}
+                aria-checked={selected}
                 accessibilityLabel={option.label}
                 disabled={busy}
                 onPress={() => patchForm({ reason: option.code })}
+                {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => { if (!busy) patchForm({ reason: option.code }); }) } : {})}
                 style={[styles.reasonOption, selected && styles.reasonOptionSelected]}
               >
                 <Text style={[styles.reasonOptionText, selected && styles.reasonOptionTextSelected]}>{option.label}</Text>

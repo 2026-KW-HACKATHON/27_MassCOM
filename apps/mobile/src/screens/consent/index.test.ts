@@ -13,6 +13,17 @@ test('each required box is a checkbox that tells assistive technology whether it
   assert.match(screen, /accessible=\{false\} importantForAccessibility="no-hide-descendants"/);
 });
 
+test('on the web each checkbox exposes aria-checked and Space toggles it like Enter does', () => {
+  // react-native-web ignores accessibilityState, so aria-checked is the only thing that reaches the DOM.
+  assert.match(screen, /aria-checked=\{checked\}/);
+  assert.match(screen, /onPress=\{toggle\}/);
+  // Space handler is web-only (native unchanged); the shared helper's own test covers repeat and scroll prevention.
+  assert.match(screen, /\{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(toggle\) \} : \{\}\)\}/);
+  assert.match(screen, /import \{ spaceToggles \} from '@\/ui\/space-toggles';/);
+  // A busy screen never toggles, whichever key got there.
+  assert.match(screen, /const toggle = \(\) => \{ if \(!busy\) setChecks/);
+});
+
 test('links are links with a hint, and a failed open is shown instead of swallowed', () => {
   assert.match(screen, /accessibilityRole="link"/);
   assert.match(screen, /accessibilityHint=\{check\.link\.hint\}/);

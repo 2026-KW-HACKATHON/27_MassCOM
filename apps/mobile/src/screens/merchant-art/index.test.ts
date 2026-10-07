@@ -96,6 +96,9 @@ test('the drafts are a 2x2 grid of radio buttons that read their number and styl
   assert.match(grid, /accessibilityRole="radio"/);
   assert.match(grid, /accessibilityLabel=\{draftAccessibilityLabel\(draft\)\}/);
   assert.match(grid, /accessibilityState=\{\{ selected, disabled \}\}/);
+  // On the web the chosen state reaches the DOM only as aria-checked, and Space picks a draft like Enter does (never while disabled).
+  assert.match(grid, /aria-checked=\{selected\}/);
+  assert.match(grid, /\{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(\(\) => \{ if \(!disabled\) onPress\(\); \}\) \} : \{\}\)\}/);
   // The style name is text, and a chosen draft also says so in words next to its border and check.
   assert.match(grid, /\{selected \? `\$\{draft\.label\} · 선택됨` : draft\.label\}/);
   assert.match(grid, /<CheckGlyph color=\{palette\.onPrimary\} \/>/);

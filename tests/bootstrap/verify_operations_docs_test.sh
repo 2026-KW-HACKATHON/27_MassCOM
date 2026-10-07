@@ -6,6 +6,14 @@ verifier="$repo_root/scripts/verify-operations-docs.mjs"
 [[ -f "$verifier" ]] || { echo 'missing operations docs verifier' >&2; exit 1; }
 node "$verifier" "$repo_root"
 
+# 심사자가 읽는 README에는 병합 전 문장과 에이전트 내부 용어를 두지 않는다.
+for banned in '이 PR이 병합되면' '메인 스레드'; do
+  if grep -qF "$banned" "$repo_root/README.md"; then
+    echo "README contains banned phrase: $banned" >&2
+    exit 1
+  fi
+done
+
 fixture="$(mktemp -d -t operations-docs.XXXXXX)"
 trap 'rm -rf "$fixture"' EXIT
 mkdir -p "$fixture/apps/api" "$fixture/apps/mobile" "$fixture/apps/worker" "$fixture/docs"

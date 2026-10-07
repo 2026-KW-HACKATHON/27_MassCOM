@@ -46,12 +46,16 @@ jobs:
         run: |
           bash scripts/check-secrets.sh
           bash tests/bootstrap/check_secrets_test.sh
+      - name: 시험 파일의 CI 연결 누락 검사
+        run: bash tests/ci/ci_wiring_test.sh
       - name: PR 한국어 작성 확인
         if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
+      - name: PR 한국어 검사기 회귀 시험
+        run: bash tests/bootstrap/check_pr_korean_test.sh
       - name: 병합 충돌 표시 검사
         run: |
           bash scripts/check-conflict-markers.sh
@@ -74,8 +78,9 @@ jobs:
         run: node --test tests/site/verify_showcase_site_test.mjs
       - name: 웹 디자인 토큰·앱 색 정합 검사
         run: node --test tests/site/verify_design_tokens_test.mjs
+      # production-recovery.test.mjs는 verify_production_web_test.mjs가 import해 함께 돈다. 여기에 또 적으면 두 번 실행된다.
       - name: 운영 웹 공개 조회·읽기 전용 경계 검사
-        run: node --test tests/site/verify_production_web_test.mjs tests/site/store-go-live-admin.test.mjs tests/site/nft-metadata-admin.test.mjs tests/site/real-world-merchant.test.mjs tests/site/production-recovery.test.mjs tests/site/public-entry.test.mjs
+        run: node --test tests/site/verify_production_web_test.mjs tests/site/store-go-live-admin.test.mjs tests/site/nft-metadata-admin.test.mjs tests/site/real-world-merchant.test.mjs tests/site/public-entry.test.mjs tests/site/account-deletion-flow.test.mjs tests/site/admin-funnel.test.mjs tests/site/merchant-actions-overview.test.mjs
       - name: 사진 수집품 모델·편집·도감 검사
         run: node --test tests/site/collectible-*.test.mjs
       - name: 캠페인 연장·가게 정보 수정·매장 안내문 웹 검사
@@ -134,6 +139,8 @@ jobs:
         run: bash tests/release/verify_aab_signature_test.sh
       - name: Verify AAB assessment provenance
         run: bash tests/release/assess_release_aab_test.sh
+      - name: Verify AAB manifest reader
+        run: bash tests/release/dump_aab_manifest_test.sh
       - name: Verify release Keychain signing boundary
         run: bash tests/release/verify_release_keychain_test.sh
       - name: 빌드에 들어간 API 주소 검사
@@ -176,6 +183,13 @@ jobs:
           npm run typecheck --prefix apps/worker
           npm run build --prefix apps/worker
           npm run audit:ci --prefix apps/worker
+      - name: DB 백업·복원 드릴 시험
+        env:
+          DRILL_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+          PGPASSWORD: postgres
+          # 드릴이 쓰는 psql·pg_dump·pg_restore는 서비스 컨테이너 안(서버와 같은 16.10)의 것을 쓴다.
+          PG_EXEC: docker exec -i -e PGPASSWORD ${{ job.services.postgres.id }}
+        run: bash tests/ops/db_restore_drill_test.sh
       - name: Worker 로컬 Anvil 전체 흐름
         env:
           DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test

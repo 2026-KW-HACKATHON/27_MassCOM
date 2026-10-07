@@ -44,6 +44,8 @@ test('the installed expo-router web history pushes instead of overwriting the pr
   assert.match(patch, /\+\s+history\.get\(nextIndex\)\) \{/);
   assert.match(patch, /node_modules\/expo-router\/build\/fork\/createMemoryHistory\.js/);
   assert.match(patch, /\+\s+if \(item\.path\.split\('#'\)\[0\] === path\.split\('#'\)\[0\]\) \{/);
+  // A browser back/forward popstate resyncs the memory-history index (as go() does) before the listener runs.
+  assert.match(patch, /\+\s+index = Math\.max\(items\.findIndex\(\(item\) => item\.id === window\.history\.state\?\.id\), 0\);/);
 });
 
 // ---- 패치된 useLinking.js를 실제 createMemoryHistory·가짜 브라우저 history 위에서 실행하는 시나리오 시험 ----
@@ -92,6 +94,7 @@ function createBrowser(startUrl: string) {
 /** 브라우저 위에서 설치된 useLinking을 돌리고 scenario(navigate)에 넘긴다. navigate(next)는 앱 네비게이션 상태가 next로 바뀐 것을 알린다. */
 async function withSession(startUrl: string, initial: Nav, scenario: (session: {
   browser: ReturnType<typeof createBrowser>; navigate: (next: Nav) => Promise<void>; current: () => Nav;
+  history: { get(index: number): { path: string } | undefined; readonly index: number };
 }) => Promise<void>) {
   const previous = { window: Reflect.get(globalThis, 'window'), location: Reflect.get(globalThis, 'location') };
   const browser = createBrowser(startUrl);
@@ -109,7 +112,8 @@ async function withSession(startUrl: string, initial: Nav, scenario: (session: {
       update(next: Nav) { this.state = next; store.state = next; this.listener(); },
     };
     const effects: (() => unknown)[] = [];
-    const react = { useEffect: (effect: () => unknown) => { effects.push(effect); }, useState: (init: () => unknown) => [init()],
+    let memory: unknown;
+    const react = { useEffect: (effect: () => unknown) => { effects.push(effect); }, useState: (init: () => unknown) => [memory = init()],
       useRef: (value: unknown) => ({ current: value }), useCallback: (fn: unknown) => fn, use: () => undefined };
     const pathOf = (nav: Nav) => screenPaths[focused(nav).name]!;
     // 기록에 상태가 없는 항목(앞으로 가기 등)은 경로로 상태를 만든다 — 실제 앱의 getStateFromPath 역할.
@@ -132,7 +136,8 @@ async function withSession(startUrl: string, initial: Nav, scenario: (session: {
       { config: {}, getStateFromPath: stateOf, getPathFromState: pathOf, getActionFromState: () => undefined }, () => {});
     for (const effect of effects) cleanups.push(effect());
     await settle();
-    await scenario({ browser, current: () => container.state!, navigate: async (next) => { container.update(next); await settle(); } });
+    await scenario({ browser, history: memory as Parameters<Parameters<typeof withSession>[2]>[0]['history'], current: () => container.state!,
+      navigate: async (next) => { container.update(next); await settle(); } });
   } finally {
     for (const cleanup of cleanups) if (typeof cleanup === 'function') cleanup();
     Reflect.set(globalThis, 'window', previous.window);
@@ -204,5 +209,21 @@ test('existing flows keep working: header back, same-tab reselect, deep link ent
     assert.deepEqual(browser.urls(), ['/play/room-explore', '/play/']);
     await browser.step(-1);
     assert.equal(focused(current()).name, 'room-explore');
+  });
+});
+
+test('after browser back the memory history index follows the popped entry, so the next navigation drops the forward entry instead of overwriting a stale one', async () => {
+  await withSession('/play/', app(['index']), async ({ browser, history, navigate, current }) => {
+    await navigate(app(['index', 'search'])); // B
+    await navigate(app(['index', 'search'], 'room-explore')); // C
+    await browser.step(-1); // 브라우저 뒤로 가기: go() 없이 popstate만 온다 → 메모리 기록의 index가 B를 가리켜야 한다.
+    assert.equal(focused(current()).name, 'search');
+    assert.equal(history.index, 1);
+    await navigate(app(['index', 'search'], 'studio')); // D
+    // 브라우저 기록: C 자리를 D가 대체한다.
+    assert.deepEqual(browser.urls(), ['/play/', '/play/search', '/play/studio']);
+    // 메모리 기록도 같다: A, B 그대로, C가 있던 자리에 D, 현재 index는 D. (index가 낡으면 [A, B, B, D]가 되어 어긋난다.)
+    assert.deepEqual([0, 1, 2, 3].map((position) => history.get(position)?.path), ['/play/', '/play/search', '/play/studio', undefined]);
+    assert.equal(history.index, 2);
   });
 });

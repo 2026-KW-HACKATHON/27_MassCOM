@@ -33,6 +33,9 @@ test('the reversal cards expose roles, live regions and the note limit and never
   assert.match(reversal, /accessibilityRole="radiogroup"/);
   assert.match(reversal, /accessibilityRole="radio"/);
   assert.match(reversal, /accessibilityState=\{\{ selected \}\}/);
+  // On the web the chosen reason reaches the DOM only as aria-checked, and Space picks it like Enter does (never while busy).
+  assert.match(reversal, /aria-checked=\{selected\}/);
+  assert.match(reversal, /\{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(\(\) => \{ if \(!busy\) patchForm\(\{ reason: option\.code \}\); \}\) \} : \{\}\)\}/);
   assert.equal((reversal.match(/accessibilityLiveRegion="polite"/g) ?? []).length, 2);
   assert.match(reversal, /maxLength=\{reversalNoteMaxLength\}/);
   assert.match(reversal, /연락처·이메일·주소·이름은 적지 마세요/);

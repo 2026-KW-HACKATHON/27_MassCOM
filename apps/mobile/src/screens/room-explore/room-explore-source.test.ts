@@ -30,3 +30,22 @@ test('guestbook input is optional and existing stamp actions still govern text',
   assert.match(source, /removeStamp\(stamp\.id\)/);
   assert.match(source, /reportStamp\(stamp\.id\)/);
 });
+
+test('the visibility confirmation checkbox exposes aria-checked on the web and toggles on Space like a press', () => {
+  assert.match(source, /import \{ spaceToggles \} from '@\/ui\/space-toggles';/);
+  assert.match(source, /const toggleAgreed = \(\) => setAgreed\(\(current\) => !current\);/);
+  const start = source.indexOf('accessibilityRole="checkbox"');
+  const row = source.slice(start, source.indexOf('</Pressable>', start));
+  assert.match(row, /accessibilityState=\{\{ checked: agreed \}\} aria-checked=\{agreed\}/);
+  assert.match(row, /accessibilityLabel="방 공개 범위 확인" onPress=\{toggleAgreed\}/);
+  // Web-only: native keeps its own press handling.
+  assert.match(row, /\{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(toggleAgreed\) \} : \{\}\)\}/);
+});
+
+test('the three visibility scope radios expose aria-checked on the web and pick on Space like a press', () => {
+  assert.match(source, /const chooseScope = \(scope: RoomVisibility\) => \{ setScopeChoice\(scope\); setAgreed\(false\); \};/);
+  const start = source.indexOf('accessibilityRole="radio"');
+  const row = source.slice(start, source.indexOf('</Pressable>', start));
+  assert.match(row, /accessibilityState=\{\{ checked: scopeChoice === scope \}\} aria-checked=\{scopeChoice === scope\} onPress=\{\(\) => chooseScope\(scope\)\}/);
+  assert.match(row, /\{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(\(\) => chooseScope\(scope\)\) \} : \{\}\)\}/);
+});

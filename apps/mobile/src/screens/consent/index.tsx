@@ -1,6 +1,6 @@
 import { getAppPackageId } from '@/config/app-identity';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -20,6 +20,7 @@ import { FloatingCard } from '@/ui/floating-card';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyBanner } from '@/ui/sky-banner';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { spaceToggles } from '@/ui/space-toggles';
 import { consentBoxSize, makeConsentStyles } from './styles';
 import { finishConsentLogout } from './consent-logout';
 
@@ -179,14 +180,18 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
 
       {consentChecks.map((check) => {
         const checked = checks[check.key];
+        const toggle = () => { if (!busy) setChecks((current) => ({ ...current, [check.key]: !current[check.key] })); };
         return (
           <View key={check.key} style={styles.checkGroup}>
             <Pressable
               accessibilityRole="checkbox"
               accessibilityLabel={check.label}
               accessibilityState={{ checked, disabled: busy }}
+              // react-native-web ignores accessibilityState, so web needs aria-checked to expose the state.
+              aria-checked={checked}
               disabled={busy}
-              onPress={() => setChecks((current) => ({ ...current, [check.key]: !current[check.key] }))}
+              onPress={toggle}
+              {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggle) } : {})}
               style={styles.checkRow}
             >
               <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.box, { width: boxSize, height: boxSize, minWidth: boxSize, minHeight: boxSize }, checked && styles.boxChecked]}>

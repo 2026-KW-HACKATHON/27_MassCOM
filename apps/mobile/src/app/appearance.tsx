@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, Text, View, useColorScheme } from 'react-native';
+import { Platform, Pressable, Text, View, useColorScheme } from 'react-native';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { tabAppearanceColors, type TabAppearance } from '@/navigation/tab-appearance';
 import { useTabAppearance } from '@/navigation/tab-appearance-provider';
@@ -8,6 +8,7 @@ import { BackHeader } from '@/ui/back-header';
 import { FloatingCard } from '@/ui/floating-card';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { spaceToggles } from '@/ui/space-toggles';
 import { useUiStyles } from '@/ui/use-ui-styles';
 import { colorsForScheme } from '@/theme/palette';
 
@@ -44,7 +45,7 @@ export default function AppearanceScreen() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {choices.map(([value, label]) => <Pressable key={value} accessibilityRole="radio"
           accessibilityState={{ checked: draft[key] === value }} aria-checked={draft[key] === value} disabled={!stored.ready || saving}
-          onPress={() => choose(key, value)} style={{ minHeight: 54, flexGrow: 1, padding: 14, borderRadius: 16,
+          onPress={() => choose(key, value)} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => { if (stored.ready && !saving) choose(key, value); }) } : {})} style={{ minHeight: 54, flexGrow: 1, padding: 14, borderRadius: 16,
             backgroundColor: draft[key] === value ? palette.primaryContainer : palette.surface,
             borderWidth: 2, borderColor: draft[key] === value ? palette.primary : palette.separator }}>
           <Text style={{ color: palette.label, fontWeight: draft[key] === value ? '800' : '500', textAlign: 'center' }}>{draft[key] === value ? '✓ ' : ''}{label}</Text>

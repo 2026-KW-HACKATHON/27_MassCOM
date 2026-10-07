@@ -1,5 +1,5 @@
 diff --git a/node_modules/expo-router/build/fork/createMemoryHistory.js b/node_modules/expo-router/build/fork/createMemoryHistory.js
-index c26fcb9..978b369 100644
+index c26fcb9..714b23c 100644
 --- a/node_modules/expo-router/build/fork/createMemoryHistory.js
 +++ b/node_modules/expo-router/build/fork/createMemoryHistory.js
 @@ -39,7 +39,10 @@ function createMemoryHistory() {
@@ -14,6 +14,16 @@ index c26fcb9..978b369 100644
                      return i;
                  }
              }
+@@ -173,6 +176,9 @@ function createMemoryHistory() {
+                     // This was triggered by `history.go(n)`, we shouldn't call the listener
+                     return;
+                 }
++                // START FORK(MassCOM) - browser back/forward changes the entry without go(), so resync index like go() does; a stale index makes the next push/replace hit the wrong entry
++                index = Math.max(items.findIndex((item) => item.id === window.history.state?.id), 0);
++                // END FORK
+                 listener();
+             };
+             window.addEventListener('popstate', onPopState);
 diff --git a/node_modules/expo-router/build/fork/useLinking.js b/node_modules/expo-router/build/fork/useLinking.js
 index 6911c31..1c0b00d 100644
 --- a/node_modules/expo-router/build/fork/useLinking.js

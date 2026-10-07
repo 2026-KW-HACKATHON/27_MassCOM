@@ -77,3 +77,64 @@ test('every selectable studio chip prints a check glyph when selected, so select
     assert.match(source, new RegExp(`${escaped} && styles\\.choiceSelected`), selected);
   }
 });
+
+test('studio chips with a check glyph carry a plain accessibility label, so screen readers do not read the glyph', () => {
+  // Selection stays in accessibilityState (selected, plus checked on radios); the glyph is only visual.
+  const labelFor = (marker: string) => {
+    const at = source.indexOf(marker);
+    assert.ok(at > 0, marker);
+    return source.slice(source.lastIndexOf('<Pressable', at), at);
+  };
+  const cases: [string, RegExp][] = [
+    ["{draft[surface] === null ? '✓ ' : ''}기본", /accessibilityRole="radio" accessibilityLabel="기본" accessibilityState=\{\{ checked: draft\[surface\] === null, selected: draft\[surface\] === null \}\}/],
+    ["{draft[surface] === theme ? '✓ ' : ''}{themeLabels[theme]}", /accessibilityRole="radio"\s+accessibilityLabel=\{themeLabels\[theme\]\} accessibilityState=\{\{ checked: draft\[surface\] === theme, selected: draft\[surface\] === theme \}\}/],
+    ["{experience.snapshot?.profile.coinEntitlementId === item.entitlementId ? '✓ ' : ''}{item.displayName}", /accessibilityLabel=\{item\.displayName\} accessibilityState=\{\{ selected: experience\.snapshot\?\.profile\.coinEntitlementId === item\.entitlementId \}\}/],
+    ["{draft.theme === theme ? '✓ ' : ''}{themeLabels[theme]}", /accessibilityLabel=\{`\$\{themeLabels\[theme\]\}\$\{unlocked \? '' : ' · 잠김'\}`\}\s+accessibilityState=\{\{ selected: draft\.theme === theme, disabled: !unlocked \}\}/],
+    ["{draft.layout === layout ? '✓ ' : ''}{layoutLabels[layout]}", /accessibilityLabel=\{layoutLabels\[layout\]\} accessibilityState=\{\{ selected: draft\.layout === layout \}\}/],
+  ];
+  for (const [marker, pattern] of cases) assert.match(labelFor(marker), pattern, marker);
+  assert.match(source, /const layoutLabels = \{ shelf: '선반', gallery: '갤러리' \} as const;/);
+});
+
+test('studio checkbox rows expose aria-checked on the web and toggle on Space through the same guarded toggle as a press', () => {
+  // react-native-web ignores accessibilityState, so aria-checked is what reaches the DOM. It is not web-only: RN 0.86 Pressable maps aria-checked
+  // onto accessibilityState.checked, so on native too the radios that only set `selected` now announce checked. accessibilityState stays as it was.
+  assert.match(source, /import \{ spaceToggles \} from '@\/ui\/space-toggles';/);
+  const coinRow = source.slice(source.lastIndexOf('<Pressable accessibilityRole="checkbox"', source.indexOf('{checked ? \'✓\' : \'+\'}')), source.indexOf('{checked ? \'✓\' : \'+\'}'));
+  assert.match(coinRow, /accessibilityState=\{\{ checked \}\} aria-checked=\{checked\}/);
+  assert.match(coinRow, /onPress=\{toggle\} \{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(toggle\) \} : \{\}\)\}/);
+  assert.match(source, /const toggle = \(\) => toggleCoinSource\(\{ sourceKind: source\.sourceKind, sourceId: source\.sourceId \}\);/);
+  const itemRow = source.slice(source.lastIndexOf('<Pressable key={item.entitlementId} accessibilityRole="checkbox"', source.indexOf('{selectedItem ? \'✓\' : \'+\'}')), source.indexOf('{selectedItem ? \'✓\' : \'+\'}'));
+  assert.match(itemRow, /accessibilityState=\{\{ checked: selectedItem \}\} aria-checked=\{selectedItem\}/);
+  assert.match(itemRow, /onPress=\{toggle\} \{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(toggle\) \} : \{\}\)\}/);
+  assert.match(source, /const toggle = \(\) => toggleSlot\(item\.entitlementId\);/);
+  // Both toggles already refuse while saving, so neither key path can change a draft mid-save.
+  for (const name of ['toggleSlot', 'toggleCoinSource']) assert.match(source, new RegExp(`function ${name}\\([^)]*\\) \\{\\s+if \\(!draft \\|\\| saving\\) return;`));
+});
+
+test('every studio radio exposes aria-checked on the web and picks on Space; saving locks the key path like the pointer path', () => {
+  const radios = source.match(/accessibilityRole="radio"/g) ?? [];
+  assert.equal(radios.length, 8);
+  assert.equal((source.match(/aria-checked=\{/g) ?? []).length, radios.length + 2, '8 radios + 2 checkboxes = the 10 role sites');
+  assert.equal((source.match(/onKeyDown: spaceToggles\(/g) ?? []).length, radios.length + 2);
+  // pointerEvents="none" only blocks pointers; Enter still reaches onPress through the RN-web press responder. So the saving guard lives in the
+  // shared choose function and onPress and Space call the same one, like toggleSlot does for the checkboxes.
+  assert.match(source, /function chooseAvatar\(id: string\) \{ if \(avatarSaving \|\| clothingSaving\) return; setAvatarChoice\(id\); \}/);
+  assert.match(source, /function chooseClothing\(id: string \| null\) \{ if \(avatarSaving \|\| clothingSaving\) return; setClothingChoice\(id\); \}/);
+  assert.match(source, /function chooseGoal\(goal: StudioGoal\) \{ if \(saving\) return; setDraft/);
+  for (const call of ['chooseAvatar(item.id)', 'chooseClothing(null)', 'chooseClothing(item.id)', 'chooseGoal(null)', 'chooseGoal(option.goal)']) {
+    assert.ok(source.includes(`onPress={() => ${call}}`), `onPress ${call}`);
+    assert.ok(source.includes(`onKeyDown: spaceToggles(() => ${call})`), `Space ${call}`);
+  }
+  assert.doesNotMatch(source, /onPress=\{\(\) => set(Avatar|Clothing)Choice\(/);
+  assert.doesNotMatch(source, /spaceToggles\(\(\) => \{ if \(/);
+});
+
+test('button chips whose label hides the check glyph expose their selected state on the web as aria-pressed', () => {
+  // react-native-web drops accessibilityState and the plain accessibilityLabel hides the ✓, so aria-pressed is the only selected state on the web.
+  for (const selected of ['experience.snapshot?.profile.coinEntitlementId === item.entitlementId', 'draft.theme === theme', 'draft.layout === layout', 'draft.accent === accent']) {
+    const escaped = selected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    assert.match(source, new RegExp(`accessibilityState=\\{\\{ selected: ${escaped}(, disabled: !unlocked)? \\}\\}\\s+aria-pressed=\\{${escaped}\\}`), selected);
+  }
+  assert.equal((source.match(/aria-pressed=\{/g) ?? []).length, 4);
+});

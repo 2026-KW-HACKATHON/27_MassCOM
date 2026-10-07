@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -14,6 +14,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { spaceToggles } from '@/ui/space-toggles';
 import { StateScene } from '@/ui/state-scene';
 
 const stampLabels: Record<RoomStampKind, string> = { COZY: '포근해요', COOL: '멋져요', RETURN: '다시 올게요' };
@@ -40,6 +41,8 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const toggleAgreed = () => setAgreed((current) => !current);
+  const chooseScope = (scope: RoomVisibility) => { setScopeChoice(scope); setAgreed(false); };
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
   const [needsConsent, setNeedsConsent] = useState(false);
@@ -218,13 +221,14 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
       {settings ? <>
         <Text style={[styles.status, { color: settings.visible ? palette.success : palette.secondaryLabel }]}>현재 {settings.visibility === 'PRIVATE' ? '나만 보기' : settings.visibility === 'FRIENDS' ? '친구에게 공개' : '같은 가게 이웃에게 공개'}</Text>
         {(['PRIVATE', 'FRIENDS', 'NEIGHBORS'] as const).map((scope) => <Pressable key={scope} accessibilityRole="radio"
-          accessibilityState={{ checked: scopeChoice === scope }} onPress={() => { setScopeChoice(scope); setAgreed(false); }} style={styles.checkRow}>
+          accessibilityState={{ checked: scopeChoice === scope }} aria-checked={scopeChoice === scope} onPress={() => chooseScope(scope)}
+          {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => chooseScope(scope)) } : {})} style={styles.checkRow}>
           <Text style={[styles.check, { color: palette.primary }]}>{scopeChoice === scope ? '◉' : '○'}</Text>
           <Text style={[styles.body, { color: palette.label, flex: 1 }]}>{scope === 'PRIVATE' ? '나만 보기' : scope === 'FRIENDS' ? '친구' : '같은 가게 이웃'}</Text>
         </Pressable>)}
         {scopeChoice === 'NEIGHBORS' ? <Text style={[styles.body, { color: palette.secondaryLabel }]}>같은 가게의 방문이 확인된 이웃도 내 방을 볼 수 있어요.</Text> : null}
-        {scopeChoice !== 'PRIVATE' && scopeChoice !== settings.visibility ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agreed }}
-          accessibilityLabel="방 공개 범위 확인" onPress={() => setAgreed((current) => !current)} style={styles.checkRow}>
+        {scopeChoice !== 'PRIVATE' && scopeChoice !== settings.visibility ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agreed }} aria-checked={agreed}
+          accessibilityLabel="방 공개 범위 확인" onPress={toggleAgreed} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggleAgreed) } : {})} style={styles.checkRow}>
           <Text style={[styles.check, { color: palette.primary }]}>{agreed ? '☑' : '□'}</Text>
           <Text style={[styles.body, { color: palette.label, flex: 1 }]}>위 공개 범위를 확인했어요</Text>
         </Pressable> : null}
