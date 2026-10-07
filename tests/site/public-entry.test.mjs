@@ -20,10 +20,10 @@ test('포털 첫 행동은 시연 체험과 Android 설치이며 검증 기록�
 
 test('설치 화면은 경고보다 앞에 기존 릴리스로 가는 APK 버튼을 둔다', () => {
   const html = read('open.html');
-  const button = /<a class="(?:primary-action|secondary-action)" href="https:\/\/github\.com\/2026-KW-HACKATHON\/27_MassCOM\/releases\/tag\/(android-v0\.1\.0-test\.11|showcase-android-v0\.1\.0-preview\.20)">(?:운영|시연) APK 받기<\/a>/g;
+  const button = /<a class="(?:primary-action|secondary-action)" href="https:\/\/github\.com\/2026-KW-HACKATHON\/27_MassCOM\/releases\/tag\/(android-v0\.1\.0-test\.12|showcase-android-v0\.1\.0-preview\.21)">(?:운영|시연) APK 받기<\/a>/g;
   const matches = [...html.matchAll(button)];
   assert.equal(matches.length, 2);
-  assert.deepEqual(matches.map((match) => match[1]), ['android-v0.1.0-test.11', 'showcase-android-v0.1.0-preview.20']);
+  assert.deepEqual(matches.map((match) => match[1]), ['android-v0.1.0-test.12', 'showcase-android-v0.1.0-preview.21']);
   assert.ok(matches[1].index < html.indexOf('<details'));
   assert.match(html, /<details[\s\S]*?앱이 열리지 않나요\?[\s\S]*?SHA256SUMS\.txt[\s\S]*?versionCode 2[\s\S]*?<\/details>/);
 });

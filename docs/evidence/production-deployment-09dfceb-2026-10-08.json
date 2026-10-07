@@ -1,0 +1,75 @@
+{
+  "status": "PASS",
+  "observedAt": "2026-10-08 KST",
+  "recordBasis": "사용자 제공 배포·공개 확인 기록; 이번 문서 작업에서 원격 재검증하지 않음",
+  "sourceCommit": "09dfceb0b39beaa8afe39bcc4bced471f9eb582c",
+  "previousCommit": "aae64d88973caea2f5ee1b1f13a44173e96e55bb",
+  "pullRequests": [
+    404
+  ],
+  "issues": [
+    401
+  ],
+  "command": "scripts/deploy-lightsail.sh --deploy",
+  "scope": "운영 API·DB·웹 배포 완료",
+  "production": {
+    "backward_compatible": "no",
+    "rollbackPolicy": "원장 변경 릴리스; 구 API 자동 복귀 금지",
+    "backup": {
+      "path": "/opt/masscom/backups/database-before-09dfceb0b39b.dump.*",
+      "bytes": 186604,
+      "mode": "600"
+    },
+    "schemaMigrationsBefore": 43,
+    "schemaMigrationsAfter": 68,
+    "lastMigration": "0067_room_guestbook.sql",
+    "containers": {
+      "masscom-api:09dfceb0b39b": "healthy",
+      "masscom-production-web:09dfceb0b39b": "healthy"
+    },
+    "caddy": "재생성 완료",
+    "retentionTimer": "첫 실행 success",
+    "DEPLOYED_COMMIT": "09dfceb0b39beaa8afe39bcc4bced471f9eb582c"
+  },
+  "externalHttps": {
+    "https://api.masscom.kr/health": 200,
+    "https://api.masscom.kr/coin-shop": 401,
+    "https://www.masscom.kr/": 200,
+    "https://www.masscom.kr/app/": 200,
+    "https://www.masscom.kr/admin/": 200,
+    "https://www.masscom.kr/open": 200,
+    "openPage": "배포 직후 test.11·Preview 20 링크 확인",
+    "https://demo-api.masscom.kr/health": 200,
+    "https://demo-api.masscom.kr/play/": 200
+  },
+  "publicTrial": {
+    "status": "PASS",
+    "timing": "배포 직후, 수정 전 공개 웹",
+    "steps": 17,
+    "duration": "5분 시연",
+    "consoleErrors": 0,
+    "http4xx5xx": 0,
+    "defectsFound": 4,
+    "fixedIn": "9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49",
+    "evidence": "docs/evidence/submission-2026-10-08/README.md",
+    "rawResult": "docs/evidence/submission-2026-10-08/flow-result.json",
+    "captures": 67,
+    "independentReview": "Codex gpt-6.1-sol high APPROVE",
+    "fixValidation": "모바일 1,876/1,876·typecheck·lint·접근성·gate PASS"
+  },
+  "pending": {
+    "operatingWeb": "이 PR 병합 커밋으로 운영 웹 재배포 후 /open test.12·Preview 21 링크 반영; API 변경·migration 없음",
+    "showcasePlay": {
+      "status": "NOT_RUN",
+      "sourceCommit": "9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49",
+      "entry": "entry-bf096d15e2c9fd7c9a6b8bc41de15c48.js",
+      "lang": "ko",
+      "next": "병합 직후 /play/ 전환 후 같은 흐름 재측정"
+    }
+  },
+  "notRun": [
+    "수정 후 공개 /play/ 재측정",
+    "새 APK 실제 설치·실기 수용",
+    "Google Play 배포·대회 최종 제출"
+  ]
+}
