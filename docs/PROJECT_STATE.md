@@ -1,6 +1,14 @@
 # 프로젝트 상태
 
-## 2026-10-08 제출 준비 (Issue #401)
+## 2026-10-08 공개 배포와 운영 전환 진행 (Issue #401 후속)
+
+PR #403이 main `2d483ed8645151b502253ac35860b3546e3473c5`로 병합됐다(배포 웹·APK 소스 트리 `74e47887c1c56da255271cdf1651f1f14c9044a3`와 동일). 시연 서버는 이 소스로 배포 완료했다. 서버 안 실제 복원 리허설에서 107개 테이블 행 수와 migration 목록이 일치했고, 배포 전 백업을 보존했다. 시연 DB migration은 43→68건(마지막 `0067_room_guestbook.sql`), API와 `/play/`가 공개 확인을 통과했다. retention 재설치·수동 실행·검증도 PASS다. [시연 배포 증거](evidence/showcase-deployment-2d483ed-2026-10-08.json)를 따른다.
+
+시연 Android Preview 20과 운영 Android test.11은 각각 게시되어 익명 다운로드 해시가 일치한다([시연 APK](evidence/showcase-preview20-release-2026-10-08.json), [운영 APK](evidence/operating-android-test11-2026-10-08.json)). 두 APK에 `RECORD_AUDIO` 권한은 없다. 운영 test.11의 내부 versionName/Code는 `0.1.0-test.2`/`2`다. 시연 서버·설치본은 지도 키가 없어 목록 기반 탐색으로 동작한다.
+
+운영 DB의 **첫 실제 복원 리허설(P03)**도 서버 안에서 PASS였다. 107개 테이블 행 수가 일치했고, 운영 데이터 복제본에서 같은 API 코드의 migration 43→68건과 `account_consents` 5=5 보존을 확인한 뒤 복제본과 임시 dump를 삭제했다([운영 리허설](evidence/production-restore-rehearsal-2026-10-08.json)). 운영 API·DB 배포는 **진행 중**이며 이 문서 PR 병합 커밋으로 `backward_compatible=no` 증거와 함께 `scripts/deploy-lightsail.sh --deploy`를 실행할 예정이다. 운영 `/health`·`www`·`/app/` 200은 기존 서비스 유지 확인이며 새 소스 배포 완료 근거가 아니다. 배포 결과와 실기 수용은 후속 기록으로 분리한다.
+
+## 2026-10-08 제출 준비 당시 상태 (Issue #401, 이력)
 
 브랜치 `fix/submission-readiness`, 기준 main `8b336ece`. 2026-10-07 전체 점검(보고서는 저장소 밖)의 결함 구현·로컬 검증을 완료했다. 수정 이력은 `git log --oneline 8b336ece..HEAD`(문서 작성 시 최신 `439471d5`)를 따른다. 독립 리뷰 지적은 수정했고 재리뷰 진행 중이며 PR·CI·병합·배포는 대기다.
 

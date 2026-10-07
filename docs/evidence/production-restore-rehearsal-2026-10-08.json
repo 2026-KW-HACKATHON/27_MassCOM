@@ -1,0 +1,45 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-08",
+  "sourceCommit": "2d483ed8645151b502253ac35860b3546e3473c5",
+  "equivalentTreeCommit": "74e47887c1c56da255271cdf1651f1f14c9044a3",
+  "pullRequests": [
+    403
+  ],
+  "issues": [
+    401
+  ],
+  "scope": "운영 DB 첫 실제 복원 증거(P03) 및 운영 데이터 복제본 migration 리허설. 운영 배포 완료 증거가 아니다.",
+  "checks": {
+    "restoreDrill": {
+      "status": "PASS",
+      "environment": "운영 서버 안",
+      "tables": 107,
+      "comparison": "107개 테이블 일치",
+      "dumpBytes": 186604,
+      "dumpSha256": "1360fdf8c3a5db62214b36f4541ad66e57515c093e46a9a7ff55a47a8c19cdd5",
+      "cleanup": "임시 dump 삭제"
+    },
+    "migrationRehearsal": {
+      "status": "PASS",
+      "database": "masscom_rehearsal_test (운영 데이터 복제본, 같은 클러스터)",
+      "apiCode": "시연 배포와 같은 API 코드",
+      "schemaMigrationsBefore": 43,
+      "schemaMigrationsAfter": 68,
+      "elapsedSeconds": 1.8,
+      "accountConsentsBefore": 5,
+      "accountConsentsAfter": 5,
+      "publicMerchants": 0,
+      "cleanup": "복제본 DB와 dump 즉시 삭제"
+    }
+  },
+  "operating": {
+    "deploy": "배포 진행 중; 이 문서 PR 병합 직후 병합 커밋으로 scripts/deploy-lightsail.sh --deploy 진행 예정",
+    "migrationCompatibility": "backward_compatible=no 증거와 함께 배포 예정",
+    "result": "NOT_RUN; 후속 기록"
+  },
+  "notRun": [
+    "운영 신규 API·웹 배포 결과",
+    "운영 실제 로그인·점포·QR·지갑 흐름"
+  ]
+}

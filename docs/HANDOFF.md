@@ -4,36 +4,37 @@
 
 ## 1. 기준 커밋과 작업 위치
 
-- 기준 main 커밋 SHA: `8b336ece`. 작업 브랜치: `fix/submission-readiness`.
-- Issue #401 구현·로컬 검증 완료, 독립 재리뷰 진행 중. PR·CI·병합·배포는 대기다. 수정 커밋은 `git log --oneline 8b336ece..HEAD`(문서 작성 시 최신 `439471d5`)를 따른다.
+- 기준 main 커밋 SHA: `2d483ed8645151b502253ac35860b3546e3473c5`(PR #403 병합, 트리 `74e47887c1c56da255271cdf1651f1f14c9044a3`와 동일). 현재 문서 worktree는 `docs/submission-1008-deploy`다.
+- 시연 배포와 두 Android Release 게시는 완료했다. 운영 서버 배포는 이 문서 PR 병합 직후 진행 예정이며 결과는 후속 기록한다.
 
 ## 2. 현재 통합 상태
 
-- PR #398과 #400은 병합됐다(2026-10-07 감사 기록 및 저장소 이력 기준). #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
+- PR #398과 #400은 병합됐다(2026-10-07 감사 기록 및 저장소 이력 기준). #403도 main `2d483ed8`로 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
 - PR #396은 닫혔으나 main에 병합되지 않았다. 미병합 초안을 공개본 기능으로 계산하지 않는다.
 - 재개 시 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 다시 대조한다.
 
 ## 3. 공개 서버와 설치본
 
-- 마지막 기록된 공개 배포 소스는 `db280032`이며 두 DB의 migration 원장은 43건이다. [배포 증거](evidence/deployment-db28003-2026-10-05.json)를 따른다.
-- 공개 운영 Android는 test.10, 시연 Android는 Preview 19다. 현재 작업 소스의 기능을 공개 설치본에서 수용했다고 기록하지 않는다.
-- 두 DB 백업의 실제 복원은 `NOT_RUN`이다. 공개 서버의 현재 상태는 새 배포 전에 재확인한다.
+- 시연 서버는 main `2d483ed8`의 API와 트리 `74e47887`의 `/play/` 웹 번들로 배포 완료했다. 시연 DB 원장은 43→68건(마지막 `0067_room_guestbook.sql`), 공개 `demo-api /health`·`/play/`·가상 점포 collectible-preview 200, `/coin-shop` 401(인증 필요)이다. [시연 배포 증거](evidence/showcase-deployment-2d483ed-2026-10-08.json)를 따른다.
+- 운영 API·DB는 아직 새 소스로 배포하지 않았다. 기존 `api.masscom.kr/health`·`www`·`/app/` 200을 확인했으며, 운영 배포는 진행 중이다.
+- 운영 Android test.11과 시연 Android Preview 20을 게시해 익명 다운로드 해시가 일치했다([운영](evidence/operating-android-test11-2026-10-08.json), [시연](evidence/showcase-preview20-release-2026-10-08.json)). 실제 설치·실기 수용은 별도다. 시연 서버·설치본에는 지도 키가 없어 목록 기반 탐색으로 동작한다.
+- 시연·운영 서버 안 실제 DB 복원 리허설이 각각 PASS다. 운영은 첫 실제 복원 증거(P03)이며 복제본 migration 43→68건·`account_consents` 5=5 보존 후 복제본·임시 dump를 삭제했다([운영 리허설](evidence/production-restore-rehearsal-2026-10-08.json)).
 
 ## 4. 이번 작업의 범위
 
 - [Issue #401](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/401)은 제출 전 운영·문서·심사 대응 정리다. 이 worktree의 코드·문서·시험 변경과 실제 공개 반영은 별도 상태로 추적한다.
-- 서버·모바일·웹·첫인상·운영 결함 수정과 심사 대응 문서 정리를 완료했다. 구현·로컬 검증은 [PROJECT_STATE](PROJECT_STATE.md)와 [TEST_STATUS](TEST_STATUS.md)를 따른다. 아래 배포 내용은 실행 계획이다.
+- 서버·모바일·웹·첫인상·운영 결함 수정과 심사 대응 문서 정리 뒤 시연 배포와 두 Android 게시가 완료됐다. 구현·검증은 [PROJECT_STATE](PROJECT_STATE.md)와 [TEST_STATUS](TEST_STATUS.md)를 따른다. 아래 시연 순서는 완료 이력이며 운영 전환은 계획이다.
 
 ## 5. 시연 배포 순서
 
-- 시연 전용 DB 복원 리허설과 0044~0067의 SQL 파일 25개 적용·재실행 검증을 먼저 기록한다. `0050_quality_game_records.sql`과 `0050_social_mail.sql`을 모두 포함한다.
-- 같은 전환 창에서 시연 API와 `/play/` 웹 번들, Preview 20 APK, `/open` 안내를 준비·전환하고 공개 HTTPS와 실제 설치본의 동의·체험을 확인한다. 한 구성요소의 배포 성공을 전체 성공으로 표시하지 않는다.
+- 시연 전용 DB 복원 리허설 PASS(107개 테이블 행 수·migration 목록 일치), 배포 전 백업, 25개 migration 적용으로 원장 68건을 기록했다. API·`/play/` 공개 전환과 Preview 20 게시도 완료했다.
+- `/open` 안내는 이 문서 PR에서 갱신한다. 공개 HTTPS 일부 probe와 APK 다운로드 해시는 확인했으나 실제 설치본의 동의·체험 수용은 후속 확인으로 남긴다.
 - 정확한 순서와 실패 대응은 [운영 절차](OPERATIONS_RUNBOOK.md)를 따른다.
 
 ## 6. 운영 배포 조건
 
-- 운영 DB 실데이터 복원·migration 리허설이 `PASS`일 때만 새 API와 test.11 APK 및 `/open` 안내를 같은 창에서 전환한다.
-- 리허설이 실패하거나 증거가 없으면 운영 서버·DB·공개 설치본은 `db280032`/test.10 상태로 유지한다. 시연의 성공을 운영의 검증으로 대체하지 않는다.
+- 운영 DB 실데이터의 서버 안 실제 복원과 복제본 migration 리허설은 PASS다. 원본 107개 테이블 행 수, 복제본 43→68건·1.8초, `account_consents` 5=5·공개 점포 0을 확인했다. 이 증거로 P03 복원 관문을 충족했다.
+- 운영 서버 전환은 문서 PR 병합 직후 `backward_compatible=no` 증거와 `scripts/deploy-lightsail.sh --deploy`로 진행 예정이다. test.11은 이미 게시됐고 `/open` 안내는 이 PR에서 갱신한다. 운영 배포 완료로 기록하지 않는다.
 
 ## 7. 마이그레이션과 롤백 경계
 
@@ -43,19 +44,19 @@
 ## 8. 개인정보 재동의와 버전 결합
 
 - 새 API의 개인정보 안내 버전은 `privacy-2026-10-07`이다. API만 먼저 공개하면 test.10/Preview 19의 동의 화면에서 `outdated`로 막힐 수 있다(`apps/mobile/src/privacy/consent-flow.ts`).
-- 시연 API·웹 번들·Preview 20·`/open`, 이후 조건을 충족한 운영 API·test.11·`/open`을 각각 같은 창에서 맞춘다. 구 설치본의 재동의 확인을 별도 수용 항목으로 기록한다.
+- 시연 API·웹 번들·Preview 20이 공개됐고 `/open`은 이 PR에서 갱신한다. 운영 API와 `/open`의 정책 버전 일치는 운영 배포 후 확인한다. 구 설치본의 재동의 확인은 별도 수용 항목이다.
 
 ## 9. 자동 검증 상태
 
 - 필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN` ([시험 원장](TEST_STATUS.md), [제출 증거](SUBMISSION_EVIDENCE.json)).
-- 2026-10-08 이 브랜치: API 단위 567/567·PostgreSQL 524 PASS/3 SKIP(전용 55435 hosted seed 컨테이너 조건), API typecheck·build, 모바일 1,872/1,872·typecheck·lint·운영/시연 Android export·variant 자산·접근성 의미 PASS.
-- 사이트·운영 시험(restore drill 실DB 포함)·`bash tools/gate.sh` PASS. 로컬 복원 시험을 공개 운영 DB의 실데이터 복원·migration 리허설 통과로 대체하지 않는다.
-- 독립 리뷰 지적 수정 후 재리뷰 진행 중이며 CI는 PR에서 확인한다. 이번 문서 검사는 [TEST_STATUS](TEST_STATUS.md)에 별도로 기록한다.
+- Issue #401 구현 브랜치 `fix/submission-readiness`의 당시 검사: API 단위 567/567·PostgreSQL 524 PASS/3 SKIP(전용 55435 hosted seed 컨테이너 조건), API typecheck·build, 모바일 1,872/1,872·typecheck·lint·운영/시연 Android export·variant 자산·접근성 의미 PASS.
+- 해당 브랜치의 사이트·운영 시험(로컬 restore drill 실DB 포함)·`bash tools/gate.sh` PASS. 이번 운영 서버 실데이터 복원·migration 리허설은 별도 [P03 증거](evidence/production-restore-rehearsal-2026-10-08.json)로 기록한다.
+- Issue #401의 당시 로컬 검사 결과이며 PR #403은 병합됐다. 이번 문서 worktree의 gate·운영 문서·세 readiness·포털·접근성·증거 정합 검사와 legal/public-entry 14/14는 PASS다. [TEST_STATUS](TEST_STATUS.md)에 명령·환경·첫 실패 후 수정 경위를 별도로 기록했다.
 - 기본 재현: `bash tools/gate.sh`, `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tests/ops/showcase_host_readiness_test.sh`.
 
 ## 10. 수동 수용과 미실행 항목
 
-- 새 공개 API/웹·실제 Preview 20/test.11 설치·개인정보 재동의·점주 역할·운영 DB 복원·NFT 발행은 이 문서 갱신으로 `PASS`가 되지 않는다.
+- 실제 Preview 20/test.11 설치·개인정보 재동의·점주 역할·NFT 발행은 이 문서 갱신으로 `PASS`가 되지 않는다. 운영 DB 복원 리허설은 별도 서버 증거로 PASS이고 운영 배포 결과는 아직 없다.
 - 로컬 자동 시험, 서명된 빌드, 서버 배포, 다운로드, 실기 수용, 최종 제출은 각각 다른 증거로 기록한다.
 
 ## 11. 남은 이슈와 PR 확인
@@ -65,9 +66,9 @@
 
 ## 12. 다음 실행 명령
 
-1. Issue #401 PR을 작성하고 최신 head의 CI·독립 재리뷰 결과를 확인한 뒤 병합한다.
-2. 시연 DB 복원·25개 migration(적용 후 68건)과 재동의 조건을 확인하고 API·`/play/`·Preview 20·`/open`을 함께 배포·검증한다.
-3. 운영 실데이터 복원·migration 리허설이 PASS일 때만 운영 API·test.11·`/open`을 함께 전환한다. 실패 시 `db280032`/test.10을 유지한다.
+1. 이 문서 PR의 `/open` 링크·증거 JSON·현재 요약을 검사하고 병합한다.
+2. 병합 커밋과 `backward_compatible=no` 증거로 `scripts/deploy-lightsail.sh --deploy`를 실행하고 운영 migration·API·retention·HTTPS 결과를 별도 기록한다.
+3. 운영 API·test.11·`/open`의 개인정보 버전 일치와 실제 설치·재동의·탐색을 확인한다. Google Play·최종 제출은 별도 승인 경계다.
 
 PR 제목·본문 검사:
 
@@ -81,7 +82,7 @@ bash tests/bootstrap/check_pr_korean_test.sh  # checker 자체 회귀 시험
 ## 13. 승인·보안 경계
 
 - 운영 키 생성·메인넷·사용자 자산 이동·Google Play 공개·대회 최종 제출은 별도 승인 경계다. 개인키·복구 문구·비밀번호는 기록하지 않는다.
-- 백업의 실제 복원과 데이터 보존을 확인하지 않은 운영 배포는 진행하지 않는다.
+- 운영 DB 첫 실제 복원과 복제본 데이터 보존은 PASS다. 배포 전 새 백업과 실제 배포 결과는 별도 확인한다.
 
 ## 14. 이력과 변경 규칙
 

@@ -1,9 +1,9 @@
 # 로컬 백업·복원·장애 대응 Runbook
 
-이 문서는 실행 절차 초안입니다. RPC·발행 중지·민터 잔액·DB 장애의 Worker 동작은 Local Anvil과 Docker PostgreSQL에서 검증해 O02를 `PASS`로 기록했습니다(Issue #77). 외부 백업 저장소, 운영 DB, 운영 RPC 제공자의 실제 장애는 검증하지 않았습니다.
+이 문서는 실행 절차와 확인된 복원 기록입니다. RPC·발행 중지·민터 잔액·DB 장애의 Worker 동작은 Local Anvil과 Docker PostgreSQL에서 검증해 O02를 `PASS`로 기록했습니다(Issue #77). 2026-10-08 운영 DB의 서버 안 실제 복원 리허설은 P03 첫 `PASS` 증거이며, 외부 백업 저장소와 운영 RPC 제공자의 실제 장애는 검증하지 않았습니다.
 
 
-## 푸시·소리 운영 메모 (Issue #367, 미배포)
+## 푸시·소리 운영 메모 (Issue #367 당시 기록)
 
 - Expo push 전송 토큰은 API 컨테이너의 `EXPO_PUSH_ACCESS_TOKEN`으로만 주입한다. 운영 runtime.env는 `EXPO_PUSH_ACCESS_TOKEN`, 시연 runtime.env는 별도 `SHOWCASE_EXPO_PUSH_ACCESS_TOKEN`을 사용하며 Compose가 시연 값도 API 내부의 `EXPO_PUSH_ACCESS_TOKEN`으로 전달한다. 값이 비어 있으면 기존 무토큰 동작을 유지한다. 토큰 값은 문서, 로그, 커밋, PR 본문에 쓰지 않는다.
 - 모바일 빌드의 `MASSCOM_NOTIFICATION_PROJECT_ID`는 Expo project UUID일 때만 앱 설정의 `extra.eas.projectId`로 들어간다. `MASSCOM_FIREBASE_ANDROID_CONFIG`는 Android Firebase 설정 파일 경로이며 파일 내용은 Git에 넣지 않는다.
@@ -17,7 +17,7 @@
 
 ## 최신 배포 명세·동시 전환 관문 (Issue #401, 2026-10-08)
 
-**기록과 계획:** 확인된 공개 서버는 `db280032`·migration 43건(마지막 `0043_campaign_extended_audit.sql`), 설치본은 운영 test.10·시연 Preview 19다([실제 배포](evidence/deployment-db28003-2026-10-05.json)). 기준 소스 `8b336ece` 이후 이번 수정은 아직 배포하지 않았다. 아래는 실행 계획이며 실제 성공 기록을 대신하지 않는다. 시연을 먼저 전환하고 검증한다. **운영은 운영 DB의 실제 복원 리허설 PASS일 때만** API·test.11 APK·`/open`을 전환한다. 복원 미실행·실패 또는 시연 수용 실패면 운영 API·DB·test.10은 `db280032`를 유지한다. 시연 fixture를 운영에 복사하지 않는다.
+**현재 기록:** 시연 서버는 main `2d483ed8645151b502253ac35860b3546e3473c5`로 배포 완료했다. 시연 서버 안 실제 복원 리허설 PASS 뒤 migration 43→68건(마지막 `0067_room_guestbook.sql`), API·`/play/` 공개 확인과 retention 검증을 마쳤다([시연 배포](evidence/showcase-deployment-2d483ed-2026-10-08.json)). 시연 Preview 20·운영 test.11 APK도 게시하고 익명 다운로드 해시를 확인했다([시연](evidence/showcase-preview20-release-2026-10-08.json), [운영](evidence/operating-android-test11-2026-10-08.json)). 운영 DB의 첫 실제 복원과 복제본 migration 리허설은 PASS다([P03 증거](evidence/production-restore-rehearsal-2026-10-08.json)). 운영 API·DB 배포는 이 문서 PR 병합 직후 진행 예정이며 결과는 후속 기록한다. 아래 순서는 시연 배포 당시 절차와 남은 운영 전환 관문이다. 시연 fixture를 운영에 복사하지 않는다.
 
 ### migration 파일·원장 대조
 
@@ -55,7 +55,7 @@
 
 새 API의 `privacy-2026-10-07`은 구 test.10/Preview 19의 개인정보04 문구와 다르다. `apps/mobile/src/privacy/consent-flow.ts`가 `outdated`로 동의를 막으므로 **API만 먼저 공개하면 기존 설치본이 잠긴다**. 옛 APK 재설치로 해결되지 않는다. 최신 약관·공개 개인정보 안내, API, 같은 소스의 `/play/` 웹 번들, 새 APK와 `/open`을 하나의 유지보수 창에서 전환한다. APK 서명·package·API origin·내장 동의 버전·SHA-256과 실제 다운로드 파일을 대조하고 기존 서명 키를 만들거나 덮어쓰지 않는다.
 
-시연은 Preview 20, 운영은 test.11로 준비한다. `/open`의 두 링크는 환경별로 독립 검증한다. 시연만 전환할 때 운영 다운로드 링크는 test.10으로 유지한다. 새 공개 문구와 구 운영 API의 동의 버전이 다르면 구 API가 제공하는 개인정보04 동의 안내를 그대로 유지하고, 서버가 반환하는 안내·정책 링크·버전이 맞는지 검증한다. 맞는 구 안내를 제공할 수 없다면 전환을 중단한다. 공개 문서 변경만으로 운영 API의 정책 버전을 바꾸지 않는다.
+Preview 20과 test.11은 게시됐다. `/open`의 두 링크는 환경별로 독립 검증한다. 운영 API 전환 전 새 공개 문구와 구 운영 API의 동의 버전이 다르면 구 API가 제공하는 개인정보04 동의 안내를 그대로 유지하고, 서버가 반환하는 안내·정책 링크·버전이 맞는지 검증한다. 맞는 구 안내를 제공할 수 없다면 전환을 중단한다. 공개 문서 변경만으로 운영 API의 정책 버전을 바꾸지 않는다.
 
 ### 같은 배포 창의 순서
 
@@ -63,8 +63,8 @@
 2. **시연 먼저:** 시연 DB 백업과 실제 scratch 복원을 수행하고, 고객·점주 변경 요청과 seed/retention 작업을 잠시 중단한다. API 쓰기와 신규 웹 체험을 차단한 유지보수 창 안에서 25 migration을 적용해 원장 68건을 대조한다. 시연 API를 새 이미지로 교체하고 아직 입구를 열지 않는다.
 3. **시연 묶음 전환:** 같은 소스의 `/play/` 번들을 새 불변 release 디렉터리에 두고 웹 포인터·edge mount를 갱신한다. 새 개인정보 안내·Preview 20 APK·시연 `/open` 링크를 전환한다. 운영 API·운영 APK 링크·운영 동의 안내는 기존 조합을 유지한다. 구 캐시가 새 API를 호출하지 않도록 웹 entry/자산 해시와 정책 버전을 대조한다. 구 시연 설치본에는 새 APK로 업데이트하도록 안내한다.
 4. **시연 재개 관문:** 유지보수 접근에서 새 임시 체험, 개인정보04 동의 기존 계정의 재동의 수락, 거절/철회 뒤 보호 API 차단, 로그아웃·재로그인 후 동의 상태, 테스트 방문·봉투·도감·뽑기·마이룸·이웃·점주 역할의 실제 서버 권한을 확인한다. `health` 200만으로 이 관문을 통과시키지 않는다. 정확한 Preview 20 APK와 웹을 각각 확인한 후 시연 입구/쓰기를 열고 타이머를 재개한다([5분 정본](DEMO_RUNBOOK.md)).
-5. **운영 조건:** 시연 PASS 뒤, 조용한 운영 DB에서 `scripts/db-restore-drill.sh`로 실제 dump→scratch 복원→행 수·migration 목록 대조→scratch 삭제를 수행한다. `pg_restore --list`만으로 PASS 처리하지 않는다. 운영 복원 PASS 로그·백업 해시·원장·담당자·환경을 기록할 수 없으면 운영은 `db280032` 그대로 둔다. 스크립트는 행 수를 현재 원본과 비교하므로 리허설 중 쓰기를 중단한다.
-6. **운영 묶음 전환:** 승인된 실행 창에서 운영 쓰기를 중단하고 새 백업을 검증한 뒤 `backward_compatible=no` 증거로 `scripts/deploy-lightsail.sh`를 실행한다. migration→API/웹/공개 안내→test.11 APK와 운영 `/open` 링크를 같은 창 안에서 맞춘다. 배포 스크립트는 새 릴리스에서 retention 타이머를 설치·활성화하고 정리 작업을 즉시 한 번 실행해 성공을 확인한다. 이 첫 실행은 만료 세션·오래된 일회용 토큰·보관 기간이 지난 감사/시연 기록을 DB에서 지우고, 수정 시각이 30일을 넘은 DB dump 파일을 삭제한다([DB 보관 조건](../apps/api/src/postgres/retention.ts), [호스트 작업](../infra/lightsail/host-jobs/masscom-retention.sh)). 배포 직전에 만든 롤백용 dump는 30일 미만이므로 보존된다. 정리 전 DB 상태가 필요하면 이 백업과 아래 전진 복구 기준을 따르며 구 API로 자동 복귀하지 않는다. API 배포 스크립트는 APK 제작·발행과 시연 `/play/` export를 하지 않으므로 준비/게시를 별도 작업으로 완료해야 한다. `deploy-lightsail-web.sh`로 웹만 올려서 API·APK 전환을 대신하지 않는다.
+5. **운영 조건 — 리허설 PASS:** 운영 서버 안 실제 복원 리허설에서 107개 테이블 일치를 확인했다. 임시 dump 186,604바이트·SHA-256 `1360fdf8c3a5db62214b36f4541ad66e57515c093e46a9a7ff55a47a8c19cdd5`는 종료 시 삭제됐다. 같은 클러스터의 `masscom_rehearsal_test` 복제본에 같은 API 코드의 migration 43→68건을 1.8초에 적용했고 `account_consents` 5=5·공개 점포 0을 확인한 뒤 DB와 dump를 삭제했다. 이는 P03의 첫 실제 복원 증거다. 새 운영 배포와 배포 전 백업은 별도 관문이다.
+6. **운영 묶음 전환 — 진행 중:** 이 문서 PR 병합 커밋을 고정하고 운영 쓰기를 중단해 새 백업을 검증한 뒤 `backward_compatible=no` 증거로 `scripts/deploy-lightsail.sh --deploy`를 실행한다. migration→API/웹/공개 안내→test.11 APK와 운영 `/open` 링크를 같은 창 안에서 맞춘다. 배포 스크립트는 새 릴리스에서 retention 타이머를 설치·활성화하고 정리 작업을 즉시 한 번 실행해 성공을 확인한다. 이 첫 실행은 만료 세션·오래된 일회용 토큰·보관 기간이 지난 감사/시연 기록을 DB에서 지우고, 수정 시각이 30일을 넘은 DB dump 파일을 삭제한다([DB 보관 조건](../apps/api/src/postgres/retention.ts), [호스트 작업](../infra/lightsail/host-jobs/masscom-retention.sh)). 배포 직전에 만든 롤백용 dump는 30일 미만이므로 보존된다. 정리 전 DB 상태가 필요하면 이 백업과 아래 전진 복구 기준을 따르며 구 API로 자동 복귀하지 않는다. API 배포 스크립트는 APK 제작·발행과 시연 `/play/` export를 하지 않으므로 준비/게시를 별도 작업으로 완료해야 한다. `deploy-lightsail-web.sh`로 웹만 올려서 API·APK 전환을 대신하지 않는다.
 7. **운영 재개:** retention은 6단계에서 이미 실행되며, 이 단계의 수용 결과를 기다렸다가 켜는 작업이 아니다. 새 APK의 실제 Google 로그인·기존 계정 재동의/거절/재로그인·고객 탐색·오류 복구·환경 격리와 `/open` 다운로드 해시를 확인한다. 운영에서 가상 방문·구매·자산 발행을 만들지 않는다. 관문 통과 전 쓰기를 열지 않는다. 결과는 서버 배포·웹·APK 빌드/서명·설치·실기 수용을 분리해 PASS/FAIL/BLOCKED/NOT_RUN으로 남긴다. Play·메인넷·최종 대회 제출은 이 계획에 포함하지 않는다.
 
 ### 하위 비호환 릴리스 실패·전진 복구 (A01)
