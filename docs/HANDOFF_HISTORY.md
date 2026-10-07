@@ -2,7 +2,7 @@
 
 ## 2026-10-07 뽑기 동의 필요 오류 수정 (브랜치 fix/grade-draw-error-messages)
 
-main `8b336ece`에서 분기한 로컬 브랜치 `fix/grade-draw-error-messages`에 커밋 3469ed8a(오류 문구)·fdd72d2a(동의 확인 단추와 데모 계정 동의 경로)가 있다. **푸시와 PR은 아직 없다.** 이 환경에는 `gh`가 없어 PR은 직접 만든다. 제목·본문은 `.github/pull_request_template.md` 형식을 따라 한국어로 쓰고 `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`로 먼저 검사한다. Issue는 아직 없다.
+main `8b336ece`에서 분기한 로컬 브랜치 `fix/grade-draw-error-messages`에 커밋 3469ed8a(오류 문구)·fdd72d2a(동의 확인 단추와 데모 계정 동의 경로)가 있다. 이후 [PR #402](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/402)로 올라갔고 2026-10-08 최신 main과 충돌(문서 3개)을 풀어 병합했다.
 
 서버의 동의 검사(`requireCurrentPlayConsent`)에 걸리면 앱이 동의 필요 안내와 "동의 확인하기"를 보인다. 데모 계정은 앱 시작 때 여전히 동의를 묻지 않고, 이 단추를 눌렀을 때만 그 계정에 동의 화면을 연다(`shouldAskConsent`의 `recheckRequestedAccountId`). 동의는 사용자가 직접 제출해야 하며 앱이 대신 기록하지 않는다. 서버·DB·migration 변경은 없다.
 

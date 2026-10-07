@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import { consentRequiredMessage } from '@/privacy/consent-flow';
 import { ShopApiError, createShopApiClient, shopErrorMessage } from './shop-api';
 
 function snapshotBody(overrides: Record<string, unknown> = {}) {
@@ -237,6 +238,8 @@ test('shopErrorMessage covers every documented code and never leaks a raw status
     assert.notEqual(shopErrorMessage(new ShopApiError(0, code)), generic, code);
   }
   assert.match(shopErrorMessage(new ShopApiError(403, 'CONSENT_REQUIRED')), /동의/);
+  // 상점·뽑기 화면은 이 문구로 "동의 확인하기" 단추를 고른다. 문구가 갈라지면 단추가 조용히 사라진다.
+  assert.equal(shopErrorMessage(new ShopApiError(403, 'CONSENT_REQUIRED')), consentRequiredMessage);
   assert.match(shopErrorMessage(new ShopApiError(429, 'SHOP_RATE_LIMITED', 90)), /2분/);
   assert.equal(shopErrorMessage(new Error('plain')), '네트워크에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.');
 });

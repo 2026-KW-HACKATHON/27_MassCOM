@@ -365,7 +365,7 @@ export function shopErrorMessage(error: unknown): string {
     case 'GRADE_DRAW_NOT_CONFIGURED':
       return '등급 전체 뽑기가 아직 준비되지 않았어요. 요금은 빠지지 않았어요.';
     case 'INTERNAL_ERROR':
-      return '서버에 문제가 생겼어요. 요금이 빠졌는지 상점을 다시 불러와 확인해 주세요.';
+      return '서버에 문제가 생겼어요. 잠시 뒤에 다시 시도해 주세요.';
     case 'MILEAGE_SHOP_NOT_CONFIGURED':
       return '상점이 아직 준비되지 않았어요. 잠시 뒤에 다시 시도해 주세요.';
     case 'SESSION_INVALID':
