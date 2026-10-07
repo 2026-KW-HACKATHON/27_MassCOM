@@ -5,7 +5,7 @@
     "fail": 0
   },
   "mobileUnit": {
-    "pass": 1790,
+    "pass": 1791,
     "fail": 0
   },
   "postgres": {
@@ -39,5 +39,8 @@
     "fontScale": 1
   },
   "roomVisibilityAfterQa": false,
-  "publicRelease": false
+  "publicRelease": false,
+  "screenshotsArtifactSha256": "d0a8b58dc687a15845e6839081bd12e4eafa5a629816b44483516043e5ca7abb",
+  "installedFinalArtifactSha256": "fd522b0d8d7b0936996c44797281abe3d4647d02b59a11d13e3cd70384ae8fe2",
+  "rareProbabilityDisclosure": "PASS - smallest supported chance and exact ratio unit check; compiled formatter in final private APK"
 }

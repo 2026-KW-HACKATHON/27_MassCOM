@@ -19,6 +19,10 @@ export type SeriesTier = { slots: { publicationId: string; gradeId: string; name
 export type CoinShop = { mileage: { earned: number; spent: number; balance: number }; pools: CoinPool[]; tickets: CoinTicket[] };
 export type CoinCollection = { coins: OwnedCoin[]; series: CoinSeries[] };
 
+export function coinProbabilityText(weight: number, totalWeight: number): string {
+  return `${(weight / totalWeight * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}% · ${weight}/${totalWeight}`;
+}
+
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;

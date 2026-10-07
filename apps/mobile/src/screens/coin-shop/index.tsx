@@ -7,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
 import { getAppPackageId } from '@/config/app-identity';
-import { CoinApiError, createCoinApiClient, coinErrorMessage, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
+import { CoinApiError, coinProbabilityText, createCoinApiClient, coinErrorMessage, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
 import { clearCoinPending, coinPendingKey, readCoinPending, writeCoinPending, type CoinPending } from '@/shop/coin-pending';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
@@ -152,6 +152,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       {shop.tickets.filter((ticket) => ticket.status === 'UNUSED').length === 0 ? <Text style={{ color: palette.secondaryLabel }}>아직 사용할 뽑기권이 없어요.</Text> :
         shop.tickets.filter((ticket) => ticket.status === 'UNUSED').map((ticket) => {
           const pool = shop.pools.find((candidate) => candidate.id === ticket.poolId);
+          const totalWeight = pool?.entries.reduce((sum, item) => sum + item.weight, 0) ?? 0;
           const merchantName = pool?.merchantName ?? '가게 확인 필요';
           const canUse = Boolean(pool) && pool?.unavailableReason !== 'MEDIA_REMOVED' && Date.parse(ticket.expiresAt) > now;
           return <Fold key={ticket.id} title={`${merchantName} · ${ticket.eventName} · ${gradeName[ticket.grade]}`}
@@ -162,7 +163,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
                 {pool.entries.map((entry) => <View key={`${entry.publicationId}:${entry.gradeId}`} style={styles.entryRow}>
                   {parseCollectibleArtwork(entry.summary) ? <Image source={{ uri: parseCollectibleArtwork(entry.summary)!.thumbnailDataUrl }}
                     accessibilityLabel={`${entry.name} 코인 그림`} style={styles.entryImage} resizeMode="contain" /> : null}
-                  <Text style={{ color: palette.label, flex: 1 }}>{entry.name} · {(entry.probability * 100).toFixed(2)}%</Text>
+                  <Text style={{ color: palette.label, flex: 1 }}>{entry.name} · {coinProbabilityText(entry.weight, totalWeight)}</Text>
                 </View>)}
               </> : <Text style={{ color: palette.error }}>이 티켓의 가게 정보를 확인하지 못했어요. 새로고침 후 사용해 주세요.</Text>}
               {pool?.unavailableReason === 'MEDIA_REMOVED' ? <Text style={{ color: palette.error }}>수집품 이미지가 내려가 이 티켓은 사용할 수 없어요.</Text> : null}
@@ -178,6 +179,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>판매 중인 뽑기권</Text>
       {shop.pools.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>현재 운영 중인 가게 뽑기권이 없어요. 실제 가게가 등록하면 여기서 확인할 수 있어요.</Text> :
         shop.pools.map((pool) => {
+          const totalWeight = pool.entries.reduce((sum, item) => sum + item.weight, 0);
           const available = pool.status === 'ACTIVE' && !pool.unavailableReason && Date.parse(pool.purchaseStartsAt) <= now && Date.parse(pool.purchaseEndsAt) > now && pool.issuedCount < pool.issuanceCap;
           return <FloatingCard key={pool.id} style={styles.card}>
             <Text style={[styles.name, { color: palette.label }]}>{pool.merchantName} · {pool.eventName}</Text>
@@ -185,7 +187,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
             <Text style={{ color: palette.secondaryLabel }}>구매 {dateText(pool.purchaseStartsAt)} ~ {dateText(pool.purchaseEndsAt)}</Text>
             <Text style={{ color: palette.secondaryLabel }}>사용 기한 {dateText(pool.useExpiresAt)} · 1인 {pool.perAccountLimit}장 · 전체 {pool.issuanceCap}장</Text>
             {pool.entries.map((entry) => <Text key={`${entry.publicationId}:${entry.gradeId}`} style={{ color: palette.secondaryLabel }}>
-              {entry.name} · {(entry.probability * 100).toFixed(2)}%
+              {entry.name} · {coinProbabilityText(entry.weight, totalWeight)}
             </Text>)}
             <Pressable accessibilityRole="button" accessibilityLabel={`${pool.merchantName} ${pool.eventName} ${gradeName[pool.grade]} 뽑기권 구매`}
               accessibilityState={{ disabled: busy || Boolean(pending) || !available || shop.mileage.balance < pool.price }}

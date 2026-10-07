@@ -9,7 +9,7 @@ const collection = readFileSync(fileURLToPath(new URL('../coin-collection/index.
 test('a received ticket discloses its own merchant and exact pool probabilities before use', () => {
   assert.match(shop, /shop\.pools\.find\(\(candidate\) => candidate\.id === ticket\.poolId\)/);
   assert.match(shop, /pool\.entries\.map/);
-  assert.match(shop, /\(entry\.probability \* 100\)\.toFixed\(2\)/);
+  assert.equal((shop.match(/coinProbabilityText\(entry\.weight, totalWeight\)/g) ?? []).length, 2);
   assert.match(shop, /disabled=\{busy \|\| result !== undefined \|\| !canUse\}/);
   assert.match(shop, /parseCollectibleArtwork\(result\.summary\)/);
 });

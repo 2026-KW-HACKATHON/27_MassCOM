@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createCoinApiClient, parseCoinCollection, parseCoinShop } from './coin-api';
+import { coinProbabilityText, createCoinApiClient, parseCoinCollection, parseCoinShop } from './coin-api';
+
+test('coin probability never rounds the smallest supported chance to zero and retains the exact ratio', () => {
+  assert.equal(coinProbabilityText(1, 1_000_000), '0.0001% · 1/1000000');
+  assert.equal(coinProbabilityText(1, 3), '33.3333% · 1/3');
+});
 
 const ticket = { id: 'ticket-1', poolId: 'pool-1', merchantId: 'merchant-1', eventName: '여름 축제',
   grade: 'SILVER', acquiredAt: '2026-07-01T00:00:00Z', expiresAt: '2026-07-31T00:00:00Z', status: 'UNUSED' };
