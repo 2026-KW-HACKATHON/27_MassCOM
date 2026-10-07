@@ -1,5 +1,10 @@
 # 테스트 상태
 
+## 2026-10-07 PR #396 저장 손상 수정
+
+**PASS** macOS에서 모바일1804/1804·타입/lint·Node67화면+3상태 렌더, 집중27/27(전체 포함). 저장 손상 회귀2건은 수정 전 실패. Chrome에서 손상 JSON 원본 보존 → 다시 시도 오류 유지 → 직접 초기화 → 시험 전 원본 복원 확인. [화면](evidence/ui-local-preview-2026-10-07/storage-error-preserved.png). **NOT_RUN** 최신main통합/운영·시연 재export/Android설치/전체67화면 시각수용. Draft 유지.
+
+
 ## 2026-10-07 Issue #394 PR 준비 추가 확인
 
 모바일 검증 시점 소스 50개 SHA-256 재대조 PASS. `bash tests/bootstrap/check_secrets_test.sh`, `bash tests/bootstrap/verify_bootstrap_test.sh` PASS. `bash scripts/check-secrets.sh <제출 변경 파일 사본>`으로 59개 변경 파일 검사 PASS. Windows Git Bash용으로 해당 검사 스크립트의 CRLF만 LF로 정규화해 실행했으며 논리 수정은 없다. 최신 main 통합 검증은 NOT_RUN이며 PR만 생성하고 머지는 하지 않는다.

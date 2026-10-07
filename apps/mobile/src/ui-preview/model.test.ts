@@ -189,15 +189,16 @@ test("local game reward is granted at most once for a run; practice never adds p
   assert.equal(practice.points, next.points);
   assert.deepEqual(practice.scores, next.scores);
 });
-test("local state survives roundtrip and damaged storage falls back safely", () => {
+test("local state survives roundtrip; invalid existing storage must not become fresh data", () => {
   const s = initialPreviewState();
   s.intro = "산책 중";
   s.room.x = 72;
   s.navTheme = "wood";
   s.settings["savedStore:cafe"] = true;
   assert.deepEqual(restorePreviewState(JSON.stringify(s)), s);
-  for (const raw of ["broken", "null", "{}", '{"version":0}', null])
-    assert.deepEqual(restorePreviewState(raw), initialPreviewState());
+  assert.deepEqual(restorePreviewState(null), initialPreviewState());
+  for (const raw of ["", "broken", "null", "{}", '{"version":0}'])
+    assert.throws(() => restorePreviewState(raw), /테스트 기록/);
 });
 test("a paused game cannot consume time or accept scoring actions", () => {
   const g = gameStep(
@@ -239,7 +240,7 @@ test("delivery and orders compare real player inputs before scoring", () => {
   assert.deepEqual(order.order, [1, 2]);
 });
 
-test("malformed nested storage resets safely before rendering", () => {
+test("malformed nested storage stops restoration before rendering or autosave", () => {
   for (const patch of [
     { room: {} },
     { coins: [null] },
@@ -249,11 +250,11 @@ test("malformed nested storage resets safely before rendering", () => {
     { rerolls: [-1, 1, 1] },
     { room: { ...initialPreviewState().room, displayed: null } },
   ]) {
-    assert.deepEqual(
-      restorePreviewState(
+    assert.throws(
+      () => restorePreviewState(
         JSON.stringify({ ...initialPreviewState(), ...patch }),
       ),
-      initialPreviewState(),
+      /테스트 기록/,
     );
   }
 });

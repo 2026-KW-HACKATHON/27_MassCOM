@@ -454,10 +454,10 @@ export function finishGame(
   return next;
 }
 export function restorePreviewState(raw: string | null): PreviewState {
-  if (!raw) return initialPreviewState();
+  if (raw === null) return initialPreviewState();
   try {
     const state: unknown = JSON.parse(raw);
-    if (!state || typeof state !== "object") return initialPreviewState();
+    if (!state || typeof state !== "object") throw new Error("Invalid preview state");
     const s = state as PreviewState;
     if (
       s.version !== 1 ||
@@ -477,7 +477,7 @@ export function restorePreviewState(raw: string | null): PreviewState {
       !Array.isArray(s.scores) ||
       s.scores.length !== 4
     )
-      return initialPreviewState();
+      throw new Error("Invalid preview state");
     if (
       stores.some(
         (store) =>
@@ -486,7 +486,7 @@ export function restorePreviewState(raw: string | null): PreviewState {
           s.pool[store.id]!.some((n) => !Number.isFinite(n) || n < 0),
       )
     )
-      return initialPreviewState();
+      throw new Error("Invalid preview state");
     const base = initialPreviewState();
     const count = (value: unknown) =>
       Number.isSafeInteger(value) && (value as number) >= 0;
@@ -562,9 +562,9 @@ export function restorePreviewState(raw: string | null): PreviewState {
         ((s.lastResult.coin && !validCoin(s.lastResult.coin)) ||
           (s.lastResult.before && !validCoin(s.lastResult.before))))
     )
-      return base;
+      throw new Error("Invalid preview state");
     return { ...base, ...s, settings: { ...base.settings, ...s.settings } };
   } catch {
-    return initialPreviewState();
+    throw new Error("저장된 테스트 기록을 읽지 못했어요. 다시 시도하거나 직접 초기화해 주세요.");
   }
 }

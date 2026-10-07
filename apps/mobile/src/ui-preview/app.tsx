@@ -263,6 +263,8 @@ export function UiPreviewApp() {
     stateRef.current = fresh;
     setSaving(true);
     setState(fresh);
+    setLoadError(false);
+    setLoaded(true);
     setDraft(fresh.room);
     choose(defaults);
     setSession(null);
@@ -288,6 +290,7 @@ export function UiPreviewApp() {
       <Txt>이 기기의 테스트 기록을 읽지 못했어요.</Txt>
       <Txt muted>기존 기록은 덮어쓰지 않았어요.</Txt>
       <Btn label="불러오기 다시 시도" onPress={() => { setLoadError(false); setRetry((n) => n + 1); }} />
+      <Btn label="기존 테스트 기록을 지우고 초기화" onPress={reset} />
     </View>
   );
   if (!loaded)
