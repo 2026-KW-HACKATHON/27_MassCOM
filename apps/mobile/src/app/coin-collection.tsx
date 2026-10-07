@@ -14,6 +14,6 @@ export default function CoinCollectionRoute() {
   if (!publicApiConfig.available) return <SkyBackdrop><SkyScrollView header={header}>
     <DemoConfigurationRequired title="코인 도감 설정이 필요합니다." missing={['EXPO_PUBLIC_API_URL']} />
   </SkyScrollView></SkyBackdrop>;
-  return <CoinCollectionScreen key={auth.accountId} apiUrl={publicApiConfig.apiUrl}
+  return <CoinCollectionScreen key={auth.accountId} accountId={auth.accountId} apiUrl={publicApiConfig.apiUrl}
     credential={auth.credential} onSessionInvalid={auth.invalidateSession} />;
 }

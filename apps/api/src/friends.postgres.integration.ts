@@ -61,6 +61,20 @@ async function setup(t: TestContext) {
 
 type Db = Awaited<ReturnType<typeof setup>>;
 
+test('profile intro persists, clears and preserves independently updated nickname', async (t) => {
+  const db = await setup(t);
+  await db.friends.setNickname({ accountId: 'intro-owner', nickname: '산책가' });
+  assert.deepEqual(await db.friends.setProfile({ accountId: 'intro-owner', intro: '  동네 산책 중  ' }), {
+    nickname: '산책가', intro: '동네 산책 중',
+  });
+  await db.friends.setProfile({ accountId: 'intro-owner', nickname: '탐험가' });
+  assert.equal((await db.friends.list('intro-owner')).me.intro, '동네 산책 중');
+  await db.friends.setProfile({ accountId: 'intro-owner', intro: '' });
+  assert.equal((await db.friends.list('intro-owner')).me.intro, '');
+  await assert.rejects(db.friends.setProfile({ accountId: 'intro-owner', intro: '가'.repeat(31) }),
+    (error: unknown) => error instanceof FriendError && error.code === 'PROFILE_INTRO_INVALID');
+});
+
 const rejectsWith = (code: string) => (error: unknown) =>
   error instanceof FriendError && error.code === code;
 
@@ -707,9 +721,9 @@ test('a friend list computes medals, badges and stamps with the same rules as /m
 
   // 응답에는 허용된 키만 있고 계정 ID·방문 날짜·시각·쿠폰·지갑·이메일 흔적이 없다.
   assert.deepEqual(Object.keys(snapshot).sort(), ['friends', 'me']);
-  assert.deepEqual(Object.keys(snapshot.me).sort(), ['asOf', 'badges', 'code', 'medals', 'nickname', 'rank']);
+  assert.deepEqual(Object.keys(snapshot.me).sort(), ['asOf', 'badges', 'code', 'intro', 'medals', 'nickname', 'rank']);
   for (const friend of snapshot.friends) {
-    assert.deepEqual(Object.keys(friend).sort(), ['badges', 'friendshipId', 'medals', 'nickname', 'rank', 'stamps']);
+    assert.deepEqual(Object.keys(friend).sort(), ['badges', 'friendshipId', 'intro', 'medals', 'nickname', 'rank', 'stamps']);
     assert.deepEqual(Object.keys(friend.badges).sort(), ['earned', 'total']);
     for (const medal of friend.medals) assert.deepEqual(Object.keys(medal).sort(), ['key', 'tier']);
     for (const stamp of friend.stamps) assert.deepEqual(Object.keys(stamp), ['merchantName', 'merchantId']);

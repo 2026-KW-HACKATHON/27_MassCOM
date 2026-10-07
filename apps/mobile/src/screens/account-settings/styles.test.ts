@@ -47,7 +47,7 @@ test('the receipt code and the intake buttons stay readable on the status card i
   for (const [palette, world] of schemes) {
     const styles = makeAccountSettingsStyles(palette, world);
     assert.ok(contrast(styles.receiptCode.color as string, palette.primaryContainer) >= 4.5, 'receipt on status card');
-    assert.ok(contrast(styles.secondaryLinkText.color as string, palette.primaryContainer) >= 4.5, 'button text on status card');
+    assert.ok(contrast(styles.statusLinkText.color as string, palette.primaryContainer) >= 4.5, 'button text on status card');
     assert.ok(styles.receiptCode.fontSize >= 20, 'the receipt is large enough to copy by eye');
   }
 });

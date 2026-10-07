@@ -7,7 +7,7 @@ const source = readFileSync(fileURLToPath(new URL('./use-shop-avatar-art.ts', im
 const wardrobe = readFileSync(fileURLToPath(new URL('./wardrobe.tsx', import.meta.url)), 'utf8');
 const home = readFileSync(fileURLToPath(new URL('../screens/home/index.tsx', import.meta.url)), 'utf8');
 
-test('PR #312 리뷰 5번: 홈 탭이 다시 포커스를 받으면 대표 캐릭터와 옷을 한 번의 shop snapshot으로 다시 읽는다', () => {
+test('profile strip reloads identity and clothing on focus while the room uses shop state', () => {
   assert.match(source, /export function useShopAvatarAppearance\(/);
   assert.match(source, /export function useShopAvatarArt\(/);
   assert.match(source, /refreshToken = 0,/);
@@ -19,8 +19,11 @@ test('PR #312 리뷰 5번: 홈 탭이 다시 포커스를 받으면 대표 캐�
   const effect = source.slice(source.indexOf('useEffect(() => {'));
   assert.match(effect, /\}, \[apiUrl, credential, refreshToken, focusToken\]\);/);
   assert.match(home, /const shop = useShop\(shopApi\)/);
-  assert.match(home, /const refreshShop = shop\.refreshQuietly/);
-  assert.match(home, /void refreshShop\(\)/);
+  assert.match(home, /void shop\.refreshQuietly\(\)/);
+  const strip = readFileSync(fileURLToPath(new URL('../ui/profile-strip.tsx', import.meta.url)), 'utf8');
+  assert.match(strip, /useFocusEffect\(useCallback\(\(\) =>/);
+  assert.match(strip, /clients\.shop\.getShop\(\)/);
+  assert.match(strip, /<AvatarWardrobe clothing=\{clothing\}/);
   assert.match(readFileSync(fileURLToPath(new URL('../experience/home-collection-display.tsx', import.meta.url)), 'utf8'),
     /clothing=\{equippedClothingArt\(shop\)\}/);
 });

@@ -76,6 +76,7 @@ test('every server failure code has a specific Korean message and stale lists ar
   for (const [code, pattern] of [
     ['VISIT_CANCEL_WINDOW_CLOSED', /방문한 날이 지나/], ['VISIT_REWARD_ALREADY_MINTED', /이미 발행했거나 발행 중/],
     ['VISIT_REWARD_MINT_IN_PROGRESS', /잠시 뒤 다시/], ['VISIT_NOT_FOUND', /찾을 수 없는 방문/],
+    ['VISIT_REWARD_COUPON_REDEEMED', /시리즈 쿠폰이 이미 사용돼/],
     ['MERCHANT_ACCESS_DENIED', /권한이 없어요/], ['INVALID_REVERSAL_REASON', /사유를 골라/],
     ['INVALID_REVERSAL_NOTE', /100자 이하/], ['ACCOUNT_DELETED', /삭제/], ['UNKNOWN', /취소하지 못했어요/],
   ] as const) assert.match(visitCancelFailureMessage(409, code), pattern, code);

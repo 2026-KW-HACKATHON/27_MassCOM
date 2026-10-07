@@ -313,7 +313,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
       );
       const seriesCoupons = await client.query<{ id: string; title: string; detail: string; expires_at: Date }>(
         `SELECT id, title, detail, expires_at FROM coin_series_coupons
-         WHERE account_id = $1 AND merchant_id = $2 AND redeemed_at IS NULL AND expires_at > $3`,
+         WHERE account_id = $1 AND merchant_id = $2 AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at > $3`,
         [identity.customerAccountId, input.merchantId, now],
       );
       await client.query('COMMIT');
@@ -363,6 +363,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
             coupon.redeemed_at, merchant.is_demo AS merchant_is_demo
             FROM coin_series_coupons coupon JOIN merchants merchant ON merchant.id = coupon.merchant_id
             WHERE coupon.id = $1 AND coupon.account_id = $2 AND coupon.merchant_id = $3
+              AND coupon.revoked_at IS NULL
             FOR UPDATE OF coupon`, [input.couponId, identity.customerAccountId, input.merchantId])).rows[0];
         if (!seriesCoupon) throw new BadgeRewardError('COUPON_NOT_FOUND');
         if (seriesCoupon.account_id === input.staffAccountId && !seriesCoupon.merchant_is_demo) {
@@ -375,7 +376,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
         }
         if (seriesCoupon.expires_at <= now) throw new BadgeRewardError('COUPON_EXPIRED');
         await client.query(`UPDATE coin_series_coupons SET redeemed_at = $2, redeemed_by_account_id = $3
-          WHERE id = $1 AND redeemed_at IS NULL AND expires_at > $2`,
+          WHERE id = $1 AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at > $2`,
         [seriesCoupon.id, now, input.staffAccountId]);
         await client.query('COMMIT');
         return { couponId: seriesCoupon.id, status: 'REDEEMED', redeemedAt: now.toISOString(), replayed: false };

@@ -121,6 +121,7 @@ export function CoinCouponUse({ series, load, createIdentity, revokeIdentity, on
           <Text style={{ color: palette.secondaryLabel }}>{coupon.detail}</Text>
           <Text style={{ color: palette.secondaryLabel }}>사용 기한 {new Date(coupon.expiresAt).toLocaleString('ko-KR')}</Text>
           {coupon.status === 'REDEEMED' ? <Text style={{ color: palette.success }}>사용 완료</Text> : null}
+          {coupon.status === 'REVOKED' ? <Text style={{ color: palette.error }}>방문 취소로 철회된 쿠폰이에요. 사용할 수 없어요.</Text> : null}
           {coupon.status === 'EXPIRED' ? <Text style={{ color: palette.error }}>사용 기한이 지났어요.</Text> : null}
         </> : null}
         {active && usable && identityValid ? <View style={styles.qr}>

@@ -22,6 +22,8 @@ import { ShowcaseRoleReturnContext } from '@/navigation/showcase-role-context';
 import { FoundationScreen } from '@/screens/foundation';
 import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
 import { SocialPushProvider } from '@/social/push-runtime';
+import { ContextTabBar } from '@/navigation/context-tab-bar';
+import { TabAppearanceProvider } from '@/navigation/tab-appearance-provider';
 import { colorsForScheme } from '@/theme/palette';
 import { NotificationSessionBridge } from '@/notifications/session-bridge';
 import { consumeMerchantNotificationRole, consumeNotificationTarget, subscribeMerchantNotificationRole, subscribeNotificationTarget } from '@/notifications/pending-target';
@@ -36,6 +38,7 @@ function expoProjectId(): string | undefined {
 }
 
 function Routes() {
+  const [contextFootprint, setContextFootprint] = useState(0);
   const auth = useAuthSession();
   const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
@@ -72,6 +75,7 @@ function Routes() {
       onSessionInvalid={auth.invalidateSession}
       onOpenMail={openMail}
     >
+      <View style={{ flex: 1, paddingBottom: contextFootprint }}>
       <Stack
         screenOptions={{
           headerShadowVisible: false,
@@ -96,6 +100,9 @@ function Routes() {
         <Stack.Screen name="home/tickets" options={{ headerShown: false }} />
         <Stack.Screen name="home/exhibit" options={{ headerShown: false }} />
         <Stack.Screen name="studio" options={{ headerShown: false }} />
+        <Stack.Screen name="appearance" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{ headerShown: false }} />
+        <Stack.Screen name="room-inventory" options={{ headerShown: false }} />
         <Stack.Screen name="play" options={{ headerShown: false }} />
         <Stack.Screen name="merchant" options={{ title: '점주 방문 확인' }} />
         <Stack.Screen name="merchant-art" options={{ headerShown: false }} />
@@ -106,6 +113,8 @@ function Routes() {
         <Stack.Screen name="wallet" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ title: '알림함' }} />
       </Stack>
+      <ContextTabBar onFootprint={setContextFootprint} />
+      </View>
     </SocialPushProvider>
   );
 }
@@ -117,10 +126,15 @@ export default function RootLayout() {
       <StatusBar style="auto" />
       <AuthSessionProvider>
         <NotificationSessionBridge />
-        <AuthenticatedRoot />
+        <AccountAppearance />
       </AuthSessionProvider>
     </SafeAreaProvider>
   );
+}
+
+function AccountAppearance() {
+  const auth = useAuthSession();
+  return <TabAppearanceProvider accountId={auth.accountId}><AuthenticatedRoot /></TabAppearanceProvider>;
 }
 
 function AuthenticatedRoot() {

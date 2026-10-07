@@ -4140,6 +4140,45 @@ test('removing a friend and setting a nickname map friend errors and reject bad 
   assert.equal((await fetch(`${base}/me/profile`, { method: 'PUT', headers, body: '{"nickname":"a"}' })).status, 410);
 });
 
+test('profile HTTP route passes intro edits and empty resets to the authenticated account', async (t) => {
+  const calls: unknown[] = [];
+  const base = await startFriends(t, friendFixture({
+    setProfile: async (input) => { calls.push(input); return { nickname: '탐험가', intro: input.intro ?? '기존 소개' }; },
+  }));
+  const headers = { 'content-type': 'application/json', 'x-account-id': 'customer-1' };
+  for (const [body, intro] of [['{"intro":"동네 산책 중"}', '동네 산책 중'], ['{"intro":""}', '']] as const) {
+    const response = await fetch(`${base}/me/profile`, { method: 'PUT', headers, body });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { nickname: '탐험가', intro });
+  }
+  assert.deepEqual(calls, [
+    { accountId: 'customer-1', intro: '동네 산책 중' }, { accountId: 'customer-1', intro: '' },
+  ]);
+});
+
+test('profile HTTP route rejects malformed intro requests before calling the service', async (t) => {
+  const calls: unknown[] = [];
+  const base = await startFriends(t, friendFixture({
+    setProfile: async (input) => { calls.push(input); return { nickname: '탐험가', intro: '' }; },
+  }));
+  const headers = { 'content-type': 'application/json', 'x-account-id': 'customer-1' };
+  for (const body of ['{}', '{"intro":12}', '{"intro":"x","accountId":"other"}']) {
+    const response = await fetch(`${base}/me/profile`, { method: 'PUT', headers, body });
+    assert.equal(response.status, 400, body);
+  }
+  assert.deepEqual(calls, []);
+});
+
+test('profile HTTP route maps an invalid intro from the service to 400', async (t) => {
+  const base = await startFriends(t, friendFixture({
+    setProfile: async () => { throw new FriendError('PROFILE_INTRO_INVALID'); },
+  }));
+  const response = await fetch(`${base}/me/profile`, { method: 'PUT',
+    headers: { 'content-type': 'application/json', 'x-account-id': 'customer-1' }, body: '{"intro":"bad"}' });
+  assert.equal(response.status, 400);
+  assert.deepEqual(await response.json(), { code: 'PROFILE_INTRO_INVALID' });
+});
+
 
 const sampleArtRound: ArtRoundView = {
   id: '5b0f6c3e-7d0e-4a57-9a55-2f4c0f7f2a10', status: 'DRAFTS_READY', chosenIndex: null, final: null,
@@ -5278,10 +5317,10 @@ test('play and studio routes require identity and reject malformed actions befor
     getPlay: async (accountId) => { calls.push(`play:${accountId}`); return { records: [], unlockedThemes: [] }; },
     getStudio: async (accountId) => { calls.push(`studio:${accountId}`); return {
       studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null },
-      records: [], unlockedThemes: [], items: [], avatar: null,
+      revision: 0, records: [], unlockedThemes: [], items: [], coinItems: [], furnitureItems: [], avatar: null,
     }; },
     saveStudio: async ({ accountId, studio }) => { calls.push(`save:${accountId}`); return {
-      studio, records: [], unlockedThemes: [], items: [], avatar: null,
+      studio, revision: 1, records: [], unlockedThemes: [], items: [], coinItems: [], furnitureItems: [], avatar: null,
     }; },
     getFriendStudio: async ({ accountId, friendshipId }) => { calls.push(`friend:${accountId}:${friendshipId}`); return {
       nickname: 'Friend', studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', goal: null },
@@ -5325,7 +5364,8 @@ test('play and studio routes require identity and reject malformed actions befor
 test('experience routes enforce current consent and reject privileged fields, while equipment and wishlist persist via service', async (t) => {
   const calls: unknown[] = [];
   const snapshot = { catalog: { badges: [], cosmetics: [], packs: [] },
-    profile: { badgeId: null, cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null }, coinEntitlementId: null, wishlist: null },
+    profile: { badgeId: null, cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null },
+      coinEntitlementId: null, coinSource: null, representativeCoin: null, wishlist: null },
     progress: { badges: [], cosmetics: [], packs: [] } };
   let agreed = false;
   const args: Parameters<typeof startFixture> = [t];

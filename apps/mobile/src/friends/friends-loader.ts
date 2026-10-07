@@ -10,7 +10,7 @@ export type FriendsLoad = { snapshot?: FriendsSnapshot; status: FriendsStatus; e
 export const initialFriendsLoad: FriendsLoad = { status: 'loading' };
 
 /** A change the server just confirmed for me: my new nickname or my new code. */
-export type MeChange = { nickname?: string; code?: string };
+export type MeChange = { nickname?: string; intro?: string; code?: string };
 
 /** An answer arrived: it replaces the snapshot, whatever happened before. */
 export function loaded(_state: FriendsLoad, snapshot: FriendsSnapshot): FriendsLoad {

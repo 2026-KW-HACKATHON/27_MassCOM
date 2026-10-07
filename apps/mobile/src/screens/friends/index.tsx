@@ -18,13 +18,17 @@ import {
   parseScannedFriendCode,
   validateFriendCode,
 } from '@/friends/code';
-import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, replyNeedsRefresh } from '@/friends/friends-api';
+import { FriendsApiError, MAX_INTRO_LENGTH, createFriendsApiClient, friendsErrorMessage, replyNeedsRefresh } from '@/friends/friends-api';
 import { buildRankingRows, checkNicknameDraft, rankingNote, rowAccessibilityLabel, type RankingRow } from '@/friends/friends-model';
 import { createHeldFriendCode } from '@/friends/held-friend-code';
 import { linkVariantFor } from '@/friends/link';
 import { consumePendingFriendCode, consumePendingFriendProblem } from '@/friends/pending-friend-link';
 import { useFriends } from '@/friends/use-friends';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { createBadgeApiClient } from '@/gamification/badge-api';
+import { explorerRank, medalCopy, tierName } from '@/gamification/badge-rules';
+import { useBadgeBook } from '@/gamification/use-badge-book';
+import { useExperience } from '@/experience/use-experience';
 import { createSocialApiClient, createSocialRequestId, socialErrorMessage, type SocialFriend, type SocialSnapshot } from '@/social/social-api';
 import { useSocial } from '@/social/use-social';
 import { useSocialPush } from '@/social/push-runtime';
@@ -33,6 +37,7 @@ import { worldForScheme } from '@/theme/world';
 import { BounceButton } from '@/ui/bounce-button';
 import { canUseCamera } from '@/ui/can-use-camera';
 import { FloatingCard } from '@/ui/floating-card';
+import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
@@ -54,6 +59,7 @@ export function FriendsScreen({
   credential,
   onSessionInvalid,
   header,
+  profileOnly = false,
 }: {
   apiUrl: string;
   credential: AccountCredential;
@@ -61,6 +67,7 @@ export function FriendsScreen({
   /** BackHeader (sky art included); drawn first inside the scroll content so it scrolls away with the page — the
    *  route builds it, same as account-settings, now that this screen is reached through a hidden tab, not the bar. */
   header: ReactNode;
+  profileOnly?: boolean;
 }) {
   const clearance = useTabBarClearance();
   const insets = useSafeAreaInsets();
@@ -88,6 +95,7 @@ export function FriendsScreen({
 
   const [refreshing, setRefreshing] = useState(false);
   const [codeInput, setCodeInput] = useState('');
+  const [friendQuery, setFriendQuery] = useState('');
   const [adding, setAdding] = useState(false);
   const [addNotice, setAddNotice] = useState<Notice>();
   const [scanning, setScanning] = useState(false);
@@ -95,6 +103,10 @@ export function FriendsScreen({
   const [draft, setDraft] = useState('');
   const [nicknameBusy, setNicknameBusy] = useState(false);
   const [nicknameError, setNicknameError] = useState<string>();
+  const [editingIntro, setEditingIntro] = useState(false);
+  const [introDraft, setIntroDraft] = useState('');
+  const [introBusy, setIntroBusy] = useState(false);
+  const [introError, setIntroError] = useState<string>();
   const [rotating, setRotating] = useState(false);
   const [cardNotice, setCardNotice] = useState<Notice>();
   const [, requestCameraPermission] = useCameraPermissions();
@@ -103,6 +115,7 @@ export function FriendsScreen({
   const addingNow = useRef(false);
   const rotatingNow = useRef(false);
   const nicknameBusyNow = useRef(false);
+  const introBusyNow = useRef(false);
   // Read through a ref so the focus effect below is not rebuilt (and does not refetch) when my code first arrives.
   const myCodeRef = useRef<string | undefined>(undefined);
   useEffect(() => { myCodeRef.current = myCode; }, [myCode]);
@@ -138,7 +151,7 @@ export function FriendsScreen({
       addingNow.current = false;
       setAdding(false);
     }
-  }, [api, refreshFriendsAndSocial]);
+  }, [api, refreshFriendsAndSocial, setAddNotice, setCodeInput, setScanning]);
 
   // A code that arrived by QR or link is asked about first: adding shares my passport with its owner as well.
   // My own code is only said so: there is nothing to add. A link opens this tab before my code is loaded, so it goes through
@@ -161,7 +174,7 @@ export function FriendsScreen({
       ],
       { cancelable: true, onDismiss: clearCode },
     );
-  }, [addFriend]);
+  }, [addFriend, setCodeInput, setAddNotice]);
 
   const receiveLinkCode = useCallback((code: string) => {
     const ready = heldCode.arrive(code, statusRef.current);
@@ -192,7 +205,7 @@ export function FriendsScreen({
       setScanning(false);
       setAddNotice(undefined);
     };
-  }, [receiveLinkCode, refreshFriendsAndSocial]));
+  }, [receiveLinkCode, refreshFriendsAndSocial, setAddNotice, setScanning]));
 
   function submitTyped() {
     const checked = validateFriendCode(codeInput);
@@ -247,6 +260,28 @@ export function FriendsScreen({
     } finally {
       nicknameBusyNow.current = false;
       setNicknameBusy(false);
+    }
+  }
+
+  async function saveIntro() {
+    if (introBusyNow.current) return;
+    const intro = introDraft.trim();
+    if (Array.from(intro).length > MAX_INTRO_LENGTH) {
+      setIntroError('한 줄 소개는 30자 이하로 입력해 주세요.');
+      return;
+    }
+    introBusyNow.current = true;
+    setIntroBusy(true);
+    setIntroError(undefined);
+    try {
+      applyMe({ intro: await api.setIntro(intro) });
+      setEditingIntro(false);
+    } catch (error) {
+      setIntroError(friendsErrorMessage(error));
+      if (replyNeedsRefresh(error)) void refreshQuietly();
+    } finally {
+      introBusyNow.current = false;
+      setIntroBusy(false);
     }
   }
 
@@ -321,13 +356,16 @@ export function FriendsScreen({
 
   const { me } = snapshot;
   const rows = buildRankingRows(snapshot);
+  const visibleRows = friendQuery.trim()
+    ? rows.filter((row) => row.friendshipId && row.nickname.toLocaleLowerCase().includes(friendQuery.trim().toLocaleLowerCase()))
+    : rows;
   const qrSize = Math.min(220, Math.max(160, width - 2 * 20 - 2 * 18 - 8));
 
-  return sky(
-    <>
-      <Stagger index={0}>
+  const profileCard = (
+      <Stagger index={profileOnly ? 0 : 1}>
         <FloatingCard style={styles.card}>
-          <Text style={styles.eyebrow}>내 친구 코드</Text>
+          {profileOnly ? <View style={{ alignItems: 'center' }}><Mascot pose="sleep" size={180} /><Text accessibilityRole="header" style={styles.sectionTitle}>내 프로필</Text></View> : null}
+          <Text style={styles.eyebrow}>{profileOnly ? '이름과 한 줄 소개' : '내 친구 코드'}</Text>
           {editing ? (
             <View style={{ gap: 8 }}>
               <Text style={styles.inputLabel}>별명</Text>
@@ -377,7 +415,34 @@ export function FriendsScreen({
             </View>
           )}
 
-          <View style={styles.codeBlock}>
+          {editingIntro ? (
+            <View style={{ gap: 8 }}>
+              <Text style={styles.inputLabel}>한 줄 소개</Text>
+              <TextInput
+                value={introDraft}
+                onChangeText={(text) => { setIntroDraft(text); setIntroError(undefined); }}
+                accessibilityLabel="한 줄 소개"
+                placeholder="나를 소개해 주세요"
+                placeholderTextColor={world.cardMuted}
+                returnKeyType="done"
+                onSubmitEditing={() => void saveIntro()}
+                style={styles.input}
+              />
+              <Text style={styles.note}>{Array.from(introDraft).length}/{MAX_INTRO_LENGTH}</Text>
+              {introError ? <Text accessibilityLiveRegion="polite" style={styles.errorMessage}>{introError}</Text> : null}
+              <View style={styles.actions}>
+                <Pressable accessibilityRole="button" disabled={introBusy} onPress={() => void saveIntro()} style={[styles.primaryButton, styles.action, introBusy && styles.disabled]}><Text style={styles.primaryButtonText}>{introBusy ? '저장 중…' : '저장'}</Text></Pressable>
+                <Pressable accessibilityRole="button" disabled={introBusy} onPress={() => setEditingIntro(false)} style={[styles.outlineButton, styles.action, introBusy && styles.disabled]}><Text style={styles.outlineButtonText}>취소</Text></Pressable>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.nicknameRow}>
+              <Text selectable style={styles.introText}>{me.intro || '한 줄 소개를 입력해 주세요.'}</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="한 줄 소개 편집" onPress={() => { setIntroDraft(me.intro ?? ''); setIntroError(undefined); setEditingIntro(true); }} style={styles.outlineButton}><Text style={styles.outlineButtonText}>편집</Text></Pressable>
+            </View>
+          )}
+
+          {!profileOnly ? <><View style={styles.codeBlock}>
             <Text
               selectable
               accessibilityLabel={friendCodeAccessibilityLabel(me.code)}
@@ -403,9 +468,62 @@ export function FriendsScreen({
           <View style={styles.actions}>
             <View style={styles.action}><BounceButton label="코드 공유" onPress={() => void shareCode(me.code)} /></View>
             <View style={styles.action}><BounceButton label={rotating ? '바꾸는 중…' : '코드 바꾸기'} variant="secondary" disabled={rotating} onPress={confirmRotate} /></View>
-          </View>
+          </View></> : null}
         </FloatingCard>
       </Stagger>
+  );
+
+  const friendList = (
+      <Stagger index={0}>
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>친구 순위</Text>
+          <Text style={styles.sectionNote}>{rankingNote(me.asOf)}</Text>
+          {social.snapshot ? <Text style={styles.sectionNote}>오늘 우정 보내기 {social.snapshot.friendshipGift.sendRemaining}/5 · 우정 보상 남은 한도 {social.snapshot.friendshipGift.rewardRemainingToday}</Text> : null}
+          {snapshot.friends.length > 0 ? <TextInput value={friendQuery} onChangeText={setFriendQuery} accessibilityLabel="친구 검색" placeholder="친구 이름 찾기" placeholderTextColor={world.cardMuted} style={styles.input} /> : null}
+          <View style={styles.sectionBody}>
+            {snapshot.friends.length === 0 ? (
+              <StateScene kind="empty" title="아직 친구가 없어요" body="친구 코드를 주고받으면 여기에 순위가 생겨요." />
+            ) : visibleRows.length === 0 ? (
+              <StateScene kind="empty" title="검색 결과가 없어요" body="다른 이름으로 찾아보세요." />
+            ) : (
+              visibleRows.map((row) => (
+                <View key={row.key} style={{ gap: 8 }}>
+                  <RankingRowCard
+                  key={row.key}
+                  row={row}
+                  onPress={row.friendshipId
+                    ? () => router.push({ pathname: '/friends/[friendshipId]', params: { friendshipId: row.friendshipId! } })
+                    : undefined}
+                />
+                  {row.friendshipId ? (
+                    <FriendSocialActions
+                      friend={social.snapshot?.friends.find((item) => item.friendshipId === row.friendshipId)}
+                      social={social.snapshot}
+                      onRefresh={() => { void Promise.allSettled([social.refreshQuietly(), refreshQuietly()]); }}
+                      socialApi={socialApi}
+                    />
+                  ) : null}
+                </View>
+              ))
+            )}
+          </View>
+        </View>
+      </Stagger>
+  );
+
+  if (profileOnly) return sky(<>
+    {profileCard}
+    <ProfilePassport apiUrl={apiUrl} credential={credential} onSessionInvalid={onSessionInvalid} friendCount={snapshot.friends.length} />
+    <FloatingCard style={styles.card}>
+      <BounceButton label="마이룸 꾸미기" onPress={() => router.push('/studio')} />
+      <BounceButton label="친구 보기" variant="secondary" onPress={() => router.push('/friends')} />
+    </FloatingCard>
+  </>);
+
+  return sky(
+    <>
+      {friendList}
+      {profileCard}
 
       <Stagger index={1}>
         <FloatingCard style={styles.card}>
@@ -473,38 +591,6 @@ export function FriendsScreen({
         </FloatingCard>
       </Stagger>
 
-      <Stagger index={3}>
-        <View style={styles.section}>
-          <Text accessibilityRole="header" style={styles.sectionTitle}>친구 순위</Text>
-          <Text style={styles.sectionNote}>{rankingNote(me.asOf)}</Text>
-          {social.snapshot ? <Text style={styles.sectionNote}>오늘 우정 보내기 {social.snapshot.friendshipGift.sendRemaining}/5 · 우정 보상 남은 한도 {social.snapshot.friendshipGift.rewardRemainingToday}</Text> : null}
-          <View style={styles.sectionBody}>
-            {snapshot.friends.length === 0 ? (
-              <StateScene kind="empty" title="아직 친구가 없어요" body="친구 코드를 주고받으면 여기에 순위가 생겨요." />
-            ) : (
-              rows.map((row) => (
-                <View key={row.key} style={{ gap: 8 }}>
-                  <RankingRowCard
-                  key={row.key}
-                  row={row}
-                  onPress={row.friendshipId
-                    ? () => router.push({ pathname: '/friends/[friendshipId]', params: { friendshipId: row.friendshipId! } })
-                    : undefined}
-                />
-                  {row.friendshipId ? (
-                    <FriendSocialActions
-                      friend={social.snapshot?.friends.find((item) => item.friendshipId === row.friendshipId)}
-                      social={social.snapshot}
-                      onRefresh={() => { void Promise.allSettled([social.refreshQuietly(), refreshQuietly()]); }}
-                      socialApi={socialApi}
-                    />
-                  ) : null}
-                </View>
-              ))
-            )}
-          </View>
-        </View>
-      </Stagger>
     </>,
     <RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} colors={[palette.primary]} />,
   );
@@ -636,4 +722,34 @@ function RankingRowCard({ row, onPress }: { row: RankingRow; onPress?: () => voi
       </View>
     </FloatingCard>
   );
+}
+
+function ProfilePassport({ apiUrl, credential, onSessionInvalid, friendCount }: {
+  apiUrl: string;
+  credential: AccountCredential;
+  onSessionInvalid: () => Promise<void>;
+  friendCount: number;
+}) {
+  const router = useRouter();
+  const styles = useFriendsStyles();
+  const api = useMemo(() => createBadgeApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const badges = useBadgeBook(api);
+  const experience = useExperience(apiUrl, credential, onSessionInvalid);
+  return <FloatingCard style={styles.card}>
+    <Text accessibilityRole="header" style={styles.sectionTitle}>탐험 여권</Text>
+    {badges.status === 'loading' ? <StateScene kind="loading" title="탐험 기록을 불러오는 중" /> : null}
+    {badges.status === 'error' ? <StateScene kind="error" title="탐험 기록을 불러오지 못했어요" action={{ label: '다시 불러오기', onPress: () => { void badges.retry(); }, disabled: badges.retrying }} /> : null}
+    {badges.book ? <>
+      <Text style={styles.passportRank}>{explorerRank(badges.book.earnedTiers).title} · 배지 {badges.book.earnedTiers}/9 · 친구 {friendCount}명</Text>
+      {experience.snapshot ? <Text style={styles.note}>대표 배지 {experience.snapshot.catalog.badges.find((badge) => badge.id === experience.snapshot?.profile.badgeId)?.name ?? '미설정'} · 대표 코인 {experience.snapshot.profile.coinEntitlementId ? '전시 중' : '미설정'}</Text> : null}
+      {experience.error ? <Text accessibilityLiveRegion="polite" style={styles.errorMessage}>{experience.error}</Text> : null}
+      {badges.book.medals.map((medal) => <View key={medal.kind} style={styles.rankRow}>
+        <View style={styles.rowCopy}>
+          <Text style={styles.rowName}>{medalCopy(medal.kind).name} · {tierName(medal.tier)}</Text>
+          <Text style={styles.rowMeta}>{medalCopy(medal.kind).measure(medal.value)}{medal.tier < 3 ? ` / 다음 단계 ${medal.thresholds[Math.min(medal.tier, 2)]}` : ''}</Text>
+        </View>
+      </View>)}
+      <BounceButton label="도감과 방문 기록 보기" variant="secondary" onPress={() => router.push('/collection')} />
+    </> : null}
+  </FloatingCard>;
 }

@@ -59,12 +59,15 @@ export function badgeTarget(id: string): number {
   return medalThresholds[match[1] as MedalKind][tiers.indexOf(match[2] as typeof tiers[number])]!;
 }
 
-export type ExperienceProfile = { badgeId: string | null; cosmetics: Equipment; coinEntitlementId: string | null; wishlist: string | null };
+export type ExperienceCoinSource = { sourceKind: 'VISIT' | 'STORE_DRAW' | 'GRADE_DRAW' | 'REROLL'; sourceId: string };
+export type PublicRepresentativeCoin = Pick<StudioItem, 'merchantId' | 'merchantName' | 'campaignTitle' | 'displayName' | 'artwork'>;
+export type ExperienceProfile = { badgeId: string | null; cosmetics: Equipment; coinEntitlementId: string | null;
+  coinSource: ExperienceCoinSource | null; representativeCoin: PublicRepresentativeCoin | null; wishlist: string | null };
 export type PublicExperienceProfile = {
   badgeId: string | null;
   badgeName: string | null;
   cosmetics: Equipment;
-  coin: Pick<StudioItem, 'merchantId' | 'merchantName' | 'campaignTitle' | 'displayName' | 'artwork'> | null;
+  coin: PublicRepresentativeCoin | null;
 };
 export type ExperienceSnapshot = {
   catalog: { badges: readonly ExperienceBadge[]; cosmetics: readonly ExperienceCosmetic[]; packs: readonly ExperiencePack[] };
@@ -82,7 +85,8 @@ export class ExperienceError extends Error {
 }
 export interface CollectionExperienceService {
   getSnapshot(accountId: string): Promise<ExperienceSnapshot>;
-  setEquipment(input: { accountId: string; badgeId?: string | null; cosmetics?: Partial<Equipment>; coinEntitlementId?: string | null }): Promise<ExperienceSnapshot>;
+  setEquipment(input: { accountId: string; badgeId?: string | null; cosmetics?: Partial<Equipment>;
+    coinEntitlementId?: string | null; coinSource?: ExperienceCoinSource | null }): Promise<ExperienceSnapshot>;
   setWishlist(input: { accountId: string; itemId: string | null }): Promise<ExperienceSnapshot>;
   getFriend(input: { accountId: string; friendshipId: string }): Promise<PublicExperienceProfile>;
 }

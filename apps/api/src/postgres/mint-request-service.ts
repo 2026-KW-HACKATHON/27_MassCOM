@@ -144,6 +144,10 @@ export class PostgresMintRequestService implements MintRequestService {
       if (entitlement.entitlement_status !== 'GRANTED' || entitlement.series_status !== 'ACTIVE') {
         throw new MintRequestError('ENTITLEMENT_NOT_MINTABLE');
       }
+      // 리롤 거래도 동일한 entitlement 행을 잠근다. 회수 후 늦게 도착한 발급 요청을 차단한다.
+      const consumed = await client.query(`SELECT 1 FROM coin_reroll_consumptions
+        WHERE source_kind = 'VISIT' AND source_id = $1`, [input.entitlementId]);
+      if (consumed.rowCount) throw new MintRequestError('ENTITLEMENT_NOT_MINTABLE');
       if (entitlement.claim_expires_at.getTime() <= now.getTime()) {
         throw new MintRequestError('ENTITLEMENT_EXPIRED');
       }

@@ -24,8 +24,9 @@ export function HomeExhibitScreen({ apiUrl, credential, onSessionInvalid }: {
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
 }) {
-  const palette = colorsForScheme(useColorScheme());
-  const world = worldForScheme(useColorScheme());
+  const scheme = useColorScheme();
+  const palette = colorsForScheme(scheme);
+  const world = worldForScheme(scheme);
   const insets = useSafeAreaInsets();
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const shopApi = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);

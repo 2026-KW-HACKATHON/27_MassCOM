@@ -21,7 +21,9 @@ test('legacy collectible art uses the fallback bridge while discovery only rende
   assert.match(read('screens/real-map/index.tsx'), /merchant\.thumbnail&&publishedPhotoUri\(apiUrl,merchant\.thumbnail\.url\)/);
   assert.match(read('screens/town-map/town-pin.tsx'), /merchantArtSource\(\{ id: pin\.merchantId, artUrl: pin\.artUrl \}, apiUrl\)/);
   assert.match(read('screens/town-map/index.tsx'), /<TownPinButton[\s\S]*?apiUrl=\{apiUrl\}[\s\S]*?\/>/);
-  assert.match(read('screens/merchant-detail/index.tsx'), /photos\.filter\(photo=>publishedPhotoUri\(apiUrl,photo\.url\)\)/);
+  const detail = read('screens/merchant-detail/index.tsx');
+  assert.match(detail, /leadPhoto=photos\.find\(photo=>publishedPhotoUri\(apiUrl,photo\.url\)\)/);
+  assert.match(detail, /photos\.filter\(photo=>photo\.id!==leadPhoto\?\.id&&publishedPhotoUri\(apiUrl,photo\.url\)\)/);
   assert.match(read('ui/passport-stamp-page.tsx'), /merchantArtSource\(\{ id: stamp\.merchantId, artUrl: stamp\.artUrl \}, apiUrl\)/);
   const collection = read('screens/collection/index.tsx');
   assert.match(collection, /<PassportStampPage apiUrl=\{apiUrl\}/);
@@ -106,7 +108,7 @@ test('every surface that draws the API picture falls back when it fails to load'
   assert.match(stamp, /useArtFallback\(merchantArtSource\(\{ id: stamp\.merchantId, artUrl: stamp\.artUrl \}, apiUrl\)\)/);
   assert.match(stamp, /<Image source=\{art\} onError=\{onError\}/);
   // The detail hero goes through the header, which hands the error back so the page can stop passing the picture.
-  assert.match(read('ui/back-header.tsx'), /<StoreArt source=\{art\} height=\{height\} note=\{artNote\} onError=\{onArtError\} \/>/);
+  assert.match(read('ui/back-header.tsx'), /<StoreArt source=\{art\} height=\{180\} note=\{artNote\} onError=\{onArtError\} \/>/);
   assert.match(read('ui/store-art.tsx'), /<Image source=\{source\} onError=\{onError\}/);
   // #296: the merged album's legacy (no-artwork) card lives in CollectibleBrowser now, not index.tsx.
   assert.match(read('screens/collection/collectible-browser.tsx'), /<Image source=\{source\} onError=\{onError\}/);

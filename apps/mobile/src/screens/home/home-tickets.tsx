@@ -29,8 +29,9 @@ export function HomeTicketsScreen({ apiUrl, credential, onSessionInvalid }: {
   onSessionInvalid: () => Promise<void>;
 }) {
   const router = useRouter();
-  const palette = colorsForScheme(useColorScheme());
-  const world = worldForScheme(useColorScheme());
+  const scheme = useColorScheme();
+  const palette = colorsForScheme(scheme);
+  const world = worldForScheme(scheme);
   const styles = useMemo(() => makeStyles(palette, world), [palette, world]);
   const insets = useSafeAreaInsets();
   const ticketApi = useMemo(() => createStoreTicketApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);

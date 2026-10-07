@@ -12,6 +12,8 @@ import { evaluateQualityGameSkill, getQualityGameState } from '../play-rules-qua
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
 import { findClothingItem } from '../mileage-rules.js';
+import { canViewRoom } from './room-access.js';
+import type { CoinDisplayItem, PlacedFurnitureItem } from '../play.js';
 
 type RunRow = { id: string; kind: GameKind; seed: number; started_at: Date; expires_at: Date;
   rules_version: 1 | 2; result: PlayResult | null };
@@ -28,7 +30,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 function validStudio(value: unknown): value is Studio {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const studio = value as Record<string, unknown>;
-  if (Object.keys(studio).sort().join(',') !== 'accent,goal,layout,slots,theme' ||
+  if (Object.keys(studio).some(key => !['accent','goal','layout','slots','theme','wall','floor','furniture','coinSlots'].includes(key)) ||
       typeof studio.theme !== 'string' || typeof studio.layout !== 'string' || typeof studio.accent !== 'string' ||
       !themes.includes(studio.theme as typeof themes[number]) ||
       !layouts.includes(studio.layout as typeof layouts[number]) ||
@@ -36,6 +38,22 @@ function validStudio(value: unknown): value is Studio {
       !Array.isArray(studio.slots) || studio.slots.length > 6 ||
       studio.slots.some((slot) => typeof slot !== 'string' || !uuidPattern.test(slot)) ||
       new Set(studio.slots).size !== studio.slots.length) return false;
+  if (['wall','floor'].some(key => studio[key] !== undefined && studio[key] !== null &&
+      !themes.includes(studio[key] as typeof themes[number]))) return false;
+  if (studio.furniture !== undefined && (!Array.isArray(studio.furniture) || studio.furniture.length > 30 ||
+      studio.furniture.some((entry: unknown) => !entry || typeof entry !== 'object' || Array.isArray(entry) ||
+        Object.keys(entry).sort().join(',') !== 'inventoryId,rotation,x,y' ||
+        !uuidPattern.test((entry as { inventoryId: string }).inventoryId) ||
+        !Number.isFinite((entry as { x: number }).x) || (entry as { x: number }).x < 0 || (entry as { x: number }).x > 1 ||
+        !Number.isFinite((entry as { y: number }).y) || (entry as { y: number }).y < 0 || (entry as { y: number }).y > 1 ||
+        ![0,90,180,270].includes((entry as { rotation: number }).rotation)) ||
+      new Set(studio.furniture.map((entry: { inventoryId: string }) => entry.inventoryId)).size !== studio.furniture.length)) return false;
+  if (studio.coinSlots !== undefined && (!Array.isArray(studio.coinSlots) || studio.coinSlots.length > 6 ||
+      studio.coinSlots.some((entry: unknown) => !entry || typeof entry !== 'object' || Array.isArray(entry) ||
+        Object.keys(entry).sort().join(',') !== 'sourceId,sourceKind' ||
+        !['VISIT','STORE_DRAW','GRADE_DRAW','REROLL'].includes((entry as { sourceKind: string }).sourceKind) ||
+        !uuidPattern.test((entry as { sourceId: string }).sourceId)) ||
+      new Set(studio.coinSlots.map((entry: { sourceKind: string; sourceId: string }) => `${entry.sourceKind}:${entry.sourceId}`)).size !== studio.coinSlots.length)) return false;
   if (studio.goal === null) return true;
   if (!studio.goal || typeof studio.goal !== 'object' || Array.isArray(studio.goal)) return false;
   const goal = studio.goal as Record<string, unknown>;
@@ -171,7 +189,7 @@ export class PostgresPlayService implements PlayService {
     });
   }
 
-  async saveStudio(input: { accountId: string; studio: Studio }): Promise<StudioSnapshot> {
+  async saveStudio(input: { accountId: string; studio: Studio; expectedRevision?: number }): Promise<StudioSnapshot> {
     if (!validStudio(input.studio)) throw new PlayError('STUDIO_INVALID');
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, input.accountId);
@@ -179,8 +197,13 @@ export class PostgresPlayService implements PlayService {
       if (input.studio.theme !== 'daylight' && !unlocked(records).includes(input.studio.theme)) {
         throw new PlayError('STUDIO_THEME_LOCKED');
       }
+      if ([input.studio.wall, input.studio.floor].some(value => value && value !== 'daylight' && !unlocked(records).includes(value)))
+        throw new PlayError('STUDIO_THEME_LOCKED');
       const items = await this.items(client, input.accountId, input.studio.slots);
       if (items.length !== input.studio.slots.length) throw new PlayError('STUDIO_ITEM_NOT_OWNED');
+      const coinItems = await this.coinItems(client, input.accountId, input.studio.coinSlots ?? []);
+      if (coinItems.length !== (input.studio.coinSlots?.length ?? 0)) throw new PlayError('STUDIO_ITEM_NOT_OWNED');
+      if (!(await this.ownsFurniture(client, input.accountId, input.studio))) throw new PlayError('STUDIO_ITEM_NOT_OWNED');
       if (input.studio.goal?.kind === 'collectible') {
         const savedGoal = (await this.studio(client, input.accountId)).goal;
         const sameSavedGoal = savedGoal?.kind === 'collectible'
@@ -197,11 +220,15 @@ export class PostgresPlayService implements PlayService {
           !(await this.publicMerchant(client, input.studio.goal.merchantId))) {
         throw new PlayError('STUDIO_GOAL_UNAVAILABLE');
       }
-      await client.query(`INSERT INTO studios (account_id,studio,updated_at) VALUES ($1,$2,$3)
-        ON CONFLICT (account_id) DO UPDATE SET studio=excluded.studio, updated_at=excluded.updated_at`,
-      [input.accountId, JSON.stringify(input.studio), this.now()]);
+      const prior = (await client.query<{ revision: number }>('SELECT revision FROM studios WHERE account_id=$1 FOR UPDATE', [input.accountId])).rows[0];
+      if (input.expectedRevision !== undefined && input.expectedRevision !== (prior?.revision ?? 0)) throw new PlayError('STUDIO_VERSION_CONFLICT');
+      const revision = (prior?.revision ?? 0) + 1;
+      await client.query(`INSERT INTO studios (account_id,studio,updated_at,revision) VALUES ($1,$2,$3,$4)
+        ON CONFLICT (account_id) DO UPDATE SET studio=excluded.studio,updated_at=excluded.updated_at,revision=excluded.revision`,
+      [input.accountId, JSON.stringify(input.studio), this.now(), revision]);
       await this.count(client, 'studio-save', 'all', this.now());
-      return { studio: input.studio, items, avatar: await this.avatar(client, input.accountId),
+      return { studio: input.studio, revision, items, coinItems,
+        furnitureItems: await this.placedFurniture(client, input.accountId, input.studio), avatar: await this.avatar(client, input.accountId),
         records, unlockedThemes: unlocked(records), achievements: await this.achievements(client, input.accountId, records) };
     });
   }
@@ -224,7 +251,13 @@ export class PostgresPlayService implements PlayService {
       const stillFriends = await client.query(`SELECT 1 FROM friendships WHERE id=$1 AND account_low=$2 AND account_high=$3`,
         [input.friendshipId, pair.account_low, pair.account_high]);
       if (!stillFriends.rowCount) throw new PlayError('FRIEND_STUDIO_NOT_FOUND');
-      return this.sharedStudio(client, friendId, true);
+      const room = (await client.query<{ id: string; visibility: 'PRIVATE'|'FRIENDS'|'NEIGHBORS' }>(
+        'SELECT id,visibility FROM public_rooms WHERE account_id=$1 FOR SHARE', [friendId])).rows[0];
+      const consent = await client.query(`SELECT 1 FROM account_consents WHERE account_id=$1
+        AND terms_version=$2 AND privacy_version=$3`, [friendId,CURRENT_TERMS_VERSION,CURRENT_PRIVACY_VERSION]);
+      if (!room || !consent.rowCount || !(await canViewRoom(client, input.accountId, friendId, room.visibility)))
+        throw new PlayError('FRIEND_STUDIO_NOT_FOUND');
+      return { ...await this.sharedStudio(client, friendId, true), roomId: room.id };
     });
   }
 
@@ -241,22 +274,30 @@ export class PostgresPlayService implements PlayService {
         SELECT 1 FROM account_consents WHERE account_id=$1 AND terms_version=$2 AND privacy_version=$3)`,
       [friendId, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION])).rows[0];
     if (!saved) return { nickname, studio: { theme: defaultStudio.theme, layout: defaultStudio.layout,
-      accent: defaultStudio.accent, goal: null }, items: [], avatar: null, avatarClothingId: null };
+      accent: defaultStudio.accent, goal: null }, items: [], coinItems: [], furnitureItems: [], avatar: null, avatarClothingId: null };
     const studio = saved.studio;
     const goal = !includeGoal ? null : studio.goal?.kind === 'collectible'
       ? await this.publicCollectibleGoal(client, studio.goal) ? studio.goal : null
       : studio.goal?.kind !== 'play' && studio.goal &&
         !(await this.publicMerchant(client, studio.goal.merchantId)) ? null : studio.goal;
     const items = await this.items(client, friendId, studio.slots);
+    const coinItems = await this.coinItems(client, friendId, studio.coinSlots ?? []);
+    const furnitureItems = await this.placedFurniture(client, friendId, studio);
     const clothing = (await client.query<{ item_id: string }>(
       `SELECT clothing.item_id FROM account_profile profile
        JOIN account_clothing clothing ON clothing.account_id = profile.account_id
          AND clothing.item_id = profile.equipped_clothing_item_id
        WHERE profile.account_id = $1`, [friendId])).rows[0];
-    return { nickname, studio: { theme: studio.theme, layout: studio.layout, accent: studio.accent, goal },
+    return { nickname, studio: { theme: studio.theme, layout: studio.layout, accent: studio.accent, goal,
+      wall: studio.wall ?? null, floor: studio.floor ?? null,
+      furniture: (studio.furniture ?? []).filter(placed => furnitureItems.some(item => item.id === placed.inventoryId))
+        .map((placed, index) => ({ ...placed, inventoryId: `placement-${index}` })) },
       items: items.map(({ merchantId, merchantName, campaignTitle, displayName, artwork }) => ({
         merchantId, merchantName, campaignTitle, displayName, ...(artwork ? { artwork } : {}),
-      })), avatar: await this.avatar(client, friendId), avatarClothingId: findClothingItem(clothing?.item_id ?? '')?.id ?? null };
+      })), coinItems: coinItems.map(({ merchantId, merchantName, publicationId, gradeId, name, artwork }) =>
+        ({ merchantId, merchantName, publicationId, gradeId, name, ...(artwork ? { artwork } : {}) })),
+      furnitureItems: furnitureItems.map((item, index) => ({ ...item, id: `placement-${index}` })),
+      avatar: await this.avatar(client, friendId), avatarClothingId: findClothingItem(clothing?.item_id ?? '')?.id ?? null };
   }
 
   async recordEvent(input: { accountId: string; event: PlayEvent }): Promise<void> {
@@ -287,11 +328,15 @@ export class PostgresPlayService implements PlayService {
     const stored = await this.studio(client, accountId);
     const records = await this.records(client, accountId);
     const items = await this.items(client, accountId, stored.slots);
+    const coinItems = await this.coinItems(client, accountId, stored.coinSlots ?? []);
     const goal = stored.goal?.kind !== 'play' && stored.goal?.kind !== 'collectible' && stored.goal &&
       !(await this.publicMerchant(client, stored.goal.merchantId)) ? null : stored.goal;
-    const studio = { ...stored, slots: items.map((item) => item.entitlementId!), goal };
-    return { studio, records, unlockedThemes: unlocked(records), achievements: await this.achievements(client, accountId, records),
-      items, avatar: await this.avatar(client, accountId) };
+    const studio = { ...stored, slots: items.map((item) => item.entitlementId!),
+      coinSlots: coinItems.map(item => ({ sourceKind: item.sourceKind, sourceId: item.sourceId })), goal };
+    const revision = (await client.query<{ revision: number }>('SELECT revision FROM studios WHERE account_id=$1', [accountId])).rows[0]?.revision ?? 0;
+    return { studio, revision, records, unlockedThemes: unlocked(records), achievements: await this.achievements(client, accountId, records),
+      items, coinItems, furnitureItems: await this.placedFurniture(client, accountId, studio),
+      avatar: await this.avatar(client, accountId) };
   }
 
   private async studio(client: PoolClient, accountId: string): Promise<Studio> {
@@ -336,13 +381,79 @@ export class PostgresPlayService implements PlayService {
       LEFT JOIN collectible_publications publication ON publication.id=acquisition.publication_id AND publication.media_removed_at IS NULL
       LEFT JOIN collectible_publication_grades grade ON grade.publication_id=publication.id AND grade.grade_id=acquisition.grade_id
       WHERE entitlement.customer_account_id=$1 AND entitlement.id=ANY($2::uuid[])
-        AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')`, [accountId, slots])).rows;
+        AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
+        AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions consumed
+          WHERE consumed.source_kind='VISIT' AND consumed.source_id=entitlement.id)`, [accountId, slots])).rows;
     const byId = new Map(rows.map((row) => [row.entitlement_id, row]));
     return slots.flatMap((id) => {
       const row = byId.get(id);
       return row ? [{ entitlementId: id, merchantId: row.merchantId, merchantName: row.merchantName,
         campaignTitle: row.campaignTitle, displayName: row.displayName,
         ...(row.artwork ? { artwork: row.artwork } : {}) }] : [];
+    });
+  }
+
+  private async coinItems(client: PoolClient, accountId: string, slots: NonNullable<Studio['coinSlots']>): Promise<CoinDisplayItem[]> {
+    if (!slots.length) return [];
+    const rows = (await client.query<{ source_kind: CoinDisplayItem['sourceKind']; source_id: string;
+      merchant_id: string; merchant_name: string; publication_id: string; grade_id: string; name: string;
+      artwork: CoinDisplayItem['artwork'] | null }>(`
+      WITH selected AS (SELECT source_kind,source_id FROM unnest($2::text[],$3::uuid[]) AS picked(source_kind,source_id)),
+      owned AS (
+        SELECT selected.source_kind,selected.source_id,acquisition.publication_id,acquisition.grade_id
+        FROM selected JOIN collectible_acquisitions acquisition ON selected.source_kind='VISIT' AND acquisition.entitlement_id=selected.source_id
+        JOIN reward_entitlements entitlement ON entitlement.id=acquisition.entitlement_id
+        WHERE entitlement.customer_account_id=$1 AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
+        UNION ALL SELECT selected.source_kind,selected.source_id,draw.publication_id,draw.grade_id
+        FROM selected JOIN coin_draws draw ON selected.source_kind='STORE_DRAW' AND draw.ticket_id=selected.source_id
+        JOIN coin_tickets ticket ON ticket.id=draw.ticket_id WHERE ticket.account_id=$1
+        UNION ALL SELECT selected.source_kind,selected.source_id,draw.publication_id,draw.grade_id
+        FROM selected JOIN grade_draws draw ON selected.source_kind='GRADE_DRAW' AND draw.id=selected.source_id
+        WHERE draw.account_id=$1 AND draw.reward_kind='COIN'
+        UNION ALL SELECT selected.source_kind,selected.source_id,draw.publication_id,draw.grade_id
+        FROM selected JOIN coin_rerolls draw ON selected.source_kind='REROLL' AND draw.id=selected.source_id
+        WHERE draw.account_id=$1 AND draw.revoked_at IS NULL
+      )
+      SELECT owned.source_kind,owned.source_id,owned.publication_id,owned.grade_id,
+        merchant.id AS merchant_id,merchant.name AS merchant_name,
+        CASE WHEN publication.media_removed_at IS NOT NULL THEN '공개가 중단된 코인'
+          ELSE coalesce(grade.summary->>'name','수집 코인') END AS name,
+        CASE WHEN publication.media_removed_at IS NULL THEN grade.summary ELSE NULL END AS artwork
+      FROM owned JOIN collectible_publication_grades grade USING(publication_id,grade_id)
+      JOIN collectible_publications publication ON publication.id=owned.publication_id
+      JOIN campaigns campaign ON campaign.id=publication.campaign_id
+      JOIN merchants merchant ON merchant.id=campaign.merchant_id
+      WHERE NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions consumed
+        WHERE consumed.source_kind=owned.source_kind AND consumed.source_id=owned.source_id)`,
+    [accountId, slots.map(slot => slot.sourceKind), slots.map(slot => slot.sourceId)])).rows;
+    const bySource = new Map(rows.map(row => [`${row.source_kind}:${row.source_id}`, row]));
+    return slots.flatMap(slot => {
+      const row = bySource.get(`${slot.sourceKind}:${slot.sourceId}`);
+      return row ? [{ sourceKind: row.source_kind, sourceId: row.source_id, merchantId: row.merchant_id,
+        merchantName: row.merchant_name, publicationId: row.publication_id, gradeId: row.grade_id, name: row.name,
+        ...(row.artwork ? { artwork: row.artwork } : {}) }] : [];
+    });
+  }
+
+  private async ownsFurniture(client: PoolClient, accountId: string, studio: Studio): Promise<boolean> {
+    const placed = studio.furniture ?? [];
+    const rows = (await client.query<{ id: string; item_id: string; kind: string }>(`SELECT inventory.id,inventory.item_id,catalog.kind
+      FROM furniture_inventory inventory JOIN furniture_catalog catalog ON catalog.id=inventory.item_id
+      WHERE inventory.account_id=$1 AND inventory.id=ANY($2::uuid[])`,
+    [accountId, placed.map(item => item.inventoryId)])).rows;
+    return placed.every(item => rows.some(row => row.id === item.inventoryId && row.kind === 'FURNITURE'));
+  }
+
+  private async placedFurniture(client: PoolClient, accountId: string, studio: Studio): Promise<PlacedFurnitureItem[]> {
+    if (!studio.furniture?.length) return [];
+    const rows = (await client.query<{ id: string; item_id: string; name: string; asset_id: string | null }>(`
+      SELECT inventory.id,inventory.item_id,catalog.name,catalog.asset_id
+      FROM furniture_inventory inventory JOIN furniture_catalog catalog ON catalog.id=inventory.item_id
+      WHERE inventory.account_id=$1 AND inventory.id=ANY($2::uuid[]) AND catalog.kind='FURNITURE'`,
+    [accountId, studio.furniture.map(item => item.inventoryId)])).rows;
+    return studio.furniture.flatMap(placed => {
+      const row = rows.find(item => item.id === placed.inventoryId);
+      return row ? [{ id: row.id, itemId: row.item_id, name: row.name, kind: 'FURNITURE' as const, assetId: row.asset_id }] : [];
     });
   }
 

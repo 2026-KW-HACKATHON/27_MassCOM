@@ -3,10 +3,13 @@ import { parseCollectibleArtwork, type CollectibleArtwork } from '@/commerce/col
 import { shouldInvalidateSession } from '@/auth/session-invalid';
 
 export type CosmeticSlot = 'hat' | 'bag' | 'prop' | 'pose' | 'decor';
+export type RepresentativeCoinSource = { sourceKind: 'VISIT' | 'STORE_DRAW' | 'GRADE_DRAW' | 'REROLL'; sourceId: string };
 export type ExperienceProfile = {
   badgeId: string | null;
   cosmetics: Record<CosmeticSlot, string | null>;
   coinEntitlementId: string | null;
+  coinSource?: RepresentativeCoinSource | null;
+  representativeCoin?: DisplayExperienceProfile['coin'];
   wishlist: string | null;
 };
 export type DisplayExperienceProfile = Pick<ExperienceProfile, 'badgeId' | 'cosmetics'> & {
@@ -14,7 +17,8 @@ export type DisplayExperienceProfile = Pick<ExperienceProfile, 'badgeId' | 'cosm
   coinEntitlementId?: string | null;
   coin?: { merchantId: string; merchantName: string; campaignTitle: string; displayName: string; artwork?: CollectibleArtwork } | null;
 };
-export type EquipmentPatch = { badgeId?: string | null; cosmetics?: Partial<Record<CosmeticSlot, string | null>>; coinEntitlementId?: string | null };
+export type EquipmentPatch = { badgeId?: string | null; cosmetics?: Partial<Record<CosmeticSlot, string | null>>;
+  coinEntitlementId?: string | null; coinSource?: RepresentativeCoinSource | null };
 export type ExperienceSnapshot = {
   catalog: {
     badges: { id: string; name: string; kind: 'visit' | 'game'; tier?: 1 | 2 | 3; unlockItemIds: string[] }[];
@@ -47,6 +51,11 @@ export function parseExperienceSnapshot(value: unknown): ExperienceSnapshot {
   const progress = value.progress as { badges: unknown[]; cosmetics: unknown[]; packs: unknown[] };
   const profile = value.profile;
   if (!nullableString(profile.badgeId) || !nullableString(profile.coinEntitlementId) || !nullableString(profile.wishlist) ||
+    (profile.coinSource !== undefined && profile.coinSource !== null && (!record(profile.coinSource)
+      || !['VISIT', 'STORE_DRAW', 'GRADE_DRAW', 'REROLL'].includes(profile.coinSource.sourceKind as string)
+      || !string(profile.coinSource.sourceId))) ||
+    (profile.representativeCoin !== undefined && profile.representativeCoin !== null && (!record(profile.representativeCoin)
+      || !['merchantId', 'merchantName', 'campaignTitle', 'displayName'].every((key) => string((profile.representativeCoin as Record<string, unknown>)[key])))) ||
     !(['hat', 'bag', 'prop', 'pose', 'decor'] as const).every((slot) => nullableString((profile.cosmetics as Record<string, unknown>)[slot])) ||
     !catalog.badges.every((item: unknown) => record(item) && string(item.id) && string(item.name) && (item.kind === 'visit' || item.kind === 'game') && Array.isArray(item.unlockItemIds) && item.unlockItemIds.every(string)) ||
     !catalog.cosmetics.every((item: unknown) => record(item) && string(item.id) && string(item.name) && ['hat', 'bag', 'prop', 'pose', 'decor'].includes(item.slot as string) && record(item.source) &&
@@ -55,7 +64,14 @@ export function parseExperienceSnapshot(value: unknown): ExperienceSnapshot {
     !progress.badges.every((item: unknown) => record(item) && string(item.id) && count(item.value) && count(item.target) && typeof item.owned === 'boolean' && typeof item.nextAction === 'string') ||
     !progress.cosmetics.every((item: unknown) => record(item) && string(item.id) && typeof item.owned === 'boolean' && typeof item.equippable === 'boolean') ||
     !progress.packs.every((item: unknown) => record(item) && string(item.id) && count(item.opens) && count(item.ownedBonuses) && count(item.totalBonuses))) throw new ExperienceApiError(200, 'INVALID_EXPERIENCE');
-  return value as ExperienceSnapshot;
+  const snapshot = value as ExperienceSnapshot;
+  const coin = record(profile.representativeCoin) ? profile.representativeCoin : null;
+  const artwork = coin ? parseCollectibleArtwork(coin.artwork) : undefined;
+  return { ...snapshot, profile: { ...snapshot.profile, representativeCoin: coin ? {
+    merchantId: coin.merchantId as string, merchantName: coin.merchantName as string,
+    campaignTitle: coin.campaignTitle as string, displayName: coin.displayName as string,
+    ...(artwork ? { artwork } : {}),
+  } : null } };
 }
 
 export function parseDisplayExperienceProfile(value: unknown): DisplayExperienceProfile {

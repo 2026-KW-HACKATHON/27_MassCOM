@@ -44,10 +44,10 @@ test('옵션 이름과 시연 상수는 server.ts에 직접 나오지 않고 all
     assert.equal(count(code, forbidden), 0, `${forbidden} 는 all-access.ts의 옵션 객체 안에만 있어야 한다`);
   }
   // 가게 코인과 캐릭터 상점은 같은 시연 잔액을 보여야 한다.
-  assert.equal(count(code, /\ballAccess\b/), 5);
+  assert.equal(count(code, /\ballAccess\b/), 6);
 });
 
-test('시연 방문 옵션은 방문 서비스만, 마일리지 옵션은 세 상점 서비스만 받는다', () => {
+test('시연 방문 옵션은 방문 서비스만, 마일리지 옵션은 네 상점 서비스만 받는다', () => {
   assert.equal(count(code, /new PostgresClaimSlotService\(/), 1);
   assert.equal(count(code, /new PostgresMileageShopService\(/), 1);
   const claimSlots = constructorArguments(code, 'PostgresClaimSlotService');
@@ -55,6 +55,7 @@ test('시연 방문 옵션은 방문 서비스만, 마일리지 옵션은 세 �
   assert.equal(count(code, /new PostgresCoinEconomyService\(/), 1);
   const coinEconomy = constructorArguments(code, 'PostgresCoinEconomyService');
   const gradeDraw = constructorArguments(code, 'PostgresGradeDrawService');
+  const furniture = constructorArguments(code, 'PostgresFurnitureService');
   assert.equal(count(claimSlots, /\.\.\.allAccess\.claimSlots\b/), 1);
   assert.equal(count(claimSlots, /allAccess\.mileageShop/), 0);
   assert.equal(count(mileageShop, /\.\.\.allAccess\.mileageShop\b/), 1);
@@ -64,8 +65,10 @@ test('시연 방문 옵션은 방문 서비스만, 마일리지 옵션은 세 �
   assert.equal(count(code, /new PostgresGradeDrawService\(/), 1);
   assert.equal(count(gradeDraw, /\.\.\.allAccess\.mileageShop\b/), 1);
   assert.equal(count(gradeDraw, /allAccess\.claimSlots/), 0);
+  assert.equal(count(furniture, /\.\.\.allAccess\.mileageShop\b/), 1);
+  assert.equal(count(furniture, /allAccess\.claimSlots/), 0);
   assert.equal(count(code, /\.\.\.allAccess\.claimSlots\b/), 1);
-  assert.equal(count(code, /\.\.\.allAccess\.mileageShop\b/), 3);
+  assert.equal(count(code, /\.\.\.allAccess\.mileageShop\b/), 4);
 });
 
 test('시연 테스트 방문 경로는 시연 배치 신호(accessRequests)가 없으면 서비스를 부르기 전에 404다', () => {

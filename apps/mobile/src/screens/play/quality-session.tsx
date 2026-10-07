@@ -29,6 +29,8 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
   const router = useRouter();
   const focused = useIsFocused();
   const [foreground, setForeground] = useState(AppState.currentState === 'active');
+  const [paused, setPaused] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const palette = colorsForScheme(useColorScheme());
   const motion = useMotionEnabled();
   const recheck = useConsentRecheck();
@@ -122,7 +124,7 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
     return () => { listener.remove(); controller.abort(); if (hide.current) clearTimeout(hide.current); };
   }, [run.id, run.startedAt, run.expiresAt, run.durationMs]);
   useEffect(() => {
-    if (!shouldRenderGameFrame(status, focused, foreground)) return;
+    if (!shouldRenderGameFrame(status, focused, foreground, paused)) return;
     let frame = 0;
     function tick() {
       if (phase.current === 'playing') {
@@ -148,16 +150,25 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
     return () => cancelAnimationFrame(frame);
     // The monotonic elapsed clock survives focus and foreground changes; only rendering stops.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [run.id, focused, foreground, status]);
+  }, [run.id, focused, foreground, status, paused]);
   const count = state.kind === 'stack' ? state.placed.length : state.kind === 'memory' ? state.matchedIndices.length / 2 : state.kind === 'delivery' ? state.tick : state.orderIndex;
   const total = state.kind === 'stack' || state.kind === 'memory' ? 6 : state.kind === 'delivery' ? 12 : 4;
   const reward = rewardState(previouslyEarned, result);
   const best = result?.version2BestScore ?? 0;
   return <View style={styles.session}>
     <View style={styles.header}><View style={{ flex: 1 }}><Text style={[styles.title, { color: palette.label }]}>{gameCopy[run.kind].title}</Text><Text style={{ color: palette.secondaryLabel }}>{count}/{total} {run.kind === 'stack' ? '층' : run.kind === 'memory' ? '쌍 발견' : run.kind === 'delivery' ? '구간' : '주문 전달'}</Text></View><Text style={[styles.clock, { color: palette.label }]}>{status === 'playing' ? `${Math.ceil((run.durationMs - elapsed) / 1000)}초` : status === 'saving' ? '저장 중' : status === 'error' ? '재전송' : '결과'}</Text></View>
+    {status === 'playing' && !paused ? <BounceButton label="일시정지" variant="secondary" onPress={() => setPaused(true)} /> : null}
     <View accessibilityLabel={`${total}단계 중 ${count}단계 완료`} style={[styles.progressTrack, { backgroundColor: palette.separator }]}><View style={[styles.progressFill, { width: `${Math.min(100, count / total * 100)}%`, backgroundColor: gameCopy[run.kind].color }]} /></View>
     <View style={[styles.context, { backgroundColor: palette.surface }]}><PlayToken item={visual.package} value={0} size={44} /><View style={{ flex: 1 }}><Text style={[styles.source, { color: palette.label }]}>{visual.merchantName ?? '놀이 마당 · 연습 장면'}</Text><Text style={{ color: palette.secondaryLabel }}>{visual.merchantName ? `${visual.package.name}와 가게 그림으로 ${run.kind === 'delivery' ? '운반' : run.kind === 'memory' ? '도감' : '포장'} 놀이` : '가게 그림이 없어 연습용 그림으로 놀아요'}</Text></View></View>
-    {status === 'result' && result ? <View style={styles.result}>
+    {paused && status === 'playing' ? <View style={[styles.pauseCard, { backgroundColor: palette.surface }]}>
+      <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]}>잠깐 쉬어갈까요?</Text>
+      <Text style={[styles.summary, { color: palette.secondaryLabel }]}>나가면 이번 기록은 저장되지 않아요. 조작을 멈춰도 서버의 제한 시간은 계속 흘러요.</Text>
+      {rulesOpen ? <Text style={[styles.summary, { color: palette.label }]}>{gameCopy[run.kind].rule}</Text> : null}
+      <BounceButton label="계속하기" onPress={() => setPaused(false)} />
+      <BounceButton label="처음부터 다시" variant="secondary" onPress={onRetry} />
+      <BounceButton label={rulesOpen ? '규칙 닫기' : '규칙 보기'} variant="secondary" onPress={() => setRulesOpen((open) => !open)} />
+      <BounceButton label="놀이 마당으로" variant="secondary" onPress={onExit} />
+    </View> : status === 'result' && result ? <View style={styles.result}>
       <Companion avatar={avatar} equipment={equipment} clothing={clothing} reaction={result.completed ? 'cheer' : 'concerned'} />
       <Text style={[styles.title, { color: palette.label }]}>{result.completed ? run.kind === 'delivery' ? '꾸러미 도착!' : '완성했어요!' : state.failed ? '이번 도전은 여기까지' : '다음에 이어 도전해요'}</Text>
       <Text style={[styles.score, { color: palette.label }]}>{result.score}점</Text>
@@ -226,6 +237,7 @@ function Orders({ state, visual, onChoose }: { state: Extract<State, { kind: 'or
 }
 
 const styles = StyleSheet.create({
+  pauseCard: { padding: 20, borderRadius: 16, gap: 14 },
   finalWork: { width: '100%' }, rewardArt: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 }, deliveryResult: { padding: 20, alignItems: 'center', borderRadius: 14, gap: 12, backgroundColor: '#E7DBBD' }, finalParcel: { padding: 10, backgroundColor: '#E8C384', borderWidth: 3, borderColor: '#A17A49', borderRadius: 8 }, servedOrder: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderColor: '#BA9765' },
   session: { gap: 12, paddingBottom: 24 }, header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, title: { fontSize: 24, fontWeight: '900', flexShrink: 1 }, clock: { fontSize: 21, fontWeight: '900' },
   progressTrack: { height: 10, overflow: 'hidden', borderRadius: 5 }, progressFill: { height: '100%', borderRadius: 5 },

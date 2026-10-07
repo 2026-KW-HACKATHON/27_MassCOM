@@ -5,12 +5,13 @@ import { fileURLToPath } from 'node:url';
 
 const read = (name: string) => readFileSync(fileURLToPath(new URL(`./${name}`, import.meta.url)), 'utf8');
 
-test('AppHeader accepts shop clothing metadata and draws it over the account avatar', () => {
+test('AppHeader passes shop clothing metadata to the profile strip avatar', () => {
   const header = read('app-header.tsx');
   assert.match(header, /avatarClothing\?: EquippedClothingArt \| null/);
-  assert.match(header, /accessibilityLabel=\{avatarClothing \? `내 정보, \$\{avatarClothing\.name\} 착용` : '내 정보'\}/);
-  assert.match(header, /<Image source=\{avatarArt \?\? mascotArt\['logo-badge'\]\}/);
-  assert.match(header, /<AvatarWardrobe clothing=\{avatarClothing \?\? null\} size=\{28\} \/>/);
+  assert.match(header, /<ProfileStrip avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} avatarContent=\{avatarContent\} \/>/);
+  const strip = read('profile-strip.tsx');
+  assert.match(strip, /<AvatarWardrobe clothing=\{clothing\} size=\{28\} \/>/);
+  assert.match(strip, /<Link href="\/profile" asChild><Pressable accessibilityRole="button" accessibilityLabel="내 프로필과 한 줄 소개 편집"/);
 });
 
 test('Companion accepts shop clothing metadata and draws it on the companion body', () => {

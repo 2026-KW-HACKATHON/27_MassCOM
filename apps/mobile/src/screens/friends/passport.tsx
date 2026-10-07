@@ -178,6 +178,7 @@ export function FriendPassportScreen({
       <Stagger index={0}>
         <FloatingCard style={styles.passportHero}>
           <Text accessibilityRole="header" maxFontSizeMultiplier={1.6} style={styles.passportNickname}>{friend.nickname}</Text>
+          {friend.intro ? <Text style={styles.note}>{friend.intro}</Text> : null}
           <Text style={styles.passportRank}>친구 순위 {friend.rank}위 · 배지 {friend.badges.earned}/{friend.badges.total}</Text>
           <Text style={styles.note}>{passportAsOfNote(snapshot.me.asOf)}</Text>
           <Pressable accessibilityRole="button" accessibilityLabel={`${friend.nickname}의 꾸민 공간 보기`}

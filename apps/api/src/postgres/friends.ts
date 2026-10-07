@@ -19,12 +19,15 @@ import {
   normalizeFriendCode,
   orderAccountPair,
   parseNickname,
+  parseProfileIntro,
   type FriendSource,
   type FriendsSnapshot,
 } from '../friends-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { countedVisitFilterSql, countedVisitFromSql } from './badge-rewards.js';
 import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
+import { canViewRoom, sharedRoomMerchants } from './room-access.js';
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../account-consent.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // 코드 충돌은 32^8분의 1 확률이라 몇 번만 다시 뽑는다.
@@ -117,8 +120,8 @@ export class PostgresFriendService implements FriendService {
         [accountId],
       );
       const accountIds = [accountId, ...rows.rows.map((row) => row.friend_account_id)];
-      const profiles = await client.query<{ account_id: string; nickname: string }>(
-        'SELECT account_id, nickname FROM explorer_profiles WHERE account_id = ANY($1::text[])',
+      const profiles = await client.query<{ account_id: string; nickname: string; intro: string }>(
+        'SELECT account_id, nickname, intro FROM explorer_profiles WHERE account_id = ANY($1::text[])',
         [accountIds],
       );
       const codes = await client.query<{ account_id: string; code: string }>(
@@ -134,6 +137,7 @@ export class PostgresFriendService implements FriendService {
       await client.query('COMMIT');
 
       const nicknames = new Map(profiles.rows.map((row) => [row.account_id, row.nickname]));
+      const intros = new Map(profiles.rows.map((row) => [row.account_id, row.intro]));
       const codeOf = new Map(codes.rows.map((row) => [row.account_id, row.code]));
       const medalsOf = (id: string) => {
         const row = values.rows.find((candidate) => candidate.account_id === id);
@@ -150,6 +154,7 @@ export class PostgresFriendService implements FriendService {
       const friends: FriendSource[] = rows.rows.map((row) => ({
         friendshipId: row.friendship_id,
         nickname: nicknameOf(row.friend_account_id),
+        intro: intros.get(row.friend_account_id) ?? '',
         medals: medalsOf(row.friend_account_id),
         stamps: stampsOf(row.friend_account_id),
       }));
@@ -158,6 +163,7 @@ export class PostgresFriendService implements FriendService {
       if (!myCode) throw new FriendError('ACCOUNT_DELETED');
       return buildFriendsSnapshot({
         nickname: nicknameOf(accountId),
+        intro: intros.get(accountId) ?? '',
         code: myCode,
         medals: medalsOf(accountId),
         stampCount: stampsOf(accountId).length,
@@ -227,38 +233,7 @@ export class PostgresFriendService implements FriendService {
       );
       if (blocked.rowCount === 1) return this.recordFailure(client, me, now);
 
-      const { low, high } = orderAccountPair(me, target);
-      const existing = await client.query<{ id: string }>(
-        'SELECT id FROM friendships WHERE account_low = $1 AND account_high = $2', [low, high],
-      );
-      if (existing.rows[0]) {
-        return { kind: 'added', friendshipId: existing.rows[0].id, created: false };
-      }
-      const counts = await client.query<{ mine: number; theirs: number }>(
-        `SELECT
-           (SELECT count(*) FROM friendships WHERE account_low = $1 OR account_high = $1)::integer AS mine,
-           (SELECT count(*) FROM friendships WHERE account_low = $2 OR account_high = $2)::integer AS theirs`,
-        [me, target],
-      );
-      if (counts.rows[0]!.mine >= maxFriends || counts.rows[0]!.theirs >= maxFriends) {
-        throw new FriendError('FRIEND_LIMIT');
-      }
-      // 내 코드가 아직 없어도 상대가 나를 다시 추가하고 별명이 보이도록 이때 만들어 둔다.
-      await this.ensureCode(client, me, now);
-      // 내가 예전에 끊어서 막아 둔 상대를 다시 추가하면 차단은 관계를 만드는 같은 거래에서 풀린다.
-      await client.query('DELETE FROM friend_blocks WHERE blocker = $1 AND blocked = $2', [me, target]);
-      const inserted = await client.query<{ id: string }>(
-        `INSERT INTO friendships (id, account_low, account_high, created_at)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (account_low, account_high) DO NOTHING
-         RETURNING id`,
-        [this.nextFriendshipId(), low, high, now],
-      );
-      if (inserted.rows[0]) return { kind: 'added', friendshipId: inserted.rows[0].id, created: true };
-      const raced = await client.query<{ id: string }>(
-        'SELECT id FROM friendships WHERE account_low = $1 AND account_high = $2', [low, high],
-      );
-      return { kind: 'added', friendshipId: raced.rows[0]!.id, created: false };
+      return this.insertFriendship(client, me, target, now);
     });
     if (outcome.kind === 'failed') throw outcome.error;
 
@@ -267,6 +242,63 @@ export class PostgresFriendService implements FriendService {
     // 거래가 끝난 직후 상대가 계정을 삭제했거나 관계를 끊었다면 방금 추가한 관계가 이미 없다. 코드가 사라진 것과 같다.
     if (!friend) throw new FriendError('FRIEND_CODE_NOT_FOUND');
     return { friend, created: outcome.created };
+  }
+
+  async addNeighbor(input: { accountId: string; roomId: string }): Promise<AddedFriend> {
+    if (!uuidPattern.test(input.roomId)) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+    const me = input.accountId;
+    const outcome = await this.transaction(async client => {
+      const candidate = (await client.query<{ account_id: string }>(
+        'SELECT account_id FROM public_rooms WHERE id=$1', [input.roomId])).rows[0];
+      if (!candidate || candidate.account_id === me) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      const target = candidate.account_id;
+      try { await this.accountLifecycle.assertAllActive(client, [me, target]); }
+      catch (error) {
+        if (!(error instanceof AccountLifecycleError)) throw error;
+        await this.accountLifecycle.assertActive(client, me);
+        throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      }
+      const room = (await client.query<{ visibility: string }>(`SELECT visibility FROM public_rooms
+        WHERE id=$1 AND account_id=$2 FOR SHARE`, [input.roomId, target])).rows[0];
+      if (room?.visibility !== 'NEIGHBORS') throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      const consent = await client.query<{ account_id: string }>(`SELECT account_id FROM account_consents
+        WHERE account_id=ANY($1::text[]) AND terms_version=$2 AND privacy_version=$3`,
+      [[me,target],CURRENT_TERMS_VERSION,CURRENT_PRIVACY_VERSION]);
+      if (consent.rows.length !== 2 || !(await canViewRoom(client, me, target, 'NEIGHBORS')))
+        throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      const { low, high } = orderAccountPair(me, target);
+      const existing = (await client.query<{ id: string }>(
+        'SELECT id FROM friendships WHERE account_low=$1 AND account_high=$2', [low, high])).rows[0];
+      if (existing) return { kind: 'added' as const, friendshipId: existing.id, created: false };
+      if (!(await sharedRoomMerchants(client, me, target)).length) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      return this.insertFriendship(client, me, target, this.now());
+    });
+    const snapshot = await this.list(me);
+    const friend = snapshot.friends.find(candidate => candidate.friendshipId === outcome.friendshipId);
+    if (!friend) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+    return { friend, created: outcome.created };
+  }
+
+  private async insertFriendship(client: PoolClient, me: string, target: string, now: Date): Promise<Extract<AddOutcome, { kind: 'added' }>> {
+    const { low, high } = orderAccountPair(me, target);
+    const existing = await client.query<{ id: string }>(
+      'SELECT id FROM friendships WHERE account_low = $1 AND account_high = $2', [low, high]);
+    if (existing.rows[0]) return { kind: 'added', friendshipId: existing.rows[0].id, created: false };
+    const counts = await client.query<{ mine: number; theirs: number }>(
+      `SELECT (SELECT count(*) FROM friendships WHERE account_low=$1 OR account_high=$1)::integer AS mine,
+        (SELECT count(*) FROM friendships WHERE account_low=$2 OR account_high=$2)::integer AS theirs`,
+      [me, target]);
+    if (counts.rows[0]!.mine >= maxFriends || counts.rows[0]!.theirs >= maxFriends) throw new FriendError('FRIEND_LIMIT');
+    await this.ensureCode(client, me, now);
+    // Explicit code entry reopens a block made by the requester; the neighbor route rejects blocks before this call.
+    await client.query('DELETE FROM friend_blocks WHERE blocker=$1 AND blocked=$2', [me,target]);
+    const inserted = await client.query<{ id: string }>(`INSERT INTO friendships(id,account_low,account_high,created_at)
+      VALUES($1,$2,$3,$4) ON CONFLICT(account_low,account_high) DO NOTHING RETURNING id`,
+    [this.nextFriendshipId(),low,high,now]);
+    if (inserted.rows[0]) return { kind: 'added', friendshipId: inserted.rows[0].id, created: true };
+    const raced = await client.query<{ id: string }>(
+      'SELECT id FROM friendships WHERE account_low=$1 AND account_high=$2', [low,high]);
+    return { kind: 'added', friendshipId: raced.rows[0]!.id, created: false };
   }
 
   async remove(input: { accountId: string; friendshipId: string }): Promise<void> {
@@ -337,6 +369,27 @@ export class PostgresFriendService implements FriendService {
         [input.accountId, nickname, this.now()],
       );
       return { nickname };
+    });
+  }
+
+  async setProfile(input: { accountId: string; nickname?: string; intro?: string }): Promise<{ nickname: string; intro: string }> {
+    const nickname = input.nickname === undefined ? undefined : parseNickname(input.nickname);
+    const intro = input.intro === undefined ? undefined : parseProfileIntro(input.intro);
+    if (nickname === null) throw new FriendError('FRIEND_NICKNAME_INVALID');
+    if (intro === null) throw new FriendError('PROFILE_INTRO_INVALID');
+    return this.transaction(async (client) => {
+      await this.accountLifecycle.assertActive(client, input.accountId);
+      // Serialize updates to independent profile fields without overwriting omitted values.
+      const existing = (await client.query<{ nickname: string; intro: string }>(
+        'SELECT nickname, intro FROM explorer_profiles WHERE account_id = $1 FOR UPDATE', [input.accountId],
+      )).rows[0];
+      const profile = { nickname: nickname ?? existing?.nickname ?? this.nextDefaultNickname(), intro: intro ?? existing?.intro ?? '' };
+      await client.query(
+        `INSERT INTO explorer_profiles (account_id, nickname, intro, updated_at) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (account_id) DO UPDATE SET nickname = EXCLUDED.nickname, intro = EXCLUDED.intro, updated_at = EXCLUDED.updated_at`,
+        [input.accountId, profile.nickname, profile.intro, this.now()],
+      );
+      return profile;
     });
   }
 

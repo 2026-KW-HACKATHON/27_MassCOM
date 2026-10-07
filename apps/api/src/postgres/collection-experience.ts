@@ -3,13 +3,15 @@ import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../account-conse
 import { buildMedals, type MedalValues } from '../badge-rules.js';
 import { badgeTarget, emptyEquipment, EXPERIENCE_BADGES, EXPERIENCE_COSMETICS,
   EXPERIENCE_PACKS, ExperienceError, type CollectionExperienceService, type Equipment,
-  type ExperienceProfile, type ExperienceSnapshot, type PublicExperienceProfile } from '../collection-experience.js';
+  type ExperienceCoinSource, type ExperienceProfile, type ExperienceSnapshot,
+  type PublicExperienceProfile, type PublicRepresentativeCoin } from '../collection-experience.js';
 import { MILEAGE_CATALOG, type MileageGrade } from '../mileage-rules.js';
 import { gameKinds, gameSkills, legacyGameAchievementScore, type GameKind } from '../play-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { medalValuesSql } from './badge-rewards.js';
 
-type Stored = { badge_id: string | null; cosmetics: Equipment; coin_entitlement_id: string | null; wishlist_item_id: string | null };
+type Stored = { badge_id: string | null; cosmetics: Equipment; coin_entitlement_id: string | null;
+  coin_source_kind: ExperienceCoinSource['sourceKind'] | null; coin_source_id: string | null; wishlist_item_id: string | null };
 type Spend = { id: string; grade: MileageGrade; cosmetic_bonus_id: string };
 type GradeDraw = { grade: MileageGrade; reward_kind: string; item_id: string | null };
 type Skill = { kind: GameKind; progress: number; achieved: boolean; best_score: number };
@@ -23,10 +25,18 @@ export class PostgresCollectionExperienceService implements CollectionExperience
   }
 
   async setEquipment(input: { accountId: string; badgeId?: string | null; cosmetics?: Partial<Equipment>;
-    coinEntitlementId?: string | null }): Promise<ExperienceSnapshot> {
+    coinEntitlementId?: string | null; coinSource?: ExperienceCoinSource | null }): Promise<ExperienceSnapshot> {
     if (input.badgeId !== undefined && input.badgeId !== null && typeof input.badgeId !== 'string') throw new ExperienceError('EXPERIENCE_INVALID');
     if (input.coinEntitlementId !== undefined && input.coinEntitlementId !== null &&
       (typeof input.coinEntitlementId !== 'string' || !uuid.test(input.coinEntitlementId))) throw new ExperienceError('EXPERIENCE_INVALID');
+    if (input.coinSource !== undefined && input.coinSource !== null &&
+      (!input.coinSource || typeof input.coinSource !== 'object' || Array.isArray(input.coinSource) ||
+        Object.keys(input.coinSource).sort().join(',') !== 'sourceId,sourceKind' ||
+        !['VISIT','STORE_DRAW','GRADE_DRAW','REROLL'].includes(input.coinSource.sourceKind) ||
+        !uuid.test(input.coinSource.sourceId))) throw new ExperienceError('EXPERIENCE_INVALID');
+    if (input.coinSource !== undefined && input.coinEntitlementId !== undefined &&
+      (input.coinSource?.sourceKind === 'VISIT' ? input.coinSource.sourceId : null) !== input.coinEntitlementId)
+      throw new ExperienceError('EXPERIENCE_INVALID');
     if (input.cosmetics !== undefined && (!input.cosmetics || typeof input.cosmetics !== 'object' || Array.isArray(input.cosmetics) ||
       Object.entries(input.cosmetics).some(([slot, id]) => !['hat', 'bag', 'prop', 'pose', 'decor'].includes(slot) ||
         (id !== null && typeof id !== 'string')))) throw new ExperienceError('EXPERIENCE_INVALID');
@@ -35,17 +45,23 @@ export class PostgresCollectionExperienceService implements CollectionExperience
       const before = await this.snapshot(db, input.accountId);
       const badgeId = input.badgeId === undefined ? before.profile.badgeId : input.badgeId;
       const cosmetics = { ...before.profile.cosmetics, ...input.cosmetics };
-      const coin = input.coinEntitlementId === undefined ? before.profile.coinEntitlementId : input.coinEntitlementId;
+      const coinSource = input.coinSource !== undefined ? input.coinSource :
+        input.coinEntitlementId !== undefined ? null : before.profile.coinSource;
+      const coin = input.coinSource !== undefined ? coinSource?.sourceKind === 'VISIT' ? coinSource.sourceId : null :
+        input.coinEntitlementId === undefined ? before.profile.coinEntitlementId : input.coinEntitlementId;
       if (badgeId && !before.progress.badges.some((badge) => badge.id === badgeId && badge.owned)) throw new ExperienceError('EXPERIENCE_LOCKED');
       for (const [slot, id] of Object.entries(cosmetics)) {
         if (id && !EXPERIENCE_COSMETICS.some((item) => item.id === id && item.slot === slot &&
           before.progress.cosmetics.some((progress) => progress.id === id && progress.equippable))) throw new ExperienceError('EXPERIENCE_LOCKED');
       }
-      if (coin && !(await this.ownsCoin(db, input.accountId, coin))) throw new ExperienceError('EXPERIENCE_LOCKED');
-      await db.query(`INSERT INTO collection_experience_profiles (account_id,badge_id,cosmetics,coin_entitlement_id,updated_at)
-        VALUES ($1,$2,$3,$4,now()) ON CONFLICT (account_id) DO UPDATE SET
-        badge_id=excluded.badge_id,cosmetics=excluded.cosmetics,coin_entitlement_id=excluded.coin_entitlement_id,updated_at=now()`,
-      [input.accountId, badgeId, JSON.stringify(cosmetics), coin]);
+      if (coinSource && !(await this.representative(db, input.accountId, coinSource, true))) throw new ExperienceError('EXPERIENCE_LOCKED');
+      if (coin && !coinSource && !(await this.ownsCoin(db, input.accountId, coin))) throw new ExperienceError('EXPERIENCE_LOCKED');
+      await db.query(`INSERT INTO collection_experience_profiles
+        (account_id,badge_id,cosmetics,coin_entitlement_id,coin_source_kind,coin_source_id,updated_at)
+        VALUES ($1,$2,$3,$4,$5,$6,now()) ON CONFLICT (account_id) DO UPDATE SET
+        badge_id=excluded.badge_id,cosmetics=excluded.cosmetics,coin_entitlement_id=excluded.coin_entitlement_id,
+        coin_source_kind=excluded.coin_source_kind,coin_source_id=excluded.coin_source_id,updated_at=now()`,
+      [input.accountId, badgeId, JSON.stringify(cosmetics), coin, coinSource?.sourceKind ?? null, coinSource?.sourceId ?? null]);
       return this.snapshot(db, input.accountId);
     });
   }
@@ -81,29 +97,15 @@ export class PostgresCollectionExperienceService implements CollectionExperience
         [friendId, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION]);
       if (!consent.rowCount) return { badgeId: null, badgeName: null, cosmetics: emptyEquipment(), coin: null };
       const snapshot = await this.snapshot(db, friendId);
-      const { badgeId, cosmetics, coinEntitlementId } = snapshot.profile;
-      const coinRow = coinEntitlementId ? (await db.query<NonNullable<PublicExperienceProfile['coin']>>(`SELECT merchant.id AS "merchantId", merchant.name AS "merchantName",
-        campaign.title AS "campaignTitle", goal.display_name AS "displayName", grade.summary AS artwork
-        FROM reward_entitlements entitlement JOIN campaigns campaign ON campaign.id=entitlement.campaign_id
-        JOIN merchants merchant ON merchant.id=campaign.merchant_id
-        JOIN campaign_goals goal ON goal.campaign_id=entitlement.campaign_id
-          AND goal.target_visit_count=entitlement.target_visit_count
-        LEFT JOIN collectible_acquisitions acquisition ON acquisition.entitlement_id=entitlement.id
-        LEFT JOIN collectible_publications publication ON publication.id=acquisition.publication_id AND publication.media_removed_at IS NULL
-        LEFT JOIN collectible_publication_grades grade ON grade.publication_id=publication.id AND grade.grade_id=acquisition.grade_id
-        WHERE entitlement.id=$1 AND entitlement.customer_account_id=$2
-          AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')`,
-      [coinEntitlementId, friendId])).rows[0] ?? null : null;
-      const coin = coinRow ? { merchantId: coinRow.merchantId, merchantName: coinRow.merchantName,
-        campaignTitle: coinRow.campaignTitle, displayName: coinRow.displayName,
-        ...(coinRow.artwork ? { artwork: coinRow.artwork } : {}) } : null;
+      const { badgeId, cosmetics, representativeCoin: coin } = snapshot.profile;
       return { badgeId, badgeName: EXPERIENCE_BADGES.find((badge) => badge.id === badgeId)?.name ?? null,
         cosmetics, coin };
     });
   }
 
   private async snapshot(db: PoolClient, accountId: string): Promise<ExperienceSnapshot> {
-    const stored = (await db.query<Stored>(`SELECT badge_id,cosmetics,coin_entitlement_id,wishlist_item_id
+    const stored = (await db.query<Stored>(`SELECT badge_id,cosmetics,coin_entitlement_id,
+      coin_source_kind,coin_source_id,wishlist_item_id
       FROM collection_experience_profiles WHERE account_id=$1`, [accountId])).rows[0];
     const medals = buildMedals((await db.query<MedalValues>(medalValuesSql, [accountId])).rows[0]!);
     const spends = (await db.query<Spend>(`SELECT id,grade,cosmetic_bonus_id FROM mileage_spends WHERE account_id=$1 AND reason='REROLL'`, [accountId])).rows;
@@ -137,11 +139,18 @@ export class PostgresCollectionExperienceService implements CollectionExperience
       equipment[slot] = candidate && ownedCosmetics.has(candidate) &&
         EXPERIENCE_COSMETICS.some((item) => item.id === candidate && item.slot === slot) ? candidate : null;
     }
-    const coin = stored?.coin_entitlement_id && await this.ownsCoin(db, accountId, stored.coin_entitlement_id)
-      ? stored.coin_entitlement_id : null;
+    const selectedSource = stored?.coin_source_kind && stored.coin_source_id ?
+      { sourceKind: stored.coin_source_kind, sourceId: stored.coin_source_id } : null;
+    const legacySource = !selectedSource && stored?.coin_entitlement_id ?
+      { sourceKind: 'VISIT' as const, sourceId: stored.coin_entitlement_id } : null;
+    const representativeCoin = selectedSource ? await this.representative(db, accountId, selectedSource, true) :
+      legacySource ? await this.representative(db, accountId, legacySource, false) : null;
+    const coin = representativeCoin && (selectedSource?.sourceKind === 'VISIT' || legacySource) ?
+      (selectedSource ?? legacySource)!.sourceId : null;
     const profile: ExperienceProfile = {
       badgeId: stored?.badge_id && ownedBadges.has(stored.badge_id) ? stored.badge_id : null,
-      cosmetics: equipment, coinEntitlementId: coin, wishlist: stored?.wishlist_item_id ?? null,
+      cosmetics: equipment, coinEntitlementId: coin, coinSource: representativeCoin ? selectedSource : null,
+      representativeCoin, wishlist: stored?.wishlist_item_id ?? null,
     };
     return { catalog: { badges: EXPERIENCE_BADGES, cosmetics: EXPERIENCE_COSMETICS, packs: EXPERIENCE_PACKS },
       profile, progress: { badges, cosmetics, packs: EXPERIENCE_PACKS.map((pack) => ({ id: pack.id,
@@ -153,8 +162,48 @@ export class PostgresCollectionExperienceService implements CollectionExperience
 
   private async ownsCoin(db: PoolClient, accountId: string, id: string): Promise<boolean> {
     const row = await db.query(`SELECT 1 FROM reward_entitlements WHERE id=$1 AND customer_account_id=$2
-      AND status IN ('GRANTED','MINT_REQUESTED','FULFILLED')`, [id, accountId]);
+      AND status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
+      AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions consumed WHERE consumed.source_kind='VISIT'
+        AND consumed.source_id=reward_entitlements.id)`, [id, accountId]);
     return Boolean(row.rowCount);
+  }
+
+  private async representative(db: PoolClient, accountId: string, source: ExperienceCoinSource,
+    requireAcquisition: boolean): Promise<PublicRepresentativeCoin | null> {
+    const row = (await db.query<PublicRepresentativeCoin>(`
+      WITH owned AS (
+        SELECT entitlement.campaign_id,entitlement.target_visit_count,
+          acquisition.publication_id,acquisition.grade_id
+        FROM reward_entitlements entitlement
+        LEFT JOIN collectible_acquisitions acquisition ON acquisition.entitlement_id=entitlement.id
+        WHERE $2='VISIT' AND entitlement.id=$3 AND entitlement.customer_account_id=$1
+          AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
+          AND (NOT $4::boolean OR acquisition.publication_id IS NOT NULL)
+        UNION ALL SELECT publication.campaign_id,NULL,draw.publication_id,draw.grade_id
+        FROM coin_draws draw JOIN coin_tickets ticket ON ticket.id=draw.ticket_id
+        JOIN collectible_publications publication ON publication.id=draw.publication_id
+        WHERE $2='STORE_DRAW' AND draw.ticket_id=$3 AND ticket.account_id=$1
+        UNION ALL SELECT publication.campaign_id,NULL,draw.publication_id,draw.grade_id
+        FROM grade_draws draw JOIN collectible_publications publication ON publication.id=draw.publication_id
+        WHERE $2='GRADE_DRAW' AND draw.id=$3 AND draw.account_id=$1 AND draw.reward_kind='COIN'
+        UNION ALL SELECT publication.campaign_id,NULL,draw.publication_id,draw.grade_id
+        FROM coin_rerolls draw JOIN collectible_publications publication ON publication.id=draw.publication_id
+        WHERE $2='REROLL' AND draw.id=$3 AND draw.account_id=$1 AND draw.revoked_at IS NULL
+      )
+      SELECT merchant.id AS "merchantId",merchant.name AS "merchantName",campaign.title AS "campaignTitle",
+        coalesce(goal.display_name,grade.summary->>'name','수집 코인') AS "displayName",
+        CASE WHEN publication.media_removed_at IS NULL THEN grade.summary ELSE NULL END AS artwork
+      FROM owned JOIN campaigns campaign ON campaign.id=owned.campaign_id
+      JOIN merchants merchant ON merchant.id=campaign.merchant_id
+      LEFT JOIN campaign_goals goal ON goal.campaign_id=owned.campaign_id AND goal.target_visit_count=owned.target_visit_count
+      LEFT JOIN collectible_publications publication ON publication.id=owned.publication_id
+      LEFT JOIN collectible_publication_grades grade ON grade.publication_id=owned.publication_id AND grade.grade_id=owned.grade_id
+      WHERE NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions consumed
+        WHERE consumed.source_kind=$2 AND consumed.source_id=$3) LIMIT 1`,
+    [accountId, source.sourceKind, source.sourceId, requireAcquisition])).rows[0];
+    return row ? { merchantId: row.merchantId, merchantName: row.merchantName,
+      campaignTitle: row.campaignTitle, displayName: row.displayName,
+      ...(row.artwork ? { artwork: row.artwork } : {}) } : null;
   }
 
   private async transaction<T>(work: (db: PoolClient) => Promise<T>): Promise<T> {

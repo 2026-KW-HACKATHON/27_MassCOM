@@ -10,6 +10,9 @@ import { PackArt } from '@/illustration/artwork';
 import { ThemePackBoard } from '@/experience/theme-pack-board';
 import { useExperience } from '@/experience/use-experience';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { StudioApiError, createStudioApiClient, type FurnitureSnapshot } from '@/studio/studio-api';
+import { FurnitureArt } from '@/studio/furniture-layer';
+import { clearFurniturePending, furniturePendingKey, readFurniturePending, writeFurniturePending, type FurniturePending } from '@/shop/furniture-pending';
 import { colorsForScheme } from '@/theme/palette';
 import { AppHeader } from '@/ui/app-header';
 import { BounceButton } from '@/ui/bounce-button';
@@ -62,8 +65,55 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const styles = useShopStyles();
 
   const api = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const furnitureApi = useMemo(() => createStudioApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const [furniture, setFurniture] = useState<FurnitureSnapshot>();
+  const [furnitureError, setFurnitureError] = useState(false);
+  const [furniturePending, setFurniturePending] = useState<FurniturePending>();
+  const [furnitureChoice, setFurnitureChoice] = useState<FurnitureSnapshot['catalog'][number]>();
+  const [furnitureBusy, setFurnitureBusy] = useState(false);
+  const [furnitureMessage, setFurnitureMessage] = useState<string>();
+  const furnitureFlight = useRef(false);
+  const furnitureKey = useMemo(() => furniturePendingKey(accountId, apiUrl, getAppPackageId() ?? 'app'), [accountId, apiUrl]);
   const drawApi = useMemo(() => createGradeDrawApi({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const shop = useShop(api);
+  const refreshFurniture = useCallback(async () => {
+    try { setFurniture(await furnitureApi.getFurniture()); setFurnitureError(false); }
+    catch { setFurnitureError(true); }
+  }, [furnitureApi]);
+  useFocusEffect(useCallback(() => {
+    void refreshFurniture();
+    void readFurniturePending(furnitureKey).then((saved) => { if (saved) setFurniturePending(saved); })
+      .catch(() => setFurnitureMessage('이전 가구 구매 요청을 확인하지 못했어요. 계정 기록을 확인해 주세요.'));
+  }, [refreshFurniture, furnitureKey]));
+
+  async function buyFurniture(saved?: FurniturePending) {
+    if (furnitureFlight.current || (!saved && (!furnitureChoice?.sellable || furnitureChoice.priceMileage === null))) return;
+    furnitureFlight.current = true; setFurnitureBusy(true); setFurnitureMessage(undefined);
+    try {
+      const attempt = saved ?? { itemId: furnitureChoice!.id, requestId: createRequestId() };
+      if (!saved) await writeFurniturePending(furnitureKey, attempt);
+      setFurniturePending(attempt);
+      const result = await furnitureApi.purchaseFurniture(attempt.itemId, attempt.requestId);
+      await clearFurniturePending(furnitureKey);
+      setFurniturePending(undefined); setFurnitureChoice(undefined);
+      setFurnitureMessage('가구를 보관함에 넣었어요. 마이룸에서 배치할 수 있어요.');
+      setFurniture((previous) => previous && { ...previous, inventory: [result.inventoryItem,
+        ...previous.inventory.filter((item) => item.id !== result.inventoryItem.id)] });
+      void refreshFurniture();
+    } catch (error) {
+      if (error instanceof StudioApiError && error.code.startsWith('FURNITURE_')) {
+        await clearFurniturePending(furnitureKey).catch(() => undefined);
+        setFurniturePending(undefined); void refreshFurniture();
+      }
+      setFurnitureMessage(error instanceof StudioApiError
+        ? error.code === 'FURNITURE_INSUFFICIENT_MILEAGE' ? '마일리지가 부족해요.'
+          : error.code === 'FURNITURE_UNAVAILABLE' ? '현재 구매할 수 없는 상품이에요.'
+            : error.code === 'FURNITURE_REQUEST_CONFLICT' ? '이 요청의 구매 상품이 달라요. 보관함을 다시 확인해 주세요.'
+              : '가구 구매를 확인하지 못했어요. 같은 요청으로 다시 확인해 주세요.'
+        : '연결을 확인해 주세요. 결과가 확실하지 않으면 같은 요청으로 다시 확인할 수 있어요.');
+    }
+    finally { furnitureFlight.current = false; setFurnitureBusy(false); }
+  }
   const drawScopeKey = `${apiUrl}:${accountId}:${getAppPackageId() ?? 'app'}`;
   const [storedDrawShop, setStoredDrawShop] = useState<{ key: string; value: GradeDrawShop }>();
   const [storedDrawError, setStoredDrawError] = useState<{ key: string; value: string }>();
@@ -489,6 +539,38 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       </Stagger>
 
       <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
+
+      <Stagger index={2}>
+        <View style={styles.section}>
+          <Text accessibilityRole="header" style={styles.sectionTitle}>마이룸 가구·벽·바닥</Text>
+          <Text style={styles.sectionNote}>상품은 실제 가게 카탈로그와 보관함을 기준으로 보여요. 가격이 정해지면 구매할 수 있어요.</Text>
+          <BounceButton label="내 보관함 보기" onPress={() => router.push('/room-inventory')} />
+          {furnitureMessage ? <Text accessibilityLiveRegion="polite" style={styles.sectionNote}>{furnitureMessage}</Text> : null}
+          {furniturePending ? <BounceButton label="이전 가구 구매 결과 다시 확인" disabled={furnitureBusy} onPress={() => void buyFurniture(furniturePending)} /> : null}
+          {furnitureError ? <BounceButton label="가구 목록 다시 불러오기" onPress={() => void refreshFurniture()} /> : null}
+          {!furniture && !furnitureError ? <StateScene kind="loading" title="가구를 불러오는 중" /> : null}
+          {furniture?.catalog.length === 0 ? <Text style={styles.historyEmpty}>등록된 가구가 아직 없어요.</Text> : null}
+          {furniture?.catalog.map((item) => {
+            const owned = furniture.inventory.some((entry) => entry.itemId === item.id);
+            return <FloatingCard key={item.id} style={styles.card}>
+              <View style={{ alignSelf: 'center', minHeight: 84, justifyContent: 'center' }}><FurnitureArt assetId={item.assetId} name={item.name} size={84} /></View>
+              <Text style={styles.sectionTitle}>{item.name}</Text>
+              <Text style={styles.sectionNote}>{item.kind === 'FURNITURE' ? '가구' : item.kind === 'WALL' ? '벽' : '바닥'} · {owned ? '보관함에 있음'
+                : item.priceMileage === null || !item.sellable ? '판매 준비 중' : `${item.priceMileage.toLocaleString('ko-KR')}P`}</Text>
+              {owned ? <BounceButton label="마이룸에서 배치하기" onPress={() => router.push('/studio')} /> :
+                <BounceButton label={item.sellable && item.priceMileage !== null ? '상품 보기' : '가격 미정 · 구매 불가'}
+                  disabled={!item.sellable || item.priceMileage === null || Boolean(furniturePending)} onPress={() => setFurnitureChoice(item)} />}
+            </FloatingCard>;
+          })}
+          {furnitureChoice ? <FloatingCard style={styles.card}>
+            <View style={{ alignSelf: 'center' }}><FurnitureArt assetId={furnitureChoice.assetId} name={furnitureChoice.name} size={112} /></View>
+            <Text accessibilityRole="header" style={styles.sectionTitle}>구매 확인 · {furnitureChoice.name}</Text>
+            <Text style={styles.sectionNote}>{furnitureChoice.priceMileage?.toLocaleString('ko-KR')}P를 사용해 보관함에 넣어요.</Text>
+            <BounceButton label={furnitureBusy ? '처리 중…' : '구매하고 보관함에 넣기'} disabled={furnitureBusy || Boolean(furniturePending)} onPress={() => void buyFurniture()} />
+            <BounceButton label="취소" disabled={furnitureBusy} onPress={() => setFurnitureChoice(undefined)} />
+          </FloatingCard> : null}
+        </View>
+      </Stagger>
 
       {experience.snapshot ? <ThemePackBoard snapshot={experience.snapshot} /> : null}
 

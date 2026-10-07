@@ -113,6 +113,12 @@ export function friendsAsOf(now: Date): string {
   return new Date((kstToday - 1) * dayMs).toISOString().slice(0, 10);
 }
 
+export function parseProfileIntro(input: unknown): string | null {
+  if (typeof input !== 'string' || /[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/u.test(input)) return null;
+  const intro = input.trim();
+  return Array.from(intro).length <= 30 ? intro : null;
+}
+
 // friendships의 account_low < account_high 순서는 DB의 "C" 정렬(UTF-8 바이트 순서)과 같아야 한다.
 export function orderAccountPair(first: string, second: string): { low: string; high: string } {
   return Buffer.compare(Buffer.from(first), Buffer.from(second)) <= 0
@@ -127,6 +133,7 @@ export type FriendStampView = { merchantName: string; merchantId: string | null 
 export type FriendView = {
   friendshipId: string;
   nickname: string;
+  intro?: string;
   badges: { earned: number; total: typeof totalBadges };
   medals: FriendMedalView[];
   stamps: FriendStampView[];
@@ -136,6 +143,7 @@ export type FriendView = {
 // asOf는 친구 화면의 메달·도장·순위가 "어제까지"의 방문만 센다는 뜻으로, 그 마지막 날짜(한국 날짜, YYYY-MM-DD)다.
 export type FriendMeView = {
   nickname: string;
+  intro?: string;
   code: string;
   badges: { earned: number; total: typeof totalBadges };
   medals: FriendMedalView[];
@@ -149,12 +157,14 @@ export type FriendsSnapshot = { me: FriendMeView; friends: FriendView[] };
 export type FriendSource = {
   friendshipId: string;
   nickname: string;
+  intro?: string;
   medals: readonly Medal[];
   stamps: readonly FriendStampView[];
 };
 
 export type FriendMeSource = {
   nickname: string;
+  intro?: string;
   code: string;
   medals: readonly Medal[];
   stampCount: number;
@@ -173,6 +183,7 @@ export function serializeFriendView(source: FriendSource, rank: number): FriendV
   return {
     friendshipId: source.friendshipId,
     nickname: source.nickname,
+    ...(source.intro !== undefined ? { intro: source.intro } : {}),
     badges: badgesOf(source.medals),
     medals: medalsOf(source.medals),
     stamps: source.stamps.map((stamp) => ({ merchantName: stamp.merchantName, merchantId: stamp.merchantId })),
@@ -183,6 +194,7 @@ export function serializeFriendView(source: FriendSource, rank: number): FriendV
 export function serializeFriendMeView(source: FriendMeSource, rank: number): FriendMeView {
   return {
     nickname: source.nickname,
+    ...(source.intro !== undefined ? { intro: source.intro } : {}),
     code: source.code,
     badges: badgesOf(source.medals),
     medals: medalsOf(source.medals),

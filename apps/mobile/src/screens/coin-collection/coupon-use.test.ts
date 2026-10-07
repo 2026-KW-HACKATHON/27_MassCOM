@@ -13,4 +13,5 @@ test('coupon identity is revoked on app background and route blur; late requests
   assert.match(source, /if \(cancelled \|\| !activeRef\.current \|\| !gate\.isCurrent\(request\)\) \{/);
   assert.match(source, /revokeIdentity\(next\.token\)/);
   assert.match(source, /active && usable && identityValid/);
+  assert.match(source, /coupon\.status === 'REVOKED'.*방문 취소로 철회된 쿠폰/);
 });

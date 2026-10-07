@@ -1,3 +1,4 @@
+import { useLocalSearchParams } from 'expo-router';
 import { useAuthSession } from '@/auth/auth-provider';
 import { publicApiConfig } from '@/config/public-api-runtime';
 import { AuthRequiredRoute } from '@/screens/auth-required/route';
@@ -8,6 +9,7 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 
 export default function RoomExploreRoute() {
+  const { roomId } = useLocalSearchParams<{ roomId?: string | string[] }>();
   const auth = useAuthSession();
   const header = <BackHeader title="월계 방 탐험" />;
   if (!auth.credential || !auth.accountId) return <SkyBackdrop><AuthRequiredRoute header={header} /></SkyBackdrop>;
@@ -15,5 +17,5 @@ export default function RoomExploreRoute() {
     <DemoConfigurationRequired title="방 탐험 설정이 필요합니다." missing={['EXPO_PUBLIC_API_URL']} />
   </SkyScrollView></SkyBackdrop>;
   return <RoomExploreScreen key={auth.accountId} apiUrl={publicApiConfig.apiUrl} credential={auth.credential}
-    onSessionInvalid={auth.invalidateSession} />;
+    onSessionInvalid={auth.invalidateSession} requestedRoomId={typeof roomId === 'string' ? roomId : undefined} />;
 }

@@ -2,7 +2,8 @@ import { randomInt as cryptoRandomInt, randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 import {
   CoinEconomyError, type CoinCollection, type CoinEconomyService, type CoinOwned,
-  type CoinPool, type CoinReference, type CoinSeries, type CoinShop,
+  type CoinPool, type CoinReference, type CoinSeries, type CoinShop, type CoinSource, type CoinSourceKind,
+  type CoinCatalog, type CoinRerollOption, type CoinRerollTicket,
   type CoinTicket, type PublishCoinPoolInput, type PublishCoinSeriesInput,
 } from '../coin-economy.js';
 import { isCompleteOwnerOfferConsent, normalizeDocumentReference } from '../store-go-live-rules.js';
@@ -21,7 +22,16 @@ type TicketRow = {
   grade: CoinTicket['grade']; acquired_at: Date; expires_at: Date; used_at: Date | null;
   request_id: string; source: 'PURCHASE' | 'GRANT';
 };
-type OwnedRow = { publication_id: string; grade_id: string; summary: Record<string, unknown>; visit_quantity: number; draw_quantity: number };
+type OwnedRow = { publication_id: string; grade_id: string; summary: Record<string, unknown>; visit_quantity: number; draw_quantity: number; reroll_quantity: number };
+type SourceRow = { source_kind: CoinSourceKind; source_id: string; publication_id: string; grade_id: string;
+  merchant_id: string; nft_status: CoinSource['nftStatus']; consumed: boolean };
+type CatalogRow = { merchant_id: string; merchant_name: string; publication_id: string; grade_id: string;
+  summary: Record<string, unknown> };
+type RerollTicketRow = { id: string; account_id: string; grade: CoinRerollTicket['grade']; acquired_at: Date;
+  used_at: Date | null; request_id: string };
+type RerollRow = { id: string; ticket_id: string; pool_id: string; account_id: string; request_id: string;
+  source_kind: CoinSourceKind; source_id: string; publication_id: string; grade_id: string; drawn_at: Date;
+  spent_source: CoinSource; result_coin: CoinOwned; revoked_at: Date | null };
 type SeriesRow = {
   id: string; merchant_id: string; merchant_name: string; merchant_status: 'ACTIVE' | 'PAUSED';
   title: string; ends_at: Date; status: 'ACTIVE' | 'PAUSED';
@@ -31,7 +41,7 @@ type SeriesRow = {
 type SeriesEntryRow = { series_id: string; tier: 'BASE' | 'PRISM'; publication_id: string; grade_id: string; summary: Record<string, unknown>; media_removed: boolean };
 type SeriesCouponRow = {
   id: string; account_id: string; series_id: string; merchant_id: string; tier: 'BASE' | 'PRISM';
-  title: string; detail: string; issued_at: Date; expires_at: Date; redeemed_at: Date | null;
+  title: string; detail: string; issued_at: Date; expires_at: Date; redeemed_at: Date | null; revoked_at: Date | null;
 };
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,34 +57,75 @@ const ticketSql = `SELECT ticket.*, pool.merchant_id, pool.event_name, pool.grad
 const seriesSql = `SELECT series.*, merchant.name AS merchant_name, merchant.status AS merchant_status FROM coin_series AS series
   JOIN merchants AS merchant ON merchant.id = series.merchant_id`;
 
-// 방문에서 얻은 발행 수집품과 새 코인 뽑기를 합산한다. 방문 취소는 entitlement.status로 제외한다.
+// 각 획득 행은 보존하고 회수된 행만 현재 보유량에서 제외한다.
 const ownedSql = `WITH visit_coins AS (
     SELECT acquisition.publication_id, acquisition.grade_id, count(*)::integer AS n
     FROM collectible_acquisitions acquisition
     JOIN reward_entitlements entitlement ON entitlement.id = acquisition.entitlement_id
     WHERE entitlement.customer_account_id = $1 AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
+      AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+        WHERE spent.source_kind = 'VISIT' AND spent.source_id = acquisition.entitlement_id)
     GROUP BY acquisition.publication_id, acquisition.grade_id
   ), draw_coins AS (
     SELECT acquired.publication_id, acquired.grade_id, count(*)::integer AS n
     FROM (
       SELECT draw.publication_id, draw.grade_id
       FROM coin_draws draw JOIN coin_tickets ticket ON ticket.id = draw.ticket_id
-      WHERE ticket.account_id = $1
+      WHERE ticket.account_id = $1 AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+        WHERE spent.source_kind = 'STORE_DRAW' AND spent.source_id = draw.ticket_id)
       UNION ALL
       SELECT draw.publication_id, draw.grade_id
       FROM grade_draws draw WHERE draw.account_id = $1 AND draw.reward_kind = 'COIN'
+        AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+          WHERE spent.source_kind = 'GRADE_DRAW' AND spent.source_id = draw.id)
     ) acquired GROUP BY acquired.publication_id, acquired.grade_id
+  ), reroll_coins AS (
+    SELECT draw.publication_id, draw.grade_id, count(*)::integer AS n
+    FROM coin_rerolls draw WHERE draw.account_id = $1 AND draw.revoked_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM coin_reroll_consumptions spent
+        WHERE spent.source_kind = 'REROLL' AND spent.source_id = draw.id)
+    GROUP BY draw.publication_id, draw.grade_id
   )
   SELECT grade.publication_id, grade.grade_id,
     CASE WHEN publication.media_removed_at IS NOT NULL
       THEN '{"name":"공개가 중단된 코인","mediaRemoved":true}'::jsonb ELSE grade.summary END AS summary,
     coalesce(visit_coins.n,0)::integer AS visit_quantity,
-    coalesce(draw_coins.n,0)::integer AS draw_quantity
+    coalesce(draw_coins.n,0)::integer AS draw_quantity,
+    coalesce(reroll_coins.n,0)::integer AS reroll_quantity
   FROM collectible_publication_grades grade
   JOIN collectible_publications publication ON publication.id = grade.publication_id
   LEFT JOIN visit_coins USING (publication_id, grade_id)
   LEFT JOIN draw_coins USING (publication_id, grade_id)
-  WHERE (visit_coins.n IS NOT NULL OR draw_coins.n IS NOT NULL)`;
+  LEFT JOIN reroll_coins USING (publication_id, grade_id)
+  WHERE (visit_coins.n IS NOT NULL OR draw_coins.n IS NOT NULL OR reroll_coins.n IS NOT NULL)`;
+
+const sourceSql = `SELECT source.*, publication.merchant_id,
+  CASE WHEN source.source_kind = 'VISIT' AND (source.entitlement_status = 'FULFILLED' OR source.has_asset)
+    THEN 'COMPLETED'
+    WHEN source.source_kind = 'VISIT' AND (source.entitlement_status = 'MINT_REQUESTED' OR source.has_job)
+    THEN 'PENDING' ELSE 'NOT_REQUESTED' END AS nft_status,
+  spent.source_id IS NOT NULL AS consumed
+  FROM (
+    SELECT 'VISIT'::text AS source_kind, acquisition.entitlement_id AS source_id,
+      acquisition.publication_id, acquisition.grade_id, entitlement.status AS entitlement_status,
+      job.id IS NOT NULL AS has_job, asset.id IS NOT NULL AS has_asset
+    FROM collectible_acquisitions acquisition
+    JOIN reward_entitlements entitlement ON entitlement.id = acquisition.entitlement_id
+    LEFT JOIN mint_jobs job ON job.entitlement_id = entitlement.id
+    LEFT JOIN nft_assets asset ON asset.mint_job_id = job.id
+    WHERE entitlement.customer_account_id = $1 AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
+    UNION ALL
+    SELECT 'STORE_DRAW', draw.ticket_id, draw.publication_id, draw.grade_id, NULL, false, false
+    FROM coin_draws draw JOIN coin_tickets ticket ON ticket.id = draw.ticket_id WHERE ticket.account_id = $1
+    UNION ALL
+    SELECT 'GRADE_DRAW', draw.id, draw.publication_id, draw.grade_id, NULL, false, false
+    FROM grade_draws draw WHERE draw.account_id = $1 AND draw.reward_kind = 'COIN'
+    UNION ALL
+    SELECT 'REROLL', draw.id, draw.publication_id, draw.grade_id, NULL, false, false
+    FROM coin_rerolls draw WHERE draw.account_id = $1 AND draw.revoked_at IS NULL
+  ) source
+  JOIN collectible_publications publication ON publication.id = source.publication_id
+  LEFT JOIN coin_reroll_consumptions spent ON spent.source_kind = source.source_kind AND spent.source_id = source.source_id`;
 
 function viewPool(row: PoolRow, entries: EntryRow[]): CoinPool {
   const relevant = entries.filter(entry => entry.pool_id === row.id);
@@ -101,7 +152,23 @@ function viewTicket(row: TicketRow, now: Date): CoinTicket {
 function viewOwned(row: OwnedRow): CoinOwned {
   return { publicationId: row.publication_id, gradeId: row.grade_id, name: nameOf(row.summary),
     summary: row.summary, visitQuantity: row.visit_quantity, drawQuantity: row.draw_quantity,
-    quantity: row.visit_quantity + row.draw_quantity };
+    rerollQuantity: row.reroll_quantity, quantity: row.visit_quantity + row.draw_quantity + row.reroll_quantity };
+}
+function viewSource(row: SourceRow): CoinSource {
+  return { sourceKind: row.source_kind, sourceId: row.source_id, publicationId: row.publication_id,
+    gradeId: row.grade_id, merchantId: row.merchant_id, nftStatus: row.nft_status,
+    rerollEligible: !row.consumed && row.nft_status === 'NOT_REQUESTED' };
+}
+export function coinGradeRank(entry: { grade_id: string; summary: Record<string, unknown> }): number {
+  const label = `${entry.grade_id} ${String(entry.summary.gradeName ?? '')}`.toLowerCase();
+  if (/prism|platinum|프리즘|플래티넘/.test(label)) return 4;
+  if (/gold|골드/.test(label)) return 3;
+  if (/silver|실버/.test(label)) return 2;
+  if (/bronze|브론즈/.test(label)) return 1;
+  return 0;
+}
+function viewRerollTicket(row: RerollTicketRow): CoinRerollTicket {
+  return { id: row.id, grade: row.grade, status: row.used_at ? 'USED' : 'UNUSED', acquiredAt: row.acquired_at.toISOString() };
 }
 function viewSeries(row: SeriesRow, entries: SeriesEntryRow[], owned: CoinOwned[], coupon: SeriesCouponRow | undefined, now: Date): CoinSeries {
   const quantities = new Map(owned.map(coin => [keyOf(coin), coin.quantity]));
@@ -121,7 +188,7 @@ function viewSeries(row: SeriesRow, entries: SeriesEntryRow[], owned: CoinOwned[
       : prismComplete ? row.prism_issued < row.prism_cap ? 'PRISM' : null
       : baseComplete && row.base_issued < row.base_cap ? 'BASE' : null,
     coupon: coupon ? { id: coupon.id, tier: coupon.tier, title: coupon.title, detail: coupon.detail,
-      expiresAt: coupon.expires_at.toISOString(), status: coupon.redeemed_at ? 'REDEEMED'
+      expiresAt: coupon.expires_at.toISOString(), status: coupon.revoked_at ? 'REVOKED' : coupon.redeemed_at ? 'REDEEMED'
         : coupon.expires_at <= now ? 'EXPIRED' : 'ISSUED',
       redeemedAt: coupon.redeemed_at?.toISOString() ?? null } : null,
   };
@@ -182,6 +249,30 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
   private async owned(client: Pool | PoolClient, accountId: string): Promise<CoinOwned[]> {
     return (await client.query<OwnedRow>(ownedSql, [accountId])).rows.map(viewOwned);
   }
+  private async sources(client: Pool | PoolClient, accountId: string): Promise<CoinSource[]> {
+    return (await client.query<SourceRow>(sourceSql, [accountId])).rows.filter(row => !row.consumed).map(viewSource);
+  }
+  private async rerollOptions(client: Pool | PoolClient, merchantIds: string[]): Promise<CoinRerollOption[]> {
+    if (!merchantIds.length) return [];
+    const now = this.now();
+    const pools = (await client.query<PoolRow>(`${poolSql} WHERE pool.merchant_id = ANY($1::text[])
+      AND pool.status = 'ACTIVE' AND merchant.status = 'ACTIVE'
+      AND pool.purchase_starts_at <= $2 AND pool.purchase_ends_at > $2 AND pool.use_expires_at > $2
+      ORDER BY pool.created_at DESC`, [merchantIds, now])).rows;
+    const entries = await this.poolEntries(client, pools.map(pool => pool.id));
+    return pools.flatMap(pool => {
+      const published = entries.filter(entry => entry.pool_id === pool.id && !entry.media_removed && !entry.sale_unavailable);
+      if (published.length !== entries.filter(entry => entry.pool_id === pool.id).length) return [];
+      return (['NORMAL', 'SILVER'] as const).flatMap(grade => {
+        const available = published.filter(entry => coinGradeRank(entry) >= (grade === 'SILVER' ? 2 : 1));
+        const total = available.reduce((sum, entry) => sum + entry.weight, 0);
+        return total ? [{ poolId: pool.id, merchantId: pool.merchant_id, merchantName: pool.merchant_name,
+          eventName: pool.event_name, grade, entries: available.map(entry => ({ publicationId: entry.publication_id,
+            gradeId: entry.grade_id, name: nameOf(entry.summary), weight: entry.weight,
+            probability: entry.weight / total })) }] : [];
+      });
+    });
+  }
   private async balance(client: Pool | PoolClient, accountId: string) {
     const { earned, spent } = await earnedAndSpent(client, accountId);
     return { earned, spent, balance: earned + this.showcaseBonusMileage - spent };
@@ -215,6 +306,152 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
   }
   async grantTicket(input: { actorAccountId: string; accountId: string; poolId: string; requestId: string }) {
     return this.issue(input, 'GRANT');
+  }
+  async grantRerollTicket(input: { actorAccountId: string; accountId: string;
+    grade: CoinRerollTicket['grade']; requestId: string }) {
+    if (!['NORMAL', 'SILVER'].includes(input.grade) || !validText(input.requestId, 100)) {
+      throw new CoinEconomyError('INVALID_REQUEST');
+    }
+    return this.transaction(async client => {
+      await this.accountLifecycle.assertAllActive(client, [input.actorAccountId, input.accountId]);
+      await assertPlatformAdmin(client, this.accountLifecycle, input.actorAccountId);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`coin-reroll:${input.accountId}`]);
+      const prior = (await client.query<RerollTicketRow>(`SELECT ticket.*, draw.drawn_at AS used_at
+        FROM coin_reroll_tickets ticket LEFT JOIN coin_rerolls draw ON draw.ticket_id = ticket.id
+        WHERE ticket.account_id = $1 AND ticket.request_id = $2`, [input.accountId, input.requestId])).rows[0];
+      if (prior) {
+        if (prior.grade !== input.grade) throw new CoinEconomyError('COIN_REQUEST_CONFLICT');
+        return { ticket: viewRerollTicket(prior), replayed: true };
+      }
+      const id = this.nextId(); const now = this.now();
+      await client.query(`INSERT INTO coin_reroll_tickets
+        (id,account_id,grade,request_id,granted_by_account_id,acquired_at) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [id, input.accountId, input.grade, input.requestId, input.actorAccountId, now]);
+      return { ticket: { id, grade: input.grade, status: 'UNUSED' as const, acquiredAt: now.toISOString() }, replayed: false };
+    });
+  }
+  async useRerollTicket(input: { accountId: string; ticketId: string; poolId: string;
+    sourceKind: CoinSourceKind; sourceId: string; requestId: string }) {
+    if (!uuid.test(input.ticketId) || !uuid.test(input.poolId) || !uuid.test(input.sourceId)
+      || !['VISIT', 'STORE_DRAW', 'GRADE_DRAW', 'REROLL'].includes(input.sourceKind)
+      || !validText(input.requestId, 100)) throw new CoinEconomyError('INVALID_REQUEST');
+    return this.transaction(async client => {
+      await this.accountLifecycle.assertActive(client, input.accountId);
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`coin-reroll:${input.accountId}`]);
+      const ticket = (await client.query<RerollTicketRow>(`SELECT ticket.*, draw.drawn_at AS used_at
+        FROM coin_reroll_tickets ticket LEFT JOIN coin_rerolls draw ON draw.ticket_id = ticket.id
+        WHERE ticket.id = $1 AND ticket.account_id = $2 FOR UPDATE OF ticket`, [input.ticketId, input.accountId])).rows[0];
+      if (!ticket) throw new CoinEconomyError('COIN_REROLL_TICKET_NOT_FOUND');
+      const prior = (await client.query<RerollRow>(`SELECT * FROM coin_rerolls WHERE account_id = $1 AND request_id = $2`,
+        [input.accountId, input.requestId])).rows[0];
+      if (prior) {
+        if (prior.ticket_id !== input.ticketId || prior.pool_id !== input.poolId
+          || prior.source_kind !== input.sourceKind || prior.source_id !== input.sourceId) {
+          throw new CoinEconomyError('COIN_REQUEST_CONFLICT');
+        }
+        if (prior.revoked_at) throw new CoinEconomyError('COIN_REROLL_RESULT_REVOKED');
+        const removed = (await client.query<{ media_removed_at: Date | null }>(
+          'SELECT media_removed_at FROM collectible_publications WHERE id = $1', [prior.publication_id])).rows[0]?.media_removed_at;
+        const coin = removed ? { ...prior.result_coin, name: '공개가 중단된 코인',
+          summary: { name: '공개가 중단된 코인', mediaRemoved: true } } : prior.result_coin;
+        return { rerollId: prior.id, ticket: viewRerollTicket(ticket), spent: prior.spent_source,
+          coin, replayed: true };
+      }
+      if (ticket.used_at) throw new CoinEconomyError('COIN_REROLL_TICKET_USED');
+      const sourceSqlByKind: Record<CoinSourceKind, string> = {
+        VISIT: `SELECT acquisition.publication_id, acquisition.grade_id, publication.merchant_id,
+          entitlement.status AS entitlement_status, job.id IS NOT NULL AS has_job
+          FROM collectible_acquisitions acquisition
+          JOIN reward_entitlements entitlement ON entitlement.id = acquisition.entitlement_id
+          JOIN collectible_publications publication ON publication.id = acquisition.publication_id
+          LEFT JOIN mint_jobs job ON job.entitlement_id = entitlement.id
+          WHERE acquisition.entitlement_id = $1 AND entitlement.customer_account_id = $2 FOR UPDATE OF entitlement`,
+        STORE_DRAW: `SELECT draw.publication_id, draw.grade_id, publication.merchant_id,
+          NULL::text AS entitlement_status, false AS has_job FROM coin_draws draw
+          JOIN coin_tickets ticket ON ticket.id = draw.ticket_id
+          JOIN collectible_publications publication ON publication.id = draw.publication_id
+          WHERE draw.ticket_id = $1 AND ticket.account_id = $2 FOR UPDATE OF ticket`,
+        GRADE_DRAW: `SELECT draw.publication_id, draw.grade_id, publication.merchant_id,
+          NULL::text AS entitlement_status, false AS has_job FROM grade_draws draw
+          JOIN collectible_publications publication ON publication.id = draw.publication_id
+          WHERE draw.id = $1 AND draw.account_id = $2 AND draw.reward_kind = 'COIN' FOR UPDATE OF draw`,
+        REROLL: `SELECT draw.publication_id, draw.grade_id, publication.merchant_id,
+          NULL::text AS entitlement_status, false AS has_job FROM coin_rerolls draw
+          JOIN collectible_publications publication ON publication.id = draw.publication_id
+          WHERE draw.id = $1 AND draw.account_id = $2 AND draw.revoked_at IS NULL FOR UPDATE OF draw`,
+      };
+      const source = (await client.query<{ publication_id: string; grade_id: string; merchant_id: string;
+        entitlement_status: string | null; has_job: boolean }>(sourceSqlByKind[input.sourceKind],
+      [input.sourceId, input.accountId])).rows[0];
+      if (!source || (input.sourceKind === 'VISIT' && !['GRANTED','MINT_REQUESTED','FULFILLED'].includes(source.entitlement_status ?? ''))) {
+        throw new CoinEconomyError('COIN_REROLL_SOURCE_NOT_FOUND');
+      }
+      if (input.sourceKind === 'VISIT' && (source.entitlement_status !== 'GRANTED' || source.has_job)) {
+        throw new CoinEconomyError('COIN_REROLL_SOURCE_LOCKED');
+      }
+      const spent = (await client.query<{ source_id: string }>(`SELECT source_id FROM coin_reroll_consumptions
+        WHERE source_kind = $1 AND source_id = $2`, [input.sourceKind, input.sourceId])).rows[0];
+      if (spent) throw new CoinEconomyError('COIN_REROLL_SOURCE_NOT_FOUND');
+      const pool = (await client.query<PoolRow>(`${poolSql} WHERE pool.id = $1 FOR SHARE OF pool, merchant`,
+        [input.poolId])).rows[0];
+      const now = this.now();
+      if (!pool || pool.merchant_id !== source.merchant_id || pool.status !== 'ACTIVE'
+        || pool.purchase_starts_at > now || pool.purchase_ends_at <= now || pool.use_expires_at <= now) {
+        throw new CoinEconomyError('COIN_REROLL_POOL_UNAVAILABLE');
+      }
+      const entries = (await client.query<EntryRow>(`SELECT entry.*, grade.summary,
+        publication.media_removed_at IS NOT NULL AS media_removed,
+        (merchant.status <> 'ACTIVE' OR campaign.status <> 'ACTIVE' OR NOT campaign.is_public
+          OR campaign.starts_at > $2 OR campaign.ends_at <= $2
+          OR link.publication_id IS NULL) AS sale_unavailable
+        FROM coin_pool_entries entry
+        JOIN collectible_publication_grades grade USING (publication_id,grade_id)
+        JOIN collectible_publications publication ON publication.id = entry.publication_id
+        JOIN campaigns campaign ON campaign.id = publication.campaign_id
+        JOIN merchants merchant ON merchant.id = publication.merchant_id
+        LEFT JOIN campaign_collectible_publications link
+          ON link.campaign_id = campaign.id AND link.publication_id = publication.id
+        WHERE entry.pool_id = $1 ORDER BY entry.publication_id,entry.grade_id
+        FOR SHARE OF publication,campaign,merchant`, [pool.id, now])).rows;
+      if (!entries.length || entries.some(entry => entry.media_removed || entry.sale_unavailable)) {
+        throw new CoinEconomyError('COIN_REROLL_POOL_UNAVAILABLE');
+      }
+      const available = entries.filter(entry => coinGradeRank(entry) >= (ticket.grade === 'SILVER' ? 2 : 1));
+      if (!available.length) throw new CoinEconomyError('COIN_REROLL_NO_CANDIDATES');
+      const chosen = chooseWeightedCoin(available, this.randomInt);
+      const rerollId = this.nextId();
+      const spentSource: CoinSource = { sourceKind: input.sourceKind, sourceId: input.sourceId,
+        publicationId: source.publication_id, gradeId: source.grade_id, merchantId: source.merchant_id,
+        nftStatus: 'NOT_REQUESTED', rerollEligible: false };
+      // 새 획득을 포함한 현재 수량을 기록해 재시도에서 같은 결과를 되돌린다.
+      const oldCoin = (await this.owned(client, input.accountId)).find(coin => coin.publicationId === chosen.publication_id
+        && coin.gradeId === chosen.grade_id);
+      const resultCoin: CoinOwned = { publicationId: chosen.publication_id, gradeId: chosen.grade_id,
+        name: nameOf(chosen.summary), summary: chosen.summary,
+        visitQuantity: oldCoin?.visitQuantity ?? 0, drawQuantity: oldCoin?.drawQuantity ?? 0,
+        rerollQuantity: (oldCoin?.rerollQuantity ?? 0) + 1,
+        quantity: (oldCoin?.quantity ?? 0) + 1 - (source.publication_id === chosen.publication_id
+          && source.grade_id === chosen.grade_id ? 1 : 0) };
+      if (source.publication_id === chosen.publication_id && source.grade_id === chosen.grade_id) {
+        if (input.sourceKind === 'VISIT') resultCoin.visitQuantity--;
+        else if (input.sourceKind === 'REROLL') resultCoin.rerollQuantity--;
+        else resultCoin.drawQuantity--;
+      }
+      await client.query(`INSERT INTO coin_rerolls
+        (id,ticket_id,pool_id,account_id,request_id,source_kind,source_id,publication_id,grade_id,spent_source,result_coin,drawn_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11::jsonb,$12)`,
+      [rerollId, ticket.id, pool.id, input.accountId, input.requestId, input.sourceKind, input.sourceId,
+        chosen.publication_id, chosen.grade_id, JSON.stringify(spentSource), JSON.stringify(resultCoin), now]);
+      await client.query(`INSERT INTO coin_reroll_consumptions (account_id,source_kind,source_id,reroll_id,consumed_at)
+        VALUES ($1,$2,$3,$4,$5)`, [input.accountId, input.sourceKind, input.sourceId, rerollId, now]);
+      await client.query(`UPDATE collection_experience_profiles
+        SET coin_source_kind = NULL, coin_source_id = NULL, coin_entitlement_id = NULL, updated_at = $4
+        WHERE account_id = $1 AND ((coin_source_kind = $2 AND coin_source_id = $3)
+          OR ($2 = 'VISIT' AND coin_source_kind IS NULL AND coin_entitlement_id = $3))`,
+      [input.accountId, input.sourceKind, input.sourceId, now]);
+      return { rerollId, ticket: { ...viewRerollTicket(ticket), status: 'USED' as const },
+        spent: spentSource, coin: resultCoin, replayed: false };
+    });
   }
   private async issue(input: { accountId: string; poolId: string; requestId: string; actorAccountId?: string }, source: 'PURCHASE' | 'GRANT') {
     if (!uuid.test(input.poolId) || !validText(input.requestId, 100)) throw new CoinEconomyError('INVALID_REQUEST');
@@ -284,7 +521,7 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
       const existing = (await client.query<OwnedRow>(`SELECT draw.publication_id, draw.grade_id,
         CASE WHEN publication.media_removed_at IS NOT NULL
           THEN '{"name":"공개가 중단된 코인","mediaRemoved":true}'::jsonb ELSE grade.summary END AS summary,
-        0::integer AS visit_quantity, 0::integer AS draw_quantity FROM coin_draws draw
+        0::integer AS visit_quantity, 0::integer AS draw_quantity, 0::integer AS reroll_quantity FROM coin_draws draw
         JOIN collectible_publication_grades grade USING (publication_id,grade_id)
         JOIN collectible_publications publication ON publication.id = draw.publication_id
         WHERE draw.ticket_id = $1`, [ticket.id])).rows[0];
@@ -343,8 +580,43 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
     return distinctRows.map(row => viewSeries(row, entries.rows, owned, coupons.rows.find(coupon => coupon.series_id === row.id), now));
   }
   async getCollection(accountId: string): Promise<CoinCollection> {
-    const [coins, series] = await Promise.all([this.owned(this.pool, accountId), this.seriesRows(this.pool, accountId)]);
-    return { coins, series };
+    const now = this.now();
+    const [coins, series, sources, tickets, rows] = await Promise.all([
+      this.owned(this.pool, accountId), this.seriesRows(this.pool, accountId), this.sources(this.pool, accountId),
+      this.pool.query<RerollTicketRow>(`SELECT ticket.*, draw.drawn_at AS used_at FROM coin_reroll_tickets ticket
+        LEFT JOIN coin_rerolls draw ON draw.ticket_id = ticket.id WHERE ticket.account_id = $1
+        ORDER BY ticket.acquired_at DESC`, [accountId]),
+      this.pool.query<CatalogRow>(`SELECT merchant.id AS merchant_id, merchant.name AS merchant_name,
+        publication.id AS publication_id, grade.grade_id,
+        CASE WHEN publication.media_removed_at IS NOT NULL
+          THEN '{"name":"공개가 중단된 코인","mediaRemoved":true}'::jsonb ELSE grade.summary END AS summary
+        FROM collectible_publications publication
+        JOIN merchants merchant ON merchant.id = publication.merchant_id
+        JOIN collectible_publication_grades grade ON grade.publication_id = publication.id
+        WHERE publication.id IN (
+          SELECT publication_id FROM campaign_collectible_publications link JOIN campaigns campaign
+            ON campaign.id = link.campaign_id WHERE campaign.status = 'ACTIVE' AND campaign.is_public
+              AND campaign.starts_at <= $2 AND campaign.ends_at > $2
+          UNION SELECT publication_id FROM collectible_acquisitions acquisition JOIN reward_entitlements entitlement
+            ON entitlement.id = acquisition.entitlement_id WHERE entitlement.customer_account_id = $1
+          UNION SELECT draw.publication_id FROM coin_draws draw JOIN coin_tickets ticket
+            ON ticket.id = draw.ticket_id WHERE ticket.account_id = $1
+          UNION SELECT publication_id FROM grade_draws WHERE account_id = $1 AND reward_kind = 'COIN'
+          UNION SELECT publication_id FROM coin_rerolls WHERE account_id = $1)
+        ORDER BY merchant.name, publication.id, grade.grade_id`, [accountId, now]),
+    ]);
+    const catalog: CoinCatalog = [];
+    for (const row of rows.rows) {
+      let merchant = catalog.find(item => item.merchantId === row.merchant_id);
+      if (!merchant) { merchant = { merchantId: row.merchant_id, merchantName: row.merchant_name, types: [] }; catalog.push(merchant); }
+      let type = merchant.types.find(item => item.publicationId === row.publication_id);
+      if (!type) { type = { publicationId: row.publication_id, name: nameOf(row.summary), grades: [] }; merchant.types.push(type); }
+      const gradeSources = sources.filter(source => source.publicationId === row.publication_id && source.gradeId === row.grade_id);
+      type.grades.push({ publicationId: row.publication_id, gradeId: row.grade_id, name: nameOf(row.summary),
+        summary: row.summary, quantity: gradeSources.length, sources: gradeSources });
+    }
+    return { coins, series, catalog, reroll: { tickets: tickets.rows.map(viewRerollTicket), sources,
+      options: await this.rerollOptions(this.pool, [...new Set(sources.filter(source => source.rerollEligible).map(source => source.merchantId))]) } };
   }
 
   async claimSeries(input: { accountId: string; seriesId: string }) {

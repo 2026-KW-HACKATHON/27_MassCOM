@@ -1,7 +1,8 @@
-import { useRouter } from 'expo-router';
+import { useIsFocused, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, ImageBackground, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
+import { BackHandler, Image, ImageBackground, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ConfirmDialog } from '@/ui/confirm-dialog';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { gameKinds, gameSkills, type GameAction, type GameKind, type PlayRun } from '../../../../api/src/play-rules';
 import type { AccountCredential } from '@/auth/account-credential';
@@ -55,6 +56,9 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
   tabRoot?: boolean; onGamePlayingChanged?: (playing: boolean) => void;
 }) {
   const router = useRouter();
+  const focused = useIsFocused();
+  const { width, fontScale } = useWindowDimensions();
+  const singleColumn = width < 360 || fontScale >= 1.3;
   const palette = colorsForScheme(useColorScheme());
   const recheckConsent = useConsentRecheck();
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
@@ -168,10 +172,21 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
     void load();
   }
 
+  const [exitPrompt, setExitPrompt] = useState(false);
+  function confirmExit() { setExitPrompt(true); }
+
+  useEffect(() => {
+    if (!run || !focused) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => { confirmExit(); return true; });
+    return () => subscription.remove();
+    // Only the active run needs to intercept Android back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.id, focused]);
+
   const ActiveSession = run?.rulesVersion === 2 ? QualityGameSession : GameSession;
   const record = selection ? snapshot?.records.find((entry) => entry.kind === selection) : undefined;
   const header = run ? <View style={[styles.activeHeader, { paddingTop: insets.top + 8 }]}>
-    <Pressable accessibilityRole="button" accessibilityLabel="게임 나가서 놀이 마당으로" onPress={exitToHub} style={styles.activeBack}><Text style={styles.activeBackText}>‹</Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="게임 나가서 놀이 마당으로" onPress={confirmExit} style={styles.activeBack}><Text style={styles.activeBackText}>‹</Text></Pressable>
     <Text style={[styles.activeHeaderTitle, { color: palette.label }]}>놀이 마당</Text>
   </View> : tabRoot ? <AppHeader title="놀이" subtitle="네 가지 놀이를 골라요" avatarClothing={clothing} compact /> : <BackHeader title="놀이 마당" />;
   return <SkyBackdrop><SkyScrollView ref={scrollRef} header={header} contentContainerStyle={[styles.content, { paddingBottom: tabRoot ? clearance : 44 + insets.bottom }]}>
@@ -209,15 +224,15 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
         const copy = gameCopy[kind];
         const best = snapshot?.records.find((entry) => entry.kind === kind);
         const achievement = snapshot?.achievements?.find((entry) => entry.id === gameSkills[kind].id);
-        return <Pressable key={kind} accessibilityRole="button" accessibilityLabel={`${copy.title} 준비하기`} onPress={() => setSelection(kind)} style={[styles.gameCard, { borderColor: copy.color, backgroundColor: palette.surface }]}>
-          <View style={[styles.gameMark, { backgroundColor: copy.color }]}><GameToken value={gameKinds.indexOf(kind)} art={art} size={44} /></View>
+        return <Pressable key={kind} accessibilityRole="button" accessibilityLabel={`${copy.title} 준비하기`} onPress={() => setSelection(kind)} style={[styles.gameCard, singleColumn && styles.gameCardWide, { borderColor: copy.color, backgroundColor: palette.surface }]}>
+          <View style={[styles.gameMark, singleColumn && styles.gameMarkCompact, { backgroundColor: copy.color }]}><GameToken value={gameKinds.indexOf(kind)} art={art} size={singleColumn ? 44 : 56} /></View>
           <View style={styles.gameDetail}><Text style={[styles.gameTitle, { color: palette.label }]}>{copy.title}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{gamePrompt[kind]}</Text><Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>{snapshot ? playRecordLabel(best) : '기록 확인 전'} · {skillCopy[kind].badge} {achievement?.achieved ? '획득' : `${achievement?.progress ?? 0}/${achievement?.target ?? 1}`}</Text></View>
           <Text style={[styles.chevron, { color: palette.secondaryLabel }]}>›</Text>
         </Pressable>;
       })}</View>
       <Pressable accessibilityRole="button" accessibilityLabel="월계 방 탐험하기" onPress={() => router.push('/room-explore')}
-        style={[styles.gameCard, { borderColor: palette.primary, backgroundColor: palette.primaryContainer }]}>
-        <View style={[styles.gameMark, { backgroundColor: palette.primary }]}><Text style={[styles.gameMarkText, { color: palette.onPrimary }]}>⌂</Text></View>
+        style={[styles.gameCard, styles.gameCardWide, { borderColor: palette.primary, backgroundColor: palette.primaryContainer }]}>
+        <View style={[styles.gameMark, styles.gameMarkCompact, { backgroundColor: palette.primary }]}><Text style={[styles.gameMarkText, { color: palette.onPrimary }]}>⌂</Text></View>
         <View style={styles.gameDetail}><Text style={[styles.gameTitle, { color: palette.onPrimaryContainer }]}>월계 방 탐험</Text>
           <Text style={[styles.gameTag, { color: palette.secondaryLabel }]}>이웃 방 구경 · 칭찬 도장 · 방문 마일리지</Text></View>
         <Text style={[styles.chevron, { color: palette.primary }]}>›</Text>
@@ -227,7 +242,12 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
       {art.length ? <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>네 놀이에 방문한 가게와 수집품 그림 {art.length}개가 이어져요.</Text> : <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>{artLoaded ? '연습 꾸러미로 먼저 놀아 보세요. 방문하면 내 가게 그림으로 놀이가 넓어져요.' : '수집품 그림을 확인하지 못했어요.'}</Text>}
       <Text style={[styles.rewardNote, { color: palette.secondaryLabel }]}>게임별 실력 배지로 동행 꾸미기를 해금하고, 완주 기록으로 공간 배경을 열어요.</Text>
     </>}
-  </SkyScrollView></SkyBackdrop>;
+  </SkyScrollView>
+    <ConfirmDialog visible={exitPrompt && !!run} title="놀이를 나갈까요?"
+      message="나가면 이번 기록은 저장되지 않아요. 이미 저장된 결과는 그대로 남아요."
+      cancelLabel="계속하기" confirmLabel="놀이 마당으로" onCancel={() => setExitPrompt(false)}
+      onConfirm={() => { setExitPrompt(false); exitToHub(); }} />
+  </SkyBackdrop>;
 }
 
 const styles = StyleSheet.create({
@@ -239,9 +259,9 @@ const styles = StyleSheet.create({
   hero: { minHeight: 104, borderRadius: 20, overflow: 'hidden', justifyContent: 'flex-end' },
   heroImage: { borderRadius: 20 }, heroShade: { minHeight: 92, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(24,49,44,0.72)' },
   heroCopy: { flex: 1, gap: 4 }, heroTitle: { color: '#FFF', fontSize: 21, fontWeight: '900' }, heroSubtitle: { color: '#FFF', fontSize: 13, lineHeight: 18 },
-  gameList: { gap: 10 }, gameCard: { minHeight: 80, borderRadius: 16, borderWidth: 2, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12 },
-  gameMark: { width: 54, height: 54, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, gameMarkText: { color: '#FFF', fontSize: 29, fontWeight: '800' },
-  gameDetail: { flex: 1, gap: 4 }, gameTitle: { fontSize: 18, fontWeight: '800' }, gameTag: { fontSize: 13 }, chevron: { fontSize: 27 },
+  gameList: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 }, gameCard: { width: '48%', minHeight: 168, borderRadius: 16, borderWidth: 2, gap: 8, padding: 12 }, gameCardWide: { width: '100%', minHeight: 80, flexDirection: 'row', alignItems: 'center' },
+  gameMark: { width: '100%', height: 72, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, gameMarkCompact: { width: 54, height: 54 }, gameMarkText: { color: '#FFF', fontSize: 29, fontWeight: '800' },
+  gameDetail: { flex: 1, gap: 4 }, gameTitle: { fontSize: 17, fontWeight: '800' }, gameTag: { fontSize: 13 }, chevron: { fontSize: 22, alignSelf: 'flex-end' },
   unlockBand: { gap: 10, paddingVertical: 12, borderTopWidth: 1, borderColor: '#D8E3DE' }, unlockTitle: { fontSize: 16, fontWeight: '800' },
   roomList: { flexDirection: 'row', gap: 8 }, roomGoal: { gap: 4 },
   roomImage: { borderRadius: 6 }, roomLocked: { opacity: 0.58 },

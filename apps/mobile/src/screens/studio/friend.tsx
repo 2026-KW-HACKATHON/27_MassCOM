@@ -7,7 +7,7 @@ import type { AccountCredential } from '@/auth/account-credential';
 import { createExperienceApiClient, type DisplayExperienceProfile } from '@/experience/experience-api';
 import { consentRequiredMessage, consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
-import { createStudioApiClient, type FriendStudioSnapshot, type StudioApiError } from '@/studio/studio-api';
+import { createStudioApiClient, displayStudioItems, type FriendStudioSnapshot, type StudioApiError } from '@/studio/studio-api';
 import { clothingArtForId } from '@/shop/wardrobe';
 import { StudioScene } from '@/studio/studio-scene';
 import { colorsForScheme } from '@/theme/palette';
@@ -84,34 +84,37 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
     {snapshot ? <>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]} numberOfLines={2}>{snapshot.nickname}의 공간</Text>
       <View style={styles.sceneFrame}>
-        <StudioScene studio={snapshot.studio} items={snapshot.items} avatar={snapshot.avatar}
+        <StudioScene studio={snapshot.studio} items={displayStudioItems(snapshot)} avatar={snapshot.avatar}
+          furnitureItems={snapshot.furnitureItems}
           clothing={clothingArtForId(snapshot.avatarClothingId)} apiUrl={apiUrl}
           experienceProfile={friendExperience} badgeName={friendExperience?.badgeName ?? undefined}
           width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
           onItemPress={(item) => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })} />
       </View>
-      <Text style={[styles.count, { color: palette.secondaryLabel }]}>진열된 수집품 {snapshot.items.length}개</Text>
+      <Text style={[styles.count, { color: palette.secondaryLabel }]}>진열된 수집품 {displayStudioItems(snapshot).length}개</Text>
+      {snapshot.roomId ? <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/room-explore', params: { roomId: snapshot.roomId! } })}
+        style={styles.goal}><Text style={styles.goalText}>친구 방 방문 · 칭찬 도장 남기기 ›</Text></Pressable> : null}
       {goalNotice ? <Text accessibilityRole="alert" style={[styles.count, { color: palette.primary }]}>{goalNotice}</Text> : null}
-      {snapshot.items.map((item, index) => <Pressable key={`${item.merchantId}:${index}`} accessibilityRole="button"
+      {displayStudioItems(snapshot).map((item, index) => <Pressable key={`${item.merchantId}:${index}`} accessibilityRole="button"
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })}
         style={styles.row}>
         <View style={styles.rowText}><Text numberOfLines={1} style={styles.name}>{item.displayName}</Text>
           <Text numberOfLines={1} style={styles.merchant}>{item.merchantName}</Text></View>
         <Text style={styles.arrow}>›</Text>
       </Pressable>)}
-      {snapshot.items.filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`goal:${item.merchantId}`} accessibilityRole="button"
+      {displayStudioItems(snapshot).filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`goal:${item.merchantId}`} accessibilityRole="button"
         disabled={Boolean(goalSaving)} onPress={() => void saveVisitGoal(item.merchantId, item.merchantName)} style={styles.goal}>
         <Text style={styles.goalText}>{goalSaving === item.merchantId ? '저장 중…' : `${item.merchantName} 방문 목표로 저장`}</Text>
       </Pressable>)}
-      {snapshot.items.filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`collectible-goal:${item.merchantId}`} accessibilityRole="button"
+      {displayStudioItems(snapshot).filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`collectible-goal:${item.merchantId}`} accessibilityRole="button"
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId, from: 'friend' } })} style={styles.goal}>
         <Text style={styles.goalText}>{item.merchantName} 수집품의 현재 획득 경로 보기</Text>
       </Pressable>)}
-      {snapshot.items.filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`invite:${item.merchantId}`} accessibilityRole="button"
+      {displayStudioItems(snapshot).filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`invite:${item.merchantId}`} accessibilityRole="button"
         onPress={() => router.push({ pathname: '/friends/[friendshipId]/meal-invite', params: { friendshipId, merchantId: item.merchantId } })} style={styles.goal}>
         <Text style={styles.goalText}>{item.merchantName}에서 만날 시간 제안 · 매장 예약 아님</Text>
       </Pressable>)}
-      {!snapshot.items.length ? <Text style={[styles.empty, { color: palette.secondaryLabel }]}>아직 진열한 수집품이 없어요.</Text> : null}
+      {!displayStudioItems(snapshot).length ? <Text style={[styles.empty, { color: palette.secondaryLabel }]}>아직 진열한 수집품이 없어요.</Text> : null}
       {snapshot.studio.goal?.merchantId ? <Pressable accessibilityRole="button" style={styles.goal}
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: snapshot.studio.goal!.merchantId! } })}>
         <Text style={styles.goalText}>친구의 다음 가게 보기</Text>

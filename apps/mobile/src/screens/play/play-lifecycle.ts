@@ -1,5 +1,5 @@
-export function shouldRenderGameFrame(phase: string, focused: boolean, foreground: boolean): boolean {
-  return phase === 'playing' && focused && foreground;
+export function shouldRenderGameFrame(phase: string, focused: boolean, foreground: boolean, paused = false): boolean {
+  return phase === 'playing' && focused && foreground && !paused;
 }
 
 /** Both timestamps belong to the issued run; hiding the view cannot extend its expiry. */

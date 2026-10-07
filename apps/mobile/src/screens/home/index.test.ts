@@ -9,28 +9,30 @@ const tickets = read('./home-tickets.tsx');
 const exhibit = read('./home-exhibit.tsx');
 const layout = read('../../app/_layout.tsx');
 
-test('home shows only live summary data and four purpose routes', () => {
-  assert.match(home, /ticketApi\.listStoreTickets\(\)/);
-  assert.match(home, /status: 'ready', count: tickets\.length/);
-  assert.match(home, /ticketCount\.status === 'ready' \? `\$\{ticketCount\.count\}장`/);
-  assert.match(home, /shop\.snapshot\.mileage\.balance\.toLocaleString\('ko-KR'\)/);
-  assert.match(home, /shop\.snapshot\.items\.filter\(\(item\) => item\.owned\)\.length/);
-  for (const route of ['/claim', '/home/tickets', '/home/missions', '/home/exhibit']) {
-    assert.match(home, new RegExp(`<Link href="${route}" asChild>`), route);
-  }
-  assert.match(home, /shop\.status === 'ready' && shop\.snapshot \? <CompanionScene/);
-  assert.doesNotMatch(overview, /<HomeCollectionDisplay|<HomeMissionsPanel|<CollectibleReveal|tickets\.map\(/);
+test('home loads real room, ticket, reward, collection and merchant data', () => {
+  for (const request of ['clients.studio.getMine()', 'clients.coins.getShop()', 'clients.rewards.listStoreTickets()',
+    'clients.collection.getCollection()', 'clients.merchants.listMerchants()']) assert.ok(home.includes(request), request);
+  assert.match(home, /Promise\.allSettled\(/);
+  assert.match(home, /homeVisitGoal\(data\.merchants, data\.collection, data\.loadedAt\)/);
+  assert.match(home, /data\?\.studio \? <View[\s\S]*?<StudioScene/);
   assert.doesNotMatch(home, /AsyncStorage|fixture/i);
 });
 
-test('home keeps account, friends and mail in a compact header with safe scrolling', () => {
-  assert.match(home, /<AppHeader title="홈" subtitle="오늘의 탐험" showFriendsEntry showMailEntry compact \/>/);
-  assert.match(home, /contentContainerStyle=\{\[styles\.content, \{ paddingBottom: clearance \}\]\}/);
+test('home keeps room, visit, rewards and friends one tap away', () => {
+  for (const route of ['/studio', '/coin-shop', '/claim', '/friends', '/home/tickets', '/home/missions', '/home/exhibit', '/room-explore']) {
+    assert.match(home, new RegExp(`<Link href="${route}" asChild>`), route);
+  }
+  assert.doesNotMatch(overview, /<HomeCollectionDisplay|<HomeMissionsPanel|<CollectibleReveal|tickets\.map\(/);
+});
+
+test('home keeps account access and refresh controls inside safe scrolling', () => {
+  assert.match(home, /<AppHeader title="홈" showFriendsEntry showMailEntry compact \/>/);
+  assert.match(home, /contentContainerStyle=\{\{ paddingBottom: clearance \+ 8 \}\}/);
   assert.match(home, /<StatusBarScrim scrollY=\{scrim\.scrollY\} \/>/);
   assert.match(home, /onScroll=\{scrim\.onScroll\}/);
   assert.match(home, /progressViewOffset=\{insets\.top\}/);
-  assert.match(home, /if \(request === generation\.current\) setTicketCount/);
-  assert.match(home, /if \(request === generation\.current\) generation\.current \+= 1/);
+  assert.match(home, /if \(request !== generation\.current\) return/);
+  assert.match(home, /generation\.current\+\+;/);
 });
 
 test('ticket detail lists every server entitlement and ACKs only after the reveal shows its card', () => {

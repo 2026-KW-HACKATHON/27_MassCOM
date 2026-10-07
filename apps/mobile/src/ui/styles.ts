@@ -9,7 +9,7 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
   return {
     card: {
       backgroundColor: world.card, borderRadius: world.radius.card, padding: 18,
-      shadowColor: world.cardShadow, shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 3,
+      shadowColor: world.cardShadow, shadowOpacity: 0.07, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3,
     },
     // A 1px top highlight: in dark the card is ~1.05:1 against the page, so its edge is drawn (invisible in light). FloatingCard adds it
     // only when the caller gave the card no border of its own: an edge-specific width would override a caller's borderWidth.
@@ -34,7 +34,7 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
       borderRadius: 20, paddingVertical: 12, paddingHorizontal: 16, gap: 4,
       backgroundColor: withAlpha(world.headerScrim, world.headerScrimAlpha),
     },
-    headerTitle: { color: world.skyInk, fontSize: 28, fontWeight: '800', lineHeight: 36 },
+    headerTitle: { color: world.skyInk, fontSize: 26, fontWeight: '800', lineHeight: 34 },
     headerSubtitle: { color: world.skyMuted, fontSize: 15, lineHeight: 22 },
     avatarButton: {
       minWidth: uiMetrics.minTouch, minHeight: uiMetrics.minTouch, borderRadius: 24, gap: 2,
@@ -61,7 +61,7 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     // Caption on a store picture: it sits on a card-coloured pill because the picture is an opaque image.
     artNote: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: world.radius.chip, backgroundColor: world.card },
     artNoteText: { color: world.cardMuted, fontSize: 11, fontWeight: '700' },
-    backGlyph: { color: world.cardInk, fontSize: 28, fontWeight: '700', lineHeight: 32 },
+    backGlyph: { color: world.cardInk, fontSize: 26, fontWeight: '700', lineHeight: 32 },
     backTitle: { color: world.skyInk, fontSize: 22, fontWeight: '800', lineHeight: 30 },
     // Loading, error and empty scenes sit on the card surface (StateScene draws it), so these pairs are checked on world.card.
     sceneContent: { alignItems: 'center', gap: 10, paddingVertical: 8 },

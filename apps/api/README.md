@@ -1,5 +1,21 @@
 # MassCOM API
 
+## 첨부 고객 UI 연결 (Issue #399)
+
+Migration0062–0067은 방 공개 범위·가구 원장·개별 코인 리롤·프로필 소개·대표 코인 출처·방문 취소 파생 철회·방명록을 추가한다. 기존 방문 권리/코인/친구/놀이 이력은 유지한다. 개인정보 안내 버전은 `privacy-2026-10-07`로 앱/웹과 일치시킨다.
+
+- `PUT /me/profile`: 별명/소개 부분 수정, 소개 최대30자.
+- `GET/PUT /me/studio`: 기존 진열과 출처별 코인·가구·벽/바닥, `expectedRevision` 충돌 검사.
+- `GET /me/furniture`, `POST /me/furniture/purchases`: 실제 카탈로그/보관함, 멱등 구매. NULL 가격은 판매하지 않는다.
+- `GET/PUT /me/room-publication`: PRIVATE/FRIENDS/NEIGHBORS; `GET /rooms/neighbors`, `GET /me/room-visitors`.
+- `POST /rooms/:id/friendship`: 공통 방문·공개·차단을 거래 안에서 재검사해 별도로 친구 추가.
+- `POST /rooms/:id/stamps`: 기존 반응에 선택형120자 `message`; 조회·신고·숨김·차단 권한 적용.
+- `GET /me/coins`: 가게/종류/등급 소유·출처·NFT 잠금·리롤권·공개 확률.
+- `POST /coin-reroll-tickets/:id/use`: 일반/실버권 + 선택한 개별 소유 코인을 원자적으로 소모, 같은 요청 재전송 복구.
+
+일반 뽑기는 소유 코인을 유지한다. 리롤은 동일/하락 등급이 가능하고 기존 코인은 소멸한다. NFT 진행/완료 및 불확실한 발급 작업은 리롤하지 않는다. 방문 취소는 파생 리롤 체인과 미사용 시리즈 쿠폰을 철회하며, 사용된 파생 쿠폰은 취소를 막는다. 신규 보상 가격·지급량·유한 개별 재고를 예시 숫자로 만들지 않는다. 세부 검증은 [UI QA](../../docs/UI_BOARDS_QA_2026-10-07.md).
+
+
 ## 놀이 기록과 동행 공간 (Issue #363)
 
 migration `0042_connected_play.sql`은 실행·종류별 개인 기록·공간 설정·개인 식별자 없는 날짜별 흐름 합계와 retention 진행 위치 표를 추가합니다. 기존 방문·마일리지·쿠폰 표의 규칙을 변경하지 않습니다. 새 API의 계정 삭제는 실행·기록·공간도 같은 거래에서 제거합니다. 이전 API 이미지로 롤백한 동안 삭제가 남긴 행은 재업그레이드 후 기존 일일 retention의 `deleted_play_data` 단계가 삭제 원장의 HMAC과 대조하여 정리합니다. 후보 조회는 실행당 최대 100페이지(페이지당 최대 500개 계정)이며 살아 있는 계정만 있는 페이지도 예산에 포함합니다. 놀이·공간 복구 단계의 삭제는 실행당 거래당 최대 500행·최대 10거래이며 실행·개인 기록·공간이 이 행 상한을 공유합니다. 계정 삭제와 같은 비밀을 전달하는 `admin:retention run`이 필요하며 즉시 DB 트리거 삭제는 아닙니다.

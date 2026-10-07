@@ -1,5 +1,10 @@
 # 테스트 상태
 
+## 2026-10-07 전체 고객 UI 통합 (Issue #399)
+
+첨부 23보드/67상태의 자동·DB·HTTP·브라우저·Android 변형 검사 결과는 [UI QA](UI_BOARDS_QA_2026-10-07.md)에 명령과 환경별로 기록한다. 로컬 가상 점포 HTTP 흐름은 실제 운영 가게/카메라/GPS/NFT 체인 발행 수용과 구분한다. [상태별 대응표](UI_BOARDS_STATUS_2026-10-07.md)는 원본 보드 ID를 유지한다.
+
+
 ## 2026-10-07 Issue #315 살아 있는 그림 회귀
 
 **PASS** 사이트 전체 519/519(집중 37 포함), JS 구문·diff 검사, 실제 Chrome Canvas 김 bbox 밖 픽셀341→0·도형 밖1224→0·재질 적용·WebP sprite 생성, 독립 코드 결함0/구조CLEAR. **NOT_RUN** 실제 서버 게시·공개 배포·지정 Android 설치본. [범위와 증거](evidence/315-living-overlays-2026-10-07/README.md).

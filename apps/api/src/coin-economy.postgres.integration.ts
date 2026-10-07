@@ -5,8 +5,12 @@ import { Pool } from 'pg';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresCoinEconomyService } from './postgres/coin-economy.js';
+import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresMileageShopService } from './postgres/mileage-shop.js';
+import { PostgresMintRequestService } from './postgres/mint-request-service.js';
+import { PostgresReversalService } from './postgres/reversal.js';
+import { PostgresStoreTicketService } from './postgres/store-tickets.js';
 import { runMigrations } from './postgres/migrate.js';
 
 const date = (day: number) => `2026-10-${String(day).padStart(2,'0')}T00:00:00.000Z`;
@@ -20,7 +24,7 @@ async function setup(t: TestContext) {
   const pool = new Pool({ connectionString });
   t.after(() => pool.end());
   await runMigrations(pool);
-  await pool.query('TRUNCATE account_deletion_requests, customer_identity_tokens, platform_admins, auth_identities, mileage_credits, mileage_spends, merchants CASCADE');
+  await pool.query('TRUNCATE account_deletion_requests, customer_identity_tokens, platform_admins, auth_identities, mileage_credits, mileage_spends, coin_reroll_tickets, merchants CASCADE');
   const state = { now: new Date(date(7)) };
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret: 'coin-economy-integration-hmac-secret-at-least-32-bytes' });
   const coin = new PostgresCoinEconomyService(pool, { accountLifecycle: lifecycle, now: () => state.now, randomInt: () => 0 });
@@ -88,6 +92,196 @@ test('scoped ticket purchase is idempotent, capped, expires, and draws duplicate
   assert.equal((await db.coin.getCollection('coin-customer')).coins[0]?.quantity, 2);
   await assert.rejects(db.coin.purchase({ accountId: 'coin-customer', poolId: pool.id, requestId: 'late' }),
     { code: 'COIN_POOL_EXPIRED' });
+});
+
+test('reroll consumes one owned instance and one separate ticket atomically, then replays the persisted result', async t => {
+  const db = await setup(t);
+  const pool = await db.coin.publishPool({ actorAccountId: 'coin-admin', merchantId: 'coin-a',
+    eventName: '등급 풀', grade: 'SILVER', price: 1, purchaseStartsAt: date(6), purchaseEndsAt: date(10),
+    useExpiresAt: date(12), perAccountLimit: 3, issuanceCap: 3,
+    entries: [{ publicationId: db.publicationA, gradeId: 'bronze', weight: 3 },
+      { publicationId: db.publicationA, gradeId: 'prism', weight: 1 }] });
+  const storeTicket = await db.coin.grantTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    poolId: pool.id, requestId: 'original-draw' });
+  await db.coin.useTicket({ accountId: 'coin-customer', ticketId: storeTicket.ticket.id });
+  assert.equal((await db.coin.getCollection('coin-customer')).reroll.tickets.length, 0);
+  const normal = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'normal-grant' });
+  assert.equal((await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'normal-grant' })).replayed, true);
+  const before = await db.coin.getCollection('coin-customer');
+  assert.deepEqual(before.reroll.options.find(option => option.grade === 'NORMAL')?.entries.map(entry => entry.probability), [.75, .25]);
+  assert.deepEqual(before.reroll.options.find(option => option.grade === 'SILVER')?.entries.map(entry => entry.gradeId), ['prism']);
+  const input = { accountId: 'coin-customer', ticketId: normal.ticket.id, poolId: pool.id,
+    sourceKind: 'STORE_DRAW' as const, sourceId: storeTicket.ticket.id, requestId: 'reroll-once' };
+  await db.pool.query(`INSERT INTO collection_experience_profiles(account_id,coin_source_kind,coin_source_id)
+    VALUES ('coin-customer','STORE_DRAW',$1)`, [storeTicket.ticket.id]);
+  const result = await db.coin.useRerollTicket(input);
+  assert.equal(result.spent.sourceId, storeTicket.ticket.id);
+  assert.equal(result.coin.gradeId, 'bronze'); // 같은 코인 재획득 허용
+  assert.equal(result.coin.quantity, 1);
+  assert.equal(result.coin.rerollQuantity, 1);
+  const representative = await db.pool.query<{ coin_source_id: string | null }>(
+    'SELECT coin_source_id FROM collection_experience_profiles WHERE account_id = $1', ['coin-customer']);
+  assert.equal(representative.rows[0]?.coin_source_id, null);
+  const replay = await db.coin.useRerollTicket(input);
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.coin, result.coin);
+  const after = await db.coin.getCollection('coin-customer');
+  assert.equal(after.coins[0]?.quantity, 1);
+  assert.equal(after.coins[0]?.drawQuantity, 0);
+  assert.equal(after.coins[0]?.rerollQuantity, 1);
+  assert.equal(after.reroll.sources[0]?.sourceKind, 'REROLL');
+  assert.equal((await db.pool.query('SELECT 1 FROM coin_reroll_consumptions WHERE source_id = $1',
+    [storeTicket.ticket.id])).rowCount, 1);
+  const silver = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'SILVER', requestId: 'silver-grant' });
+  const upgraded = await db.coin.useRerollTicket({ ...input, ticketId: silver.ticket.id,
+    sourceKind: 'REROLL', sourceId: result.rerollId, requestId: 'silver-use' });
+  assert.equal(upgraded.coin.gradeId, 'prism');
+  assert.equal((await db.coin.getCollection('coin-customer')).coins.find(coin => coin.gradeId === 'bronze'), undefined);
+  const downgradeTicket = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'downgrade-ticket' });
+  const downgraded = await db.coin.useRerollTicket({ ...input, ticketId: downgradeTicket.ticket.id,
+    sourceKind: 'REROLL', sourceId: upgraded.rerollId, requestId: 'downgrade-use' });
+  assert.equal(downgraded.coin.gradeId, 'bronze');
+  await assert.rejects(db.coin.useRerollTicket({ ...input, ticketId: silver.ticket.id, requestId: 'new-key' }),
+    { code: 'COIN_REROLL_TICKET_USED' });
+  await db.pool.query('SELECT * FROM collectible_remove_publication_media($1)', [db.publicationA]);
+  const redacted = await db.coin.useRerollTicket({ ...input, ticketId: downgradeTicket.ticket.id,
+    sourceKind: 'REROLL', sourceId: upgraded.rerollId, requestId: 'downgrade-use' });
+  assert.deepEqual(redacted.coin.summary, { name: '공개가 중단된 코인', mediaRemoved: true });
+});
+
+test('concurrent rerolls cannot spend the same source twice or spend another account source', async t => {
+  const db = await setup(t);
+  const pool = await db.coin.publishPool({ actorAccountId: 'coin-admin', merchantId: 'coin-a',
+    eventName: '동시성 풀', grade: 'BRONZE', price: 1, purchaseStartsAt: date(6), purchaseEndsAt: date(10),
+    useExpiresAt: date(12), perAccountLimit: 1, issuanceCap: 1,
+    entries: [{ publicationId: db.publicationA, gradeId: 'bronze', weight: 1 }] });
+  const drawn = await db.coin.grantTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    poolId: pool.id, requestId: 'source' });
+  await db.coin.useTicket({ accountId: 'coin-customer', ticketId: drawn.ticket.id });
+  const first = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'first-reroll-ticket' });
+  const second = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'second-reroll-ticket' });
+  const base = { accountId: 'coin-customer', poolId: pool.id, sourceKind: 'STORE_DRAW' as const,
+    sourceId: drawn.ticket.id };
+  const attempts = await Promise.allSettled([
+    db.coin.useRerollTicket({ ...base, ticketId: first.ticket.id, requestId: 'first-use' }),
+    db.coin.useRerollTicket({ ...base, ticketId: second.ticket.id, requestId: 'second-use' }),
+  ]);
+  assert.deepEqual(attempts.map(result => result.status).sort(), ['fulfilled', 'rejected']);
+  assert.equal((await db.pool.query('SELECT 1 FROM coin_rerolls WHERE account_id = $1',
+    ['coin-customer'])).rowCount, 1);
+  assert.equal((await db.coin.getCollection('coin-customer')).coins[0]?.quantity, 1);
+  const other = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'other',
+    grade: 'NORMAL', requestId: 'other-ticket' });
+  await assert.rejects(db.coin.useRerollTicket({ accountId: 'other', ticketId: other.ticket.id,
+    poolId: pool.id, sourceKind: 'STORE_DRAW', sourceId: drawn.ticket.id, requestId: 'steal' }),
+  { code: 'COIN_REROLL_SOURCE_NOT_FOUND' });
+});
+
+test('NFT-locked visits cannot reroll and canceled visits revoke chained rerolls', async t => {
+  const db = await setup(t);
+  await db.pool.query(`INSERT INTO merchant_members(merchant_id,account_id,role,status)
+    VALUES ('coin-a','coin-staff','STAFF','ACTIVE')`);
+  await db.pool.query(`INSERT INTO campaign_goals(campaign_id,target_visit_count,display_name)
+    VALUES ('campaign-coin-a',1,'첫 방문')`);
+  const claim = randomUUID(); const visit = randomUUID(); const entitlement = randomUUID();
+  await db.pool.query(`INSERT INTO claim_slots(id,merchant_id,customer_account_id,merchant_reference_hash,
+    created_by_account_id,token_hash,status,expires_at,claimed_at,created_at)
+    VALUES ($1,'coin-a','coin-customer',decode(repeat('a1',32),'hex'),'coin-staff',
+      decode(repeat('b1',32),'hex'),'CLAIMED',$2,$3,$3)`, [claim, date(8), date(7)]);
+  await db.pool.query(`INSERT INTO visit_events(id,claim_slot_id,merchant_id,campaign_id,customer_account_id,
+    occurred_at,business_date,verification_level,status,progress_counted)
+    VALUES ($1,$2,'coin-a','campaign-coin-a','coin-customer',$3,'2026-10-07',
+      'MERCHANT_CONFIRMED','VALID',true)`, [visit, claim, date(7)]);
+  await db.pool.query(`INSERT INTO reward_entitlements(id,customer_account_id,campaign_id,target_visit_count,
+    source_visit_event_id,status,policy_version,earned_at,claim_expires_at)
+    VALUES ($1,'coin-customer','campaign-coin-a',1,$2,'GRANTED','test',$3,$4)`,
+  [entitlement, visit, date(7), date(12)]);
+  assert.equal((await db.pool.query('SELECT 1 FROM collectible_acquisitions WHERE entitlement_id = $1',
+    [entitlement])).rowCount, 1);
+  const pool = await db.coin.publishPool({ actorAccountId: 'coin-admin', merchantId: 'coin-a',
+    eventName: 'NFT 보호', grade: 'BRONZE', price: 1, purchaseStartsAt: date(6), purchaseEndsAt: date(10),
+    useExpiresAt: date(12), perAccountLimit: 1, issuanceCap: 1,
+    entries: [{ publicationId: db.publicationA, gradeId: 'bronze', weight: 1 }] });
+  const ticket = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'nft-guard-ticket' });
+  const input = { accountId: 'coin-customer', ticketId: ticket.ticket.id, poolId: pool.id,
+    sourceKind: 'VISIT' as const, sourceId: entitlement, requestId: 'nft-guard-use' };
+  for (const status of ['MINT_REQUESTED','FULFILLED'] as const) {
+    await db.pool.query('UPDATE reward_entitlements SET status = $2 WHERE id = $1', [entitlement, status]);
+    await assert.rejects(db.coin.useRerollTicket(input), { code: 'COIN_REROLL_SOURCE_LOCKED' });
+  }
+  assert.equal((await db.pool.query('SELECT 1 FROM coin_rerolls WHERE ticket_id = $1',
+    [ticket.ticket.id])).rowCount, 0);
+  await db.pool.query('UPDATE reward_entitlements SET status = $2 WHERE id = $1', [entitlement, 'GRANTED']);
+  const firstReroll = await db.coin.useRerollTicket(input);
+  const collection = new PostgresCollectionReader(db.pool);
+  const storeTickets = new PostgresStoreTicketService(db.pool, collection,
+    new PostgresAccountLifecycle({ hmacSecret: 'coin-economy-integration-hmac-secret-at-least-32-bytes' }));
+  assert.deepEqual((await collection.getCollection('coin-customer')).collectibles, []);
+  assert.deepEqual((await storeTickets.list('coin-customer')).tickets, []);
+  await assert.rejects(storeTickets.open({ accountId: 'coin-customer', entitlementId: entitlement }),
+    { code: 'STORE_TICKET_NOT_FOUND' });
+  await db.pool.query(`INSERT INTO nft_series(id,campaign_id,target_visit_count,chain_id,contract_address,
+    contract_address_normalized,series_key,max_ever_minted,status)
+    VALUES ('s-0000000000000000000000000000c001','campaign-coin-a',1,84532,
+      '0x7000000000000000000000000000000000000007',
+      '0x7000000000000000000000000000000000000007',
+      decode(repeat('44',32),'hex'),10,'ACTIVE')`);
+  const mint = new PostgresMintRequestService(db.pool, { accountLifecycle: new PostgresAccountLifecycle({
+    hmacSecret: 'coin-economy-integration-hmac-secret-at-least-32-bytes' }),
+    now: () => db.state.now, supportedConsentVersion: 'nft-mint-v2' });
+  await assert.rejects(mint.requestMint({ accountId: 'coin-customer', entitlementId: entitlement,
+    walletBindingId: randomUUID(), bindingVersion: 1, consentVersion: 'nft-mint-v2',
+    idempotencyKey: 'spent-visit-mint' }), { code: 'ENTITLEMENT_NOT_MINTABLE' });
+  const secondTicket = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'visit-chain-ticket' });
+  const secondReroll = await db.coin.useRerollTicket({ accountId: 'coin-customer',
+    ticketId: secondTicket.ticket.id, poolId: pool.id, sourceKind: 'REROLL',
+    sourceId: firstReroll.rerollId, requestId: 'visit-chain-use' });
+  const series = await db.coin.publishSeries({ actorAccountId: 'coin-admin', merchantId: 'coin-a',
+    title: '철회 시리즈', endsAt: date(20),
+    baseCoins: [{ publicationId: db.publicationA, gradeId: 'bronze' }],
+    prismCoins: [{ publicationId: db.publicationA, gradeId: 'prism' }],
+    baseCoupon: { title: '기본', detail: '시험', validDays: 7, issuanceCap: 2 },
+    prismCoupon: { title: '프리즘', detail: '시험', validDays: 7, issuanceCap: 2 },
+    consentDocumentRef: 'consent-visit-reversal', consent });
+  const claimed = await db.coin.claimSeries({ accountId: 'coin-customer', seriesId: series.id });
+  assert.equal(claimed.series.coupon?.status, 'ISSUED');
+  await db.pool.query(`UPDATE coin_series_coupons SET redeemed_at=$2,redeemed_by_account_id='coin-staff'
+    WHERE id=$1`, [claimed.series.coupon!.id, db.state.now]);
+  const reversal = new PostgresReversalService(db.pool, {
+    now: () => db.state.now, labelHmacSecret: 'coin-economy-reversal-label-secret-at-least-32-bytes',
+    accountLifecycle: new PostgresAccountLifecycle({ hmacSecret: 'coin-economy-integration-hmac-secret-at-least-32-bytes' }),
+  });
+  const cancelInput = { merchantId: 'coin-a', staffAccountId: 'coin-staff', visitEventId: visit,
+    reason: 'WRONG_CUSTOMER' };
+  await assert.rejects(reversal.cancelVisit(cancelInput), { code: 'VISIT_REWARD_COUPON_REDEEMED' });
+  assert.equal((await db.coin.getCollection('coin-customer')).coins[0]?.quantity, 1);
+  await db.pool.query(`UPDATE coin_series_coupons SET redeemed_at=NULL,redeemed_by_account_id=NULL WHERE id=$1`,
+    [claimed.series.coupon!.id]);
+  const canceled = await reversal.cancelVisit(cancelInput);
+  assert.equal(canceled.revokedRewardCount, 1);
+  assert.equal((await db.coin.getCollection('coin-customer')).coins.length, 0);
+  assert.equal((await db.coin.getCollection('coin-customer')).series.find(row => row.id === series.id)?.coupon?.status, 'REVOKED');
+  const identity = await db.identities.create('coin-customer');
+  await assert.rejects(db.badges.redeemCoupon({ token: identity.token, merchantId: 'coin-a',
+    staffAccountId: 'coin-staff', couponId: claimed.series.coupon!.id }), { code: 'COUPON_NOT_FOUND' });
+  const revoked = await db.pool.query<{ id: string; revoked_by_visit_event_id: string }>(
+    'SELECT id, revoked_by_visit_event_id FROM coin_rerolls WHERE account_id = $1 ORDER BY id', ['coin-customer']);
+  assert.deepEqual(revoked.rows.map(row => row.id).sort(), [firstReroll.rerollId, secondReroll.rerollId].sort());
+  assert.ok(revoked.rows.every(row => row.revoked_by_visit_event_id === visit));
+  await assert.rejects(db.coin.useRerollTicket(input), { code: 'COIN_REROLL_RESULT_REVOKED' });
+  const thirdTicket = await db.coin.grantRerollTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    grade: 'NORMAL', requestId: 'visit-chain-third-ticket' });
+  await assert.rejects(db.coin.useRerollTicket({ accountId: 'coin-customer', ticketId: thirdTicket.ticket.id,
+    poolId: pool.id, sourceKind: 'REROLL', sourceId: secondReroll.rerollId, requestId: 'visit-chain-third-use' }),
+  { code: 'COIN_REROLL_SOURCE_NOT_FOUND' });
 });
 
 test('global ticket cap survives concurrent purchases', async t => {

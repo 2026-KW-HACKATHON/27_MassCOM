@@ -9,5 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export function useTabBarClearance(): number {
   const barFootprint = useContext(BottomTabBarHeightContext);
   const insets = useSafeAreaInsets();
+  // Nested screen bars reserve space in the root Stack; only the tab navigator overlays its own scenes.
   return (barFootprint ? barFootprint : insets.bottom) + 16;
 }

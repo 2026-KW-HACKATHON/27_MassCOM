@@ -153,11 +153,8 @@ test('play runs replay once, studio requires ownership, friend view hides identi
     [randomUUID()]);
   const friendshipId = (await pool.query<{ id: string }>('SELECT id FROM friendships')).rows[0]!.id;
   assert.equal((await play.getStudio('player')).avatar, 'companion-legacy');
-  const beforeSave = await play.getFriendStudio({ accountId: 'friend', friendshipId });
-  assert.equal(beforeSave.avatar, null);
-  assert.equal(beforeSave.avatarClothingId, null);
-  assert.deepEqual(beforeSave.items, []);
-  assert.deepEqual(beforeSave.studio, { theme: 'daylight', layout: 'shelf', accent: 'mint', goal: null });
+  await assert.rejects(() => play.getFriendStudio({ accountId: 'friend', friendshipId }),
+    (error) => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
   const studio: Studio = { theme: 'evening', layout: 'gallery', accent: 'rose', slots: [entitlement],
     goal: { kind: 'regular', merchantId: 'play-merchant' } };
   await pool.query(`INSERT INTO showcase_guest_trials (account_id,merchant_id,created_at,expires_at)
@@ -181,6 +178,10 @@ test('play runs replay once, studio requires ownership, friend view hides identi
     VALUES ($1,'silver','{"gradeId":"silver","gradeName":"실버","name":"실제 수집품"}'::jsonb,'{}'::jsonb)`, [publicationId]);
   await pool.query(`INSERT INTO campaign_collectible_publications (campaign_id,publication_id)
     VALUES ('play-campaign',$1)`, [publicationId]);
+  await pool.query(`INSERT INTO collectible_acquisitions(entitlement_id,publication_id,grade_id)
+    VALUES($1,$2,'silver')`, [entitlement, publicationId]);
+  assert.equal((await play.saveStudio({ accountId: 'player', studio: { ...studio,
+    coinSlots: [{ sourceKind: 'VISIT', sourceId: entitlement }] } })).coinItems[0]?.name, '실제 수집품');
   const wantedGoal = { kind: 'collectible' as const, merchantId: 'play-merchant', campaignId: 'play-campaign',
     publicationId, targetVisitCount: 3 as const };
   const wanted: Studio = { ...studio, goal: wantedGoal };
@@ -191,25 +192,39 @@ test('play runs replay once, studio requires ownership, friend view hides identi
       (error) => error instanceof PlayError && error.code === 'STUDIO_GOAL_UNAVAILABLE');
   }
   await play.saveStudio({ accountId: 'player', studio });
-  assert.deepEqual((await play.getFriendStudio({ accountId: 'friend', friendshipId })).items, [],
-    'saved studio stays private without current consent');
+  await assert.rejects(() => play.getFriendStudio({ accountId: 'friend', friendshipId }),
+    (error) => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
   await pool.query(`INSERT INTO account_consents (account_id,terms_version,privacy_version,age_confirmed,source)
     VALUES ('player',$1,'privacy-old',true,'ANDROID')`, [CURRENT_TERMS_VERSION]);
-  assert.deepEqual((await play.getFriendStudio({ accountId: 'friend', friendshipId })).items, [],
-    'old privacy consent does not expose the saved studio');
+  await assert.rejects(() => play.getFriendStudio({ accountId: 'friend', friendshipId }),
+    (error) => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
   await pool.query(`INSERT INTO account_consents (account_id,terms_version,privacy_version,age_confirmed,source)
     VALUES ('player',$1,$2,true,'ANDROID')`, [CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION]);
+  const { PostgresRoomCommunityService } = await import('./postgres/room-community.js');
+  const roomService = new PostgresRoomCommunityService(pool, { accountLifecycle: lifecycle, play });
+  const friendRoomId = (await roomService.setVisibility({ accountId: 'player', visibility: 'FRIENDS' })).roomId;
   await assert.rejects(() => play.saveStudio({ accountId: 'player', studio: { ...studio,
     slots: [randomUUID()] } }),
   (error) => error instanceof PlayError && error.code === 'STUDIO_ITEM_NOT_OWNED');
   await assert.rejects(() => play.saveStudio({ accountId: 'other', studio }),
     (error) => error instanceof PlayError && error.code === 'STUDIO_THEME_LOCKED');
+  await play.saveStudio({ accountId: 'player', studio: { ...studio,
+    coinSlots: [{ sourceKind: 'VISIT', sourceId: entitlement }] } });
   const friendView = await play.getFriendStudio({ accountId: 'friend', friendshipId });
+  assert.equal(friendView.roomId, friendRoomId);
   assert.equal(friendView.avatar, 'companion-legacy');
   assert.equal(friendView.avatarClothingId, null);
   assert.equal(friendView.items[0]?.merchantId, 'play-merchant');
+  assert.equal(friendView.coinItems?.[0]?.name, '실제 수집품');
+  assert.equal(JSON.stringify(friendView).includes(entitlement), false, 'public studio hides acquisition IDs');
   assert.equal(JSON.stringify(friendView).includes(entitlement), false);
   assert.equal(JSON.stringify(friendView).includes('player'), false);
+  await roomService.setVisibility({ accountId: 'player', visibility: 'PRIVATE' });
+  await assert.rejects(() => play.getFriendStudio({ accountId: 'friend', friendshipId }),
+    error => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
+  await assert.rejects(() => roomService.getRoom({ accountId: 'friend', roomId: friendRoomId! }),
+    error => error instanceof Error && 'code' in error && error.code === 'ROOM_NOT_FOUND');
+  await roomService.setVisibility({ accountId: 'player', visibility: 'FRIENDS' });
   await pool.query(`DELETE FROM campaign_goals WHERE campaign_id='play-campaign' AND target_visit_count=5`);
   await assert.rejects(() => play.saveStudio({ accountId: 'player', studio }),
     (error) => error instanceof PlayError && error.code === 'STUDIO_GOAL_UNAVAILABLE');
@@ -230,7 +245,7 @@ test('play runs replay once, studio requires ownership, friend view hides identi
   await play.saveStudio({ accountId: 'player', studio: { ...wanted, slots: [] } });
   const metrics = await play.aggregate(30);
   assert.equal(metrics.games.find((game) => game.kind === 'orders')?.completed, 4);
-  assert.equal(metrics.events.find((event) => event.event === 'studio_saved')?.count, 5);
+  assert.equal(metrics.events.find((event) => event.event === 'studio_saved')?.count, 7);
   await pool.query('DELETE FROM friendships WHERE id=$1', [friendshipId]);
   await assert.rejects(() => play.getFriendStudio({ accountId: 'friend', friendshipId }),
     (error) => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
@@ -477,16 +492,23 @@ test('friend studios project only equipped owned clothing under the existing sha
   const { PostgresMileageShopService } = await import('./postgres/mileage-shop.js');
   const shop = new PostgresMileageShopService(pool, { accountLifecycle: lifecycle });
   await shop.setClothing({ accountId: owner, itemId: 'green-apron' });
-  assert.equal((await play.getFriendStudio({ accountId: viewer, friendshipId })).avatarClothingId, null,
-    'selected clothing remains private without a shared studio');
+  await assert.rejects(() => play.getFriendStudio({ accountId: viewer, friendshipId }),
+    error => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
   await play.saveStudio({ accountId: owner, studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: [], goal: null } });
-  assert.equal((await play.getFriendStudio({ accountId: viewer, friendshipId })).avatarClothingId, null,
-    'a saved studio without current consent remains private');
+  await assert.rejects(() => play.getFriendStudio({ accountId: viewer, friendshipId }),
+    error => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
   await pool.query("INSERT INTO account_consents(account_id,terms_version,privacy_version,age_confirmed,source) VALUES($1,$2,$3,true,'ANDROID')", [owner, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION]);
+  const { PostgresRoomCommunityService } = await import('./postgres/room-community.js');
+  const roomService = new PostgresRoomCommunityService(pool, { accountLifecycle: lifecycle, play });
+  await roomService.setVisibility({ accountId: owner, visibility: 'FRIENDS' });
   const equipped = await play.getFriendStudio({ accountId: viewer, friendshipId });
   assert.equal(equipped.avatarClothingId, 'green-apron');
   assert.equal(JSON.stringify(equipped).includes('sky-hoodie'), false, 'unselected clothing inventory stays private');
   assert.equal(JSON.stringify(equipped).includes(owner), false);
+  await pool.query('INSERT INTO friend_blocks(blocker,blocked) VALUES($1,$2)', [owner,viewer]);
+  await assert.rejects(() => play.getFriendStudio({ accountId: viewer, friendshipId }),
+    error => error instanceof PlayError && error.code === 'FRIEND_STUDIO_NOT_FOUND');
+  await pool.query('DELETE FROM friend_blocks WHERE blocker=$1 AND blocked=$2', [owner,viewer]);
   await shop.setClothing({ accountId: owner, itemId: null });
   assert.equal((await play.getFriendStudio({ accountId: viewer, friendshipId })).avatarClothingId, null);
   await shop.setClothing({ accountId: owner, itemId: 'green-apron' });

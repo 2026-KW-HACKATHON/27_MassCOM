@@ -1,8 +1,8 @@
 /* 공개 문서(앱 열기·개인정보처리방침·계정 삭제) · project.css 다음에 읽는다. 토큰은 사양 §1 그대로 둔다. */
 :root {
   color-scheme: light dark;
-  --mc-bg: #FFFFFF; --mc-surface: #F5F7FA; --mc-label: #192331; --mc-secondary: #58677D; --mc-separator: #DDE3EC;
-  --mc-primary: #2456D6; --mc-on-primary: #FFFFFF; --mc-primary-container: #EBF1FF; --mc-on-primary-container: #192331;
+  --mc-bg: #FAFAF5; --mc-surface: #F3F5F0; --mc-label: #163D46; --mc-secondary: #48646A; --mc-separator: #DFE7E3;
+  --mc-primary: #076F64; --mc-on-primary: #FFFFFF; --mc-primary-container: #E1F7EF; --mc-on-primary-container: #163D46;
   --mc-success: #2D6A4F; --mc-success-container: #DDEFE5; --mc-on-success-container: #174D35;
   --mc-error: #9A371D; --mc-error-container: #FCE4DA; --mc-on-error-container: #7B2718;
   --mc-accent-container: #F7E8C9; --mc-on-accent-container: #4D3516;
@@ -17,8 +17,8 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --mc-bg: #14171D; --mc-surface: #20252F; --mc-label: #F3F5F9; --mc-secondary: #A6B0C0; --mc-separator: #343C49;
-    --mc-primary: #9BB8FF; --mc-on-primary: #14254A; --mc-primary-container: #25334F; --mc-on-primary-container: #D9F2FC;
+    --mc-bg: #112724; --mc-surface: #1D3431; --mc-label: #F3F5F9; --mc-secondary: #B4C6BF; --mc-separator: #3C5550;
+    --mc-primary: #83DCCA; --mc-on-primary: #103A32; --mc-primary-container: #234C43; --mc-on-primary-container: #DFF8EF;
     --mc-success: #75D6A2; --mc-success-container: #163A29; --mc-on-success-container: #D8F8E5;
     --mc-error: #FFB4A1; --mc-error-container: #512015; --mc-on-error-container: #FFE2DA;
     --mc-accent-container: #45371B; --mc-on-accent-container: #F8E9CC;

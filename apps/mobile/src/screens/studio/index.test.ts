@@ -22,3 +22,23 @@ test('studio only offers owned clothing and saves through the shop clothing endp
   assert.match(source, /<AvatarWardrobe clothing=\{clothingArtForId\(item\.id\)\} size=\{42\} \/>/);
   assert.doesNotMatch(source, /item\.name\.slice\(0, 1\)/);
 });
+
+test('dirty studio guards route removal and does not reload on a temporary refocus or pull refresh', () => {
+  assert.match(source, /usePreventRemove\(dirty && !allowRemoval/);
+  assert.match(source, /navigation\.dispatch\(action\)/);
+  assert.match(source, /<ConfirmDialog visible=\{showDiscard\}/);
+  assert.doesNotMatch(source, /window\.confirm|Alert\.alert/);
+  assert.match(source, /studioNeedsReload\(loadedFor\.current, client, requestKey\)/);
+  assert.match(source, /onRefresh=\{refreshIfClean\}/);
+  assert.doesNotMatch(source, /confirmDiscard/);
+});
+
+test('studio exposes focused edit modes with one early save and preserves the shared draft', () => {
+  assert.match(source, /requestedEntitlement \|\| requestedSourceId \? 'coins' : requestedAvatar \? 'companion' : 'room'/);
+  for (const mode of ['room', 'coins', 'companion', 'goal']) assert.match(source, new RegExp(`mode === '${mode}'`));
+  assert.match(source, /<Fold title="새 꾸미기와 해금 조건"/);
+  assert.equal((source.match(/<Text style=\{styles\.saveText\}>/g) ?? []).length, 1);
+  assert.ok(source.indexOf('styles.saveRow') < source.indexOf("{mode === 'room'"));
+  assert.match(source, /setDraft\(\(current\) => studioAfterSave\(submitted, current, saved\.studio\)\)/);
+  assert.doesNotMatch(source, /저장한 동행과 수집품은 친구 공간에 바로 보여요/);
+});

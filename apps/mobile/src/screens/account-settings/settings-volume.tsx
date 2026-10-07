@@ -91,6 +91,7 @@ export function SettingsVolume({ settings, styles, palette }: Props) {
           })}
         </View>
       </View>
+      <Text style={styles.intro}>화면 움직임 줄이기는 기기의 접근성 설정을 따릅니다.</Text>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="소리와 진동 설정 초기화"

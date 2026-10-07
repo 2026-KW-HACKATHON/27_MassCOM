@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { coinProbabilityText, createCoinApiClient, parseCoinCollection, parseCoinShop } from './coin-api';
+import { CoinApiError, coinErrorMessage, coinProbabilityText, createCoinApiClient, finalRerollFailure, parseCoinCollection, parseCoinShop } from './coin-api';
 
 test('coin probability never rounds the smallest supported chance to zero and retains the exact ratio', () => {
   assert.equal(coinProbabilityText(1, 1_000_000), '0.0001% · 1/1000000');
@@ -51,6 +51,32 @@ test('purchase replay accepts signed balance after a visit mileage reversal', as
   assert.equal((await client.purchase('pool-1', 'request-1')).balance, -50);
 });
 
+test('collection keeps unowned album grades and locks pending NFT coin sources', async () => {
+  const source = { sourceKind: 'VISIT', sourceId: 'visit-1', publicationId: coin.publicationId,
+    gradeId: coin.gradeId, merchantId: 'merchant-1', nftStatus: 'PENDING', rerollEligible: false };
+  const value = parseCoinCollection({ coins: [coin], series: [], catalog: [{ merchantId: 'merchant-1',
+    merchantName: '참여 가게', types: [{ publicationId: coin.publicationId, name: '컵', grades: [
+      { publicationId: coin.publicationId, gradeId: coin.gradeId, name: coin.name, summary: {}, quantity: 2, sources: [source] },
+      { publicationId: coin.publicationId, gradeId: 'gold', name: '골드', summary: {}, quantity: 0, sources: [] },
+    ] }] }], reroll: { tickets: [], sources: [source], options: [] } });
+  assert.equal(value.catalog[0]!.types[0]!.grades[1]!.quantity, 0);
+  assert.equal(value.reroll.sources[0]!.rerollEligible, false);
+  assert.equal(value.reroll.sources[0]!.nftStatus, 'PENDING');
+});
+
+test('reroll sends the disclosed pool and stable request key without using the normal ticket endpoint', async () => {
+  const calls: { path: string; body: unknown }[] = [];
+  const source = { sourceKind: 'STORE_DRAW', sourceId: 'draw-1', publicationId: coin.publicationId,
+    gradeId: coin.gradeId, merchantId: 'merchant-1', nftStatus: 'NOT_REQUESTED', rerollEligible: true } as const;
+  const client = createCoinApiClient({ apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'token' },
+    fetcher: async (input, init) => { calls.push({ path: String(input), body: JSON.parse(String(init?.body)) });
+      return Response.json({ rerollId: 'reroll-1', coin: { ...coin, rerollQuantity: 1, quantity: 3 }, replayed: false }); } });
+  const result = await client.reroll('reroll-ticket-1', source, 'pool-1', 'request-1');
+  assert.equal(result.coin.rerollQuantity, 1);
+  assert.deepEqual(calls, [{ path: 'https://api.example.test/coin-reroll-tickets/reroll-ticket-1/use',
+    body: { sourceKind: 'STORE_DRAW', sourceId: 'draw-1', poolId: 'pool-1', requestId: 'request-1' } }]);
+});
+
 test('series shows base and prism slots, a single highest-tier claim, and issued coupon expiry', async () => {
   const slot = { publicationId: coin.publicationId, gradeId: coin.gradeId, name: coin.name, quantity: 2 };
   const base = { slots: [slot], complete: true, title: '기본 세트', detail: '참여 가게 조건' };
@@ -68,4 +94,16 @@ test('series shows base and prism slots, a single highest-tier claim, and issued
   assert.equal(claimed.series.claimable, null);
   assert.equal(claimed.series.coupon?.tier, 'PRISM');
   assert.equal(claimed.series.coupon?.expiresAt, '2026-12-20T00:00:00Z');
+  const revoked = parseCoinCollection({ coins: [], series: [{ ...series, coupon: {
+    id: 'coupon-1', tier: 'BASE', title: '이전 혜택', detail: '매장 조건',
+    expiresAt: '2026-12-20T00:00:00Z', status: 'REVOKED', redeemedAt: null,
+  } }] });
+  assert.equal(revoked.series[0]!.coupon?.status, 'REVOKED');
+});
+
+test('revoked reroll replay is final but network uncertainty retains the saved request', () => {
+  const revoked = new CoinApiError(409, 'COIN_REROLL_RESULT_REVOKED');
+  assert.equal(finalRerollFailure(revoked), true);
+  assert.match(coinErrorMessage(revoked), /이전 리롤 결과가 철회/);
+  assert.equal(finalRerollFailure(new CoinApiError(0, 'NETWORK_ERROR')), false);
 });

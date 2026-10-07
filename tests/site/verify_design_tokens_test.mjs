@@ -129,7 +129,7 @@ const only = process.env.DESIGN_STYLE_FILES?.split(',').map((file) => file.trim(
 test('앱 색 정본에서 사양 §1 색 토큰 37개를 모두 읽는다', () => {
   assert.equal(Object.keys(expected.light).length, 37);
   assert.equal(Object.keys(expected.dark).length, 37);
-  assert.equal(expected.light['--mc-primary'].toUpperCase(), '#2456D6');
+  assert.equal(expected.light['--mc-primary'].toUpperCase(), '#076F64');
   assert.equal(expected.dark['--mc-gold-edge'].toUpperCase(), '#E6B93A');
 });
 

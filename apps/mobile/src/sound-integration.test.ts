@@ -22,7 +22,7 @@ test('shared controls play tap only from enabled press handlers and tab navigati
     assert.match(source(path), /onPress=\{\(\) => \{ void lightHaptic\(\); playUiSound\('tap'\); onPress\(\); \}\}/);
   }
   const tabs = source('./navigation/floating-tab-bar.tsx');
-  assert.match(tabs, /if \(!selected && !event\.defaultPrevented\) \{\s*playUiSound\('navigate'\);\s*navigation\.navigate/);
+  assert.match(tabs, /if \(!selected && !event\.defaultPrevented\) \{\s*void lightHaptic\(\); playUiSound\('navigate'\); navigation\.navigate/);
   assert.doesNotMatch(tabs, /playUiSound\('navigate'\)[\s\S]*const event = navigation\.emit/);
 });
 

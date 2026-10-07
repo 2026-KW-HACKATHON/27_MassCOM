@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createExperienceApiClient, parseDisplayExperienceProfile } from './experience-api';
+import { createExperienceApiClient, parseDisplayExperienceProfile, parseExperienceSnapshot } from './experience-api';
 
 const profile = { badgeId: 'explorer-bronze', cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null }, coinEntitlementId: null, wishlist: null };
 const snapshot = { catalog: { badges: [], cosmetics: [], packs: [] }, profile, progress: { badges: [], cosmetics: [], packs: [] } };
@@ -30,4 +30,20 @@ test('friend display accepts only public coin information', () => {
     cosmetics: profile.cosmetics, coin: { merchantId: 'm1', merchantName: '가게', campaignTitle: '방문', displayName: '가게 코인' } });
   assert.equal(friend.coin?.displayName, '가게 코인');
   assert.equal('coinEntitlementId' in friend, false);
+});
+
+test('equipment sends a representative source while preserving the legacy visit field', async () => {
+  const source = { sourceKind: 'STORE_DRAW' as const, sourceId: 'ticket-1' };
+  const bodies: unknown[] = [];
+  const api = createExperienceApiClient({ apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (_input, init) => { if (init?.body) bodies.push(JSON.parse(String(init.body)));
+      return Response.json({ ...snapshot, profile: { ...profile, coinSource: source, coinEntitlementId: null } }); },
+  });
+  assert.deepEqual((await api.equip({ coinSource: source })).profile.coinSource, source);
+  assert.deepEqual(bodies, [{ coinSource: source }]);
+  assert.equal(parseExperienceSnapshot({ ...snapshot, profile: { ...profile, coinEntitlementId: 'visit-1', coinSource: {
+    sourceKind: 'VISIT', sourceId: 'visit-1' }, representativeCoin: null } }).profile.coinEntitlementId, 'visit-1');
+  assert.throws(() => parseExperienceSnapshot({ ...snapshot, profile: { ...profile, coinSource: {
+    sourceKind: 'STORE_DRAW', sourceId: '' } } }), /INVALID_EXPERIENCE/);
 });

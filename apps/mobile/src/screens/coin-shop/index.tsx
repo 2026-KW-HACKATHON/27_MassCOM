@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -7,8 +8,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
 import { getAppPackageId } from '@/config/app-identity';
+import { useExperience } from '@/experience/use-experience';
 import { CoinApiError, coinProbabilityText, createCoinApiClient, coinErrorMessage, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
 import { clearCoinPending, coinPendingKey, readCoinPending, writeCoinPending, type CoinPending } from '@/shop/coin-pending';
+import { pendingFocusSnapshot } from '@/shop/pending-focus';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { FloatingCard } from '@/ui/floating-card';
@@ -31,7 +34,9 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
   const api = useMemo(() => createCoinApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
+  const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const pendingKey = useMemo(() => coinPendingKey(accountId, apiUrl, getAppPackageId() ?? 'app'), [accountId, apiUrl]);
+  const ticketUseKey = `${pendingKey}:ticket-use`;
   const [shop, setShop] = useState<CoinShop>();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,9 +44,13 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const [pending, setPending] = useState<CoinPending>();
   const [message, setMessage] = useState<string>();
   const [result, setResult] = useState<OwnedCoin>();
+  const [resultTicketId, setResultTicketId] = useState<string>();
+  const [confirmTicket, setConfirmTicket] = useState<CoinShop['tickets'][number]>();
+  const [pendingTicketId, setPendingTicketId] = useState<string>();
   const [now, setNow] = useState(() => Date.now());
   const current = useRef(true);
   const inFlight = useRef(false);
+  const focusEpoch = useRef(0);
 
   const load = useCallback(async (showLoading = false) => {
     if (showLoading) setLoading(true);
@@ -77,10 +86,19 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   }, [api, load, pendingKey]);
 
   useFocusEffect(useCallback(() => {
+    const epoch = ++focusEpoch.current;
     current.current = true;
-    void load(true).then(() => recover());
-    return () => { current.current = false; };
-  }, [load, recover]));
+    if (!inFlight.current) setBusy(false);
+    void load(true).then(async () => {
+      await recover();
+      const state = await pendingFocusSnapshot(() => AsyncStorage.getItem(ticketUseKey), () => inFlight.current);
+      if (current.current && focusEpoch.current === epoch) {
+        setPendingTicketId(state.pending);
+        if (!state.busy) setBusy(false);
+      }
+    }).catch(() => { if (current.current && focusEpoch.current === epoch) setMessage('이전 뽑기권 사용 결과를 확인하지 못했어요. 다시 시도해 주세요.'); });
+    return () => { current.current = false; focusEpoch.current += 1; };
+  }, [load, recover, ticketUseKey]));
 
   async function buy(pool: CoinPool) {
     if (inFlight.current) return;
@@ -114,11 +132,22 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
     if (inFlight.current) return;
     inFlight.current = true; setBusy(true); setMessage(undefined);
     try {
+      await AsyncStorage.setItem(ticketUseKey, ticketId);
+      setPendingTicketId(ticketId);
       const used = await api.useTicket(ticketId);
       if (!current.current) return;
+      await AsyncStorage.removeItem(ticketUseKey);
+      setPendingTicketId(undefined);
       setShop((old) => old && { ...old, tickets: old.tickets.map((ticket) => ticket.id === ticketId ? used.ticket : ticket) });
       setResult(used.coin);
-    } catch (error) { if (current.current) setMessage(coinErrorMessage(error)); }
+      setResultTicketId(used.ticket.id);
+    } catch (error) {
+      if (error instanceof CoinApiError && error.status >= 400 && error.status < 500) {
+        await AsyncStorage.removeItem(ticketUseKey).catch(() => undefined);
+        setPendingTicketId(undefined); await load();
+      }
+      if (current.current) setMessage(coinErrorMessage(error));
+    }
     finally { inFlight.current = false; if (current.current) setBusy(false); }
   }
 
@@ -132,17 +161,42 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
     {pending ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => void recover()} style={[styles.button, { backgroundColor: palette.primaryContainer }]}>
       <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이전 구매 결과 다시 확인</Text>
     </Pressable> : null}
+    {pendingTicketId ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => void openCoinTicket(pendingTicketId)} style={[styles.button, { backgroundColor: palette.primaryContainer }]}>
+      <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이전 뽑기 결과 다시 확인</Text>
+    </Pressable> : null}
     {result ? <FloatingCard style={styles.card}><Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인을 받았어요</Text>
       {parseCollectibleArtwork(result.summary) ? <Image source={{ uri: parseCollectibleArtwork(result.summary)!.thumbnailDataUrl }}
         accessibilityLabel={`${result.name} 코인 그림`} style={styles.coinImage} resizeMode="contain" /> : null}
       <Text style={{ color: palette.label }}>{result.name} · 총 {result.quantity}개{result.quantity > 1 ? ' · 중복 수집' : ''}</Text>
       <Text style={{ color: palette.secondaryLabel }}>방문 {result.visitQuantity}개 · 뽑기 {result.drawQuantity}개</Text>
+      {resultTicketId ? <Pressable accessibilityRole="button" disabled={experience.saving} onPress={() => {
+        void experience.save({ coinSource: { sourceKind: 'STORE_DRAW', sourceId: resultTicketId } }).then((saved) => {
+          if (saved) setMessage('이 코인을 대표로 설정했어요.');
+        });
+      }} style={styles.link}>
+        <Text style={{ color: palette.primary }}>{experience.saving ? '설정 중…' : '대표 코인으로 설정 ›'}</Text>
+      </Pressable> : null}
+      {experience.error ? <Text style={{ color: palette.error }}>{experience.error}</Text> : null}
       <Pressable accessibilityRole="button" onPress={() => { setResult(undefined); void load(); }} style={[styles.button, { backgroundColor: palette.primary }]}>
         <Text style={[styles.buttonText, { color: palette.onPrimary }]}>확인하고 다음으로</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => { setResult(undefined); router.push('/coin-collection'); }} style={styles.link}>
-        <Text style={{ color: palette.primary }}>시리즈 진척 보기 ›</Text>
+        <Text style={{ color: palette.primary }}>도감에서 보기 ›</Text>
       </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => { setResult(undefined);
+        router.push(resultTicketId ? { pathname: '/studio', params: { sourceKind: 'STORE_DRAW', sourceId: resultTicketId } } : '/studio');
+      }} style={styles.link}>
+        <Text style={{ color: palette.primary }}>마이룸 전시하기 ›</Text>
+      </Pressable>
+    </FloatingCard> : null}
+    {confirmTicket ? <FloatingCard style={styles.card}>
+      <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>뽑기권을 사용할까요?</Text>
+      <Text style={{ color: palette.label }}>{shop?.pools.find((pool) => pool.id === confirmTicket.poolId)?.merchantName ?? '가게'} · {confirmTicket.eventName}</Text>
+      <Text style={{ color: palette.secondaryLabel }}>뽑기권 1장으로 새 코인을 받아요. 기존 보유 코인은 그대로 유지돼요.</Text>
+      <View style={styles.confirmRow}>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => setConfirmTicket(undefined)} style={[styles.confirmButton, { backgroundColor: palette.surface }]}><Text style={{ color: palette.label }}>취소</Text></Pressable>
+        <Pressable accessibilityRole="button" disabled={busy} onPress={() => { const id = confirmTicket.id; setConfirmTicket(undefined); void openCoinTicket(id); }} style={[styles.confirmButton, { backgroundColor: palette.primary }]}><Text style={{ color: palette.onPrimary }}>{busy ? '처리 중…' : '1장 사용하기'}</Text></Pressable>
+      </View>
     </FloatingCard> : null}
     {loading && !shop ? <StateScene kind="loading" title="가게 뽑기권을 확인하는 중" /> : null}
     {!loading && !shop ? <StateScene kind="error" title="가게 뽑기권을 불러오지 못했어요" body={message}
@@ -168,9 +222,9 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
               </> : <Text style={{ color: palette.error }}>이 티켓의 가게 정보를 확인하지 못했어요. 새로고침 후 사용해 주세요.</Text>}
               {pool?.unavailableReason === 'MEDIA_REMOVED' ? <Text style={{ color: palette.error }}>수집품 이미지가 내려가 이 티켓은 사용할 수 없어요.</Text> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={`${merchantName} ${ticket.eventName} ${gradeName[ticket.grade]} 뽑기권 사용`}
-                accessibilityState={{ disabled: busy || result !== undefined || !canUse }}
-                disabled={busy || result !== undefined || !canUse}
-                onPress={() => void openCoinTicket(ticket.id)} style={[styles.button, { backgroundColor: palette.primary }]}>
+                accessibilityState={{ disabled: busy || result !== undefined || Boolean(pendingTicketId) || !canUse }}
+                disabled={busy || result !== undefined || Boolean(pendingTicketId) || !canUse}
+                onPress={() => setConfirmTicket(ticket)} style={[styles.button, { backgroundColor: palette.primary }]}>
                 <Text style={[styles.buttonText, { color: palette.onPrimary }]}>사용해 코인 뽑기</Text>
               </Pressable>
             </FloatingCard>
@@ -217,4 +271,5 @@ const styles = StyleSheet.create({
   buttonText: { fontSize: 15, fontWeight: '800', textAlign: 'center' }, link: { minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   coinImage: { width: 152, height: 152, alignSelf: 'center' }, entryRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   entryImage: { width: 52, height: 52 },
+  confirmRow: { flexDirection: 'row', gap: 10 }, confirmButton: { flex: 1, minHeight: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
 });

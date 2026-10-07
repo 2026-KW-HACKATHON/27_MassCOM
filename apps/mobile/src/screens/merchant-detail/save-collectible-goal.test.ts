@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { saveCollectibleGoal } from './save-collectible-goal';
 
-const studio={theme:'daylight' as const,layout:'shelf' as const,accent:'mint' as const,slots:[],goal:null};
+const studio={theme:'daylight' as const,layout:'shelf' as const,accent:'mint' as const,slots:[],goal:null,wall:null,floor:null,furniture:[]};
 test('saves exact linked collectible on the latest studio snapshot',async()=>{
   let saved:any;const api={getMine:async()=>({studio}),save:async(value:any)=>{saved=value;return {studio:value};}};
   const okay=await saveCollectibleGoal(api,{merchantId:'m',campaignId:'c',publicationId:'p',targetVisitCount:3},()=>true);

@@ -2,6 +2,40 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { runStudioSave } from './studio-save';
+import { defaultStudio, type Studio } from './studio-api';
+import { studioAfterSave } from './studio-furniture';
+
+test('room save keeps edits made while the server response is pending', async () => {
+  const submitted = { ...defaultStudio, theme: 'garden' as const };
+  const changed = { ...submitted, goal: { kind: 'discover' as const } };
+  const saved = { ...submitted, accent: 'rose' as const };
+  let current: Studio = submitted;
+  let resolve!: (value: Studio) => void;
+  const done = runStudioSave(() => new Promise<Studio>((yes) => { resolve = yes; }), {
+    isMounted: () => true, canApply: () => true,
+    onSuccess: (value) => { current = studioAfterSave(submitted, current, value); },
+    onError: () => assert.fail('save should succeed'), onSettled: () => {},
+  });
+  current = changed;
+  resolve(saved);
+  await done;
+  assert.deepEqual(current, changed);
+});
+
+test('room save applies the server result when the draft stayed unchanged', async () => {
+  const submitted = { ...defaultStudio, theme: 'garden' as const };
+  const saved = { ...submitted, accent: 'rose' as const };
+  let current: Studio = submitted;
+  let resolve!: (value: Studio) => void;
+  const done = runStudioSave(() => new Promise<Studio>((yes) => { resolve = yes; }), {
+    isMounted: () => true, canApply: () => true,
+    onSuccess: (value) => { current = studioAfterSave(submitted, current, value); },
+    onError: () => assert.fail('save should succeed'), onSettled: () => {},
+  });
+  resolve(saved);
+  await done;
+  assert.deepEqual(current, saved);
+});
 
 for (const kind of ['공간', '동행', '옷']) {
   for (const outcome of ['success', 'failure'] as const) {
@@ -77,7 +111,8 @@ test('공간·동행·옷 저장은 같은 수명 제어기를 사용하고 각�
   const source = readFileSync(new URL('../screens/studio/index.tsx', import.meta.url), 'utf8');
   assert.equal((source.match(/await runStudioSave\(/g) ?? []).length, 3);
   assert.equal((source.match(/isMounted: \(\) => mounted\.current/g) ?? []).length, 3);
-  assert.equal((source.match(/canApply: \(\) => active\.current && request === generation\.current/g) ?? []).length, 3);
+  assert.equal((source.match(/canApply: \(\) => currentClient\.current === client/g) ?? []).length, 1);
+  assert.equal((source.match(/canApply: \(\) => active\.current && request === generation\.current/g) ?? []).length, 2);
   assert.match(source, /onSettled: \(\) => setSaving\(false\)/);
   assert.match(source, /onSettled: \(\) => setAvatarSaving\(false\)/);
   assert.match(source, /onSettled: \(\) => setClothingSaving\(false\)/);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createStudioApiClient, parseFriendStudioSnapshot, parseStudioSnapshot, studioErrorMessage, StudioApiError } from './studio-api';
+import { createStudioApiClient, parseFriendStudioSnapshot, parseFurnitureSnapshot, parseStudioSnapshot, studioErrorMessage, StudioApiError } from './studio-api';
 
 const studio = { theme: 'daylight', layout: 'shelf', accent: 'mint', slots: ['owned-1'], goal: { kind: 'discover', merchantId: 'shop-1' } };
 const item = { entitlementId: 'owned-1', merchantId: 'shop-1', merchantName: '가게', campaignTitle: '방문', displayName: '첫 그림' };
@@ -11,6 +11,41 @@ test('self studio keeps only selected entitlement identity and chosen display', 
   assert.deepEqual(parsed.studio.slots, ['owned-1']);
   assert.equal(parsed.items[0].entitlementId, 'owned-1');
   assert.equal(parsed.avatar, 'cook-cat');
+});
+
+test('studio furniture parses legacy defaults and rejects malformed ownership placements', () => {
+  const legacy = parseStudioSnapshot({ studio, items: [item], avatar: null, records: [], unlockedThemes: [] });
+  assert.deepEqual(legacy.studio.furniture, []);
+  assert.equal(legacy.studio.wall, null);
+  assert.equal(legacy.studio.floor, null);
+  const placed = { ...studio, wall: 'garden', floor: null, furniture: [{ inventoryId: 'owned-chair', x: .25, y: .7, rotation: 90 }] };
+  assert.deepEqual(parseStudioSnapshot({ studio: placed, items: [item], avatar: null, records: [], unlockedThemes: [], revision: 2 }).studio.furniture, placed.furniture);
+  assert.throws(() => parseStudioSnapshot({ studio: { ...placed, furniture: [{ ...placed.furniture[0], x: 2 }] }, items: [], avatar: null, records: [], unlockedThemes: [] }));
+  assert.deepEqual(parseFurnitureSnapshot({ catalog: [{ id: 'chair', name: '의자', kind: 'FURNITURE', assetId: null, priceMileage: null, sellable: false }],
+    inventory: [{ id: 'owned-chair', itemId: 'chair' }] }).inventory, [{ id: 'owned-chair', itemId: 'chair' }]);
+});
+
+test('source-based coin exhibit stays editable for owner and hides acquisition IDs in public parse', () => {
+  const source = { sourceKind: 'REROLL', sourceId: 'reroll-1' } as const;
+  const coinItem = { ...source, merchantId: 'shop-1', merchantName: '가게', publicationId: 'coin-1', gradeId: 'silver', name: '실버 코인' };
+  const mine = parseStudioSnapshot({ studio: { ...studio, coinSlots: [source] }, items: [item], coinItems: [coinItem],
+    avatar: null, records: [], unlockedThemes: [] });
+  assert.deepEqual(mine.studio.coinSlots, [source]);
+  assert.equal(mine.coinItems[0]?.sourceId, 'reroll-1');
+  const visitor = parseFriendStudioSnapshot({ nickname: '이웃', studio: { ...studio, coinSlots: [source] },
+    items: [], coinItems: [coinItem], avatar: null });
+  assert.equal('coinSlots' in visitor.studio, false);
+  assert.equal('sourceId' in visitor.coinItems[0]!, false);
+});
+
+test('furniture purchase uses request identity and parses the resulting inventory ID', async () => {
+  let body: unknown;
+  const client = createStudioApiClient({ apiUrl: 'https://api.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (_, init) => { body = JSON.parse(String(init?.body));
+      return Response.json({ inventoryItem: { id: 'owned-chair', itemId: 'oak-chair' }, balance: 25, replayed: false }); },
+  });
+  assert.deepEqual((await client.purchaseFurniture('oak-chair', 'request-1')).inventoryItem, { id: 'owned-chair', itemId: 'oak-chair' });
+  assert.deepEqual(body, { itemId: 'oak-chair', requestId: 'request-1' });
 });
 
 test('studio parses an exact wanted collectible and rejects an incomplete target', () => {
@@ -36,6 +71,13 @@ test('friend clothing accepts only a bounded optional public item id', () => {
   for (const id of ['', 42, {}, 'x'.repeat(81)]) {
     assert.throws(() => parseFriendStudioSnapshot({ ...base, avatarClothingId: id }));
   }
+});
+
+test('friend room link is accepted only as a real room identifier', () => {
+  const base = { nickname: '친구', studio, items: [], avatar: null };
+  assert.equal(parseFriendStudioSnapshot({ ...base, roomId: 'room-1' }).roomId, 'room-1');
+  assert.equal(parseFriendStudioSnapshot({ ...base, roomId: null }).roomId, null);
+  assert.throws(() => parseFriendStudioSnapshot({ ...base, roomId: 42 }));
 });
 
 test('studio rejects duplicate or excessive owned slots', () => {
