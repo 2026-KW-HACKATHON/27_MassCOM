@@ -1,0 +1,2633 @@
+{
+  "target": "https://demo-api.masscom.kr/play/",
+  "viewport": "390x844",
+  "entry": "entry-858be2c61591f08ea88654ceed5f67ec.js",
+  "measuredAt": "2026-10-07T20:18:01.813Z",
+  "items": {
+    "entry": {
+      "htmlReferences": true,
+      "scriptLoaded": true,
+      "entryHttp": [
+        200
+      ],
+      "scripts": [
+        "__expo-metro-runtime-ed4c1cfa6193d76fc294130e42bd1916.js",
+        "__common-f6522ffd3ecda169fec3ebe95b70b382.js",
+        "entry-858be2c61591f08ea88654ceed5f67ec.js"
+      ],
+      "pass": true
+    },
+    "stampLight": {
+      "dialogBg": "rgba(0, 0, 0, 0)",
+      "effBg": null,
+      "opacity": "1",
+      "w": 390,
+      "h": 844,
+      "dupButtons": [],
+      "textOverlaps": 0,
+      "pointsInDialog": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "covers": true,
+      "cornerRGB": {
+        "tl": [
+          191,
+          227,
+          255
+        ],
+        "tr": [
+          191,
+          227,
+          255
+        ],
+        "bl": [
+          246,
+          250,
+          255
+        ],
+        "br": [
+          246,
+          251,
+          255
+        ]
+      },
+      "opaque": true,
+      "opaqueEvidence": "supplement: 모서리 4점+중앙의 최상단 요소가 모두 dialog 내부, 체인에 불투명 배경 rgb(247,251,255)",
+      "chain": [
+        {
+          "x": 4,
+          "y": 4,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(247, 251, 255)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 385,
+          "y": 4,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(247, 251, 255)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 4,
+          "y": 839,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(247, 251, 255)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 385,
+          "y": 839,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(247, 251, 255)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 195,
+          "y": 420,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(243, 245, 240)",
+            "tag": "DIV"
+          }
+        }
+      ]
+    },
+    "hubFromNeighbors": {
+      "from": "/room-explore",
+      "pass": true
+    },
+    "regA": {
+      "rows": [
+        {
+          "key": "studio",
+          "from": "/studio",
+          "to": "/play-tab",
+          "hub": true,
+          "pass": true
+        },
+        {
+          "key": "my-coins",
+          "from": "/coin-collection",
+          "to": "/play-tab",
+          "hub": true,
+          "pass": true
+        },
+        {
+          "key": "neighbors",
+          "from": "/room-explore",
+          "to": "/play-tab",
+          "hub": true,
+          "pass": true
+        },
+        {
+          "key": "my-info",
+          "from": "/settings",
+          "to": "/play-tab",
+          "hub": true,
+          "pass": true
+        },
+        {
+          "key": "friends",
+          "from": "/friends",
+          "to": "/play-tab",
+          "hub": true,
+          "pass": true
+        }
+      ],
+      "pass": true
+    },
+    "regC": {
+      "rows": [
+        {
+          "screen": "my-info",
+          "tab": "탐색",
+          "to": "/search",
+          "pass": true
+        },
+        {
+          "screen": "my-info",
+          "tab": "도감",
+          "to": "/collection",
+          "pass": true
+        },
+        {
+          "screen": "my-info",
+          "tab": "홈",
+          "to": "/",
+          "pass": true
+        },
+        {
+          "screen": "my-info",
+          "tab": "상점",
+          "to": "/shop",
+          "pass": true
+        },
+        {
+          "screen": "my-info",
+          "tab": "놀이",
+          "to": "/play-tab",
+          "pass": true
+        },
+        {
+          "screen": "friends",
+          "tab": "탐색",
+          "to": "/search",
+          "pass": true
+        },
+        {
+          "screen": "friends",
+          "tab": "도감",
+          "to": "/collection",
+          "pass": true
+        },
+        {
+          "screen": "friends",
+          "tab": "홈",
+          "to": "/",
+          "pass": true
+        },
+        {
+          "screen": "friends",
+          "tab": "상점",
+          "to": "/shop",
+          "pass": true
+        },
+        {
+          "screen": "friends",
+          "tab": "놀이",
+          "to": "/play-tab",
+          "pass": true
+        }
+      ],
+      "pass": true,
+      "passed": 10,
+      "total": 10
+    },
+    "stripLight": {
+      "rows": [
+        {
+          "label": "홈@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3506,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 877,
+            "ch": 844
+          }
+        },
+        {
+          "label": "홈@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 877,
+            "ch": 844
+          }
+        },
+        {
+          "label": "홈@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3506,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 877,
+            "ch": 844
+          }
+        },
+        {
+          "label": "탐색@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(255, 255, 255)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1483,
+            "ch": 844
+          }
+        },
+        {
+          "label": "탐색@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(255, 255, 255)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1483,
+            "ch": 844
+          }
+        },
+        {
+          "label": "탐색@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1483,
+            "ch": 844
+          }
+        },
+        {
+          "label": "도감@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1943,
+            "ch": 844
+          }
+        },
+        {
+          "label": "도감@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(255, 255, 255)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1943,
+            "ch": 844
+          }
+        },
+        {
+          "label": "도감@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1943,
+            "ch": 844
+          }
+        },
+        {
+          "label": "상점@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(7, 111, 100)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "상점@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgb(7, 111, 100)",
+            "effBg": "rgb(7, 111, 100)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "상점@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "놀이@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "놀이@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3506,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "놀이@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 10,
+          "dominantRGB": [
+            234,
+            239,
+            231
+          ],
+          "dominantShare": 0.3508,
+          "uniform": false,
+          "screenBg": "rgb(241, 245, 237)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 7,
+          "matchesScreenBg": true,
+          "maxLum": 244,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(241, 245, 237)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        }
+      ],
+      "pass": true,
+      "allUniform": false,
+      "allMatchBg": true,
+      "note": "1차 측정의 uniform=false는 탭 바 그림자가 띠 위쪽을 살짝 어둡게 한 값(행 평균 228→235, 화면 배경 241,245,237). 스크롤 위치 3곳(0·50·100%)에서 띠 픽셀 해시가 5개 탭 모두 동일해 뒤 콘텐츠가 비치지 않음을 보충 측정으로 확인.",
+      "supplement": {
+        "홈": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "b7ab95f8",
+            "b7ab95f8",
+            "b7ab95f8"
+          ],
+          "rowMeansLast": [
+            [
+              228,
+              234,
+              226
+            ],
+            [
+              229,
+              235,
+              226
+            ],
+            [
+              229,
+              235,
+              227
+            ],
+            [
+              230,
+              235,
+              227
+            ],
+            [
+              230,
+              236,
+              228
+            ],
+            [
+              231,
+              236,
+              228
+            ],
+            [
+              231,
+              237,
+              228
+            ],
+            [
+              231,
+              237,
+              229
+            ],
+            [
+              232,
+              237,
+              229
+            ],
+            [
+              232,
+              238,
+              230
+            ],
+            [
+              233,
+              238,
+              230
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              240,
+              231
+            ],
+            [
+              235,
+              240,
+              232
+            ],
+            [
+              235,
+              240,
+              232
+            ]
+          ],
+          "bottomRowRGB": [
+            235,
+            240,
+            232
+          ]
+        },
+        "탐색": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "b7ab95f8",
+            "b7ab95f8",
+            "b7ab95f8"
+          ],
+          "rowMeansLast": [
+            [
+              228,
+              234,
+              226
+            ],
+            [
+              229,
+              235,
+              226
+            ],
+            [
+              229,
+              235,
+              227
+            ],
+            [
+              230,
+              235,
+              227
+            ],
+            [
+              230,
+              236,
+              228
+            ],
+            [
+              231,
+              236,
+              228
+            ],
+            [
+              231,
+              237,
+              228
+            ],
+            [
+              231,
+              237,
+              229
+            ],
+            [
+              232,
+              237,
+              229
+            ],
+            [
+              232,
+              238,
+              230
+            ],
+            [
+              233,
+              238,
+              230
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              240,
+              231
+            ],
+            [
+              235,
+              240,
+              232
+            ],
+            [
+              235,
+              240,
+              232
+            ]
+          ],
+          "bottomRowRGB": [
+            235,
+            240,
+            232
+          ]
+        },
+        "도감": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "b7ab95f8",
+            "b7ab95f8",
+            "b7ab95f8"
+          ],
+          "rowMeansLast": [
+            [
+              228,
+              234,
+              226
+            ],
+            [
+              229,
+              235,
+              226
+            ],
+            [
+              229,
+              235,
+              227
+            ],
+            [
+              230,
+              235,
+              227
+            ],
+            [
+              230,
+              236,
+              228
+            ],
+            [
+              231,
+              236,
+              228
+            ],
+            [
+              231,
+              237,
+              228
+            ],
+            [
+              231,
+              237,
+              229
+            ],
+            [
+              232,
+              237,
+              229
+            ],
+            [
+              232,
+              238,
+              230
+            ],
+            [
+              233,
+              238,
+              230
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              240,
+              231
+            ],
+            [
+              235,
+              240,
+              232
+            ],
+            [
+              235,
+              240,
+              232
+            ]
+          ],
+          "bottomRowRGB": [
+            235,
+            240,
+            232
+          ]
+        },
+        "상점": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "b7ab95f8",
+            "b7ab95f8",
+            "b7ab95f8"
+          ],
+          "rowMeansLast": [
+            [
+              228,
+              234,
+              226
+            ],
+            [
+              229,
+              235,
+              226
+            ],
+            [
+              229,
+              235,
+              227
+            ],
+            [
+              230,
+              235,
+              227
+            ],
+            [
+              230,
+              236,
+              228
+            ],
+            [
+              231,
+              236,
+              228
+            ],
+            [
+              231,
+              237,
+              228
+            ],
+            [
+              231,
+              237,
+              229
+            ],
+            [
+              232,
+              237,
+              229
+            ],
+            [
+              232,
+              238,
+              230
+            ],
+            [
+              233,
+              238,
+              230
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              240,
+              231
+            ],
+            [
+              235,
+              240,
+              232
+            ],
+            [
+              235,
+              240,
+              232
+            ]
+          ],
+          "bottomRowRGB": [
+            235,
+            240,
+            232
+          ]
+        },
+        "놀이": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "b7ab95f8",
+            "b7ab95f8",
+            "b7ab95f8"
+          ],
+          "rowMeansLast": [
+            [
+              228,
+              234,
+              226
+            ],
+            [
+              229,
+              235,
+              226
+            ],
+            [
+              229,
+              235,
+              227
+            ],
+            [
+              230,
+              235,
+              227
+            ],
+            [
+              230,
+              236,
+              228
+            ],
+            [
+              231,
+              236,
+              228
+            ],
+            [
+              231,
+              237,
+              228
+            ],
+            [
+              231,
+              237,
+              229
+            ],
+            [
+              232,
+              237,
+              229
+            ],
+            [
+              232,
+              238,
+              230
+            ],
+            [
+              233,
+              238,
+              230
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              239,
+              231
+            ],
+            [
+              234,
+              240,
+              231
+            ],
+            [
+              235,
+              240,
+              232
+            ],
+            [
+              235,
+              240,
+              232
+            ]
+          ],
+          "bottomRowRGB": [
+            235,
+            240,
+            232
+          ]
+        }
+      }
+    },
+    "dark": {
+      "dark": true
+    },
+    "stampDark": {
+      "dialogBg": "rgba(0, 0, 0, 0)",
+      "effBg": null,
+      "opacity": "1",
+      "w": 390,
+      "h": 844,
+      "dupButtons": [],
+      "textOverlaps": 0,
+      "pointsInDialog": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "covers": true,
+      "cornerRGB": {
+        "tl": [
+          28,
+          57,
+          98
+        ],
+        "tr": [
+          29,
+          57,
+          98
+        ],
+        "bl": [
+          24,
+          33,
+          49
+        ],
+        "br": [
+          24,
+          33,
+          49
+        ]
+      },
+      "opaque": true,
+      "file": "dark-stamp-celebration.png",
+      "opaqueEvidence": "supplement: 불투명 배경 rgb(24,33,49)",
+      "chain": [
+        {
+          "x": 4,
+          "y": 4,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(24, 33, 49)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 385,
+          "y": 4,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(24, 33, 49)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 4,
+          "y": 839,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(24, 33, 49)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 385,
+          "y": 839,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(24, 33, 49)",
+            "tag": "DIV"
+          }
+        },
+        {
+          "x": 195,
+          "y": 420,
+          "hit": "DIV",
+          "inDialog": true,
+          "opaqueLayer": {
+            "kind": "color",
+            "color": "rgb(29, 52, 49)",
+            "tag": "DIV"
+          }
+        }
+      ]
+    },
+    "chipDark": {
+      "found": true,
+      "chips": [
+        {
+          "text": "가상 첫 방문 수집품",
+          "bg": "rgb(29, 52, 49)",
+          "color": "rgb(243, 245, 249)",
+          "y": 542
+        },
+        {
+          "text": "가상 첫 방문 수집품",
+          "bg": "rgb(29, 52, 49)",
+          "color": "rgb(243, 245, 249)",
+          "y": 542
+        }
+      ],
+      "bgLum": [
+        47,
+        47
+      ],
+      "pass": true,
+      "file": "dark-studio-chip.png"
+    },
+    "regDDark": {
+      "note": "1차 측정의 \"하단 40px 최대 밝기 207\"은 탭 바 안의 글자·아이콘(밝은 민트·흰 글자)이 포함된 값이라 폐기. 보충 측정으로 대체.",
+      "supplement": {
+        "myroom": {
+          "maxLumBelowBar": 38,
+          "maxLumBottom40OutsideBarRect": 38,
+          "maxLumBottom40IncludingBar": 207,
+          "barBottom": 836
+        },
+        "studio": {
+          "maxLumBelowBar": 38,
+          "maxLumBottom40OutsideBarRect": 38,
+          "maxLumBottom40IncludingBar": 207,
+          "barBottom": 836
+        },
+        "my-info": {
+          "maxLumBelowBar": 38,
+          "maxLumBottom40OutsideBarRect": 38,
+          "maxLumBottom40IncludingBar": 207,
+          "barBottom": 836
+        },
+        "my-coins": {
+          "maxLumBelowBar": 38,
+          "maxLumBottom40OutsideBarRect": 38,
+          "maxLumBottom40IncludingBar": 207,
+          "barBottom": 836
+        }
+      },
+      "pass": true
+    },
+    "stripDark": {
+      "rows": [
+        {
+          "label": "홈@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 935,
+            "ch": 844
+          }
+        },
+        {
+          "label": "홈@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 935,
+            "ch": 844
+          }
+        },
+        {
+          "label": "홈@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 935,
+            "ch": 844
+          }
+        },
+        {
+          "label": "탐색@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(32, 59, 52)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1483,
+            "ch": 844
+          }
+        },
+        {
+          "label": "탐색@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(32, 59, 52)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1483,
+            "ch": 844
+          }
+        },
+        {
+          "label": "탐색@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 1483,
+            "ch": 844
+          }
+        },
+        {
+          "label": "도감@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 2010,
+            "ch": 844
+          }
+        },
+        {
+          "label": "도감@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(32, 59, 52)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 2010,
+            "ch": 844
+          }
+        },
+        {
+          "label": "도감@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 2010,
+            "ch": 844
+          }
+        },
+        {
+          "label": "상점@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(131, 220, 202)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "상점@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgb(131, 220, 202)",
+            "effBg": "rgb(131, 220, 202)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "상점@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "놀이@0",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "놀이@0.5",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        },
+        {
+          "label": "놀이@1",
+          "barTop": 772,
+          "barBottom": 836,
+          "stripCssPx": 8,
+          "stripDistinctColors": 1,
+          "dominantRGB": [
+            20,
+            42,
+            38
+          ],
+          "dominantShare": 1,
+          "uniform": true,
+          "screenBg": "rgb(20, 42, 38)",
+          "bodyBg": "rgba(0, 0, 0, 0)",
+          "diffFromScreenBg": 0,
+          "matchesScreenBg": true,
+          "maxLum": 38,
+          "stripEl": {
+            "tag": "DIV",
+            "role": null,
+            "bg": "rgba(0, 0, 0, 0)",
+            "effBg": "rgb(20, 42, 38)",
+            "insideBar": false
+          },
+          "scroller": {
+            "sh": 4550,
+            "ch": 844
+          }
+        }
+      ],
+      "pass": true,
+      "allUniform": true,
+      "allMatchBg": true,
+      "supplement": {
+        "홈": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "8ba5659e",
+            "8ba5659e",
+            "8ba5659e"
+          ],
+          "rowMeansLast": [
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ]
+          ],
+          "bottomRowRGB": [
+            20,
+            42,
+            38
+          ]
+        },
+        "탐색": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "67cd506a",
+            "67cd506a",
+            "67cd506a"
+          ],
+          "rowMeansLast": [
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ]
+          ],
+          "bottomRowRGB": [
+            20,
+            42,
+            38
+          ]
+        },
+        "도감": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "67cd506a",
+            "67cd506a",
+            "67cd506a"
+          ],
+          "rowMeansLast": [
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ]
+          ],
+          "bottomRowRGB": [
+            20,
+            42,
+            38
+          ]
+        },
+        "상점": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "67cd506a",
+            "67cd506a",
+            "67cd506a"
+          ],
+          "rowMeansLast": [
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ]
+          ],
+          "bottomRowRGB": [
+            20,
+            42,
+            38
+          ]
+        },
+        "놀이": {
+          "sameAcrossScroll": true,
+          "hashes": [
+            "67cd506a",
+            "67cd506a",
+            "67cd506a"
+          ],
+          "rowMeansLast": [
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              43,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ],
+            [
+              20,
+              42,
+              38
+            ]
+          ],
+          "bottomRowRGB": [
+            20,
+            42,
+            38
+          ]
+        }
+      }
+    },
+    "fresh": {
+      "light": {
+        "scheme": "light",
+        "steps": [],
+        "neighbors": {
+          "path": "/room-explore",
+          "tablistTotal": 1,
+          "tablistVisible": 1,
+          "selected": [
+            [
+              "탐색"
+            ]
+          ],
+          "pass": true,
+          "file": "neighbors-light-tablist.png"
+        },
+        "backExploreTab": {
+          "clickPath": "/search",
+          "afterBackUrl": "https://demo-api.masscom.kr/play/room-explore",
+          "path": "/room-explore",
+          "aboutBlank": false,
+          "bodyHasNeighbors": true,
+          "pass": true,
+          "tablistTotal": 1,
+          "selected": [
+            [
+              "탐색"
+            ]
+          ],
+          "file": "back-after-explore-tab-light.png"
+        },
+        "backPlayTab": {
+          "clickPath": "/play-tab",
+          "afterBackUrl": "https://demo-api.masscom.kr/play/room-explore",
+          "path": "/room-explore",
+          "aboutBlank": false,
+          "pass": true
+        },
+        "histLenAtNeighbors": 3
+      },
+      "dark": {
+        "scheme": "dark",
+        "steps": [],
+        "neighbors": {
+          "path": "/room-explore",
+          "tablistTotal": 1,
+          "tablistVisible": 1,
+          "selected": [
+            [
+              "탐색"
+            ]
+          ],
+          "pass": true,
+          "file": "neighbors-dark-tablist.png"
+        },
+        "backExploreTab": {
+          "clickPath": "/search",
+          "afterBackUrl": "https://demo-api.masscom.kr/play/room-explore",
+          "path": "/room-explore",
+          "aboutBlank": false,
+          "bodyHasNeighbors": true,
+          "pass": true,
+          "tablistTotal": 1,
+          "selected": [
+            [
+              "탐색"
+            ]
+          ],
+          "file": null
+        },
+        "backPlayTab": {
+          "clickPath": "/play-tab",
+          "afterBackUrl": "https://demo-api.masscom.kr/play/room-explore",
+          "path": "/room-explore",
+          "aboutBlank": false,
+          "pass": true
+        },
+        "histLenAtNeighbors": 3
+      }
+    }
+  },
+  "flow": [
+    {
+      "n": "01",
+      "name": "역할 선택",
+      "pass": true,
+      "memo": "entry 일치 · 역할 화면 O",
+      "files": [
+        "flow-01-role.png"
+      ],
+      "sec": 3.3
+    },
+    {
+      "n": "02",
+      "name": "로그인 없이 체험",
+      "pass": true,
+      "memo": "체험 시작",
+      "files": [],
+      "sec": 2.4
+    },
+    {
+      "n": "03",
+      "name": "약관 동의",
+      "pass": true,
+      "memo": "동의 → 시작 활성 → 홈 O",
+      "files": [],
+      "sec": 1.3
+    },
+    {
+      "n": "04",
+      "name": "홈",
+      "pass": true,
+      "memo": "신규 홈 문구 O · 마일리지 100,000",
+      "files": [
+        "flow-04-home.png"
+      ],
+      "sec": 0.1
+    },
+    {
+      "n": "05",
+      "name": "탐색",
+      "pass": true,
+      "memo": "가게 3곳 · 위치 미확인 3곳",
+      "files": [
+        "flow-05-explore.png"
+      ],
+      "sec": 1.7
+    },
+    {
+      "n": "06",
+      "name": "가게 상세",
+      "pass": true,
+      "memo": "URL /merchants/showcase-local-merchant",
+      "files": [],
+      "sec": 1.3
+    },
+    {
+      "n": "07",
+      "name": "테스트 방문(도장 쾅!)",
+      "pass": true,
+      "memo": "+150 · POST /showcase/test-visits 201 · 불투명 true(보충 측정) · 중복 버튼 0 · 겹침 0",
+      "files": [
+        "flow-07-stamp-celebration.png"
+      ],
+      "sec": 5.6
+    },
+    {
+      "n": "08",
+      "name": "봉투·수집품",
+      "pass": true,
+      "memo": "카드 O · 도감 보관 O",
+      "files": [
+        "flow-08-envelope.png"
+      ],
+      "sec": 7.6
+    },
+    {
+      "n": "09",
+      "name": "도감",
+      "pass": true,
+      "memo": "URL /collection · 배지 1/9",
+      "files": [
+        "flow-09-album.png"
+      ],
+      "sec": 0.7
+    },
+    {
+      "n": "10",
+      "name": "상점·등급 뽑기 1회",
+      "pass": true,
+      "memo": "남은 100,050P · 브론즈 · 테마 꾸미기",
+      "files": [
+        "flow-10-gacha-result.png"
+      ],
+      "sec": 11
+    },
+    {
+      "n": "11",
+      "name": "마이룸 전시 저장",
+      "pass": true,
+      "memo": "1/6개 전시",
+      "files": [
+        "flow-11-exhibit-saved.png"
+      ],
+      "sec": 5.9
+    },
+    {
+      "n": "12",
+      "name": "놀이 1판",
+      "pass": true,
+      "memo": "/room-explore → /play-tab (허브 O) · 주문표 [[\"연습 그림 1\",1],[\"연습 그림 3\",2]] → 1/4 · 결과 저장 O",
+      "files": [
+        "flow-12-game-result.png",
+        "reg-a-play-hub-from-neighbors.png"
+      ],
+      "sec": 12.7
+    }
+  ],
+  "consoleErrors": [],
+  "pageErrors": [],
+  "netFails": [],
+  "abortedMedia": [
+    {
+      "step": "reg-a",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-a",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-a",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-a",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-a",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "reg-c",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "strip-light",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "dark",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "dark",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "dark",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "dark",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    },
+    {
+      "step": "strip-dark",
+      "status": "FAILED:net::ERR_ABORTED",
+      "method": "GET",
+      "path": "/play/assets/assets/sounds/draw-loop.14aef5cf83e32936621ee5f94d9871c0.mp3"
+    }
+  ],
+  "files": [
+    "flow-01-role.png",
+    "flow-04-home.png",
+    "flow-05-explore.png",
+    "flow-07-stamp-celebration.png",
+    "flow-08-envelope.png",
+    "flow-09-album.png",
+    "flow-10-gacha-result.png",
+    "flow-11-exhibit-saved.png",
+    "reg-a-play-hub-from-neighbors.png",
+    "flow-12-game-result.png",
+    "strip-light-album-mid.png",
+    "dark-stamp-celebration.png",
+    "dark-myroom-bottom.png",
+    "dark-studio-chip.png",
+    "dark-my-info-bottom.png",
+    "dark-my-coins-bottom.png",
+    "dark-strip-album-mid.png",
+    "neighbors-light-tablist.png",
+    "back-after-explore-tab-light.png",
+    "neighbors-dark-tablist.png"
+  ],
+  "entryHttpStatuses": [
+    200,
+    304
+  ],
+  "allFlowPass": true,
+  "supplementErrs": [],
+  "verdicts": {
+    "1_entry": true,
+    "2_neighbors_single_tablist_light": true,
+    "2_neighbors_single_tablist_dark": true,
+    "3_back_explore_light": true,
+    "3_back_play_light": true,
+    "3_back_explore_dark": true,
+    "3_back_play_dark": true,
+    "4_dark_chip": true,
+    "5_strip_light": true,
+    "5_strip_dark": true,
+    "6a_play_tab": true,
+    "6b_stamp_opaque": true,
+    "6c_tabs": true,
+    "6d_dark_bottom": true,
+    "7_flow": true
+  },
+  "counts": {
+    "consoleErrors": 0,
+    "pageErrors": 0,
+    "http4xx5xx_or_failed": 0,
+    "abortedAudio": 21
+  }
+}

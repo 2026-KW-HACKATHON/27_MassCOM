@@ -6,6 +6,9 @@
 
 `patches/react-native-web+0.21.2.patch`는 렌더마다 색상 구독을 갈아 끼워 실행 중 테마 전환을 놓치던 문제를 고친다. 기존 patch-package postinstall을 통해 적용한다. 업스트림 교체 시 라이트↔다크 왕복에서 헤더·본문·탭이 모두 갱신되는지 확인한 뒤 제거한다. 앱의 실제 보유/보상 수치, 서버 소유권 검사, 기기 동작 줄이기를 유지한다.
 
+`patches/expo-router+57.0.23.patch`는 웹(`/play`)에서 하위 화면의 하단 탭(`dismissTo`)이 Stack을 줄일 때 expo-router 웹 history가 `go(-n)` 뒤 앞 항목을 새 경로로 덮어써 앱의 이전 화면을 기록에서 지우던 문제를 고친다. 이전 항목 중 같은 경로가 없으면(새 목적지) 덮어쓰지 않고 push하므로 브라우저 뒤로 가기가 앱 안의 이전 화면으로 돌아간다. 이전 항목과 같은 경로로 가는 뒤로 가기와 Android(`useLinking.native`)는 그대로다. expo-router 교체 시 `src/navigation/web-history.test.ts`와 웹 export에서 하위 화면 → 탭 → 뒤로 가기를 확인한 뒤, 업스트림이 고치면 제거한다.
+웹 export 전에 `npm ci --prefix apps/mobile`(postinstall의 patch-package)로 이 패치를 적용해야 한다.
+
 
 ## 동행 공간과 네 가지 놀이
 

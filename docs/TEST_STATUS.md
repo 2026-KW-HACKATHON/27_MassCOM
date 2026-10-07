@@ -1,5 +1,44 @@
 # 테스트 상태
 
+## 2026-10-08 낮은 결함 4건 수정과 test.13·Preview 22 (Issue #407)
+
+기준 main `6ce8ad037722e8d12ce914164450a6a7ff93382e`(PR #406 병합) 위의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`, 작업 브랜치 `fix/next-build-1008`. 코드 검증·리뷰·게시·`/play/` 행은 사용자 제공 2026-10-08 KST 기록이며 이번 문서 작업의 원격 재검증이 아니다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 앱 수정 `5ca98955` 로컬 검증 | PASS | 모바일 1,883/1,883, typecheck·lint·접근성·운영/시연 Android export·variant 자산·gate PASS. 이웃 방 숨은 `(tabs)` 탭 바 미렌더링, 웹 하위 화면→처음 가는 탭 이동 시 history 추가(`apps/mobile/patches/expo-router+57.0.23.patch`, 웹 전용, Android 무관), 마이룸 꾸미기 선택 칩 테마 색, 떠 있는 탭 바 아래 띠 배경 마스크. main에 병합된 #402 포함 |
+| 독립 리뷰 | PASS — APPROVE | Claude sonnet, 🔴/🟠 없음 |
+| 시연 Preview 22 게시 | PASS | `showcase-android-v0.1.0-preview.22`, `MassCOM-showcase-android-5ca9895.apk` SHA-256 `a384cfee5b1fdacd0c7128d2232c2673f6bb422a1047e223acc1397cceff932f`, 약 330MB, package `kr.masscom.wolgye.demo`, 시연 키 `CDB0DC37…F28A`, RECORD_AUDIO 없음, 내부 `0.1.0-test.2`/`2`. [릴리스 증거](evidence/showcase-preview22-release-2026-10-08.json). 실기 수용 NOT_RUN |
+| 운영 test.13 게시 | PASS | `android-v0.1.0-test.13`, `MassCOM-operating-android-5ca9895.apk` SHA-256 `45dc8a37d56b545bf4ef2da133bde48795dfadb2d965d122151d4310aeb5c53b`, 약 324MB, package `kr.masscom.wolgye`, 업로드 키 `5E5ED3C3…A395`, AAB 서명·지갑 표면 PASS, RECORD_AUDIO 없음, 내부 `0.1.0-test.2`/`2`. [릴리스 증거](evidence/operating-android-test13-2026-10-08.json). 실기 수용 NOT_RUN |
+| 두 APK 익명 다운로드 해시 대조 | PASS | 공개 Release에서 로그인 없이 다시 내려받아 SHA-256을 재계산했고 게시 해시와 일치. 두 증거 JSON의 `anonymousDownloadSha256Match`는 `PASS` |
+| 시연 `/play/` 전환 | PASS | 소스 `5ca98955` 번들(entry `entry-858be2c61591f08ea88654ceed5f67ec.js`, `lang="ko"`)을 `/opt/masscom-showcase/web/releases/5ca98955…`에 두고 `current` 전환·edge Caddy 재시작, 공개 서빙 확인. 운영 api·www·시연 health 200 유지 |
+| 서버 API·DB | 변경 없음 | 운영 `08f125b4`, 시연 API `2d483ed`, migration 68건 유지 |
+| 라이브 `/open`의 test.13·Preview 22 | 대기 | 이 PR 병합 커밋의 운영 웹 재배포로 나간다. 그 전에는 test.12·Preview 21 링크 |
+| 새 `/play/` 번들 공개 측정 | 별도 기록 | [next-build 측정 기록](evidence/next-build-2026-10-08/README.md)이 정본이다. 다른 작업자가 작성하는 기록이어서 이 표는 그 판정을 옮겨 적지 않는다 |
+| 남은 🟡 6건 | 미수정 | (1) 해시(`#`) 진입 세션에서 기록이 늘 수 있음(앱은 해시를 만들지 않음), (2) expo-router 원본의 음수 인덱스 비교 결함으로 하위 화면→홈 탭 등에서 뒤로 가기 1회 헛누름 가능(이탈은 아님), (3) 새 시험이 소스 문자열 위주, (4) 탭 바 없는 하위 화면으로 push 시 전환 중 탭 바가 먼저 사라짐(Android 외관), (5) 라이트 모드 비선택 칩 테두리 대비 낮음(1.14:1), (6) 웹 export 전에 `npm ci --prefix apps/mobile`(patch-package) 필요 |
+| 실제 점주·이용자 현장 자료 | NOT_RUN | 소유자 수동 항목 |
+| 설치본 실기·TalkBack | NOT_RUN | 최신 APK 실제 휴대전화 설치·로그인·QR·접근성은 별도 |
+
+지도 키가 없어 시연·설치본은 목록 기반 탐색이다. 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. braces·node-forge 보안 예외는 2026-10-31에 만료된다. 아래 절은 당시 이력이다.
+
+### 이번 문서 작업의 로컬 검사
+
+환경: macOS, `fix/next-build-1008` worktree(`.worktrees/next-build`), 2026-10-08 KST. 다음은 이번 세션에서 직접 실행한 문서·정적 검사다.
+
+| 명령 | 결과 |
+| --- | --- |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/operations_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/demo_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/judging_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_project_site_test.sh` | PASS (exit 0) |
+| `bash tests/site/check_site_accessibility_test.sh` | PASS (exit 0) |
+| `node --test tests/site/legal-pages.test.mjs tests/site/public-entry.test.mjs` | PASS (14/14, exit 0) |
+
+아홉 검사 모두 첫 실행에 통과했다. `docs/open.html`과 함께 검사 기대값(`scripts/verify-project-site.sh`, `tests/site/verify_project_site_test.sh`, `tests/site/public-entry.test.mjs`)의 릴리스 태그 문자열만 test.13·preview.22로 바꿨고 그 밖의 검사 로직은 건드리지 않았다. 참고로 `node --test tests/ops/lightsail_readme_current_test.mjs`도 PASS(2/2)였다. 새 증거 JSON 2개는 구문과 40자리 소스 SHA를 확인했다. 새로 추가한 문서 링크의 대상 파일이 모두 존재함을 확인했다. 앱 수정(`5ca98955`)의 모바일 시험은 이번 문서 작업에서 다시 실행하지 않았다(위 표는 제공 기록). git 조작, 이 한 줄을 제외한 `apps/**`·`infra/**` 수정, `docs/evidence/next-build-2026-10-08/` 수정은 하지 않았다.
+
 ## 2026-10-08 병합·공개 반영·수정본 재측정 (Issue #401 후속)
 
 기준 main `a742e32dd76f36555e6969082b400946c048ad6b`, 작업 브랜치 `docs/submission-1008-final`, 수정 번들 소스 `9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49`. 병합·배포·게시 행은 사용자 제공 2026-10-08 KST 기록이며 이번 문서 작업의 원격 재검증이 아니다. 재측정 행의 원자료는 [flow-recheck.json](evidence/submission-2026-10-08-recheck/flow-recheck.json)에 보존했다.
