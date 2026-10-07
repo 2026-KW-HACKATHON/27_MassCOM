@@ -19,13 +19,13 @@ export function presentedCollectibleIds(apiUrl: string, accountId: string): Read
 const acknowledged = new Map<string, Set<string>>();
 /** Repeated reveal events share one receipt; a failed acknowledgement remains retryable. */
 export async function acknowledgeCollectibleReceipt(
-  apiUrl: string, accountId: string, entitlementId: string, open: (id: string) => Promise<unknown>,
+  apiUrl: string, accountId: string, entitlementId: string, recordOpening: (id: string) => Promise<unknown>,
 ): Promise<void> {
   const key = scope(apiUrl, accountId);
   const ids = acknowledged.get(key) ?? new Set<string>();
   if (ids.has(entitlementId)) return;
   ids.add(entitlementId);
   acknowledged.set(key, ids);
-  try { await open(entitlementId); }
+  try { await recordOpening(entitlementId); }
   catch (error) { ids.delete(entitlementId); throw error; }
 }

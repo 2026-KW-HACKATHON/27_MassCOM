@@ -364,7 +364,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       {errorNeedsConsent ? <Pressable accessibilityRole="button" onPress={recheckConsent} style={styles.goButton}><Text style={styles.goText}>{consentRecheckLabel}</Text></Pressable> : null}
       {notice ? <Text accessibilityRole="alert" style={[styles.notice, { color: palette.success }]}>{notice}</Text> : null}
       <View accessibilityRole="radiogroup" style={styles.modeChoices}>{studioModes.map((option) => <Pressable key={option.id}
-        accessibilityRole="radio" accessibilityState={{ checked: mode === option.id }} onPress={() => setModeChoice({ requestKey, mode: option.id })}
+        accessibilityRole="radio" accessibilityState={{ checked: mode === option.id }} aria-checked={mode === option.id} onPress={() => setModeChoice({ requestKey, mode: option.id })}
         style={[styles.modeChoice, { backgroundColor: mode === option.id ? palette.primaryContainer : palette.surface,
           borderColor: mode === option.id ? palette.primary : palette.separator }]}>
         <Text style={[styles.modeText, { color: mode === option.id ? palette.onPrimaryContainer : palette.label }]}>{option.label}</Text>

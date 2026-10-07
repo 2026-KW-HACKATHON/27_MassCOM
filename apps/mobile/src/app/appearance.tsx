@@ -43,7 +43,7 @@ export default function AppearanceScreen() {
       <Text style={ui.cardTitle}>{title}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {choices.map(([value, label]) => <Pressable key={value} accessibilityRole="radio"
-          accessibilityState={{ checked: draft[key] === value }} disabled={!stored.ready || saving}
+          accessibilityState={{ checked: draft[key] === value }} aria-checked={draft[key] === value} disabled={!stored.ready || saving}
           onPress={() => choose(key, value)} style={{ minHeight: 54, flexGrow: 1, padding: 14, borderRadius: 16,
             backgroundColor: draft[key] === value ? palette.primaryContainer : palette.surface,
             borderWidth: 2, borderColor: draft[key] === value ? palette.primary : palette.separator }}>

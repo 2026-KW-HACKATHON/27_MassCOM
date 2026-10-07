@@ -66,7 +66,7 @@ export function TabSlot({ name, label, accessibilityLabel, selected, filled, col
   const enabled = useMotionEnabled();
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  return <Pressable accessibilityRole="tab" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected }}
+  return <Pressable accessibilityRole="tab" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected }} aria-selected={selected}
     onPress={onPress} onPressIn={() => { if (enabled) scale.set(withTiming(.94, { duration: 90 })); }}
     onPressOut={() => { scale.set(withSpring(1)); }} style={styles.slot}>
     <Animated.View style={[styles.selection, { backgroundColor: selected ? colors.selected : 'transparent' }, animated]}>
