@@ -5,18 +5,30 @@ const fields = form => form.elements;
 const optional = value => value.trim() || null;
 
 /** @param {unknown} [body] */
-async function request(fetcher, path, method = 'GET', body) {
-  const response = await fetcher(path, {
-    method, credentials: 'same-origin', cache: 'no-store',
-    headers: body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+export async function request(fetcher, path, method = 'GET', body, timeoutMs = 10_000) {
+  const controller = new AbortController();
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(Object.assign(new Error('요청 시간이 초과되었습니다. 다시 시도해 주세요.'), { code: 'REQUEST_TIMEOUT' }));
+    }, timeoutMs);
   });
-  if (!response.ok) {
-    const error = Object.assign(new Error('request failed'), { status: response.status, code: '' });
-    try { error.code = (await response.json()).code; } catch { /* status is enough */ }
-    throw error;
-  }
-  return response.json();
+  try {
+    return await Promise.race([(async () => {
+      const response = await fetcher(path, {
+        method, credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+        headers: body === undefined ? { Accept: 'application/json' } : { Accept: 'application/json', 'Content-Type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (!response.ok) {
+        const error = Object.assign(new Error('request failed'), { status: response.status, code: '' });
+        try { error.code = (await response.json()).code; } catch { /* status is enough */ }
+        throw error;
+      }
+      return response.json();
+    })(), timeout]);
+  } finally { clearTimeout(timer); }
 }
 
 /** @returns {never} */
@@ -198,14 +210,16 @@ function localDateTime(value) {
 
 function updatePhotoOptions(doc, photos, items) {
   const rows = [...doc.querySelectorAll('#real-world-menu-rows [data-real-menu]')];
-  rows.forEach((row, i) => {
+  const saved = items && new Map(items.map(item => [item.id, item.photoId]));
+  rows.forEach(row => {
     const select = row.querySelector('[name="menuPhoto"]');
+    const selected = saved ? saved.get(row.dataset.id) ?? '' : select.value;
     select.replaceChildren();
     const none = doc.createElement('option'); none.value = ''; none.textContent = '없음'; select.append(none);
     for (const photo of photos.filter(photo => photo.kind === 'MENU')) {
       const option = doc.createElement('option'); option.value = photo.id; option.textContent = photo.caption || '메뉴 사진'; select.append(option);
     }
-    select.value = items[i]?.photoId ?? '';
+    select.value = photos.some(photo => photo.kind === 'MENU' && photo.id === selected) ? selected : '';
   });
 }
 
@@ -333,7 +347,25 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
       if (token === generation) { view = undefined; form.hidden = true; status.textContent = errorMessage(error); }
     }
   };
-  const saveView = next => { view = next; doc.getElementById('real-world-preview').replaceChildren(); fill(doc, form, next); showReadiness(doc, next.readiness); showPhotos(doc, next.photos, deletePhoto, channel, select.value, !form.hidden); };
+  const saveView = (next, keepDraft = false) => {
+    view = next; doc.getElementById('real-world-preview').replaceChildren();
+    if (keepDraft) updatePhotoOptions(doc, next.photos); else fill(doc, form, next);
+    showReadiness(doc, next.readiness); showPhotos(doc, next.photos, deletePhoto, channel, select.value, !form.hidden);
+  };
+  const reconcileWrite = async (id, token, error) => {
+    if (error.status && error.status < 500) { status.textContent = errorMessage(error); return; }
+    status.textContent = '저장 결과를 확인하는 중입니다.';
+    try {
+      const latest = await request(fetcher, `${base(id, channel)}/real-world-profile`);
+      if (token !== generation || id !== select.value) return;
+      saveView(latest, true);
+      status.textContent = '저장 결과가 불확실합니다. 서버 정보를 다시 확인했습니다. 초안을 확인한 뒤 저장해 주세요.';
+    } catch {
+      if (token !== generation || id !== select.value) return;
+      view = undefined;
+      status.textContent = '저장 결과를 확인하지 못했습니다. 정보 다시 불러오기로 서버 상태를 확인해 주세요.';
+    }
+  };
   const engagement = async (id, token) => {
     const list = doc.getElementById('real-world-engagement'); list.replaceChildren();
     try {
@@ -349,12 +381,12 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
   const deletePhoto = async photoId => {
     if (!view || busy || form.hidden || !globalThis.confirm?.('이 실제 사진을 삭제할까요?')) return;
     const token = generation, id = select.value;
-    busy = true;
+    busy = true; status.textContent = '실제 사진을 삭제하는 중입니다.';
     try {
       const next = await request(fetcher, `${base(id, channel)}/photos/${encodeURIComponent(photoId)}`, 'DELETE', { expectedVersion: view.version });
       if (token !== generation || id !== select.value) return;
-      saveView(next); status.textContent = '실제 사진을 삭제했습니다.';
-    } catch (error) { if (token === generation) status.textContent = errorMessage(error); }
+      saveView(next, true); status.textContent = '실제 사진을 삭제했습니다.';
+    } catch (error) { if (token === generation) await reconcileWrite(id, token, error); }
     finally { if (token === generation) busy = false; }
   };
   const reports = async (id, token) => {
@@ -403,7 +435,7 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
     doc.getElementById('real-world-refresh').addEventListener('click', load);
     doc.getElementById('real-world-add-menu').addEventListener('click', () => {
       const row = menuRow(doc); doc.getElementById('real-world-menu-rows').append(row);
-      updatePhotoOptions(doc, view?.photos ?? [], view?.profile.menuItems ?? []);
+      updatePhotoOptions(doc, view?.photos ?? []);
     });
     doc.getElementById('real-world-clear-location').addEventListener('click', () => {
       for (const name of ['latitude', 'longitude', 'entranceLatitude', 'entranceLongitude', 'floor', 'unit', 'entranceNote', 'verificationNote']) fields(form)[name].value = '';
@@ -418,12 +450,12 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
       let profile;
       try { profile = profileFromForm(form, view.profile, new Date(), channel === 'admin' ? 'ADMIN_DOCUMENTED' : 'OWNER_DECLARED'); }
       catch (error) { status.textContent = error.message; return; }
-      busy = true;
+      busy = true; status.textContent = '실제 정보를 저장하는 중입니다.';
       try {
         const next = await request(fetcher, `${base(id, channel)}/real-world-profile`, 'PUT', { expectedVersion: view.version, profile });
         if (token !== generation || id !== select.value) return;
         saveView(next); status.textContent = '실제 정보를 저장했습니다.';
-      } catch (error) { if (token === generation) status.textContent = errorMessage(error); }
+      } catch (error) { if (token === generation) await reconcileWrite(id, token, error); }
       finally { if (token === generation) busy = false; }
     });
     doc.getElementById('real-world-photo-form').addEventListener('submit', async event => {
@@ -434,7 +466,7 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
         status.textContent = 'JPEG·PNG·WebP 사진과 게시 권리 확인이 필요합니다.'; return;
       }
       const version = view.version;
-      busy = true;
+      busy = true; status.textContent = '실제 사진을 등록하는 중입니다.';
       try {
         const dataUrl = await new Promise((resolve, reject) => {
           const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file);
@@ -445,8 +477,8 @@ function mountRealWorldProfile(fetcher, doc, merchants, channel) {
           rightsConfirmed: true, mimeType: file.type, base64: String(dataUrl).split(',')[1],
         });
         if (token !== generation || id !== select.value) return;
-        saveView(next); photoForm.reset(); status.textContent = '실제 사진을 등록했습니다.';
-      } catch (error) { if (token === generation) status.textContent = errorMessage(error); }
+        saveView(next, true); photoForm.reset(); status.textContent = '실제 사진을 등록했습니다.';
+      } catch (error) { if (token === generation) await reconcileWrite(id, token, error); }
       finally { if (token === generation) busy = false; }
     });
     doc.getElementById('real-world-candidates-form').addEventListener('submit', async event => {

@@ -383,7 +383,7 @@ footer {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
   gap: 20px;
-  align-items: stretch;
+  align-items: start;
   padding-block: 32px 20px;
 }
 
@@ -483,36 +483,31 @@ footer {
 }
 
 .truth-board {
-  display: flex;
-  flex-direction: column;
   padding: 1.35rem 1.4rem 1.2rem;
   border-radius: var(--mc-radius-card);
   background: var(--mc-surface);
 }
 
-.truth-heading {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.25rem 1rem;
-  padding-bottom: 0.7rem;
-  border-bottom: 1px solid var(--mc-separator);
-}
-
-.truth-heading h2 {
-  margin: 0;
+.truth-board > summary {
+  display: list-item;
+  min-height: 48px;
+  padding-block: 0.4rem;
+  cursor: pointer;
   font-size: 1.15rem;
+  font-weight: 800;
 }
 
-.truth-heading span,
+.truth-board > summary span,
 .truth-board > p {
+  display: block;
   color: var(--mc-secondary);
   font-size: 0.82rem;
+  font-weight: 400;
 }
 
 .truth-board dl {
   margin: 0;
+  border-top: 1px solid var(--mc-separator);
 }
 
 .truth-board dl > div {

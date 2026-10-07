@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test } from 'node:test';
+// Issue #401 회귀를 기존 CI 검사에서도 실행한다.
+import './public-entry.test.mjs';
 
 const docs = resolve(import.meta.dirname, '../../docs');
 const read = (name) => readFileSync(resolve(docs, name), 'utf8');

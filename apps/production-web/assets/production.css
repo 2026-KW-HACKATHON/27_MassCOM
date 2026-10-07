@@ -107,6 +107,10 @@ section[id] { scroll-margin-top: 16px; }
 .status:empty { display: none; }
 .note { padding: 12px 16px; border-radius: var(--mc-radius-control); background: var(--mc-accent-container); color: var(--mc-on-accent-container); font-size: .92rem; }
 
+.merchant-empty { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+.merchant-empty > div { flex: 1; min-width: min(100%, 16rem); }
+.merchant-empty .collection-actions { margin-bottom: 0; }
+
 /* 첫 로그인 동의(Issue #253): 필수 세 개와 개인정보 수집·이용 안내 네 가지 */
 .consent-panel { display: grid; gap: 16px; margin: 16px 0; padding: 20px; border-radius: var(--mc-radius-card); background: var(--mc-surface); }
 .consent-intro { color: var(--mc-secondary); }
