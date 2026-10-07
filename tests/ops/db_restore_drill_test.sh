@@ -19,7 +19,8 @@ grep -q 'restore drill passed' <<<"$out"
 read -r -a pg_prefix <<<"${PG_EXEC:-} "
 pg() { if [[ -n "${PG_EXEC:-}" ]]; then "${pg_prefix[@]}" "$@"; else "$@"; fi; }
 base="${url%%\?*}"
-left="$(pg psql "${base%/*}/postgres" --no-psqlrc -tAc "SELECT count(*) FROM pg_database WHERE datname LIKE '%\_restore\_test'")"
+query="${url#"$base"}"
+left="$(pg psql "${base%/*}/postgres$query" --no-psqlrc -tAc "SELECT count(*) FROM pg_database WHERE datname LIKE '%\_restore\_test'")"
 [[ "$left" == "0" ]] || { echo "scratch database was left behind" >&2; exit 1; }
 
 # A restore that does not match the source must fail the drill.

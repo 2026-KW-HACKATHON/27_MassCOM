@@ -14,8 +14,37 @@ for app in api mobile worker; do
   cp "$repo_root/apps/$app/README.md" "$fixture/apps/$app/README.md"
 done
 cp "$repo_root/docs/HANDOFF.md" "$fixture/docs/HANDOFF.md"
+cp "$repo_root/docs/HANDOFF_HISTORY.md" "$fixture/docs/HANDOFF_HISTORY.md"
 cp "$repo_root/docs/PROJECT_STATE.md" "$fixture/docs/PROJECT_STATE.md"
 cp "$repo_root/README.md" "$fixture/README.md"
+
+assert_current_handoff() {
+  local handoff="$1" history="$2"
+  [[ "$(rg -c '^## [0-9]+\. ' "$handoff")" -eq 14 ]] || return 1
+  rg -q '^## 1\. 기준 커밋과 작업 위치$' "$handoff" || return 1
+  rg -q '^## 14\. 이력과 변경 규칙$' "$handoff" || return 1
+  sed -n '1,12p' "$handoff" | rg -q '기준 main 커밋 SHA: `8b336ece`' || return 1
+  sed -n '1,15p' "$handoff" | rg -q 'Issue #401 진행 중' || return 1
+  rg -q '필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN`' "$handoff" || return 1
+  rg -q "^PR_TITLE='한국어 PR 제목'$" "$handoff" || return 1
+  rg -q "^PR_BODY='변경 내용과 실제 검증 결과를 설명하는 한국어 본문'$" "$handoff" || return 1
+  rg -q 'bash scripts/check-pr-korean.sh "\$PR_TITLE" "\$PR_BODY"' "$handoff" || return 1
+  rg -q 'bash tests/bootstrap/check_pr_korean_test.sh.*checker 자체 회귀 시험' "$handoff" || return 1
+  rg -q 'PR #398과 #400은 병합됐다' "$handoff" || return 1
+  rg -q '\[HANDOFF_HISTORY\]\(HANDOFF_HISTORY.md\)' "$handoff" || return 1
+  rg -q '^## 2026-10-07 PR·이슈 점검 전달 결과$' "$history"
+}
+
+assert_current_handoff "$fixture/docs/HANDOFF.md" "$fixture/docs/HANDOFF_HISTORY.md" || {
+  echo 'current handoff format or preserved history missing' >&2
+  exit 1
+}
+sed 's/PR #398과 #400은 병합됐다/PR #398과 #400은 열려 있다/' "$fixture/docs/HANDOFF.md" > "$fixture/docs/HANDOFF.md.mutated"
+if assert_current_handoff "$fixture/docs/HANDOFF.md.mutated" "$fixture/docs/HANDOFF_HISTORY.md"; then
+  echo 'handoff regression accepted stale open PR status' >&2
+  exit 1
+fi
+rm "$fixture/docs/HANDOFF.md.mutated"
 
 assert_mutation_fails() { # <file> <from> <to>
   local file="$1" from="$2" to="$3"

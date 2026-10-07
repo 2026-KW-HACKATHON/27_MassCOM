@@ -25,10 +25,18 @@ FAKE
 # Both database snapshots read the same fixed text, so the drill's comparison passes.
 cat >"$fakebin/psql" <<'FAKE'
 #!/usr/bin/env bash
+if [[ -n "${FAKE_PG_URL_LOG:-}" ]]; then printf '%s\n' "$1" >>"$FAKE_PG_URL_LOG"; fi
 echo fake
 FAKE
 cat >"$fakebin/pg_restore" <<'FAKE'
 #!/usr/bin/env bash
+if [[ -n "${FAKE_PG_URL_LOG:-}" ]]; then
+  next_db=""
+  for arg in "$@"; do
+    if [[ "$next_db" == 1 ]]; then printf 'pg_restore:%s\n' "$arg" >>"$FAKE_PG_URL_LOG"; next_db=""; fi
+    if [[ "$arg" == --dbname ]]; then next_db=1; fi
+  done
+fi
 cat >/dev/null
 FAKE
 chmod +x "$fakebin/pg_dump" "$fakebin/psql" "$fakebin/pg_restore"
@@ -40,7 +48,7 @@ run_drill() {
   # umask 022 is what the caller's shell usually has; the script must not depend on it.
   ( umask 022
     cd "$work"
-    PATH="$fakebin:$PATH" DRILL_DATABASE_URL=postgresql://drill@127.0.0.1:1/masscom_test bash "$drill" "$@" )
+    PATH="$fakebin:$PATH" DRILL_DATABASE_URL="${DRILL_DATABASE_URL:-postgresql://drill@127.0.0.1:1/masscom_test}" bash "$drill" "$@" )
 }
 leftovers() { find "$work" -name '*.part.*' | wc -l | tr -d ' '; }
 
@@ -111,5 +119,15 @@ status=0
 out="$(TMPDIR="$work" run_drill 2>&1)" || status=$?
 [[ "$status" == 0 ]] || { echo "temporary-dump drill failed ($status): $out" >&2; exit 1; }
 [[ -z "$(find "$work" -name 'masscom-backup.*' -print -quit)" ]] || { echo 'temporary dump outlived the drill' >&2; exit 1; }
+
+# TLS 옵션은 dump뿐 아니라 scratch DB 생성·복원·조회·삭제 연결에도 유지한다.
+url_log="$scratch/urls.log"
+tls_query='?sslmode=verify-full&sslrootcert=/tmp/test-ca.pem&connect_timeout=3'
+status=0
+out="$(FAKE_PG_URL_LOG="$url_log" DRILL_DATABASE_URL="postgresql://drill@127.0.0.1:1/masscom_test$tls_query" run_drill "$work/tls.dump" 2>&1)" || status=$?
+[[ "$status" == 0 ]] || { echo "TLS drill failed ($status): $out" >&2; exit 1; }
+[[ "$(grep -Fxc "postgresql://drill@127.0.0.1:1/postgres$tls_query" "$url_log" || true)" -eq 2 ]] || { echo 'admin create/drop connections lost TLS options' >&2; exit 1; }
+grep -Eq "^pg_restore:postgresql://drill@127\.0\.0\.1:1/masscom_[0-9]+_restore_test\\?sslmode=verify-full&sslrootcert=/tmp/test-ca.pem&connect_timeout=3$" "$url_log" || { echo 'restore connection lost TLS options' >&2; exit 1; }
+grep -Eq "^postgresql://drill@127\.0\.0\.1:1/masscom_[0-9]+_restore_test\\?sslmode=verify-full&sslrootcert=/tmp/test-ca.pem&connect_timeout=3$" "$url_log" || { echo 'scratch snapshot lost TLS options' >&2; exit 1; }
 
 echo "restore drill backup-file tests passed"

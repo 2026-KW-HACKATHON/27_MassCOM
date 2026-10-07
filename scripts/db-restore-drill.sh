@@ -51,6 +51,7 @@ read -r -a pg_prefix <<<"${PG_EXEC:-} "
 pg() { if [[ -n "${PG_EXEC:-}" ]]; then "${pg_prefix[@]}" "$@"; else "$@"; fi; }
 
 base="${url%%\?*}"
+query="${url#"$base"}"
 source_db="${base##*/}"
 if [[ -z "$source_db" || "$source_db" == "$base" ]]; then
   echo "DRILL_DATABASE_URL must name a database" >&2
@@ -60,8 +61,8 @@ fi
 # The process id keeps two drills apart and means an existing database is never dropped by name.
 scratch_db="${source_db%_test}_$$_restore_test"
 server="${base%/*}"
-scratch_url="$server/$scratch_db"
-admin_url="$server/postgres"
+scratch_url="$server/$scratch_db$query"
+admin_url="$server/postgres$query"
 
 counts_sql="SELECT table_name || ' ' || (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM %I.%I', table_schema, table_name), false, true, '')))[1]::text
   FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"

@@ -65,7 +65,7 @@ awk '/^set -Eeuo pipefail$/ { remote=1 } remote && /^REMOTE$/ { exit } remote { 
 [[ -s "$scratch/remote.sh" ]]
 
 run_remote_case() {
-  local failure="$1"
+  local failure="$1" compatibility="${2:-yes}"
   status=0
   rm -f "$scratch/pg-recreated" "$scratch/job-calls" "$scratch/systemctl-calls" "$scratch/curl-calls"
   (
@@ -200,7 +200,7 @@ run_remote_case() {
     failure caddy_mount_source site_mount_source showcase_failed
   export -f sudo docker curl sleep systemctl
   bash "$scratch/remote.sh" "$new_release" "$runtime" "$temporary" \
-    "${new_commit:0:12}" "$new_commit" "$old_commit"
+    "${new_commit:0:12}" "$new_commit" "$old_commit" "$compatibility"
   ) >"$scratch/out" 2>&1 || status=$?
   out="$(<"$scratch/out")"
 }
@@ -239,7 +239,26 @@ caddyfile_backup="$(find "$scratch/opt/masscom/backups" -name 'caddyfile-before-
 cmp "$showcase_caddyfile" "$caddyfile_backup"
 grep -q 'masscom_showcase_edge' "$scratch/docker-calls"
 grep -q 'https://demo-api.masscom.kr/health' "$scratch/curl-calls"
-[[ "$(find "$scratch/opt/masscom/backups" -name '*.dump.*' | wc -l | tr -d ' ')" == 1 ]]
+[[ "$(find "$scratch/opt/masscom/backups" -name '*.dump.*' | wc -l | tr -d ' ')" == 1 ]] || { echo '첫 실패 사례의 사전 백업 개수 불일치' >&2; exit 1; }
+# Issue #401: 하위 비호환 migration 이후 실패는 구 API 재기동 대신 쓰기를 중단한다.
+for failure_mode in migrate prod_health prod_app_health prod_merchant_health; do
+  reset_live_state
+  run_remote_case "$failure_mode" no
+  [[ "$status" != 0 ]] || { echo "$failure_mode: 실패를 성공으로 보고함" >&2; exit 1; }
+  grep -q 'FORWARD_RECOVERY_REQUIRED' <<<"$out" || { echo "$failure_mode: 전진 복구 안내 없음: $out" >&2; exit 1; }
+  if grep -q 'FULL_DEPLOY_REVERTED' <<<"$out" || grep -q 'force-recreate' "$scratch/docker-calls"; then
+    echo "$failure_mode: 하위 비호환 migration 뒤 구 서비스 자동 재기동" >&2; exit 1
+  fi
+  [[ "$(grep -c ' stop api$' "$scratch/docker-calls")" == 2 ]] || { echo 'migration 전후 API 쓰기 중단 누락' >&2; exit 1; }
+  grep -qx 'NEW_ENV=1' "$runtime"
+  grep -qx "$old_commit" "$scratch/opt/masscom/DEPLOYED_COMMIT"
+done
+# migration 이전 실패는 스키마가 바뀌지 않아 기존 자동 복귀를 유지한다.
+reset_live_state
+run_remote_case pg_stuck no
+grep -q 'FULL_DEPLOY_REVERTED' <<<"$out"
+reset_live_state
+
 printf 'NEW_ENV=1\n' >"$temporary"
 : >"$scratch/docker-calls"
 run_remote_case backup
