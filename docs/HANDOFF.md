@@ -1,5 +1,10 @@
 # HANDOFF
 
+## 2026-10-07 미착수 이슈 #315 수정 PR 준비
+
+`fix/315-living-overlays`는 main `51e2df21` 기준으로 김 범위·스티커 재질·모양 자르기 세 결함만 수정했다. 사이트 519/519·집중 회귀·실제 Canvas/게시 sprite·독립 검토를 확인했다. [근거](evidence/315-living-overlays-2026-10-07/README.md). 새 PR로 제출하며 공개 배포하지 않는다. #396은 제품 기능과 별개인 대규모 개발 목업으로 판단해 Draft 보존한다. #309 구현 종료 후 전체 체험 수용은 #206으로 이관했고 #393은 #394 중복으로 종료했다. #380은 #382의 기존 crop 수정 뒤 시각 수용, #395는 별도 구현 진행 중이다.
+
+
 ## 2026-10-07 가게 코인·방 탐험·시리즈 보상과 시연 역할 전환 (Issue #391)
 
 [PR #392](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/392)의 실제 최종 HEAD 검사와 병합 상태를 따른다. 초기 구현 소스는 d2068c0c이며 후속 희귀 확률 보정까지 같은 PR에 포함한다. 재개 시 `gh pr view 392 --json state,headRefOid,mergeCommit,statusCheckRollup`와 primary `git status -sb`로 전달 상태를 확인한다. 후속 비공개 APK fd522b0d는 설치-r와 정상 키/서버 Secret 제외·동일 서명·native32/ZIP16KiB·formatter 포함 확인을 마쳤다.

@@ -1,5 +1,10 @@
 # 프로젝트 상태
 
+## 2026-10-07 이슈 #315 후속
+
+살아 있는 그림의 세 렌더링 결함을 `fix/315-living-overlays`에서 수정하고 별도 PR로 제출한다. 사이트 519/519와 실제 Canvas를 검증했다. API/DB·Android 계약·공개 배포 변경 없음. [검증](evidence/315-living-overlays-2026-10-07/README.md).
+
+
 ## 2026-10-07 NAVER 발급·실제 주소 대체·SDK 준비 복구 (Issue #385)
 
 PR384는 최신0165b865 CI37530995738 전체 PASS 뒤 main73284651로 병합됐다. 사용자 콘솔에서 신규 Maps masscom(Dynamic Map·Geocoding)을 등록하고 대표 계정·웹/패키지3개를 확인했다. 키는 Git 밖의 권한600 파일에만 보관한다. 실제 TMAP403→NAVER 주소200·후보1건 PASS이며 별도 NAVER Developers 지역 검색 키는 아직 없다.

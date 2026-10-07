@@ -1,5 +1,10 @@
 # 테스트 상태
 
+## 2026-10-07 Issue #315 살아 있는 그림 회귀
+
+**PASS** 사이트 전체 519/519(집중 37 포함), JS 구문·diff 검사, 실제 Chrome Canvas 김 bbox 밖 픽셀341→0·도형 밖1224→0·재질 적용·WebP sprite 생성, 독립 코드 결함0/구조CLEAR. **NOT_RUN** 실제 서버 게시·공개 배포·지정 Android 설치본. [범위와 증거](evidence/315-living-overlays-2026-10-07/README.md).
+
+
 ## 2026-10-07 NAVER 발급·실제 주소 대체·SDK 준비 복구 (Issue #385)
 
 PR384는 최신0165b865 CI37530995738 전체 PASS 뒤 main73284651로 병합됐다. 사용자 콘솔에서 신규 Maps masscom(Dynamic Map·Geocoding)을 등록하고 대표 계정·웹/패키지3개를 확인했다. 키는 Git 밖의 권한600 파일에만 보관한다. 실제 TMAP403→NAVER 주소200·후보1건 PASS이며 별도 NAVER Developers 지역 검색 키는 아직 없다.

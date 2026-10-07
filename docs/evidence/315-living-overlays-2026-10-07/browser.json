@@ -1,0 +1,29 @@
+{
+  "checks": [
+    {
+      "name": "steam: 기존 범위 밖 픽셀 존재 / 수정 후 없음",
+      "pass": true
+    },
+    {
+      "name": "material: 실제 픽셀에 재질 적용",
+      "pass": true
+    },
+    {
+      "name": "clip: 원형 밖 불투명 픽셀 제거",
+      "pass": true
+    },
+    {
+      "name": "publish: 실제 WebP living sprite 생성",
+      "pass": true
+    }
+  ],
+  "steamPixelsOutsideBox": [
+    341,
+    0
+  ],
+  "edgePixelsOutsideShape": [
+    1224,
+    0
+  ],
+  "scope": "actual browser Canvas; synthetic fixture, not device acceptance"
+}

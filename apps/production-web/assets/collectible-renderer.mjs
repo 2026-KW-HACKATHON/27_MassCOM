@@ -299,7 +299,7 @@ async function paintLivingItem(context, project, item, gradeId, size, phase, pho
   const resolved = resolveSticker(sticker, gradeId);
   const blinking = item.kind === 'blink' && (phase * (project.living?.periodMs ?? 2400)) % (project.living?.periodMs ?? 2400) < 160;
   const pose = blinking && resolved.kind === 'mascot' && MASCOT_BLINK.includes(resolved.text) ? { ...resolved, text: `${resolved.text}-blink` } : resolved;
-  const layer = await stickerLayer(pose, size, [], 0, 0);
+  const layer = await stickerLayer(pose, size, effectsForGrade(project, gradeId, sticker.id), 0, 0);
   context.save();
   const anchor = { x: resolved.x * size, y: resolved.y * size };
   context.translate(anchor.x, anchor.y);
@@ -315,6 +315,7 @@ export async function livingOverlayFor(project, gradeId, size, phase) {
   const items = (project.living?.items ?? []).filter((item) => item.gradeIds?.includes(gradeId));
   if (!items.length) return null;
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
+  traceShape(context, project.shape, size, size); context.clip();
   const photo = await photoFor(project);
   for (const item of items) await paintLivingItem(context, project, item, gradeId, size, phase, photo);
   return canvas;
