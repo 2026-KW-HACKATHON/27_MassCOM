@@ -1,0 +1,48 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-08",
+  "sourceCommit": "74e47887c1c56da255271cdf1651f1f14c9044a3",
+  "pullRequests": [
+    403
+  ],
+  "issues": [
+    401
+  ],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.20",
+  "releaseTarget": "74e47887c1c56da255271cdf1651f1f14c9044a3",
+  "artifact": {
+    "name": "MassCOM-showcase-android-74e4788.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "sha256": "ac27151a1fdf49fbe8b59502746ef470df175d44802c0b0feaf1819db885603c",
+    "size": "약 330MB",
+    "package": "kr.masscom.wolgye.demo",
+    "signingCertificateSha256": "CDB0DC37750C907EAA2F1B9EB172B0911F14B9C9F2DAB78B481F1751D8EBF28A"
+  },
+  "checks": {
+    "embeddedApi": "PASS; 시연 APK에는 demo-api만 내장",
+    "walletSurface": "NOT_RUN",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한 없음",
+    "anonymousDownload": "PASS; 익명 다운로드 APK SHA-256 일치"
+  },
+  "notRun": [
+    "실제 휴대전화 설치·실행",
+    "로그인 흐름",
+    "지갑",
+    "실제 QR",
+    "TalkBack",
+    "글자 200%",
+    "Google Play 업로드·심사·배포"
+  ],
+  "limitations": "시연 서버·설치본에는 TMAP/NAVER 지도 키가 없어 목록 기반 탐색으로 동작한다. Preview 19의 에뮬레이터 결과를 Preview 20 검증으로 재사용하지 않는다.",
+  "physicalAndroid": {
+    "device": "NOT_RUN",
+    "environment": "NOT_RUN",
+    "apkInstall": "NOT_RUN"
+  },
+  "emulatorAndroid": {
+    "device": "NOT_RUN",
+    "environment": "NOT_RUN",
+    "apkInstall": "NOT_RUN"
+  },
+  "buildNote": "지도 SDK 네이티브 라이브러리(navermap·TMAP vsmsdk) 4개 ABI로 약 330MB다. PR #403에 TMAP release 리소스 검증 실패(Material 1.13.0 의존 추가)와 시연 APK 스크립트 로컬 AAR 모듈 묶음 실패(:app: 작업으로 한정) 수정이 포함됐다."
+}

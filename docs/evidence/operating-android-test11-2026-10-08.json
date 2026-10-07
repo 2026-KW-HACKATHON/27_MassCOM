@@ -1,0 +1,54 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; 실제 휴대전화·로그인 흐름·Google Play는 NOT_RUN이다.",
+  "verifiedAt": "2026-10-08",
+  "sourceCommit": "74e47887c1c56da255271cdf1651f1f14c9044a3",
+  "pullRequests": [
+    403
+  ],
+  "issues": [
+    401
+  ],
+  "checks": {
+    "aab": "PASS; AAB 서명·릴리스 지갑 표면 검사",
+    "recordAudioPermission": "PASS; RECORD_AUDIO 권한 없음",
+    "apkSignature": "PASS; 업로드 인증서 SHA-256 확인"
+  },
+  "acceptedArtifact": {
+    "apk": "MassCOM-operating-android-74e4788.apk",
+    "apkSha256": "f7d89fd4786459d40754739966ce78d989b6ff1cd59cdb142a95a490ec9c04be",
+    "apkSize": "약 324MB",
+    "package": "kr.masscom.wolgye",
+    "internalVersion": "0.1.0-test.2; versionCode 2",
+    "signingCertificateSha256": "5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395"
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.11",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.11",
+    "target": "74e47887c1c56da255271cdf1651f1f14c9044a3",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-74e4788.apk",
+        "sha256": "f7d89fd4786459d40754739966ce78d989b6ff1cd59cdb142a95a490ec9c04be"
+      }
+    ],
+    "anonymousDownload": "PASS; 익명 다운로드 APK SHA-256 일치"
+  },
+  "physicalAndroid": {
+    "device": "NOT_RUN",
+    "apkInstall": "NOT_RUN",
+    "launch": "NOT_RUN",
+    "usage": "NOT_RUN",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "실제 휴대전화 설치·실행",
+    "로그인 흐름",
+    "지갑",
+    "실제 QR",
+    "TalkBack",
+    "글자 200%",
+    "Google Play 업로드·심사·배포"
+  ],
+  "buildNote": "test.10(약 163MB)보다 커진 이유는 지도 SDK 네이티브 라이브러리(navermap·TMAP vsmsdk) 4개 ABI다. PR #403에 TMAP 모듈 release 리소스 검증 실패 수정(Material 1.13.0 의존 추가)이 포함됐다."
+}

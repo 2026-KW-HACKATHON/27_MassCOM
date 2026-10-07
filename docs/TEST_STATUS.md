@@ -1,6 +1,35 @@
 # 테스트 상태
 
-## 2026-10-08 제출 준비 결함 수정 (Issue #401)
+## 2026-10-08 배포 기록·설치 링크 문서 검사 (Issue #401 후속)
+
+환경: 현재 `docs/submission-1008-deploy` worktree, 기준 main `2d483ed8`. 아래 결과는 이번 세션에서 직접 실행한 로컬 문서 검사이며 제공된 서버·APK 사실의 원격 재검증이 아니다. git 조작·커밋·배포와 캡처 폴더 변경은 하지 않았다.
+
+| 명령 | 결과 |
+| --- | --- |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/demo_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/judging_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/operations_submission_readiness_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_project_site_test.sh` | PASS (exit 0) |
+| `bash tests/site/check_site_accessibility_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0) |
+| `node --test tests/site/legal-pages.test.mjs tests/site/public-entry.test.mjs` | PASS (14/14, exit 0) |
+
+포털 검사의 첫 실행은 검사기가 test.10·Preview 19를 고정해 FAIL했다. 기존 검사 방식과 상단 버튼 구조는 유지하고 최신 릴리스 기대값을 test.11·Preview 20으로 갱신한 뒤 PASS했다. 새 증거 JSON 4개는 구문·40자리 소스 SHA를 확인했다. API/모바일 로직 변경은 없으며 운영 신규 배포·공개 `/open` 최신 링크·최신 APK 설치/실기는 `NOT_RUN`이다. 기존 필수 36개 상태 합계는 변경하지 않는다.
+
+## 2026-10-08 배포·복원 리허설 후속 (Issue #401)
+
+| 대상 | 결과 | 근거와 경계 |
+| --- | --- | --- |
+| 시연 DB 복원 | PASS | 서버 안 `scripts/db-restore-drill.sh`: 107개 테이블 행 수·migration 목록 일치, 임시 dump 4,138,147바이트·SHA-256 `5cc3a8863a8d7af5629a22d310697f7c584ab23e3da539c1a7b5cc6ceb20ed2d`(종료 시 삭제). 배포 전 백업은 별도 보존. [배포 기록](evidence/showcase-deployment-2d483ed-2026-10-08.json) |
+| 시연 API·웹 | PASS | main `2d483ed8645151b502253ac35860b3546e3473c5`, migration 43→68건(마지막 `0067_room_guestbook.sql`); `demo-api /health`·`/play/`·가상 점포 collectible-preview 200, 새 `/coin-shop` 401(인증 필요). retention 재설치·수동 실행 `Result=success`·`--verify` PASS. 지도 키 부재로 목록 기반 탐색. |
+| 시연 Android Preview 20 | PASS — 게시·다운로드 | 태그 `showcase-android-v0.1.0-preview.20`, APK SHA-256 `ac27151a1fdf49fbe8b59502746ef470df175d44802c0b0feaf1819db885603c`; 익명 다운로드 해시 일치. 설치·실기 수용은 별도. [릴리스 기록](evidence/showcase-preview20-release-2026-10-08.json) |
+| 운영 Android test.11 | PASS — 게시·다운로드 | 태그 `android-v0.1.0-test.11`, APK SHA-256 `f7d89fd4786459d40754739966ce78d989b6ff1cd59cdb142a95a490ec9c04be`; AAB 서명·지갑 표면·익명 다운로드 해시 PASS. 설치·실기 수용은 별도. [릴리스 기록](evidence/operating-android-test11-2026-10-08.json) |
+| 운영 DB 복원·migration 리허설(P03) | PASS | 서버 안 실제 복원: 107개 테이블 행 수 일치, 임시 dump 186,604바이트·SHA-256 `1360fdf8c3a5db62214b36f4541ad66e57515c093e46a9a7ff55a47a8c19cdd5`(삭제). 복제본 migration 43→68건·1.8초, `account_consents` 5=5·공개 점포 0; 복제본 삭제. 운영 DB 첫 실제 복원 증거. [리허설 기록](evidence/production-restore-rehearsal-2026-10-08.json) |
+| 운영 배포 | 진행 중 | 이 문서 PR 병합 직후 `backward_compatible=no`로 `scripts/deploy-lightsail.sh --deploy` 예정. 현재 운영 `api.masscom.kr/health`·`www`·`/app/` 200은 기존 서비스 유지 확인. 새 API·DB 배포 결과는 후속 기록. |
+
+## 2026-10-08 제출 준비 결함 수정 (Issue #401, 당시 로컬 검사)
 
 브랜치 `fix/submission-readiness`, 기준 main `8b336ece`. 2026-10-07 전체 점검 보고서는 저장소 밖에 있으며 아래 로컬 결과는 제공된 실행 기록이다. 수정 커밋은 `git log --oneline 8b336ece..HEAD`로 확인한다(문서 작성 시 최신 `439471d5`).
 
@@ -14,7 +43,7 @@
 | 독립 리뷰·CI | 재리뷰 진행 중 · CI 대기 | Codex Sol 6.1 xhigh(서버·운영·모바일 인증), high(웹·모바일 UI)의 지적 수정 후 재리뷰; CI는 PR에서 확인 |
 | 공개 반영 | NOT_RUN | 운영·시연 공개본 `db280032` 유지. 병합·시연 배포·운영 실데이터 리허설은 별도 |
 
-이번 문서 작업에서 직접 실행한 검사(2026-10-08, 같은 브랜치): `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/bootstrap/demo_submission_readiness_test.sh`, `bash tests/bootstrap/judging_submission_readiness_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tools/gate.sh` 모두 PASS(각 종료 0).
+당시 제출 준비 문서 작업에서 직접 실행한 검사(2026-10-08, `fix/submission-readiness`): `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/bootstrap/demo_submission_readiness_test.sh`, `bash tests/bootstrap/judging_submission_readiness_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tools/gate.sh` 모두 PASS(각 종료 0).
 
 수정 범위와 배포 조건은 [PROJECT_STATE](PROJECT_STATE.md), 다음 순서는 [HANDOFF](HANDOFF.md)를 따른다. 기존 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 추가 로컬 검사로 변경하지 않는다.
 
