@@ -87,6 +87,14 @@ function clearCollectionFocusParams(router: ReturnType<typeof useRouter>, params
   }
 }
 
+export function collectionDisplayState(ownedCount: number, merchantsLoading: boolean, merchantsError: string | undefined, seriesCount: number) {
+  return {
+    showEmpty: ownedCount === 0,
+    showCoinLink: ownedCount > 0,
+    seriesState: merchantsError ? 'error' : merchantsLoading ? 'loading' : seriesCount > 0 ? 'ready' : 'empty',
+  };
+}
+
 export function CollectionScreen({
   apiUrl,
   accountId,
@@ -572,6 +580,7 @@ export function CollectionScreen({
   }
 
   const summary = collectionCounts(collection);
+  const displayState = collectionDisplayState(collection.collectibles.length, merchantsLoading, merchantsError, storeSeries.length);
 
   return (
     <SkyBackdrop>
@@ -583,12 +592,12 @@ export function CollectionScreen({
         contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
-        <Section title="코인·시리즈" note="코인 수량과 실제 운영 중인 시리즈를 확인해요.">
+        {displayState.showCoinLink ? <Section title="코인·시리즈" note="코인 수량과 실제 운영 중인 시리즈를 확인해요.">
           <Pressable accessibilityRole="button" onPress={() => router.push('/coin-collection')}
             style={[styles.primaryButton, { backgroundColor: palette.primaryContainer }]}>
             <Text style={[styles.primaryButtonText, { color: palette.onPrimaryContainer }]}>내 코인·시리즈 보기 ›</Text>
           </Pressable>
-        </Section>
+        </Section> : null}
         <Section title="내 수집 앨범" note="가게·시즌·등급으로 찾아보고, 즐겨찾는 수집품을 모아요.">
           {collection.collectibles.length > 0 ? (
             <Pressable
@@ -604,13 +613,21 @@ export function CollectionScreen({
             </Pressable>
           ) : null}
           {shareNotice ? <Text accessibilityLiveRegion="polite" style={styles.inlineMessage}>{shareNotice}</Text> : null}
-          {collection.collectibles.length > 0 || storeSeries.length > 0 ? <CollectibleBrowser
+          {displayState.showEmpty ? <StateScene kind="empty" title="첫 방문 도장이 기다리고 있어요" action={{ label: '첫 도장 받으러 가기', onPress: () => router.push('/search') }} /> : null}
+          <ExperienceEntry />
+        </Section>
+        <Section title="수집품·공개 가게 시리즈">
+          {displayState.seriesState === 'loading' ? <StateScene kind="loading" title="공개 가게 시리즈를 불러오는 중" /> : null}
+          {displayState.seriesState === 'error' ? <StateScene kind="error" title="공개 가게 시리즈를 불러오지 못했어요" body={merchantsError}
+            action={{ label: '다시 불러오기', onPress: retryMerchants }} /> : null}
+          {displayState.seriesState === 'empty' ? <EmptyCopy text="현재 공개된 가게 시리즈가 없어요." /> : null}
+          {collection.collectibles.length > 0 || displayState.seriesState === 'ready' ? <CollectibleBrowser
             materialScrollY={materialScrollY}
             materialVisible={!collectibleDetail && !revealEntitlement && !revealed && !detailKind && !usingCoupon}
             groups={collectibleGroups}
             legacy={legacyCollectibles}
             artUrlByMerchant={artUrlByMerchant}
-            series={storeSeries}
+            series={displayState.seriesState === 'ready' ? storeSeries : []}
             favorites={favorites}
             sharing={sharing || sharingCollection}
             mint={{ apiUrl, nftMinting: collection.nftMinting, binding, busyEntitlementId, onConfirmMint: confirmMint }}
@@ -619,8 +636,6 @@ export function CollectionScreen({
             onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName,
               name: group.artwork.name, gradeId: group.artwork.gradeId, gradeName: group.artwork.gradeName, shape: group.artwork.shape })}
           /> : null}
-          {collection.collectibles.length === 0 && storeSeries.length === 0 ? <StateScene kind="empty" title="첫 방문 도장이 기다리고 있어요" action={{ label: '첫 도장 받으러 가기', onPress: () => router.push('/search') }} /> : null}
-          <ExperienceEntry />
         </Section>
 
         {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}

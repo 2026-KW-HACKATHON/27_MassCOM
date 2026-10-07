@@ -264,9 +264,9 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
           </FloatingCard>;
         })}
     </> : null}
-    {shop && shop.tickets.some((ticket) => ticket.status === 'UNUSED') ? <Pressable accessibilityRole="button" onPress={() => router.push('/coin-collection')} style={styles.link}>
+    <Pressable accessibilityRole="button" onPress={() => router.push('/coin-collection')} style={styles.link}>
       <Text style={{ color: palette.primary }}>내 코인과 시리즈 보기 ›</Text>
-    </Pressable> : null}
+    </Pressable>
   </SkyScrollView></SkyBackdrop>;
 }
 
