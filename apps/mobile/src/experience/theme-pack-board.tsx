@@ -13,14 +13,14 @@ export function ThemePackBoard({ snapshot }: { snapshot: ExperienceSnapshot }) {
   const styles = makeStyles(colorsForScheme(scheme), worldForScheme(scheme));
   return <View style={styles.section}>
     <Text accessibilityRole="header" style={styles.heading}>테마 꾸미기</Text>
-    <Text style={styles.intro}>테마 팩을 열면 해당 등급의 미보유 캐릭터와 미보유 꾸미기 1개가 확정돼요. 모자 → 소품 → 장식 순서로 세 번 열면 테마를 완성해요. 모은 꾸미기는 내 공간에서 장착해요.</Text>
+    <Text style={styles.intro}>등급별 전체 랜덤 뽑기에서 코인·테마 꾸미기·캐릭터 중 하나가 나와요. 꾸미기도 중복될 수 있으며, 모은 꾸미기는 내 공간에서 장착해요.</Text>
     {snapshot.catalog.packs.map((pack) => {
       const progress = snapshot.progress.packs.find((item) => item.id === pack.id);
 
       return <View key={pack.id} style={styles.pack}>
-        <PackArt grade={pack.grade} size={100} /><Text style={styles.name}>{pack.name} · {{ BRONZE: '브론즈', SILVER: '실버', GOLD: '골드' }[pack.grade]} 캐릭터</Text>
+        <PackArt grade={pack.grade} size={100} /><Text style={styles.name}>{pack.name} · {{ BRONZE: '브론즈', SILVER: '실버', GOLD: '골드' }[pack.grade]} 테마</Text>
         <Text style={styles.description}>{pack.theme} · {pack.price.toLocaleString('ko-KR')} 마일리지</Text>
-        <View style={styles.rewards}>{pack.bonusItemIds.map((id) => <View key={id} style={styles.reward}><CosmeticArt id={id} size={54} /><Text style={styles.description}>{snapshot.catalog.cosmetics.find((item) => item.id === id)?.name}</Text></View>)}</View><Text style={styles.progress}>{progress ? `${progress.ownedBonuses}/${progress.totalBonuses}개 소장 · ${progress.opens}번 열었어요` : '진행 정보를 확인 중'}</Text>
+        <View style={styles.rewards}>{pack.bonusItemIds.map((id) => <View key={id} style={styles.reward}><CosmeticArt id={id} size={54} /><Text style={styles.description}>{snapshot.catalog.cosmetics.find((item) => item.id === id)?.name}</Text></View>)}</View><Text style={styles.progress}>{progress ? `${progress.ownedBonuses}/${progress.totalBonuses}개 소장 · 이 등급 ${progress.opens}회 뽑기` : '진행 정보를 확인 중'}</Text>
       </View>;
     })}
   </View>;

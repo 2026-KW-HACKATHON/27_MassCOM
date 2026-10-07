@@ -2,6 +2,7 @@ import { Image, View } from 'react-native';
 import { CosmeticArt } from '@/illustration/artwork';
 import { practiceTokens } from './play-copy';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
+import { mascotArt } from '@/ui/mascot-art';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { EquippedClothingArt } from '@/shop/wardrobe';
@@ -38,5 +39,6 @@ export function GameToken({ value, art, size = 48 }: { value: number; art: reado
 }
 
 export function Companion({ avatar, equipment, clothing, reaction = 'idle' }: { avatar: string | null; equipment?: DisplayExperienceProfile; clothing?: EquippedClothingArt | null; reaction?: 'idle' | 'wave' | 'cheer' | 'concerned' }) {
-  return avatar ? <AvatarPortrait avatar={avatar} profile={equipment} clothing={clothing} size={66} reaction={reaction} /> : null;
+  return avatar ? <AvatarPortrait avatar={avatar} profile={equipment} clothing={clothing} size={66} reaction={reaction} />
+    : <Image source={mascotArt[reaction === 'cheer' ? 'cheer' : reaction === 'concerned' ? 'puzzled' : 'wave']} style={{ width: 66, height: 66 }} resizeMode="contain" accessible={false} />;
 }

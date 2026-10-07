@@ -55,9 +55,15 @@ const ownedSql = `WITH visit_coins AS (
     WHERE entitlement.customer_account_id = $1 AND entitlement.status IN ('GRANTED','MINT_REQUESTED','FULFILLED')
     GROUP BY acquisition.publication_id, acquisition.grade_id
   ), draw_coins AS (
-    SELECT draw.publication_id, draw.grade_id, count(*)::integer AS n
-    FROM coin_draws draw JOIN coin_tickets ticket ON ticket.id = draw.ticket_id
-    WHERE ticket.account_id = $1 GROUP BY draw.publication_id, draw.grade_id
+    SELECT acquired.publication_id, acquired.grade_id, count(*)::integer AS n
+    FROM (
+      SELECT draw.publication_id, draw.grade_id
+      FROM coin_draws draw JOIN coin_tickets ticket ON ticket.id = draw.ticket_id
+      WHERE ticket.account_id = $1
+      UNION ALL
+      SELECT draw.publication_id, draw.grade_id
+      FROM grade_draws draw WHERE draw.account_id = $1 AND draw.reward_kind = 'COIN'
+    ) acquired GROUP BY acquired.publication_id, acquired.grade_id
   )
   SELECT grade.publication_id, grade.grade_id,
     CASE WHEN publication.media_removed_at IS NOT NULL

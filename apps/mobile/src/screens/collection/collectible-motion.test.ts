@@ -129,3 +129,15 @@ test('등급 조명은 회전 토글과 별개로 동작하며 카드가 가려�
   assert.match(sensor, /frame\.setActive\(false\)/);
   assert.doesNotMatch(sensor, /setInterval|setState|runOnJS|scheduleOnRN/);
 });
+
+
+test('웹 스프라이트 알파도 아래 칸 1과 위 칸 blend를 같은 좌표에서 합성한다', async () => {
+  const { angleFrameWebMask } = await import('./collectible-motion');
+  const frames = { dataUrl: 'data:image/png;base64,AA==', columns: 4, count: 12, side: 32, stepDegrees: 15 };
+  const svg = decodeURIComponent(angleFrameWebMask(frames, 5, 6, .25).split(',').slice(1).join(','));
+  assert.match(svg, /viewBox="0 0 1 1"/);
+  assert.match(svg, /x="-1" y="-1" width="4" height="3"[^>]*opacity="1"/);
+  assert.match(svg, /x="-2" y="-1" width="4" height="3"[^>]*opacity="0.25"/);
+  const still = decodeURIComponent(angleFrameWebMask(frames, 5, 6, 0).split(',').slice(1).join(','));
+  assert.equal((still.match(/<image /g) ?? []).length, 1);
+});

@@ -1,20 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { playRecordLabel } from './play-copy';
+import { gamePrompt, playRecordLabel } from './play-copy';
+import { gameKinds, getGameBoard } from '../../../../api/src/play-rules';
+
+test('each play instruction matches the board that the server issues', () => {
+  assert.deepEqual(Object.keys(gamePrompt).sort(), [...gameKinds].sort());
+  for (const kind of gameKinds) {
+    const board = getGameBoard(kind, 17);
+    const expected = board.kind === 'stack' ? board.rounds.length : board.kind === 'memory' ? board.cards.length / 2
+      : board.kind === 'delivery' ? board.ticks.length : board.orders[0]!.length;
+    assert.match(gamePrompt[kind], new RegExp(String(expected)));
+  }
+});
 
 test('old server records retain their actual highest and completion count', () => {
-  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 520, plays: 3 }), '기존 규칙 최고 520점 · 3회 완주');
+  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 520, plays: 3 }), '이전 놀이 최고 520점 · 3회 완주');
 });
 
 test('new-only records never invent a zero-point legacy record', () => {
-  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 0, plays: 2, version2BestScore: 490, version2Plays: 2 }), '새 규칙 최고 490점 · 2회 완주');
-  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 0, plays: 0, version2BestScore: 0, version2Plays: 0 }), '새 규칙 첫 기록에 도전');
+  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 0, plays: 2, version2BestScore: 490, version2Plays: 2 }), '현재 최고 490점 · 2회 완주');
+  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 74, plays: 0, version2BestScore: 0, version2Plays: 0 }), '첫 완주에 도전');
 });
 
 test('mixed records separate highest scores and derive the legacy run count', () => {
-  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 520, plays: 5, version2BestScore: 490, version2Plays: 2 }), '새 규칙 최고 490점 · 2회 완주 · 기존 규칙 최고 520점 · 3회 완주');
-  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 520, plays: 3, version2BestScore: 0, version2Plays: 0 }), '새 규칙 첫 기록에 도전 · 기존 규칙 최고 520점 · 3회 완주');
-  assert.equal(playRecordLabel(undefined), '첫 기록에 도전');
+  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 520, plays: 5, version2BestScore: 490, version2Plays: 2 }), '현재 최고 490점 · 2회 완주 · 이전 놀이 최고 520점 · 3회 완주');
+  assert.equal(playRecordLabel({ kind: 'stack', bestScore: 520, plays: 3, version2BestScore: 0, version2Plays: 0 }), '첫 완주에 도전 · 이전 놀이 최고 520점 · 3회 완주');
+  assert.equal(playRecordLabel(undefined), '첫 완주에 도전');
 });
 
 test('practice card identities map to distinct real illustration frames and preserve owned names', async () => {

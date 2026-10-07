@@ -46,7 +46,7 @@ type Props = {
   onOpenStudio?: () => void;
 };
 
-const gradeStyle: Record<MileageGrade, { name: string; color: string; pale: string }> = {
+export const gradeStyle: Record<MileageGrade, { name: string; color: string; pale: string }> = {
   BRONZE: { name: '브론즈', color: '#D99665', pale: '#FFE1C4' },
   SILVER: { name: '실버', color: '#B9D2E8', pale: '#E8F5FF' },
   GOLD: { name: '골드', color: '#F8C758', pale: '#FFF2B8' },
@@ -374,7 +374,7 @@ function ResultSummary({ result, tone, ownedBefore, clothing, bonusProfile }: { 
   </>;
 }
 
-function Machine({ tone, machineStyle, crankStyle, jiggle }: { tone: { color: string; pale: string }; machineStyle: object; crankStyle: object; jiggle: SharedValue<number> }) {
+export function Machine({ tone, machineStyle, crankStyle, jiggle }: { tone: { color: string; pale: string }; machineStyle: object; crankStyle: object; jiggle: SharedValue<number> }) {
   return <Animated.View style={[styles.machine, machineStyle]} accessibilityLabel="뽑기 기계" accessible>
     <Svg width={240} height={270} viewBox="0 0 240 270">
       <Defs><LinearGradient id="dome" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.68" /><Stop offset="1" stopColor="#AFDBF2" stopOpacity="0.18" /></LinearGradient></Defs>
@@ -401,15 +401,15 @@ function JiggleCapsule({ x, y, color, factor, jiggle }: { x: number; y: number; 
   return <Animated.View style={[styles.innerCapsule, { left: x, top: y, backgroundColor: color }, style]} />;
 }
 
-function BurstRays({ color }: { color: string }) {
+export function BurstRays({ color }: { color: string }) {
   return <Svg width={240} height={240} viewBox="0 0 240 240"><G>{Array.from({ length: 12 }, (_, index) => <Line key={index} x1="120" y1="24" x2="120" y2="5" stroke={color} strokeWidth={index % 2 ? 3 : 6} strokeLinecap="round" transform={`rotate(${index * 30} 120 120)`} />)}</G></Svg>;
 }
 
-function Control({ label, onPress, primary, purchase, disabled }: { label: string; onPress: () => void; primary?: boolean; purchase?: boolean; disabled?: boolean }) {
+export function Control({ label, onPress, primary, purchase, disabled }: { label: string; onPress: () => void; primary?: boolean; purchase?: boolean; disabled?: boolean }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: !!disabled }} disabled={disabled} onPress={onPress} style={[styles.control, primary && styles.primary, purchase && styles.purchase, disabled && styles.disabled]}><Text style={[styles.controlText, primary && styles.primaryText, purchase && styles.purchaseText]}>{label}</Text></Pressable>;
 }
 
-const styles = StyleSheet.create({
+export const styles = StyleSheet.create({
   root: { flex: 1, minHeight: 0, backgroundColor: '#142724', paddingHorizontal: 22 },
   topBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balance: { color: '#FFE5A4', fontSize: 15, fontWeight: '800' },

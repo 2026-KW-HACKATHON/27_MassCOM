@@ -1,5 +1,18 @@
 # HANDOFF
 
+## 2026-10-07 PR #397 방문 취소 잔액 리뷰 수정
+
+`fix/pr397-negative-balance`에서 기존 음수 잔액 계약과 조회/재전송 복구를 맞췄다. 모바일1805/1805·타입/lint, 독립 코드 결함0·구조CLEAR. 원래 PR #397 브랜치에 fast-forward push 후 최신 HEAD CI를 확인한다. 배포는 migration 0061 → 모든 API 인스턴스 교체 → 새 앱 제공 순서로 진행한다. `grade_draws`에 첫 거래가 기록된 이후에는 해당 지출을 합산하지 않는 구 API로 단순 rollback하지 않는다. rollback이 필요하면 쓰기를 먼저 중지하고 grade_draws 잔액 합산을 유지하는 호환 버전으로 복구한다. 이번 작업에서는 운영 배포를 실행하지 않는다.
+
+
+## 2026-10-07 등급 전체 뽑기·놀이·코인 재질 (Issue #395)
+
+작업 브랜치 `feat/grade-random-draw`, 기준은 main `51e2df21`이다. [설계](superpowers/specs/2026-10-07-grade-draw-play-material-design.md), [계획](superpowers/plans/2026-10-07-grade-draw-play-material.md), [QA](GRADE_DRAW_PLAY_MATERIAL_QA_2026-10-07.md)를 따른다. 개별 아이템 동일 확률·보상 하나·중복 허용·100/200/400P는 사용자 확정이다. Migration `0061`과 새 뽑기 API/모바일 흐름, 기존 놀이의 화면 연결, 수집품 재질 표현이 작업 범위다.
+
+현 기록의 자동 검사: 모바일1803/1803 및 API558/558 PASS. PG 전체508 PASS+SKIP3, 타입/lint/build/접근성·소스 비밀/개인정보·독립 검토와 최신 private APK 빌드/서명/ZIP16KiB PASS. 브라우저 재질 시각 판정92점과 투명 프레임 보존을 확인했다. APK 설치는 NOT_RUN이다. 브라우저 합성 QA에서는 쌓기74 미완주, 짝찾기 미완주, 배달790 완주, 주문 순서는810점·3/4 미완주. 실제 휴대폰 연결이 어려워 센서/진동과 실기 화면은 `NOT_RUN`; 에뮬레이터는 조작하지 않는다. 임시 QA 데이터와 화면은 `.tmp/grade-finish/`로, Git에 포함하지 않는다.
+
+[PR #397](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/397)을 생성하고 게시된 제목/본문의 한국어 검사를 통과했다. 구현 소스는 `9606258d`이며 문서 후속까지 포함한 정확한 최신 HEAD의 CI/병합을 실제 PR에서 확인한다. 재개 시 `gh pr view 397 --json state,headRefOid,mergeCommit,statusCheckRollup`와 primary `git status -sb`를 읽고, 병합됐으면 primary를 ff-only로 갱신한다. 공개 서버·APK·Play 배포는 이번 작업의 완료 증거로 간주하지 않는다.
+
 ## 2026-10-07 가게 코인·방 탐험·시리즈 보상과 시연 역할 전환 (Issue #391)
 
 [PR #392](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/392)의 실제 최종 HEAD 검사와 병합 상태를 따른다. 초기 구현 소스는 d2068c0c이며 후속 희귀 확률 보정까지 같은 PR에 포함한다. 재개 시 `gh pr view 392 --json state,headRefOid,mergeCommit,statusCheckRollup`와 primary `git status -sb`로 전달 상태를 확인한다. 후속 비공개 APK fd522b0d는 설치-r와 정상 키/서버 Secret 제외·동일 서명·native32/ZIP16KiB·formatter 포함 확인을 마쳤다.

@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { getGameBoard, stackCursor, type GameAction } from '../../../../api/src/play-rules';
 import { getQualityGameState } from '../../../../api/src/play-rules-quality';
 import { appendAction, finalizeDeliveryActions } from '../../play/run-actions';
+
+test('completed result describes the saved record without exposing rule versions', () => {
+  const screen = readFileSync(new URL('./quality-session.tsx', import.meta.url), 'utf8');
+  assert.match(screen, /완주 최고 \{best\}점 · \{result\.version2Plays\}회 완주/);
+  assert.doesNotMatch(screen, /새 규칙|기존 규칙/);
+});
 
 test('order controls correct a wrong tray and serve recipes in any order', () => {
   const board = getGameBoard('orders', 41);

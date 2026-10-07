@@ -5,10 +5,13 @@ import test from 'node:test';
 const source = readFileSync(new URL('./grade-material-layer.tsx', import.meta.url), 'utf8');
 
 test('등급 조명은 사진 알파 또는 공통 윤곽 안에만 그린다', () => {
+  assert.match(source, /const maskUri = webFaceMask \?\? faceUri/);
+  assert.match(source, /maskImage: `url\(\$\{JSON\.stringify\(maskUri\)\}\)`/);
+  assert.match(source, /clipPath: collectibleWebClipPath\(shape\)/);
   assert.match(source, /<Mask id=\{maskId\} maskType="alpha">/);
   assert.match(source, /faceUri \? <SvgImage/);
   assert.match(source, /<CollectibleFaceOutline shape=\{shape\} fill="white" \/>/);
-  assert.match(source, /<G mask=\{`url\(#\$\{maskId\}\)`\}>/);
+  assert.match(source, /<G clipPath=\{Platform\.OS === 'web' \? undefined : `url\(#\$\{clipId\}\)`\} mask=\{Platform\.OS === 'web' \? undefined : `url\(#\$\{maskId\}\)`\}>/);
 });
 
 test('시계는 화면·동작 상태가 바뀔 때 중단하고 정적 프레임은 반복을 만들지 않는다', () => {
@@ -37,7 +40,7 @@ test('색·반사 합성은 사진과 같은 부모의 형제 뷰이며 각 층�
 
 test('림은 사진 반사 좌표를 윤곽 공간으로 보정하고 별빛은 네이티브 SVG 행렬로 커졌다 작아진다', () => {
   assert.match(source, /id=\{rimLightId\}[\s\S]*?animatedProps=\{bandProps\}[\s\S]*?gradientTransform=\{`scale\(\$\{100 \/ size\}\)`\}/);
-  assert.match(source, /<G scale=\{size \/ 100\} opacity=\{coreAlpha\}>/);
+  assert.match(source, /<AnimatedGroup animatedProps=\{edgeProps\} scale=\{size \/ 100\} opacity=\{coreAlpha\}>/);
   assert.match(source, /matrix: \[zoom, 0, 0, zoom, x \* size, y \* size\]/);
 });
 
@@ -47,7 +50,7 @@ test('골드 바탕과 반사띠는 유색 그라데이션을 쓰고 두 등급�
   assert.match(source, /fill=\{isGold \? `url\(#\$\{warmId\}\)`/);
   const rim = source.slice(source.indexOf('{vivid ? <View'));
   assert.match(rim, /mixBlendMode: 'normal'/);
-  assert.match(rim, /mask=\{`url\(#\$\{rimMaskId\}\)`\}/);
+  assert.match(rim, /mask=\{Platform\.OS === 'web' \? undefined : `url\(#\$\{rimMaskId\}\)`\}/);
   assert.match(rim, /: PRISM_FOIL_STOPS/);
   assert.match(rim, /stroke=\{`url\(#\$\{rimId\}\)`\} strokeWidth=\{4\.5\}/);
   assert.match(rim, /stroke=\{`url\(#\$\{rimLightId\}\)`\} strokeWidth=\{4\.5\}/);
