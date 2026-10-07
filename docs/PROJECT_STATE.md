@@ -1,5 +1,20 @@
 # 프로젝트 상태
 
+## 2026-10-08 제출 준비 (Issue #401)
+
+브랜치 `fix/submission-readiness`, 기준 main `8b336ece`. 2026-10-07 전체 점검(보고서는 저장소 밖)의 결함 구현·로컬 검증을 완료했다. 수정 이력은 `git log --oneline 8b336ece..HEAD`(문서 작성 시 최신 `439471d5`)를 따른다. 독립 리뷰 지적은 수정했고 재리뷰 진행 중이며 PR·CI·병합·배포는 대기다.
+
+| 범위 | 수정·정리 |
+| --- | --- |
+| 서버 | S-F01 신고 연결 풀 정체, S-F03 멱등 동시 재시도, S-F04 시연 체험 점포 격리, S-F05 식사 초대 가시성, S-F06 푸시 토큰 소유권(동률 포함), S-F07 Expo 본문 시간제한, S-F10 migration `lock_timeout` 10s, 기기 해제 세션 조건 |
+| 모바일·웹 | C-F01 로그아웃 푸시 해제 3초 제한·C-F02·C-F03·C-F04·C-F05·C-F06·C-F12·C-F13·C-F22; 웹 V-02·V-04·V-05·C-F08~F11·미확정 저장 충돌 보호; 첫인상 V-07·V-08·V-09·V-12·V-13·V-14·V-18·V-20(web `lang=ko`) |
+| 운영 | A01 원장 변경 릴리스의 migration 이후 구 API 자동 복귀 금지; A02/A03 migration 25개·적용 후 68건·재동의·동시 전환; A04·A05·A06·A08·A09·A10·A11·A12(복원 드릴 TLS 보존·dbname 주입 거절) |
+| 심사·인수인계 | [경쟁 비교](DIFFERENTIATION.md), [Git 기록 기반 참여](CONTRIBUTIONS.md), [5분 시연·질의 대비](DEMO_RUNBOOK.md), [HANDOFF_HISTORY](HANDOFF_HISTORY.md) 분리 |
+
+로컬 API 단위 567/567·PostgreSQL 524 PASS/3 SKIP(전용 55435 hosted seed 컨테이너 조건), 모바일 1,872/1,872와 타입·빌드·린트·운영/시연 Android export·variant 자산·접근성 의미, 사이트·운영 시험·`tools/gate.sh` PASS. 세부 제한은 [TEST_STATUS](TEST_STATUS.md)를 따른다.
+
+아직 배포 전이며 운영·시연 공개본은 `db280032`다. 병합 후 시연 API+migration 25개+`/play/`+Preview 20+`/open`을 먼저 전환한다. 운영은 실데이터 복원·migration 리허설 통과 시에만 test.11과 함께 전환한다. [운영 절차](OPERATIONS_RUNBOOK.md), [현재 인수인계](HANDOFF.md)를 따른다.
+
 ## 2026-10-07 전체 고객 UI와 코인·마이룸 연결 (Issue #399)
 
 브랜치 `feat/ui-boards-integration`에서 첨부 23보드/67상태를 실제 API에 연결했다. 시작 기준은 `76205cd0`, 작업 중 `origin/main d108b9a0`의 수집품 수정도 fast-forward로 반영했다. [화면별 추적](UI_BOARDS_STATUS_2026-10-07.md), [QA](UI_BOARDS_QA_2026-10-07.md)가 범위와 검증의 정본이다.

@@ -5,7 +5,7 @@
 ## 1. 기준 커밋과 작업 위치
 
 - 기준 main 커밋 SHA: `8b336ece`. 작업 브랜치: `fix/submission-readiness`.
-- Issue #401 진행 중. 이 문서 변경은 아직 커밋·PR·배포 완료를 뜻하지 않는다. 같은 worktree의 다른 영역은 병렬 작업 중이다.
+- Issue #401 구현·로컬 검증 완료, 독립 재리뷰 진행 중. PR·CI·병합·배포는 대기다. 수정 커밋은 `git log --oneline 8b336ece..HEAD`(문서 작성 시 최신 `439471d5`)를 따른다.
 
 ## 2. 현재 통합 상태
 
@@ -22,7 +22,7 @@
 ## 4. 이번 작업의 범위
 
 - [Issue #401](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/401)은 제출 전 운영·문서·심사 대응 정리다. 이 worktree의 코드·문서·시험 변경과 실제 공개 반영은 별도 상태로 추적한다.
-- 앱/API 변경을 포함한 최종 통합 결과는 이 문서 작성 시점에 확정되지 않았다. 이 문서의 배포 내용은 실행 계획이다.
+- 서버·모바일·웹·첫인상·운영 결함 수정과 심사 대응 문서 정리를 완료했다. 구현·로컬 검증은 [PROJECT_STATE](PROJECT_STATE.md)와 [TEST_STATUS](TEST_STATUS.md)를 따른다. 아래 배포 내용은 실행 계획이다.
 
 ## 5. 시연 배포 순서
 
@@ -32,7 +32,7 @@
 
 ## 6. 운영 배포 조건
 
-- 운영 DB의 실제 복원 리허설이 `PASS`일 때만 새 API와 test.11 APK 및 `/open` 안내를 같은 창에서 전환한다.
+- 운영 DB 실데이터 복원·migration 리허설이 `PASS`일 때만 새 API와 test.11 APK 및 `/open` 안내를 같은 창에서 전환한다.
 - 리허설이 실패하거나 증거가 없으면 운영 서버·DB·공개 설치본은 `db280032`/test.10 상태로 유지한다. 시연의 성공을 운영의 검증으로 대체하지 않는다.
 
 ## 7. 마이그레이션과 롤백 경계
@@ -48,8 +48,9 @@
 ## 9. 자동 검증 상태
 
 - 필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN` ([시험 원장](TEST_STATUS.md), [제출 증거](SUBMISSION_EVIDENCE.json)).
-- Issue #401 운영·문서 소유 범위의 회귀·구문·diff 검사는 PASS다. `bash tools/gate.sh`와 `bash tests/site/verify_evidence_consistency_test.sh`는 `evidence date drift`로 FAIL이다: 읽기 전용 `SUBMISSION_EVIDENCE.json`의 `recordedAt=2026-10-01 KST`가 별도 작업 영역 `docs/index.html`에 없다. 두 파일은 이 작업에서 수정하지 않았다. 메인 스레드 통합 후 다시 검사하고 [TEST_STATUS](TEST_STATUS.md)에 명령·환경·결과를 기록한다.
-- `node --test tests/ops/verify_web_auth_rollback_test.mjs`는 전용 `_test` DB가 없어 0 PASS / 0 FAIL / 1 SKIP이며 실제 시험은 NOT_RUN이다. 실제 DB 복원·Docker 런타임 배포 실패 시험도 NOT_RUN이며 운영 전환 관문을 충족하지 않는다.
+- 2026-10-08 이 브랜치: API 단위 567/567·PostgreSQL 524 PASS/3 SKIP(전용 55435 hosted seed 컨테이너 조건), API typecheck·build, 모바일 1,872/1,872·typecheck·lint·운영/시연 Android export·variant 자산·접근성 의미 PASS.
+- 사이트·운영 시험(restore drill 실DB 포함)·`bash tools/gate.sh` PASS. 로컬 복원 시험을 공개 운영 DB의 실데이터 복원·migration 리허설 통과로 대체하지 않는다.
+- 독립 리뷰 지적 수정 후 재리뷰 진행 중이며 CI는 PR에서 확인한다. 이번 문서 검사는 [TEST_STATUS](TEST_STATUS.md)에 별도로 기록한다.
 - 기본 재현: `bash tools/gate.sh`, `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tests/ops/showcase_host_readiness_test.sh`.
 
 ## 10. 수동 수용과 미실행 항목
@@ -64,9 +65,9 @@
 
 ## 12. 다음 실행 명령
 
-1. `git status -sb`와 `git log -1 --oneline`, `gh pr list --state all`로 작업·PR 상태를 복원한다.
-2. `bash tests/bootstrap/verify_operations_docs_test.sh`와 `bash tools/gate.sh`를 실행하고 결과를 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
-3. 배포 전 두 DB의 복원 리허설·25개 migration·앱/웹 번들 출처·서명·동의 버전·공개 HTTPS 전환 조건을 [운영 절차](OPERATIONS_RUNBOOK.md)로 확인한다.
+1. Issue #401 PR을 작성하고 최신 head의 CI·독립 재리뷰 결과를 확인한 뒤 병합한다.
+2. 시연 DB 복원·25개 migration(적용 후 68건)과 재동의 조건을 확인하고 API·`/play/`·Preview 20·`/open`을 함께 배포·검증한다.
+3. 운영 실데이터 복원·migration 리허설이 PASS일 때만 운영 API·test.11·`/open`을 함께 전환한다. 실패 시 `db280032`/test.10을 유지한다.
 
 PR 제목·본문 검사:
 

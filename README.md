@@ -1,15 +1,21 @@
 <p align="center">
 
-## 고객 UI 시안 연결 (Issue #399)
-
-23개 보드의 67개 상태를 실제 코인·방문·마이룸·이웃 흐름에 연결했습니다. [화면별 대응](docs/UI_BOARDS_STATUS_2026-10-07.md)과 [검증/배포 경계](docs/UI_BOARDS_QA_2026-10-07.md)를 확인하세요. 신규 가구 가격과 리롤권 지급량은 예시 숫자로 정하지 않습니다.
-
   <img src="docs/assets/readme/hero.png" width="100%" alt="월계동 식당 거리와 파란 월계 마스코트가 함께 있는 MassCOM 콘셉트 일러스트">
 </p>
 
 <h1 align="center">월계 마스코트 · MassCOM</h1>
 
 <p align="center">동네 가게를 발견하고, 방문을 기록하고, 마스코트를 모으는 Android 서비스.<br>외부 지갑 NFT는 선택 기능이며 앱 수집품과 실제 발행 상태를 구분합니다.</p>
+
+**설치·체험:** [설치 링크 선택](https://www.masscom.kr/open) · [로그인 없는 시연 체험](https://demo-api.masscom.kr/play/) · [체험 도감 미리보기](https://www.masscom.kr/preview/). **핵심 기능:** 가게 탐색 → QR 방문 → 도감·코인 수집 → 놀이·마이룸.
+
+**증거·심사 안내:** [검증 현황](docs/TEST_STATUS.md) · [경쟁 비교](docs/DIFFERENTIATION.md) · [5분 시연·질의 대비](docs/DEMO_RUNBOOK.md). **한계:** 시연은 가상 점포이며 현장 실증·메인넷·Play 승인을 뜻하지 않습니다.
+
+운영·시연 공개본은 아직 `db280032`이며 Issue #401 병합·배포 후 공개본 안내를 갱신합니다.
+
+## 고객 UI 시안 연결 (Issue #399)
+
+23개 보드의 67개 상태를 실제 코인·방문·마이룸·이웃 흐름에 연결했습니다. [화면별 대응](docs/UI_BOARDS_STATUS_2026-10-07.md)과 [검증/배포 경계](docs/UI_BOARDS_QA_2026-10-07.md)를 확인하세요. 신규 가구 가격과 리롤권 지급량은 예시 숫자로 정하지 않습니다.
 
 가게별 코인 뽑기권·중복 수량·시리즈 쿠폰과 공개 동의 기반 방 탐험은 [설정·검증 기록](docs/COIN_COMMUNITY_QA_2026-10-07.md)을 따른다. 실제 점포/확률 풀과 동의받은 쿠폰 조건을 등록하기 전에는 빈 상태이며 기존 보유 권리를 삭제하지 않는다. 새 설치/운영 반영에는 API migration 0059·0060이 먼저 필요하다. 시연앱은 점주 화면의 뒤로가기/메뉴와 고객 내 정보의 ‘역할 선택으로’에서 고객·점주 체험을 다시 고른다. 역할 선택 자체로 점주 권한을 부여하지 않는다.
 
@@ -205,7 +211,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 - [공개 이용약관](https://www.masscom.kr/terms) · [개인정보처리방침](https://www.masscom.kr/privacy): 무료 개발 단계·양도 불가 NFT·점주가 제공하는 혜택·금지 행위·책임 한계와, 실제로 실행되는 보관 기간(계정 삭제 때까지, 세션 만료, 삭제 접수·감사 기록 1년, 백업 30일, 컨테이너 로그는 용량 기준)·OpenAI 문의처. 첫 로그인 동의로 두 버전을 기록한다
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
 - [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md): 승인 전 공개·태그·제출 금지 경계
-- [제출 증거 manifest](docs/SUBMISSION_EVIDENCE.json): 2026-09-23 main 기준선(PR #130까지)의 CI·PR·스크린샷·BLOCKED/NOT_RUN 기계 판독 기록. 이후 상태는 [현재 상태](docs/PROJECT_STATE.md)가 우선
+- [제출 증거 manifest](docs/SUBMISSION_EVIDENCE.json): 2026-10-01 main `61bde483` 기준선(PR #278까지)의 CI·PR·스크린샷·BLOCKED/NOT_RUN 기계 판독 기록. 이후 상태는 [현재 상태](docs/PROJECT_STATE.md)가 우선
 - [포털 시각 검증](docs/evidence/project-portal-visual-verdict.json): 데스크톱·모바일 뷰포트와 접근성 결과
 - [현재 상태](docs/PROJECT_STATE.md): 실제 완료·미완료·BLOCKER
 - [PR #374 병합 복구](docs/PR374_REPAIR.md): 다섯 리뷰 결함 수정, 11개 충돌 통합, 로컬 검사·구매 복구 증거; PR CI/merge 기록과 공개 배포는 별도
