@@ -1,5 +1,6 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
+import { consentRequiredMessage } from '@/privacy/consent-flow';
 
 // 마일리지 상점(Issue #298) 계약(apps/api/README.md, docs/superpowers/scratchpad design-298.md). 서버가 정본이며, 앱은
 // 등급별 가격·카탈로그를 다시 적지 않고 GET /shop 응답을 그대로 읽는다(design-298.md: "앱이 하드코딩하지 않도록").
@@ -359,6 +360,12 @@ export function shopErrorMessage(error: unknown): string {
       return '가지고 있지 않은 옷이에요. 상점을 다시 불러와 주세요.';
     case 'ACCOUNT_DELETED':
       return '삭제된 계정이라 상점을 쓸 수 없어요.';
+    case 'CONSENT_REQUIRED':
+      return consentRequiredMessage;
+    case 'GRADE_DRAW_NOT_CONFIGURED':
+      return '등급 전체 뽑기가 아직 준비되지 않았어요. 요금은 빠지지 않았어요.';
+    case 'INTERNAL_ERROR':
+      return '서버에 문제가 생겼어요. 요금이 빠졌는지 상점을 다시 불러와 확인해 주세요.';
     case 'MILEAGE_SHOP_NOT_CONFIGURED':
       return '상점이 아직 준비되지 않았어요. 잠시 뒤에 다시 시도해 주세요.';
     case 'SESSION_INVALID':
