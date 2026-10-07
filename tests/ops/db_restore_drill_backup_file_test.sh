@@ -23,10 +23,23 @@ if [[ "${FAKE_PG_DUMP_FAIL:-}" == 1 ]]; then
 fi
 printf 'NEWDUMP'
 FAKE
-# Both database snapshots read the same fixed text, so the drill's comparison passes.
+# 조회 명령에만 실패·빈 결과·불일치를 주입한다. 생성·삭제·버전 조회는 정상 동작한다.
 cat >"$fakebin/psql" <<'FAKE'
 #!/usr/bin/env bash
 if [[ -n "${FAKE_PG_URL_LOG:-}" ]]; then printf '%s\n' "$1" >>"$FAKE_PG_URL_LOG"; fi
+if [[ "$*" == *'SELECT filename FROM schema_migrations ORDER BY filename'* ]]; then
+  side=source
+  if [[ "${1%%\?*}" == *_restore_test ]]; then side=scratch; fi
+  if [[ -n "${FAKE_PG_SNAPSHOT_LOG:-}" ]]; then echo "$side" >>"$FAKE_PG_SNAPSHOT_LOG"; fi
+  if [[ "${FAKE_PG_SNAPSHOT_SIDE:-}" == "$side" || "${FAKE_PG_SNAPSHOT_SIDE:-}" == both ]]; then
+    case "${FAKE_PG_SNAPSHOT_MODE:-}" in
+      fail) echo fake; echo 'psql: snapshot query failed' >&2; exit 9 ;;
+      empty) exit 0 ;;
+      whitespace) printf ' \t\n'; exit 0 ;;
+      mismatch) echo different; exit 0 ;;
+    esac
+  fi
+fi
 echo fake
 FAKE
 cat >"$fakebin/pg_restore" <<'FAKE'
@@ -157,4 +170,30 @@ scratch_url="$(grep -E '^pg_restore:postgresql://drill@127\.0\.0\.1:1/masscom_[0
 [[ "${scratch_url#pg_restore:}" == *"$tls_query" ]] || { echo 'restore connection lost TLS options' >&2; exit 1; }
 grep -Fxq "${scratch_url#pg_restore:}" "$url_log" || { echo 'scratch snapshot lost TLS options' >&2; exit 1; }
 
-echo "restore drill backup-file tests passed ($rejected_queries unsafe queries refused; TLS query preserved)"
+# Issue #401: 한쪽·양쪽 조회 오류(부분 출력 포함)와 빈 출력은 비교 성공으로 숨기지 않는다.
+snapshot_cases=0
+for snapshot_mode in fail empty whitespace; do
+  for snapshot_side in source scratch both; do
+    : >"$url_log"
+    status=0
+    out="$(FAKE_PG_URL_LOG="$url_log" FAKE_PG_SNAPSHOT_MODE="$snapshot_mode" FAKE_PG_SNAPSHOT_SIDE="$snapshot_side" run_drill "$work/snapshot.dump" 2>&1)" || status=$?
+    [[ "$status" != 0 ]] || { echo "drill accepted $snapshot_mode snapshot ($snapshot_side): $out" >&2; exit 1; }
+    grep -q 'restore drill FAILED' <<<"$out" || { echo "snapshot failure was not reported: $out" >&2; exit 1; }
+    if grep -q 'restore drill passed' <<<"$out"; then echo "snapshot failure printed success: $out" >&2; exit 1; fi
+    [[ "$(grep -Fxc 'postgresql://drill@127.0.0.1:1/postgres' "$url_log" || true)" -eq 2 ]] || { echo 'snapshot failure skipped scratch cleanup' >&2; exit 1; }
+    [[ "$(leftovers)" == 0 ]] || { echo 'snapshot failure left a partial dump' >&2; exit 1; }
+    snapshot_cases=$((snapshot_cases + 1))
+  done
+done
+
+# 서로 다른 정상 출력은 실패하고, 성공 안내는 검증한 두 조회만 사용한다.
+status=0
+out="$(FAKE_PG_SNAPSHOT_MODE=mismatch FAKE_PG_SNAPSHOT_SIDE=scratch run_drill "$work/mismatch.dump" 2>&1)" || status=$?
+[[ "$status" != 0 ]] || { echo "drill accepted mismatched snapshots: $out" >&2; exit 1; }
+grep -q 'restored data differs from the source' <<<"$out" || { echo "snapshot mismatch was not reported: $out" >&2; exit 1; }
+snapshot_log="$scratch/snapshots.log"
+out="$(FAKE_PG_SNAPSHOT_LOG="$snapshot_log" run_drill "$work/verified.dump" 2>&1)"
+grep -q 'restore drill passed: 1 table counts and migration versions match' <<<"$out"
+[[ "$(cat "$snapshot_log")" == $'source\nscratch' ]] || { echo 'success message queried an unverified snapshot again' >&2; exit 1; }
+
+echo "restore drill backup-file tests passed ($rejected_queries unsafe queries refused; TLS query preserved; $snapshot_cases invalid snapshot cases rejected)"

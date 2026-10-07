@@ -102,8 +102,25 @@ pg psql "$admin_url" --no-psqlrc --quiet --set ON_ERROR_STOP=1 \
 created_scratch=1
 pg pg_restore --no-owner --exit-on-error --dbname "$scratch_url" <"$backup"
 
-if ! diff <(snapshot "$url") <(snapshot "$scratch_url"); then
+# Process substitution does not propagate snapshot failures to diff; check each query first.
+if ! source_snapshot="$(snapshot "$url")"; then
+  echo "restore drill FAILED: source snapshot query failed" >&2
+  exit 1
+fi
+if [[ -z "${source_snapshot//[[:space:]]/}" ]]; then
+  echo "restore drill FAILED: source snapshot is empty" >&2
+  exit 1
+fi
+if ! scratch_snapshot="$(snapshot "$scratch_url")"; then
+  echo "restore drill FAILED: scratch snapshot query failed" >&2
+  exit 1
+fi
+if [[ -z "${scratch_snapshot//[[:space:]]/}" ]]; then
+  echo "restore drill FAILED: scratch snapshot is empty" >&2
+  exit 1
+fi
+if ! diff <(printf '%s\n' "$source_snapshot") <(printf '%s\n' "$scratch_snapshot"); then
   echo "restore drill FAILED: restored data differs from the source" >&2
   exit 1
 fi
-echo "restore drill passed: $(snapshot "$scratch_url" | wc -l | tr -d ' ') table counts and migration versions match"
+echo "restore drill passed: $(printf '%s\n' "$scratch_snapshot" | wc -l | tr -d ' ') table counts and migration versions match"

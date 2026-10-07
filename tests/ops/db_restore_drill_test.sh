@@ -25,7 +25,7 @@ left="$(pg psql "${base%/*}/postgres$query" --no-psqlrc -tAc "SELECT count(*) FR
 
 # A restore that does not match the source must fail the drill.
 tampered="$(mktemp -t drill-tampered.XXXXXX)"
-awk '/^if ! diff /{print "pg psql \"$scratch_url\" --no-psqlrc --quiet --command \"DELETE FROM schema_migrations WHERE filename = (SELECT max(filename) FROM schema_migrations)\" >/dev/null"} {print}' "$drill" >"$tampered"
+awk '/^if ! source_snapshot=/{print "pg psql \"$scratch_url\" --no-psqlrc --quiet --command \"DELETE FROM schema_migrations WHERE filename = (SELECT max(filename) FROM schema_migrations)\" >/dev/null"} {print}' "$drill" >"$tampered"
 cmp -s "$drill" "$tampered" && { echo "tamper injection point not found in the drill script" >&2; exit 1; }
 if tampered_out="$(bash "$tampered" 2>&1)"; then
   echo "drill passed although the restored database was altered" >&2
