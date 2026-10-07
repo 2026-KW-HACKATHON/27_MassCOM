@@ -22,6 +22,23 @@ test('a replayed duplicate is still one reward with its persisted quantity', () 
   assert.throws(() => parseGradeDrawResult({ ...result, reward: { kind: 'COIN', id: 'fake', name: 'fake' } }), ShopApiError);
 });
 
+test('visit reversal debt still allows the shop pool and history to load', () => {
+  assert.equal(parseGradeDrawShop({ balance: -90, pools: [pool], history: [] }).balance, -90);
+  for (const balance of [-0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parseGradeDrawShop({ balance, pools: [pool], history: [] }), ShopApiError);
+  }
+  assert.throws(() => parseGradeDrawShop({ balance: -90, pools: [{ ...pool, price: -100 }], history: [] }), ShopApiError);
+});
+
+test('an already charged draw can replay after a reversal makes the balance negative', () => {
+  assert.deepEqual(parseGradeDrawResult({ ...result, balance: -90 }), { ...result, balance: -90 });
+  for (const balance of [-0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => parseGradeDrawResult({ ...result, balance }), ShopApiError);
+  }
+  assert.throws(() => parseGradeDrawResult({ ...result, balance: -90, quantity: -1 }), ShopApiError);
+  assert.throws(() => parseGradeDrawResult({ ...result, balance: -90, price: -100 }), ShopApiError);
+});
+
 test('draw uses the same UUID and pool version on the authenticated endpoint', async () => {
   const calls: { url: string; body: unknown; authorization: string | null }[] = [];
   const api = createGradeDrawApi({ apiUrl: 'https://api.example.test/', credential: { kind: 'bearer', sessionToken: 'session' },

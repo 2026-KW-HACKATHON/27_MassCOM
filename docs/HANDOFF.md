@@ -1,5 +1,10 @@
 # HANDOFF
 
+## 2026-10-07 PR #397 방문 취소 잔액 리뷰 수정
+
+`fix/pr397-negative-balance`에서 기존 음수 잔액 계약과 조회/재전송 복구를 맞췄다. 모바일1805/1805·타입/lint, 독립 코드 결함0·구조CLEAR. 원래 PR #397 브랜치에 fast-forward push 후 최신 HEAD CI를 확인한다. 배포는 migration 0061 → 모든 API 인스턴스 교체 → 새 앱 제공 순서로 진행한다. `grade_draws`에 첫 거래가 기록된 이후에는 해당 지출을 합산하지 않는 구 API로 단순 rollback하지 않는다. rollback이 필요하면 쓰기를 먼저 중지하고 grade_draws 잔액 합산을 유지하는 호환 버전으로 복구한다. 이번 작업에서는 운영 배포를 실행하지 않는다.
+
+
 ## 2026-10-07 등급 전체 뽑기·놀이·코인 재질 (Issue #395)
 
 작업 브랜치 `feat/grade-random-draw`, 기준은 main `51e2df21`이다. [설계](superpowers/specs/2026-10-07-grade-draw-play-material-design.md), [계획](superpowers/plans/2026-10-07-grade-draw-play-material.md), [QA](GRADE_DRAW_PLAY_MATERIAL_QA_2026-10-07.md)를 따른다. 개별 아이템 동일 확률·보상 하나·중복 허용·100/200/400P는 사용자 확정이다. Migration `0061`과 새 뽑기 API/모바일 흐름, 기존 놀이의 화면 연결, 수집품 재질 표현이 작업 범위다.

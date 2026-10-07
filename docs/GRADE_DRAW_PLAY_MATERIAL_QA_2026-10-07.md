@@ -47,3 +47,10 @@
 - APK에 의도된 공개 TMAP 지도 키와 NAVER 지도 ID가 포함되며 NAVER 서버 Secret은 없다. 현재 TMAP REST와 공개 지도 설정은 같은 발급 키 값이므로 그 바이트의 완전 제외를 주장하지 않는다. 빌드 환경에서 서버 변수는 제외했다.
 - 재현: `npm test --prefix apps/mobile`, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, `npm test --prefix apps/api`, `npm run typecheck --prefix apps/api`, `npm run build --prefix apps/api`, 격리 `_test` DB의 `npm run test:postgres --prefix apps/api`, `node scripts/check-accessibility-semantics.mjs apps/mobile/src`. 소스 검사 대상은 tracked/new 소스만 복사한 snapshot이다. APK·공급자 자격 증명·원시 로그는 Git 밖에 둔다.
 - API/앱 배포 전 migration 0061을 먼저 적용해야 한다. 운영 마이그레이션·공개 APK·Play 배포는 NOT_RUN이다.
+
+
+## 2026-10-07 PR 검토 후 방문 취소 잔액 복구
+
+추가 독립 검토에서 기존 방문 취소 계약의 음수 잔액을 새 모바일 parser가 거부하는 P2를 확인했다. 잔액만 signed safe integer로 허용하며 가격·수량·개수 제약은 유지한다. 음수 잔액 조회/재전송 회귀 2건이 수정 전 실패했고 수정 후 parser 5/5, 모바일 전체1805/1805·타입/lint를 통과했다. 별도 구조 재검토 CLEAR, 코드 결함0. 새 서버 동작·보상 확률·가격은 바꾸지 않았다. 최신 CI는 PR HEAD를 따른다.
+
+배포는 migration 0061 → 모든 API 인스턴스 교체 → 새 앱 제공 순서로 진행한다. `grade_draws`에 첫 거래가 기록된 이후에는 해당 지출을 합산하지 않는 구 API로 단순 rollback하지 않는다. rollback이 필요하면 쓰기를 먼저 중지하고 grade_draws 잔액 합산을 유지하는 호환 버전으로 복구한다. 이번 작업에서는 운영 배포를 실행하지 않는다.

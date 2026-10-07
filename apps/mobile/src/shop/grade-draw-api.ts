@@ -33,8 +33,8 @@ function reward(value: unknown): GradeReward {
 }
 
 export function parseGradeDrawShop(value: unknown): GradeDrawShop {
-  if (!object(value) || !integer(value.balance) || !Array.isArray(value.pools) || !Array.isArray(value.history)) return invalid();
-  return { balance: value.balance, pools: value.pools.map((item: unknown) => {
+  if (!object(value) || !Number.isSafeInteger(value.balance) || !Array.isArray(value.pools) || !Array.isArray(value.history)) return invalid();
+  return { balance: value.balance as number, pools: value.pools.map((item: unknown) => {
     if (!object(item) || !isMileageGrade(item.grade) || !integer(item.price) || !string(item.version)
       || !integer(item.total) || !Array.isArray(item.rewards) || !object(item.counts)
       || !['COIN', 'THEME', 'CHARACTER'].every((key) => integer((item.counts as Record<string, unknown>)[key]))
@@ -56,9 +56,9 @@ export function parseGradeDrawShop(value: unknown): GradeDrawShop {
 export function parseGradeDrawResult(value: unknown): GradeDrawResult {
   if (!object(value) || !string(value.drawId) || !isMileageGrade(value.grade) || !integer(value.price)
     || typeof value.duplicate !== 'boolean' || !integer(value.quantity) || value.quantity < 1
-    || !integer(value.balance) || typeof value.replayed !== 'boolean') return invalid();
+    || !Number.isSafeInteger(value.balance) || typeof value.replayed !== 'boolean') return invalid();
   return { drawId: value.drawId, grade: value.grade, price: value.price, reward: reward(value.reward), duplicate: value.duplicate,
-    quantity: value.quantity, balance: value.balance, replayed: value.replayed };
+    quantity: value.quantity, balance: value.balance as number, replayed: value.replayed };
 }
 
 export function createGradeDrawApi(input: { apiUrl: string; credential: AccountCredential; onSessionInvalid?: () => Promise<void>; fetcher?: typeof fetch }) {
