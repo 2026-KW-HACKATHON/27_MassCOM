@@ -46,7 +46,8 @@ import { CollectibleDetail } from './collectible-detail';
 import type { LegacyCollectibleDetail } from './legacy-collectible-detail';
 import { groupCollectibles, ungroupedCollectibles } from './collectible-groups';
 import { CollectibleReveal } from './collectible-reveal';
-import { markCollectiblePresented } from './presented-collectibles';
+import { createStoreTicketApiClient } from '@/store-tickets/store-ticket-api';
+import { acknowledgeCollectibleReceipt, markCollectiblePresented } from './presented-collectibles';
 import { useCollectibleShare } from './collectible-share';
 import { buildCollectionShareCard } from './collection-share-card';
 import { collectionShareNotice } from './collection-share-flow';
@@ -111,6 +112,7 @@ export function CollectionScreen({
     () => createCommerceApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
+  const ticketApi = useMemo(() => createStoreTicketApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const walletApi = useMemo(
     () => new WalletApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
@@ -159,6 +161,12 @@ export function CollectionScreen({
   const [refreshing, setRefreshing] = useState(false);
   const [busyEntitlementId, setBusyEntitlementId] = useState<string>();
   const [error, setError] = useState<string>();
+  const acknowledgePresented = useCallback((entitlementId: string) => {
+    markCollectiblePresented(apiUrl, accountId, entitlementId);
+    void acknowledgeCollectibleReceipt(apiUrl, accountId, entitlementId, ticketApi.openStoreTicket).catch(() => {
+      setError('개봉 확인을 저장하지 못했어요. 받은 보상 화면에서 다시 열면 확인을 이어갈 수 있어요.');
+    });
+  }, [apiUrl, accountId, ticketApi]);
   const [message, setMessage] = useState<string>();
   const [pollingRetrying, setPollingRetrying] = useState(false);
   // 조회를 시작할 때마다 올리는 세대. 나중에 시작한 조회가 먼저 적용되면 오래된 응답은 버린다.
@@ -762,7 +770,7 @@ export function CollectionScreen({
           collectibles={collection?.collectibles ?? []}
           series={storeSeries}
           onSkip={() => setRevealEntitlement(undefined)}
-          onCardShown={(entitlementId) => markCollectiblePresented(apiUrl, accountId, entitlementId)}
+          onCardShown={acknowledgePresented}
           onOpenDetail={(entitlementId) => {
             // 실제로 불러오는 데 성공한 첫 카드(봉투 쪽이 넘겨준 id)이므로 상세에서 획득 때 한 번 재생하는 동작부터 보여 준다.
             // 배치의 원래 첫 id(entitlementIds[0])를 그대로 쓰면, 그게 로드에 실패해 카드로 보이지도 않은 경우 엉뚱한 걸 연다.

@@ -52,7 +52,7 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const { width, height: viewportHeight, fontScale } = useWindowDimensions();
   const compactHome = viewportHeight < 740 || fontScale >= 1.5;
   const sceneWidth = Math.min(width - 32, 500);
-  const sceneHeight = sceneWidth * (compactHome ? .60 : .78);
+  const sceneHeight = sceneWidth * (compactHome ? .60 : .72);
   const clearance = useTabBarClearance();
   const scrim = useStatusBarScrim();
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
@@ -102,7 +102,7 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         tintColor={palette.primary} colors={[palette.primary]} progressBackgroundColor={world.card} progressViewOffset={insets.top} />}
       contentContainerStyle={{ paddingBottom: clearance + 8 }}>
       <AppHeader title="홈" showFriendsEntry showMailEntry compact />
-      <View style={{ width: '100%', maxWidth: 540, alignSelf: 'center', gap: 14, paddingHorizontal: 16 }}>
+      <View style={{ width: '100%', maxWidth: 540, alignSelf: 'center', gap: 10, paddingHorizontal: 16 }}>
         {compactHome ? <View style={{ flexDirection: 'row', gap: 12 }}>
           <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link>
           <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>

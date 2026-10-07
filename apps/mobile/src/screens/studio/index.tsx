@@ -340,7 +340,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
     <SkyScrollView header={header} contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshIfClean} progressViewOffset={insets.top} />}>
       <View style={styles.sceneFrame}>
-        <StudioScene studio={draft} items={selected} avatar={avatarChoice} clothing={clothingArt} apiUrl={apiUrl} width={sceneWidth} height={Math.round(sceneWidth * 0.92)}
+        <StudioScene studio={draft} items={selected} avatar={avatarChoice} clothing={clothingArt} apiUrl={apiUrl} width={sceneWidth} height={Math.round(sceneWidth * 0.80)}
           furniture={furniture} furnitureItems={snapshot.furnitureItems} selectedFurnitureId={selectedFurnitureId}
           onFurnitureSelect={editingFurniture && !saving ? setSelectedFurnitureId : undefined}
           onFurnitureMove={editingFurniture && !saving ? (id, x, y) => setDraft((current) => current ? changeFurniture(current, id, (placement) => ({ ...placement, x, y })) : current) : undefined}
@@ -352,19 +352,19 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
       <Text style={[styles.hint, { color: palette.secondaryLabel }]}>{selected.length}/6개 전시 · 동행 {shop.items.find((item) => item.id === avatarChoice)?.name ?? '기본 마스코트'} · 옷 {shop.clothing.items.find((item) => item.id === clothingChoice)?.name ?? '없음'}</Text>
       <View style={styles.saveRow}>
         <Pressable accessibilityRole="button" disabled={saving || (!dirty && avatarChoice === snapshot.avatar && clothingChoice === shop.clothing.equipped && !previewProfile)}
-          onPress={cancelEdits} style={[styles.cancel, (saving || !dirty && avatarChoice === snapshot.avatar && clothingChoice === shop.clothing.equipped && !previewProfile) && styles.locked]}>
-          <Text style={styles.cancelText}>취소</Text>
+          onPress={cancelEdits} style={[styles.cancel, { backgroundColor: palette.surface, borderColor: palette.separator }]}>
+          <Text style={[styles.cancelText, { color: palette.secondaryLabel }]}>취소</Text>
         </Pressable>
         <Pressable accessibilityRole="button" disabled={!dirty || saving || !goalAvailable} onPress={() => void save()}
-          style={[styles.save, (!dirty || saving || !goalAvailable) && styles.locked]}>
-          <Text style={styles.saveText}>{saving ? '저장 중…' : '내 공간 저장'}</Text>
+          style={[styles.save, { backgroundColor: !dirty || saving || !goalAvailable ? palette.surface : palette.primary, borderWidth: 1, borderColor: palette.separator }]}>
+          <Text style={[styles.saveText, { color: saving || !dirty || !goalAvailable ? palette.secondaryLabel : palette.onPrimary }]}>{saving ? '저장 중…' : '내 공간 저장'}</Text>
         </Pressable>
       </View>
       {error ? <Text accessibilityRole="alert" style={[styles.error, { color: palette.error }]}>{error}</Text> : null}
       {errorNeedsConsent ? <Pressable accessibilityRole="button" onPress={recheckConsent} style={styles.goButton}><Text style={styles.goText}>{consentRecheckLabel}</Text></Pressable> : null}
       {notice ? <Text accessibilityRole="alert" style={[styles.notice, { color: palette.success }]}>{notice}</Text> : null}
       <View accessibilityRole="radiogroup" style={styles.modeChoices}>{studioModes.map((option) => <Pressable key={option.id}
-        accessibilityRole="radio" accessibilityState={{ selected: mode === option.id }} onPress={() => setModeChoice({ requestKey, mode: option.id })}
+        accessibilityRole="radio" accessibilityState={{ checked: mode === option.id }} onPress={() => setModeChoice({ requestKey, mode: option.id })}
         style={[styles.modeChoice, { backgroundColor: mode === option.id ? palette.primaryContainer : palette.surface,
           borderColor: mode === option.id ? palette.primary : palette.separator }]}>
         <Text style={[styles.modeText, { color: mode === option.id ? palette.onPrimaryContainer : palette.label }]}>{option.label}</Text>
@@ -616,7 +616,7 @@ const styles = StyleSheet.create({
   cancel: { minHeight: 50, minWidth: 96, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D1DDD7', borderRadius: 14 },
   cancelText: { color: '#164F4A', fontSize: 15, fontWeight: '800' },
   modeChoices: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  modeChoice: { flexBasis: '48%', flexGrow: 1, minHeight: 46, borderWidth: 1, borderRadius: 13, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 7 },
+  modeChoice: { flexBasis: '48%', flexGrow: 1, minHeight: 52, borderWidth: 1, borderRadius: 13, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 7 },
   modeText: { fontSize: 14, fontWeight: '800', textAlign: 'center' },
   section: { gap: 10, paddingVertical: 7 },
   heading: { fontSize: 19, fontWeight: '800', color: '#192331' },
