@@ -1,0 +1,14 @@
+{
+  "artifact": "ui-private-candidate-1.apk",
+  "sha256": "f321c49a4b0b150e0df878a2a1b23148a9e955071befb9329a17e3cd0728bf3c",
+  "bytes": 134461035,
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "validTmapId": true,
+  "validNaverId": true,
+  "serverSecretAbsent": true,
+  "newHomeAction": true,
+  "newOriginFold": true,
+  "zip16KiBAlignment": true,
+  "publicRelease": false,
+  "sourceVerification": "changed app-file hashes match UI source; rebuilt before commit; no public distribution"
+}

@@ -11,6 +11,7 @@ import { couponExpiryNotice } from '@/gamification/coupon-expiry';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { TabGlyph } from '@/navigation/tab-glyph';
 import { createShopApiClient } from '@/shop/shop-api';
 import { useShop } from '@/shop/use-shop';
 import { useShopAvatarAppearance } from '@/shop/use-shop-avatar-art';
@@ -86,44 +87,50 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
       contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
     >
       <AppHeader title="홈" subtitle="오늘의 탐험" showFriendsEntry showMailEntry compact />
-      <View style={styles.overview}>
-        <View style={styles.overviewItem}><Text style={styles.overviewLabel}>가게권</Text><Text style={styles.overviewValue}>{ticketLabel}</Text></View>
-        <View style={styles.overviewItem}><Text style={styles.overviewLabel}>마일리지</Text><Text style={styles.overviewValue}>{mileageLabel}</Text></View>
-        <View style={styles.overviewItem}><Text style={styles.overviewLabel}>보유 동행</Text><Text style={styles.overviewValue}>{companionLabel}</Text></View>
-      </View>
-      <View style={styles.actionGrid}>
-        <Link href="/claim" asChild>
-          <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, { backgroundColor: palette.primary }])}>
-            <Text style={[styles.actionTitle, { color: palette.onPrimary }]}>방문 QR</Text>
-            <Text style={[styles.actionBody, { color: palette.onPrimary }]}>가게에서 도장 받기</Text>
-          </Pressable>
-        </Link>
-        <Link href="/home/tickets" asChild>
-          <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, { backgroundColor: palette.primaryContainer }])}>
-            <Text style={[styles.actionTitle, { color: palette.onPrimaryContainer }]}>받은 가게권</Text>
-            <Text style={[styles.actionBody, { color: palette.onPrimaryContainer }]}>{ticketLabel} · 열어보기 ›</Text>
-          </Pressable>
-        </Link>
-        <Link href="/home/missions" asChild>
-          <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, { backgroundColor: palette.primaryContainer }])}>
-            <Text style={[styles.actionTitle, { color: palette.onPrimaryContainer }]}>미션</Text>
-            <Text style={[styles.actionBody, { color: palette.onPrimaryContainer }]}>1·3·5회 방문 목표 ›</Text>
-          </Pressable>
-        </Link>
-        <Link href="/home/exhibit" asChild>
-          <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, styles.exhibitTile])}>
-            <View style={styles.exhibitRow}>
-              <View style={styles.exhibitCopy}>
-                <Text style={[styles.actionTitle, { color: palette.onPrimaryContainer }]}>나의 전시</Text>
-                <Text style={[styles.actionBody, { color: palette.onPrimaryContainer }]}>동행·코인 꾸미기 ›</Text>
-              </View>
+      <View style={styles.homeBody}>
+        <View style={styles.overview}>
+          <View style={styles.overviewItem}><Text style={styles.overviewLabel}>가게권</Text><Text style={styles.overviewValue}>{ticketLabel}</Text></View>
+          <View style={styles.overviewItem}><Text style={styles.overviewLabel}>마일리지</Text><Text style={styles.overviewValue}>{mileageLabel}</Text></View>
+          <View style={styles.overviewItem}><Text style={styles.overviewLabel}>보유 동행</Text><Text style={styles.overviewValue}>{companionLabel}</Text></View>
+        </View>
+        <View style={styles.actionGrid}>
+          <Link href="/claim" asChild>
+            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, { backgroundColor: palette.primary }])}>
+              <TabGlyph name="claim" color={palette.onPrimary} size={48} />
+              <Text style={[styles.actionTitle, { color: palette.onPrimary }]}>방문 QR</Text>
+              <Text style={[styles.actionBody, { color: palette.onPrimary }]}>가게에서 도장 받기</Text>
+            </Pressable>
+          </Link>
+          <Link href="/home/tickets" asChild>
+            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, { backgroundColor: palette.primaryContainer }])}>
+              <TabGlyph name="mail" color={palette.onPrimaryContainer} size={48} />
+              <Text style={[styles.actionTitle, { color: palette.onPrimaryContainer }]}>받은 가게권</Text>
+              <Text style={[styles.actionBody, { color: palette.onPrimaryContainer }]}>{ticketLabel} · 열어보기 ›</Text>
+            </Pressable>
+          </Link>
+          <Link href="/home/missions" asChild>
+            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, { backgroundColor: palette.primaryContainer }])}>
+              <TabGlyph name="collection" color={palette.onPrimaryContainer} size={48} />
+              <Text style={[styles.actionTitle, { color: palette.onPrimaryContainer }]}>미션</Text>
+              <Text style={[styles.actionBody, { color: palette.onPrimaryContainer }]}>1·3·5회 방문 목표 ›</Text>
+            </Pressable>
+          </Link>
+          <Link href="/home/exhibit" asChild>
+            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.actionTile, styles.exhibitTile])}>
               {shop.status === 'ready' && shop.snapshot ? <CompanionScene avatar={shop.snapshot.avatar} clothing={equippedClothingArt(shop.snapshot)}
-                experienceProfile={experience.snapshot?.profile} size={64} /> : null}
-            </View>
+                experienceProfile={experience.snapshot?.profile} size={80} /> : <TabGlyph name="account" color={palette.onPrimaryContainer} size={48} />}
+              <Text style={[styles.actionTitle, { color: palette.onPrimaryContainer }]}>나의 전시</Text>
+              <Text style={[styles.actionBody, { color: palette.onPrimaryContainer }]}>동행·코인 꾸미기 ›</Text>
+            </Pressable>
+          </Link>
+        </View>
+        <Link href="/search" asChild>
+          <Pressable accessibilityRole="button" style={styles.exploreLink}>
+            <Text style={styles.exploreLinkText}>다음 가게 찾으러 가기 ›</Text>
           </Pressable>
         </Link>
+        {experience.error ? <Text accessibilityLiveRegion="polite" style={styles.inlineNotice}>{experience.error}</Text> : null}
       </View>
-      {experience.error ? <Text accessibilityLiveRegion="polite" style={styles.inlineNotice}>{experience.error}</Text> : null}
     </ScrollView>
     <StatusBarScrim scrollY={scrim.scrollY} />
   </SkyBackdrop>;
@@ -220,16 +227,17 @@ function HomeMissionsPanel({ badgeApi, companionArt }: {
 function makeHomeStyles(palette: ReturnType<typeof colorsForScheme>, world: ReturnType<typeof worldForScheme>) {
   return {
     content: { flexGrow: 1 },
+    homeBody: { flexGrow: 1, justifyContent: 'center', paddingTop: 12, paddingBottom: 12 },
     section: { paddingHorizontal: uiMetrics.pageInset, gap: 12, marginBottom: 18 },
     overview: { marginHorizontal: uiMetrics.pageInset, marginBottom: 12, padding: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8, borderRadius: 14, borderWidth: 1, borderColor: palette.separator, backgroundColor: world.card },
     overviewItem: { flexGrow: 1, flexBasis: 88, minHeight: uiMetrics.minTouch, justifyContent: 'center', gap: 2 },
     overviewLabel: { color: world.cardMuted, fontSize: 12, fontWeight: '700' },
     overviewValue: { color: world.cardInk, fontSize: 17, fontWeight: '900' },
-    actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: uiMetrics.pageInset, marginBottom: 18 },
-    actionTile: { flexGrow: 1, flexBasis: 140, minHeight: 98, borderRadius: 16, padding: 14, justifyContent: 'center', gap: 5 },
+    actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, paddingHorizontal: uiMetrics.pageInset, marginBottom: 12 },
+    actionTile: { flexGrow: 1, flexBasis: '46%', minWidth: 0, minHeight: 154, borderRadius: 16, padding: 14, justifyContent: 'center', gap: 5 },
     exhibitTile: { backgroundColor: palette.primaryContainer },
-    exhibitRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    exhibitCopy: { flex: 1, minWidth: 0, gap: 5 },
+    exploreLink: { alignSelf: 'center', minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 18, borderRadius: 24, backgroundColor: world.card },
+    exploreLinkText: { color: palette.primary, fontSize: 14, fontWeight: '800' },
     actionTitle: { fontSize: 16, lineHeight: 23, fontWeight: '900' },
     actionBody: { fontSize: 12, lineHeight: 18, fontWeight: '700' },
     sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },

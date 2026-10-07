@@ -1,0 +1,20 @@
+{
+  "artifact": "ui-private-candidate-3.apk",
+  "sha256": "d7ff35081ab03a1b6e6e2470ddf3310864f9d52dad0c37d0f7a028efec18d3fb",
+  "bytes": 134461519,
+  "certificateSha256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+  "validTmapId": true,
+  "validNaverId": true,
+  "serverSecretAbsent": true,
+  "newMapSearchFold": true,
+  "zip16KiBAlignment": true,
+  "publicRelease": false,
+  "sourceVerification": "final candidate built from these app-file hashes before commit; no public distribution",
+  "package": "kr.masscom.wolgye.dev",
+  "sdkClassesPresent": true,
+  "temporaryProbeAbsent": true,
+  "nativeLibrariesIdenticalToVerifiedMapApk": 32,
+  "elf16KiBAlignmentInheritedFromIdenticalLibraries": true,
+  "audioBackgroundLocationQueryAllBillingPermissionsAbsent": true,
+  "developmentOverlayPermissionPresent": true
+}

@@ -519,7 +519,7 @@ export function CollectionScreen({
   // Option A(#296): the full PassportHero no longer opens the screen; a one-line strip takes its place here, and the
   // full card moves into the "메달·배지 더보기" fold below.
   const header = (
-    <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" avatarArt={companionArt}>
+    <AppHeader title="도감" subtitle="가본 가게마다 도장이 찍혀요" avatarArt={companionArt} compact>
       {badges.book ? <CompactPassportStrip book={badges.book} /> : null}
     </AppHeader>
   );
@@ -576,7 +576,6 @@ export function CollectionScreen({
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}
       >
         <Section title="내 수집 앨범" note="가게·시즌·등급으로 찾아보고, 즐겨찾는 수집품을 모아요.">
-          <ExperienceEntry />
           {collection.collectibles.length > 0 ? (
             <Pressable
               accessibilityRole="button"
@@ -606,6 +605,14 @@ export function CollectionScreen({
             onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName,
               name: group.artwork.name, gradeId: group.artwork.gradeId, gradeName: group.artwork.gradeName, shape: group.artwork.shape })}
           />
+          {collection.collectibles.length === 0 ? (
+            <Link href="/recommendations" asChild>
+              <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.primaryButton, { backgroundColor: palette.primary }])}>
+                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 찾아보기</Text>
+              </Pressable>
+            </Link>
+          ) : null}
+          <ExperienceEntry />
         </Section>
 
         {error ? <Text style={[styles.inlineError, { color: palette.onErrorContainer, backgroundColor: palette.errorContainer }]}>{error}</Text> : null}
@@ -724,11 +731,11 @@ export function CollectionScreen({
           </Section>
         </Fold>
 
-        <Link href="/recommendations" asChild>
+        {collection.collectibles.length > 0 ? <Link href="/recommendations" asChild>
           <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.primaryButton, { backgroundColor: palette.primary }])}>
             <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 추천 보기</Text>
           </Pressable>
-        </Link>
+        </Link> : null}
       </SkyScrollView>
 
       <MedalDetail medal={detailMedal} variant={variant} onClose={() => setDetailKind(undefined)} />

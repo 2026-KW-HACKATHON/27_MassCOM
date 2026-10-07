@@ -1,0 +1,16 @@
+{
+  "sourceCommit": "8e8cac410b24e9cd07d09e1ace6d03fdeeebb8bc",
+  "mapBaseCommit": "c0691e8f3bae79029ffa7c036bf2eee20454d400",
+  "changedAppFiles": {
+    "apps/mobile/src/navigation/tab-glyph.tsx": "e541cc49a9971043294e383dc7421dc85da287de186a8d869ef8fbb4c87ff7fb",
+    "apps/mobile/src/screens/collection/index.tsx": "45a416e062377928926c5f425f38b54b1acad44eac2c240dd9934bddcc88aea5",
+    "apps/mobile/src/screens/home/index.tsx": "a28f67278dd1bada5c4302c6529b5befb7100a5854a4b109ba8af2c1779b3779",
+    "apps/mobile/src/screens/merchant-list/index.test.ts": "96e9aab3feac449e44003982cc9cbbc7d9ef2c1262639630b0029d2cb68b1106",
+    "apps/mobile/src/screens/play/index.tsx": "26c610bf1db384bba1e8f4b901a531e7b09ed3c715b540c66ba821bbf2f9bf28",
+    "apps/mobile/src/screens/real-map/index.tsx": "f3aa547021a8a758aa88851cc89ce26efcfc9b2ebcd872cf29269a52b57d596e",
+    "apps/mobile/src/screens/real-map/styles.ts": "83643a4f9308a86447be81ff516efe227374c1611ea7b267d90e05f96797eb27",
+    "apps/mobile/src/screens/shop/index.tsx": "119aa3efc781b7695f80f83c9ba075abf70119630e1bc427e9a9041758b4fd74",
+    "apps/mobile/src/screens/shop/styles.ts": "f0632cf16b8bd19f69db2ed40b82060fe4e964657415e57ae871ebe9387f8e89",
+    "apps/mobile/src/ui/components.test.ts": "21109093a3348c27ff498e1f75bb865fdd3c669e09d5a399b74f78e56d5e5118"
+  }
+}
