@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Image, Pressable, Text, View, useColorScheme } from 'react-native';
+import { Image, Platform, Pressable, Text, View, useColorScheme } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 
@@ -8,6 +8,7 @@ import type { ArtDraft } from '@/merchant-art/owner-art-api';
 import { motion } from '@/motion/timing';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { colorsForScheme } from '@/theme/palette';
+import { spaceToggles } from '@/ui/space-toggles';
 
 import { useMerchantArtStyles } from './use-merchant-art-styles';
 
@@ -59,8 +60,10 @@ function DraftTile({ draft, size, selected, disabled, onPress }: {
       accessibilityRole="radio"
       accessibilityLabel={draftAccessibilityLabel(draft)}
       accessibilityState={{ selected, disabled }}
+      aria-checked={selected}
       disabled={disabled}
       onPress={onPress}
+      {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => { if (!disabled) onPress(); }) } : {})}
       style={{ width: size }}
     >
       <Animated.View style={[styles.tile, selected ? styles.tileSelected : null, animated]}>
