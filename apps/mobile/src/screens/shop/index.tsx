@@ -10,6 +10,8 @@ import { PackArt } from '@/illustration/artwork';
 import { ThemePackBoard } from '@/experience/theme-pack-board';
 import { useExperience } from '@/experience/use-experience';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
+import { consentRecheckLabel, consentRequiredMessage } from '@/privacy/consent-flow';
+import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { StudioApiError, createStudioApiClient, type FurnitureSnapshot } from '@/studio/studio-api';
 import { FurnitureArt } from '@/studio/furniture-layer';
 import { clearFurniturePending, furniturePendingKey, readFurniturePending, writeFurniturePending, type FurniturePending } from '@/shop/furniture-pending';
@@ -59,6 +61,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
 }) {
   const clearance = useTabBarClearance();
   const router = useRouter();
+  const recheckConsent = useConsentRecheck();
   const insets = useSafeAreaInsets();
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
@@ -475,7 +478,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     busy={Boolean(busyGrade) || avatarBusy || experience.saving} error={notice?.tone === 'error' ? notice.text : drawError}
     refreshing={refreshing} equipmentBusy={avatarBusy || experience.saving} equipmentError={avatarError ?? experience.error}
     avatarId={snapshot.avatar} equippedThemeId={gradeResult?.reward.kind === 'THEME' ? experience.snapshot?.profile.cosmetics[gradeResult.reward.slot] : undefined}
-    onDraw={() => buyGrade(selectedPool)} onRecover={drawPending ? requestRecovery : undefined}
+    onDraw={() => buyGrade(selectedPool)} onRecover={drawPending ? requestRecovery : undefined} onRecheckConsent={recheckConsent}
     onEquip={() => {
       const reward = gradeResult?.reward;
       if (reward?.kind === 'CHARACTER') void chooseAvatar(reward.id);
@@ -487,7 +490,8 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   /> : <FullScreenModal visible animationType="fade" onRequestClose={onGachaClose ?? (() => setMachineOpen(false))}>
     <View style={{ flex: 1, justifyContent: 'center', backgroundColor: palette.background }}>
       <StateScene kind={drawError ? 'error' : 'loading'} title={drawError ?? '뽑기 목록을 불러오는 중'}
-        action={drawError ? { label: '다시 불러오기', onPress: () => { void refreshDrawShop(); } } : undefined} />
+        action={drawError ? (drawError === consentRequiredMessage ? { label: consentRecheckLabel, onPress: recheckConsent }
+          : { label: '다시 불러오기', onPress: () => { void refreshDrawShop(); } }) : undefined} />
       <BounceButton label="닫기" onPress={() => { setMachineOpen(false); onGachaClose?.(); }} />
     </View>
   </FullScreenModal>;
@@ -529,7 +533,8 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
               styles={styles}
             />
           )) : <StateScene kind={drawError ? 'error' : 'loading'} title={drawError ?? '뽑기 목록을 불러오는 중'}
-            action={drawError ? { label: '다시 불러오기', onPress: () => { void refreshDrawShop(); } } : undefined} />}
+            action={drawError ? (drawError === consentRequiredMessage ? { label: consentRecheckLabel, onPress: recheckConsent }
+          : { label: '다시 불러오기', onPress: () => { void refreshDrawShop(); } }) : undefined} />}
           <FloatingCard style={styles.card} onPress={() => router.push('/coin-shop')}
             accessibilityLabel="가게 행사 코인 뽑기권" accessibilityHint="가게와 이벤트를 고르고 기간이 있는 코인 뽑기권을 확인합니다">
             <Text accessibilityRole="header" style={styles.sectionTitle}>가게 행사 뽑기권 ›</Text>

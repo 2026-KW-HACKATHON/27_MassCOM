@@ -25,7 +25,8 @@ export function needsConsentRecheck(error: unknown): boolean {
 /**
  * 동의 화면을 보일지(루트 레이아웃의 결정). 실제 로그인한 Bearer 세션이고 API가 설정돼 있고, 이 실행에서 서버가 "이미 동의했다"고 답한 계정이
  * 지금 계정이 아닐 때만 묻는다. 로그아웃하면 묻지 않고(로그인 화면이 먼저), 다른 계정 B로 로그인하면 A의 답을 물려받지 않고 B를 다시 묻는다.
- * 개발용 DEMO 계정은 서버 세션이 없어 묻지 않는다.
+ * 개발용 DEMO 계정은 서버 세션이 없어 처음에는 묻지 않는다. 다만 서버가 동의를 요구해 사용자가 "동의 확인하기"를 눌렀다면
+ * (`recheckRequestedAccountId`가 지금 계정) DEMO 계정도 같은 화면으로 동의를 기록한다.
  */
 export function shouldAskConsent(input: {
   status: string;
@@ -33,12 +34,12 @@ export function shouldAskConsent(input: {
   credential: AccountCredential | undefined;
   apiAvailable: boolean;
   consentedAccountId: string | undefined;
+  recheckRequestedAccountId?: string | undefined;
 }): boolean {
-  return input.status === 'signedIn'
-    && Boolean(input.accountId)
-    && input.credential?.kind === 'bearer'
-    && input.apiAvailable
-    && input.consentedAccountId !== input.accountId;
+  if (!input.accountId || !input.apiAvailable || input.consentedAccountId === input.accountId) return false;
+  if (input.status === 'signedIn' && input.credential?.kind === 'bearer') return true;
+  return input.status === 'demo' && input.credential?.kind === 'demo'
+    && input.recheckRequestedAccountId === input.accountId;
 }
 
 export const noChecks: ConsentChecks = { ageConfirmed: false, termsAccepted: false, privacyAccepted: false };

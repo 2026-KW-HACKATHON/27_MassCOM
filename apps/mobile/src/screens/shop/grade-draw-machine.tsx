@@ -3,6 +3,7 @@ import { Image, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cancelAnimation, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
+import { consentRecheckLabel, consentRequiredMessage } from '@/privacy/consent-flow';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { ConfettiBurst } from '@/gamification/confetti';
 import { drawHaptic } from '@/gamification/native-effects';
@@ -15,13 +16,13 @@ import { BurstRays, Control, Machine, gradeStyle, styles } from './gacha-machine
 
 type Props = { pool: GradeDrawPool; balance: number; result?: GradeDrawResult; busy: boolean; error?: string;
   refreshing?: boolean; equipmentBusy?: boolean; equipmentError?: string; avatarId?: string | null; equippedThemeId?: string | null;
-  onDraw: () => Promise<boolean>; onRecover?: () => void; onEquip?: () => void; onOpenCollection: () => void;
+  onDraw: () => Promise<boolean>; onRecover?: () => void; onRecheckConsent?: () => void; onEquip?: () => void; onOpenCollection: () => void;
   onClose: () => void; onRefresh: () => void };
 
 const kindName: Record<GradeReward['kind'], string> = { COIN: '가게 코인', THEME: '테마 꾸미기', CHARACTER: '캐릭터' };
 
 export function GradeDrawMachine({ pool, balance, result, busy, error, refreshing, equipmentBusy, equipmentError,
-  avatarId, equippedThemeId, onDraw, onRecover, onEquip, onOpenCollection, onClose, onRefresh }: Props) {
+  avatarId, equippedThemeId, onDraw, onRecover, onRecheckConsent, onEquip, onOpenCollection, onClose, onRefresh }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
@@ -117,7 +118,9 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
           <Control label="닫기" disabled={equipmentBusy} onPress={close} />
         </> : null}
         {error ? <View style={styles.errorArea}><Text accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>
-          <Control label={refreshing ? '다시 불러오는 중…' : '상점 다시 불러오기'} disabled={busy || refreshing} onPress={onRefresh} />
+          {error === consentRequiredMessage && onRecheckConsent
+            ? <Control label={consentRecheckLabel} primary onPress={onRecheckConsent} />
+            : <Control label={refreshing ? '다시 불러오는 중…' : '상점 다시 불러오기'} disabled={busy || refreshing} onPress={onRefresh} />}
         </View> : null}
       </ScrollView>
     </View>

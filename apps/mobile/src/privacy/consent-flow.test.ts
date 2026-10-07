@@ -87,12 +87,23 @@ test('states without a real server session or API never ask', () => {
   assert.equal(ask({ apiAvailable: false }), false, 'API unavailable');
   assert.equal(ask({ status: 'demo', accountId: 'demo-1', credential: demo }), false, 'development demo status');
   assert.equal(ask({ credential: demo }), false, 'a demo credential is not a server session');
+  assert.equal(ask({ status: 'demo', accountId: 'demo-1', credential: demo, recheckRequestedAccountId: 'other' }), false, 'another account asked to re-check');
   for (const status of ['restoring', 'switchingAccount', 'signedOut', 'signingIn']) {
     assert.equal(ask({ status }), false, status);
   }
   assert.equal(ask({ accountId: undefined }), false);
   assert.equal(ask({ credential: undefined }), false);
   assert.equal(ask({ accountId: '' }), false);
+});
+
+test('a demo account is asked only after its own re-check request, and stops once the server said yes', () => {
+  const demoAsk = (over: Partial<Parameters<typeof shouldAskConsent>[0]> = {}) => ask({
+    status: 'demo', accountId: 'demo-1', credential: demo, recheckRequestedAccountId: 'demo-1', ...over,
+  });
+  assert.equal(demoAsk(), true, 'consent button pressed');
+  assert.equal(demoAsk({ consentedAccountId: 'demo-1' }), false, 'recorded');
+  assert.equal(demoAsk({ apiAvailable: false }), false);
+  assert.equal(demoAsk({ credential: bearer }), false, 'a demo status never asks with a bearer credential');
 });
 
 test('a 403 consent error asks to re-check the current Korean notice through the root gate', () => {
