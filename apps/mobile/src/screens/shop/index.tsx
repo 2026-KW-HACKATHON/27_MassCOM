@@ -17,6 +17,7 @@ import { colorsForScheme } from '@/theme/palette';
 import { AppHeader } from '@/ui/app-header';
 import { BounceButton } from '@/ui/bounce-button';
 import { FloatingCard } from '@/ui/floating-card';
+import { Fold } from '@/ui/fold';
 import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
@@ -511,6 +512,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
             <Text accessibilityLabel={`마일리지 ${drawShop?.balance ?? snapshot.mileage.balance}포인트`} style={styles.balance}>{formatMileage(drawShop?.balance ?? snapshot.mileage.balance)}</Text>
             <Mascot interactive pose="gift" size={56} />
           </View>
+          {(drawShop?.balance ?? snapshot.mileage.balance) === 0 ? <StateScene kind="empty" title="마일리지가 아직 없어요" action={{ label: '가게 방문하고 마일리지 모으기', onPress: () => router.push('/search') }} framed={false} /> : null}
           {pending ? <BounceButton label="이전 구매 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {drawPending ? <BounceButton label="이전 뽑기 결과 다시 확인" disabled={Boolean(busyGrade) || avatarBusy || experience.saving || refreshing} onPress={requestRecovery} /> : null}
           {bonusLabel ? <Text style={styles.rulesText}>{bonusLabel}</Text> : null}
@@ -545,7 +547,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         </View>
       </Stagger>
 
-      <Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text>
+      <Fold title="마일리지 획득 안내"><Text style={styles.rulesText}>{earnRulesText(snapshot.mileage.rules)}</Text></Fold>
 
       <Stagger index={2}>
         <View style={styles.section}>
@@ -629,7 +631,7 @@ function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
           <Text style={styles.gradeOwned}>코인 {grade.counts.COIN} · 테마 {grade.counts.THEME} · 캐릭터 {grade.counts.CHARACTER}</Text>
         </View>
       </View>
-      <Text style={styles.disclosure}>전체 {grade.total}종 각 {(grade.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}% · 중복 가능</Text>
+      <Fold title="뽑기 확률 보기"><Text style={styles.disclosure}>전체 {grade.total}종 각 {(grade.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}% · 중복 가능</Text></Fold>
       {button.reason || (purchaseBusy && !busy) ? <Text style={styles.disabledReason}>{button.reason ?? '다른 작업을 처리하고 있어요'}</Text> : null}
       <BounceButton
         label={busy ? '뽑는 중…' : '뽑기'}

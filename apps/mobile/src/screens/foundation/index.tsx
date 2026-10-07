@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { INITIAL_PAGE, PAGE_COUNT, pageAtOffset } from '@/navigation/foundation-pages';
+import { TabGlyph } from '@/navigation/tab-glyph';
 import { foundationColors } from '@/theme/foundation';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
@@ -91,9 +92,17 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
             {stage === 'role' ? (
               <>
                 <View style={styles.greeting}>
-                  <Mascot interactive pose="wave" size={160} accessibilityLabel="손을 흔드는 마스코트" />
+                  <Mascot interactive pose="wave" size={136} accessibilityLabel="손을 흔드는 마스코트" />
                   <Text accessibilityRole="header" style={[styles.title, styles.greetingTitle, { color: world.skyInk }]}>반가워요! 동네 탐험을 시작해요</Text>
-                  <Text style={[styles.description, styles.greetingTitle, { color: world.skyMuted }]}>어떤 모습으로 시작할까요?</Text>
+                  <Text style={[styles.description, styles.greetingTitle, { color: world.skyMuted }]}>가게에 방문하면 도장과 코인을 모아요</Text>
+                </View>
+                <View style={styles.steps} accessibilityLabel="가게 찾기, 방문 인증, 수집과 꾸미기">
+                  {([
+                    ['explore', '가게 찾기'], ['claim', '방문 인증'], ['collection', '수집·꾸미기'],
+                  ] as const).map(([name, label]) => <View key={name} style={styles.step}>
+                    <TabGlyph name={name} color={world.skyInk} size={24} />
+                    <Text style={[styles.stepLabel, { color: world.skyInk }]}>{label}</Text>
+                  </View>)}
                 </View>
                 <View style={styles.roleChoices}>
                   <RoleChoice title="사용자예요" subtitle="나의 공간으로 시작" role="customer" onPress={() => choose('customer')} />
@@ -247,7 +256,9 @@ const styles = StyleSheet.create({
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 9 }, brand: { fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
   brandBadge: { width: 36, height: 36 },
   noticeOnSky: { alignSelf: 'stretch', marginHorizontal: 20, marginTop: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, overflow: 'hidden' },
-  greeting: { alignItems: 'center', paddingTop: 20, paddingBottom: 28, gap: 8 }, greetingTitle: { textAlign: 'center' },
+  greeting: { alignItems: 'center', paddingTop: 12, paddingBottom: 16, gap: 8 }, greetingTitle: { textAlign: 'center' },
+  steps: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, paddingBottom: 20 },
+  step: { minWidth: 88, flexGrow: 1, alignItems: 'center', gap: 5 }, stepLabel: { fontSize: 13, fontWeight: '700', textAlign: 'center' },
   intro: { paddingTop: 72, paddingBottom: 40, gap: 12 }, eyebrow: { fontSize: 14, fontWeight: '600' },
   title: { fontSize: 32, fontWeight: '700', letterSpacing: -1, lineHeight: 40 },
   walletTitle: { fontSize: 32, fontWeight: '700', letterSpacing: -1.3, lineHeight: 44 },

@@ -198,7 +198,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
         </FloatingCard>;
       })}
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>내 코인 상세</Text>
-      {collection.coins.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>아직 모은 코인이 없어요. 가게 방문이나 뽑기권으로 수집해 보세요.</Text> :
+      {collection.coins.length === 0 ? <StateScene kind="empty" title="아직 모은 코인이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
         collection.coins.map((coin) => <FloatingCard key={`${coin.publicationId}:${coin.gradeId}`} style={styles.card}>
           {parseCollectibleArtwork(coin.summary) ? <Image source={{ uri: parseCollectibleArtwork(coin.summary)!.thumbnailDataUrl }}
             accessibilityLabel={`${coin.name} 코인 그림`} style={styles.coinImage} resizeMode="contain" /> : null}
@@ -271,9 +271,9 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
       {collection.series.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>지금 진행 중인 시리즈가 없어요. 실제 가게의 쿠폰 조건이 정해지면 표시돼요.</Text> :
         collection.series.map((series) => <SeriesCard key={series.id} series={series} busy={Boolean(busyId)}
           onClaim={() => void claim(series.id)} onUse={() => setUsingCoupon(series)} palette={palette} />)}
-      <Pressable accessibilityRole="button" onPress={() => router.push('/coin-shop')} style={styles.link}>
+      {collection.coins.length > 0 ? <Pressable accessibilityRole="button" onPress={() => router.push('/coin-shop')} style={styles.link}>
         <Text style={{ color: palette.primary }}>가게 뽑기권 보러 가기 ›</Text>
-      </Pressable>
+      </Pressable> : null}
     </> : null}
   </SkyScrollView>
     {usingCoupon?.coupon ? <CoinCouponUse key={usingCoupon.coupon.id} series={usingCoupon}

@@ -604,7 +604,7 @@ export function CollectionScreen({
             </Pressable>
           ) : null}
           {shareNotice ? <Text accessibilityLiveRegion="polite" style={styles.inlineMessage}>{shareNotice}</Text> : null}
-          <CollectibleBrowser
+          {collection.collectibles.length > 0 || storeSeries.length > 0 ? <CollectibleBrowser
             materialScrollY={materialScrollY}
             materialVisible={!collectibleDetail && !revealEntitlement && !revealed && !detailKind && !usingCoupon}
             groups={collectibleGroups}
@@ -618,14 +618,8 @@ export function CollectionScreen({
             onOpenDetail={(entitlementId, merchantName, localDetail) => setCollectibleDetail({ entitlementId, merchantName, localDetail, client: api })}
             onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName,
               name: group.artwork.name, gradeId: group.artwork.gradeId, gradeName: group.artwork.gradeName, shape: group.artwork.shape })}
-          />
-          {collection.collectibles.length === 0 ? (
-            <Link href="/recommendations" asChild>
-              <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.primaryButton, { backgroundColor: palette.primary }])}>
-                <Text style={[styles.primaryButtonText, { color: palette.onPrimary }]}>다음 음식점 찾아보기</Text>
-              </Pressable>
-            </Link>
-          ) : null}
+          /> : null}
+          {collection.collectibles.length === 0 && storeSeries.length === 0 ? <StateScene kind="empty" title="첫 방문 도장이 기다리고 있어요" action={{ label: '첫 도장 받으러 가기', onPress: () => router.push('/search') }} /> : null}
           <ExperienceEntry />
         </Section>
 

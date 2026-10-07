@@ -22,6 +22,7 @@
     },
     "web": {
       "output": "single",
+      "lang": "ko",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [

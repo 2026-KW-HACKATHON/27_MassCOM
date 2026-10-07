@@ -211,7 +211,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       action={{ label: '다시 불러오기', onPress: () => void load(true) }} /> : null}
     {shop ? <>
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>받은 뽑기권</Text>
-      {shop.tickets.filter((ticket) => ticket.status === 'UNUSED').length === 0 ? <Text style={{ color: palette.secondaryLabel }}>아직 사용할 뽑기권이 없어요.</Text> :
+      {shop.tickets.filter((ticket) => ticket.status === 'UNUSED').length === 0 ? <StateScene kind="empty" title="아직 사용할 뽑기권이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
         shop.tickets.filter((ticket) => ticket.status === 'UNUSED').map((ticket) => {
           const pool = shop.pools.find((candidate) => candidate.id === ticket.poolId);
           const totalWeight = pool?.entries.reduce((sum, item) => sum + item.weight, 0) ?? 0;
@@ -264,9 +264,9 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
           </FloatingCard>;
         })}
     </> : null}
-    <Pressable accessibilityRole="button" onPress={() => router.push('/coin-collection')} style={styles.link}>
+    {shop && shop.tickets.some((ticket) => ticket.status === 'UNUSED') ? <Pressable accessibilityRole="button" onPress={() => router.push('/coin-collection')} style={styles.link}>
       <Text style={{ color: palette.primary }}>내 코인과 시리즈 보기 ›</Text>
-    </Pressable>
+    </Pressable> : null}
   </SkyScrollView></SkyBackdrop>;
 }
 
