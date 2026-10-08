@@ -19,13 +19,10 @@ import { MapProvider } from './map-provider.js';
 import { RealWorldError } from './real-world-contract.js';
 import { handleRealWorldHttp } from './real-world-http.js';
 import { ExpoPushGateway } from './expo-push-gateway.js';
-import { ExperienceError, type Equipment } from './collection-experience.js';
-import { NotificationError, type NotificationPreferences } from './notifications.js';
 import { PostgresCollectionExperienceService } from './postgres/collection-experience.js';
 import { PostgresMerchantOperations } from './postgres/merchant-operations.js';
 import { PostgresNotificationService, fcmConfigFromEnv } from './postgres/notifications.js';
 import { startNotificationScheduler } from './notification-scheduler.js';
-import { isGameKind, type GameAction } from './play-rules.js';
 import { GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthService, resolveWebAuthConfig } from './web-auth.js';
 import { resolveWebOrigin } from './web-origin.js';
@@ -86,11 +83,7 @@ import { createApiRuntime } from './api-runtime.js';
 import { renderClaimQr } from './http/claim-qr.js';
 import { FixedWindowAuthLoginLimiter, type AuthLoginLimiter } from './http/login-limiter.js';
 import { decodePathParameter, readJson } from './http/request-body.js';
-import {
-  authLoginClientKey,
-  requireBearerToken,
-  requireWebCookie,
-} from './http/request-auth.js';
+import { authLoginClientKey, requireBearerToken, requireWebCookie } from './http/request-auth.js';
 import { RequestError } from './http/request-error.js';
 import { respondWithError } from './http/error-response.js';
 import { sendJson, setCommonHeaders } from './http/response.js';
@@ -208,18 +201,13 @@ export function createApiServer(deps: ApiDeps) {
       if (await handleWebAdmin(routeContext)) return;
       if (await handleWebMerchant(routeContext)) return;
       if (await handleAccountDeletion(routeContext)) return;
-
       if (await handleAuth(routeContext)) return;
-
       if (await handleDiscovery(routeContext)) return;
-
       if (await handleExperience(routeContext)) return;
       if (await handlePlay(routeContext)) return;
       if (await handleCoinsRooms(routeContext)) return;
       if (await handlePlayStudio(routeContext)) return;
-
       if (await handleAccount(routeContext)) return;
-
       if (await handleSocialHttp({ request, response, path, service: social,
         resolveAccountId: async () => resolveAccountId(request), requireConsent: requireCurrentPlayConsent,
         readBody: () => readJson(request, true), decode: decodePathParameter,
@@ -232,15 +220,10 @@ export function createApiServer(deps: ApiDeps) {
           }
         },
       })) return;
-
       if (await handleCustomer(routeContext)) return;
-
       if (await handleMerchantApp(routeContext)) return;
-
       if (await handleWalletClaims(routeContext)) return;
-
       if (await handlePublicAssets(routeContext)) return;
-
       if (await handleShowcase(routeContext)) return;
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
