@@ -1,5 +1,9 @@
 import { CommerceApiError, type MerchantContext } from '@/commerce/commerce-api';
 
+export function showcaseOwnerMerchantIds(access: { trialMerchantId: string | null; practiceMerchantId: string | null }): string[] {
+  return [access.trialMerchantId ?? access.practiceMerchantId].filter((id): id is string => Boolean(id));
+}
+
 export async function findShowcaseStaffMerchant(
   merchantIds: readonly string[],
   getContext: (merchantId: string) => Promise<MerchantContext>,

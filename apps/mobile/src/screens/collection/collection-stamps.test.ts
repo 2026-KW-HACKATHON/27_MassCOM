@@ -6,13 +6,13 @@ import type { PublicMerchant } from '@/merchant/merchant-api';
 import { buildMerchantGoals, buildStampSlots, describeMerchantGoal, shortMerchantGoal, stampColumnCount, stampGlyph, stampRotation, toPassportStamp } from './collection-stamps';
 
 const merchants: readonly Pick<PublicMerchant, 'id' | 'name'>[] = [
-  { id: 'one', name: '가상 점포 A' },
-  { id: 'two', name: '가상 점포 B' },
-  { id: 'three', name: '가상 점포 C' },
+  { id: 'one', name: '더까까주까월계역점' },
+  { id: 'two', name: '갱스터떡볶이인덕대점' },
+  { id: 'three', name: '하다식당' },
 ];
 
 const campaignMerchants: readonly Pick<PublicMerchant, 'id' | 'name' | 'campaign'>[] = [{
-  id: 'one', name: '가상 점포 A', campaign: {
+  id: 'one', name: '더까까주까월계역점', campaign: {
     id: 'current', title: '현재 캠페인', startsAt: '2026-09-01T00:00:00Z',
     endsAt: '2026-10-01T00:00:00Z', enrollmentStatus: 'OPEN',
     rewardGoals: [
@@ -123,9 +123,9 @@ test('a merchant with one or more matching visits is marked visited with a visit
     { merchantId: 'two' },
   ]);
   assert.deepEqual(slots, [
-    { merchantId: 'one', merchantName: '가상 점포 A', visited: true, visitCount: 2 },
-    { merchantId: 'two', merchantName: '가상 점포 B', visited: true, visitCount: 1 },
-    { merchantId: 'three', merchantName: '가상 점포 C', visited: false, visitCount: 0 },
+    { merchantId: 'one', merchantName: '더까까주까월계역점', visited: true, visitCount: 2 },
+    { merchantId: 'two', merchantName: '갱스터떡볶이인덕대점', visited: true, visitCount: 1 },
+    { merchantId: 'three', merchantName: '하다식당', visited: false, visitCount: 0 },
   ]);
 });
 
@@ -206,14 +206,14 @@ test('passport stamps keep the short goal visible and put status and the full go
   const [visitedSlot] = buildStampSlots(merchants, [{ merchantId: 'one' }, { merchantId: 'one' }]);
   const visited = toPassportStamp(visitedSlot!, goal!);
   assert.equal(visited.merchantId, 'one');
-  assert.equal(visited.name, '가상 점포 A');
+  assert.equal(visited.name, '더까까주까월계역점');
   assert.equal(visited.visited, true);
   assert.equal(visited.statusText, '방문 2회');
   assert.equal(visited.goalText, shortMerchantGoal(goal!));
   // The tap ("음식점 상세 보기") is the hint on the slot, so the label is only what the stamp is.
   assert.equal(
     visited.label,
-    `가상 점포 A 도장 받음, 방문 2회, 보상 진행 1/1회 · 앱 수집품 0/2, ${describeMerchantGoal(goal!)}`,
+    `더까까주까월계역점 도장 받음, 방문 2회, 보상 진행 1/1회 · 앱 수집품 0/2, ${describeMerchantGoal(goal!)}`,
   );
 
   const [, , unvisitedSlot] = buildStampSlots(merchants, []);
@@ -222,16 +222,16 @@ test('passport stamps keep the short goal visible and put status and the full go
   assert.equal(unvisited.statusText, '아직 안 가봤어요');
   assert.equal(
     unvisited.label,
-    `가상 점포 C 도장 아직 없음, 보상 진행 1/1회 · 앱 수집품 0/2, ${describeMerchantGoal(goal!)}`,
+    `하다식당 도장 아직 없음, 보상 진행 1/1회 · 앱 수집품 0/2, ${describeMerchantGoal(goal!)}`,
   );
-  assert.equal(unvisited.glyph, 'C');
+  assert.equal(unvisited.glyph, '하다');
 });
 
 test('a stamp glyph is the last word of the name when it is short, else its first two characters', () => {
-  // Every demo store starts with "가상", which used to read as the same stamp three times.
-  assert.equal(stampGlyph('가상 점포 A'), 'A');
-  assert.equal(stampGlyph('가상 점포 B'), 'B');
-  assert.equal(stampGlyph('가상 점포 C'), 'C');
+  // These nearby real-data store names should remain distinct on the small map stamp.
+  assert.equal(stampGlyph('더까까주까월계역점'), '더까');
+  assert.equal(stampGlyph('갱스터떡볶이인덕대점'), '갱스');
+  assert.equal(stampGlyph('하다식당'), '하다');
   assert.equal(stampGlyph('월계 한식당'), '한식');
   assert.equal(stampGlyph('월계 김밥'), '김밥');
   assert.equal(stampGlyph('맛있는 집'), '집');

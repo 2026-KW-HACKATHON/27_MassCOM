@@ -28,7 +28,8 @@ import { createApiServer, createBearerAccountResolver } from '../server-test-sup
 import { InMemoryChallengeStore, WalletChallengeService } from '../wallet-challenge-service.js';
 import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './access-requests.js';
 import { GUEST_TRIAL_TTL_MS, GuestTrialError, ShowcaseGuestTrialService } from './guest-trials.js';
-import { seedLocalShowcase, SHOWCASE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID } from './local-seed.js';
+import { seedLocalShowcase, SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
+import { WOLGYE_STORES } from './wolgye-seed.js';
 
 const execFileAsync = promisify(execFile);
 const apiRoot = fileURLToPath(new URL('../..', import.meta.url));
@@ -37,7 +38,7 @@ const secret = 'test-only-guest-trial-secret-at-least-32-bytes-long';
 const clientA = { clientKey: '198.51.100.7' };
 const refusingVerifier = { verify: async (): Promise<never> => { throw new AuthSessionError('SESSION_INVALID'); } };
 
-/** A fresh `<prefix>_<uuid>_test` database, migrated (and seeded with the three demo merchants when `seed`). */
+/** A fresh `<prefix>_<uuid>_test` database, migrated (and seeded with the real stores and practice merchant when `seed`). */
 async function withFreshDatabase(
   prefix: string, seed: boolean, run: (pool: Pool, url: URL) => Promise<void>,
 ): Promise<void> {
@@ -186,12 +187,13 @@ test('#309 the production entry point has no guest-trial route; the local showca
     const context = await fetch(`${local}/merchant/merchants/${state.trialMerchantId}/context`, { headers: bearer });
     assert.equal(context.status, 200);
     const merchants = await (await fetch(`${local}/merchants`)).json() as { merchants: { id: string }[] };
-    assert.equal(merchants.merchants.length, 33);
+    assert.equal(merchants.merchants.length, 30);
     assert.ok(merchants.merchants.every((merchant) => merchant.id !== state.trialMerchantId));
+    assert.ok(merchants.merchants.every((merchant) => merchant.id !== SHOWCASE_PRACTICE_MERCHANT_ID));
   }));
 });
 
-test('#309 start creates a guest account, a hidden trial store copied from A, STAFF membership and a 24h session', async (t) => {
+test('#309 start creates a guest account, a hidden trial store copied from the practice store, STAFF membership and a 24h session', async (t) => {
   await withShowcaseDatabase(async (pool) => {
     const before = Date.now();
     const guests = new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret });
@@ -210,7 +212,7 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
     assert.equal((await pool.query('SELECT 1 FROM auth_identities WHERE account_id = $1', [session.accountId])).rowCount, 0);
     const [store, source] = (await pool.query<{ id: string; name: string; story: string; road_address: string; status: string; is_demo: boolean }>(
       `SELECT id, name, story, road_address, status, is_demo FROM merchants WHERE id IN ($1, $2)
-       ORDER BY id = $1 DESC`, [trial.merchant_id, SHOWCASE_MERCHANT_ID],
+       ORDER BY id = $1 DESC`, [trial.merchant_id, SHOWCASE_PRACTICE_MERCHANT_ID],
     )).rows;
     assert.deepEqual(
       { name: store!.name, story: store!.story, road_address: store!.road_address, status: store!.status, is_demo: store!.is_demo },
@@ -220,11 +222,11 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
       `SELECT campaign.merchant_id, goal.target_visit_count, goal.display_name FROM campaign_goals goal
        JOIN campaigns campaign ON campaign.id = goal.campaign_id
        WHERE campaign.merchant_id IN ($1, $2) AND campaign.status = 'ACTIVE'
-       ORDER BY goal.target_visit_count, campaign.merchant_id = $1`, [trial.merchant_id, SHOWCASE_MERCHANT_ID],
+       ORDER BY goal.target_visit_count, campaign.merchant_id = $1`, [trial.merchant_id, SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     const goalsOf = (merchantId: string) => goals.rows.filter((row) => row.merchant_id === merchantId)
       .map((row) => [row.target_visit_count, row.display_name]);
-    assert.deepEqual(goalsOf(trial.merchant_id), goalsOf(SHOWCASE_MERCHANT_ID));
+    assert.deepEqual(goalsOf(trial.merchant_id), goalsOf(SHOWCASE_PRACTICE_MERCHANT_ID));
     assert.deepEqual(goalsOf(trial.merchant_id).map(([count]) => count), [1, 3, 5]);
 
     // hosted 경로: 일반 Bearer 세션 해석이 체험 세션을 푼다. 최근 인증 권한은 없다.
@@ -244,13 +246,15 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
 
     // 체험 가게는 누구의 목록·추천에도 나오지 않는다(체험자 본인 포함).
     const listed = await new PostgresMerchantCatalog(pool).listPublicMerchants();
-    assert.equal(listed.length, 33);
+    assert.equal(listed.length, 30);
     assert.ok(listed.every((merchant) => merchant.id !== trial.merchant_id));
+    assert.ok(listed.every((merchant) => merchant.id !== SHOWCASE_PRACTICE_MERCHANT_ID));
     const recommendations = new PostgresRecommendationSource(pool);
     for (const accountId of [session.accountId, 'acct_someone_else']) {
       const candidates = await recommendations.listCandidates(accountId);
-      assert.equal(candidates.length, 33, accountId);
+      assert.equal(candidates.length, 30, accountId);
       assert.ok(candidates.every((candidate) => candidate.merchantId !== trial.merchant_id), accountId);
+      assert.ok(candidates.every((candidate) => candidate.merchantId !== SHOWCASE_PRACTICE_MERCHANT_ID), accountId);
     }
 
     // 그래도 체험 가게에서 방문 확인은 된다(공개 캠페인이 필요한 경로라 is_public을 유지한 이유, D-064).
@@ -266,7 +270,7 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
     // 권한 상태: 체험자는 STAFF이고 자기 체험 가게 id를 받는다. 권한 요청은 이미 부여됨이다.
     const access = new ShowcaseAccessRequestService(pool, { accountDeletionHmacSecret: secret });
     assert.deepEqual(await access.mine(session.accountId),
-      { request: null, staff: true, approver: false, trialMerchantId: trial.merchant_id });
+      { request: null, staff: true, approver: false, trialMerchantId: trial.merchant_id, practiceMerchantId: null });
     assert.equal((await access.mine('acct_someone_else')).trialMerchantId, null);
     await assert.rejects(access.request(session.accountId),
       (error: unknown) => error instanceof ShowcaseAccessRequestError && error.code === 'SHOWCASE_ACCESS_ALREADY_GRANTED');
@@ -296,7 +300,8 @@ test('#309 one client key holds at most 30 active trials, others still start, ex
     const ip = '203.0.113.9';
     const counts = async () => (await pool.query<{ trials: number; stores: number; sessions: number }>(
       `SELECT (SELECT count(*)::int FROM showcase_guest_trials) AS trials,
-              (SELECT count(*)::int FROM merchants WHERE id LIKE 'trial-%') AS stores,
+              (SELECT count(*)::int FROM merchants merchant JOIN showcase_guest_trials trial
+                 ON trial.merchant_id = merchant.id) AS stores,
               (SELECT count(*)::int FROM auth_sessions) AS sessions`)).rows[0];
     for (let index = 0; index < 30; index += 1) await guests.start({ clientKey: ip });
     assert.deepEqual(await counts(), { trials: 30, stores: 30, sessions: 30 });
@@ -337,14 +342,16 @@ test('#309 a trial-store visit never shows in friends stamps or medal counts aft
     const guest = await new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret: secret, now }).start(clientA);
     const trialStore = (await pool.query<{ merchant_id: string }>(
       'SELECT merchant_id FROM showcase_guest_trials WHERE account_id = $1', [guest.accountId])).rows[0]!.merchant_id;
-    // 체험자가 고객으로 가상 점포 A와 자기 체험 가게(본인이 STAFF)를 같은 날 방문한다. 둘 다 진행도로 센 방문이다.
+    // 체험자가 고객으로 월계 실제 정보 점포와 자기 체험 가게(본인이 STAFF)를 같은 날 방문한다.
     const claims = new PostgresClaimSlotService(pool, { referenceHmacSecret: secret, now });
-    for (const [merchantId, staff] of [[SHOWCASE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID], [trialStore, guest.accountId]] as const) {
-      const issued = await claims.issue({
-        merchantId, customerAccountId: guest.accountId, merchantReference: `order-${merchantId}`, createdByAccountId: staff,
-      });
-      assert.equal((await claims.redeem({ accountId: guest.accountId, token: issued.token })).visit.progressCounted, true);
-    }
+    const realStore = WOLGYE_STORES[0]!;
+    const realIssued = await claims.issueShowcaseTestSlot({ merchantId: realStore.id, accountId: guest.accountId });
+    assert.equal((await claims.redeem({ accountId: guest.accountId, token: realIssued.token })).visit.progressCounted, true);
+    const trialIssued = await claims.issue({
+      merchantId: trialStore, customerAccountId: guest.accountId,
+      merchantReference: `order-${trialStore}`, createdByAccountId: guest.accountId,
+    });
+    assert.equal((await claims.redeem({ accountId: guest.accountId, token: trialIssued.token })).visit.progressCounted, true);
     const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
     const friends = new PostgresFriendService(pool, { accountLifecycle: lifecycle, now });
     const { me } = await friends.list(guest.accountId);
@@ -354,7 +361,7 @@ test('#309 a trial-store visit never shows in friends stamps or medal counts aft
     clock.now = new Date(clock.now.getTime() + 24 * 60 * 60 * 1000);
     const seen = await friends.list('acct_trial_friend');
     assert.equal(seen.friends.length, 1);
-    assert.deepEqual(seen.friends[0]!.stamps, [{ merchantId: 'showcase-local-merchant', merchantName: '가상 점포 A' }]);
+    assert.deepEqual(seen.friends[0]!.stamps, [{ merchantId: realStore.id, merchantName: realStore.name }]);
     const badges = await new PostgresBadgeRewardService(pool, { now, accountLifecycle: lifecycle }).getBadges(guest.accountId);
     assert.equal(badges.medals.find((medal) => medal.kind === 'explorer')!.value, 1);
   });

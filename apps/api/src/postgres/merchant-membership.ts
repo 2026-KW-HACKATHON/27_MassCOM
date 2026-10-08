@@ -15,9 +15,13 @@ export async function requireActiveMerchantMember(
   client: PoolClient, merchantId: string, accountId: string,
   permission?: 'CONFIRM_VISIT' | 'REDEEM_COUPON' | 'SCAN_CUSTOMER',
 ): Promise<ActiveMerchantMember> {
-  const merchant = await client.query<{ status: string }>(
-    'SELECT status FROM merchants WHERE id = $1 FOR SHARE', [merchantId],
+  const merchant = await client.query<{ status: string; is_demo: boolean }>(
+    'SELECT status, is_demo FROM merchants WHERE id = $1 FOR SHARE', [merchantId],
   );
+  // 월계 공공데이터 점포는 방문 대상일 뿐 관리 대상이 아니다. 오래된 멤버십도 권한이 되지 않는다.
+  if (merchant.rows[0]?.is_demo && merchantId.startsWith('showcase-wolgye-')) {
+    throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+  }
   const member = await client.query<{ role: MerchantRole }>(
     `SELECT role FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'
        AND ($3::text IS NULL OR role = 'OWNER'

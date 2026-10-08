@@ -4,8 +4,10 @@ import { test, type TestContext } from 'node:test';
 import { Pool } from 'pg';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
+import { PostgresCoinEconomyService } from './postgres/coin-economy.js';
 import { PostgresGradeDrawService } from './postgres/grade-draw.js';
 import { runMigrations } from './postgres/migrate.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from './showcase/local-seed.js';
 
 const now = new Date('2026-10-07T03:00:00.000Z');
 const accountId = 'grade-draw-customer';
@@ -32,18 +34,19 @@ async function setup(t: TestContext) {
   return { pool, service, select: (...values: number[]) => { sequence = values; index = 0; }, lifecycle };
 }
 
-async function publishCoin(pool: Pool) {
+async function publishCoin(pool: Pool, merchantId = 'grade-shop') {
   const project = randomUUID(); const publication = randomUUID();
+  const campaignId = merchantId === 'grade-shop' ? 'grade-campaign' : `${merchantId}-campaign`;
   await pool.query(`INSERT INTO merchants (id,name,story,road_address,minimum_spend_won,status,is_demo)
-    VALUES ('grade-shop','시험 가게','story','road',0,'ACTIVE',true)`);
+    VALUES ($1,'시험 가게','story','road',0,'ACTIVE',true)`, [merchantId]);
   await pool.query(`INSERT INTO campaigns (id,merchant_id,title,starts_at,ends_at,status,is_public,enrollment_capacity)
-    VALUES ('grade-campaign','grade-shop','시험 캠페인','2026-01-01','2027-01-01','ACTIVE',true,10)`);
+    VALUES ($1,$2,'시험 캠페인','2026-01-01','2027-01-01','ACTIVE',true,10)`, [campaignId, merchantId]);
   await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name)
-    VALUES ('grade-campaign',1,'첫 방문')`);
+    VALUES ($1,1,'첫 방문')`, [campaignId]);
   await pool.query(`INSERT INTO collectible_projects (id,merchant_id,created_by_account_id,version,status,
-    project,name,lineage_id) VALUES ($1,'grade-shop','staff',1,'DRAFT','{}','시험 코인',$1)`, [project]);
+    project,name,lineage_id) VALUES ($1,$2,'staff',1,'DRAFT','{}','시험 코인',$1)`, [project, merchantId]);
   await pool.query(`INSERT INTO collectible_publications (id,project_id,merchant_id,campaign_id,project_version,reward_grades)
-    VALUES ($1,$2,'grade-shop','grade-campaign',1,'{"1":"bronze-coin"}')`, [publication, project]);
+    VALUES ($1,$2,$3,$4,1,'{"1":"bronze-coin"}')`, [publication, project, merchantId, campaignId]);
   await pool.query(`UPDATE collectible_projects SET status='PUBLISHED',publication_id=$2 WHERE id=$1`, [project, publication]);
   await pool.query(`INSERT INTO collectible_publication_grades (publication_id,grade_id,summary,detail)
     VALUES ($1,'bronze-coin',$2::jsonb,'{}')`, [publication, JSON.stringify({
@@ -51,9 +54,19 @@ async function publishCoin(pool: Pool) {
       shape: 'circle', theme: { name: '동네' }, name: '시험 코인', thumbnailDataUrl: 'data:image/png;base64,AA==',
     })]);
   await pool.query(`INSERT INTO campaign_collectible_publications (campaign_id,publication_id)
-    VALUES ('grade-campaign',$1)`, [publication]);
+    VALUES ($1,$2)`, [campaignId, publication]);
   return publication;
 }
+
+test('practice store coins stay out of the customer catalog and general draw', async (t) => {
+  const { pool, service, lifecycle } = await setup(t);
+  await publishCoin(pool, SHOWCASE_PRACTICE_MERCHANT_ID);
+  const coinEconomy = new PostgresCoinEconomyService(pool, { accountLifecycle: lifecycle, now: () => now });
+  assert.equal((await coinEconomy.getCollection(accountId)).catalog.some(
+    merchant => merchant.merchantId === SHOWCASE_PRACTICE_MERCHANT_ID), false);
+  assert.equal((await service.getShop(accountId)).pools[0]!.rewards.some(
+    entry => entry.reward.kind === 'COIN'), false);
+});
 
 test('weighted pool excludes coins and characters and grants exactly one reward per draw', async (t) => {
   const { pool, service, select } = await setup(t);

@@ -23,6 +23,12 @@ test('home loads real room, ticket, reward, collection and merchant data', () =>
   assert.doesNotMatch(home, /AsyncStorage|fixture/i);
 });
 
+test('home applies retired showcase ID visibility only to ticket cards and the room scene', () => {
+  assert.match(overview, /visibleHomeMerchantItems\(data\?\.coinShop\?\.tickets \?\? \[\], packageId\)/);
+  assert.match(overview, /visibleHomeMerchantItems\(displayStudioItems\(data\.studio\), packageId\)/);
+  assert.match(overview, /<StudioScene studio=\{data\.studio\.studio\} items=\{roomItems\}/);
+});
+
 test('home keeps room, visit, rewards and friends one tap away', () => {
   for (const route of ['/studio', '/coin-shop', '/claim', '/friends', '/home/tickets', '/home/missions', '/home/exhibit', '/room-explore']) {
     assert.match(home, new RegExp(`<Link href="${route}" asChild>`), route);

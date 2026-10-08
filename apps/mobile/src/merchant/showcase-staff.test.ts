@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { CommerceApiError, type MerchantContext } from '@/commerce/commerce-api';
-import { findShowcaseStaffMerchant } from './showcase-staff';
+import { findShowcaseStaffMerchant, showcaseOwnerMerchantIds } from './showcase-staff';
+
+test('owner entry probes only the account trial store or authorized private practice store', () => {
+  assert.deepEqual(showcaseOwnerMerchantIds({ trialMerchantId: 'trial-mine', practiceMerchantId: 'showcase-practice-merchant' }), ['trial-mine']);
+  assert.deepEqual(showcaseOwnerMerchantIds({ trialMerchantId: null, practiceMerchantId: 'showcase-practice-merchant' }), ['showcase-practice-merchant']);
+  assert.deepEqual(showcaseOwnerMerchantIds({ trialMerchantId: null, practiceMerchantId: null }), []);
+});
 
 test('showcase staff entry accepts only server-confirmed visit permission', async () => {
   const allowed: MerchantContext = {

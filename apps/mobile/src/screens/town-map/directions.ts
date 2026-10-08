@@ -1,4 +1,5 @@
 import { DEMO_NO_DIRECTIONS, NO_ADDRESS_NO_DIRECTIONS } from './copy';
+import { isPublicDataDemoStore } from '@/merchant/public-data-demo-store';
 
 /** Directions are searches by road address in the person's own map app: the app never asks for or reads a location (D-046). */
 export type DirectionsProvider = 'naver' | 'kakao';
@@ -18,11 +19,11 @@ function encodeQuery(text: string): string | null {
 
 /**
  * Links that search the merchant's road address in Naver Maps and KakaoMap (app first, web page as the fallback), or null when
- * there is nothing honest to search: a demo merchant's place is virtual, and a blank or unreadable address has no search.
+ * there is nothing honest to search: a private demo merchant's place is virtual, and a blank or unreadable address has no search.
  */
-export function directionsTargets(merchant: { roadAddress: string; demo: boolean }): DirectionsTargets | null {
+export function directionsTargets(merchant: { roadAddress: string; demo: boolean; id?: string; merchantId?: string }): DirectionsTargets | null {
   const address = merchant.roadAddress.trim();
-  if (merchant.demo || !address) return null;
+  if ((merchant.demo && !isPublicDataDemoStore(merchant.id ?? merchant.merchantId)) || !address) return null;
   const query = encodeQuery(address);
   if (query === null) return null;
   return {
@@ -32,9 +33,9 @@ export function directionsTargets(merchant: { roadAddress: string; demo: boolean
 }
 
 /** The sentence that takes the place of the directions button, or null when directions are offered. */
-export function directionsNotice(merchant: { roadAddress: string; demo: boolean }): string | null {
+export function directionsNotice(merchant: { roadAddress: string; demo: boolean; id?: string; merchantId?: string }): string | null {
   if (directionsTargets(merchant)) return null;
-  return merchant.demo ? DEMO_NO_DIRECTIONS : NO_ADDRESS_NO_DIRECTIONS;
+  return merchant.demo && !isPublicDataDemoStore(merchant.id ?? merchant.merchantId) ? DEMO_NO_DIRECTIONS : NO_ADDRESS_NO_DIRECTIONS;
 }
 
 export type ChooserButton = { text: string; style?: 'cancel'; onPress?: () => void };

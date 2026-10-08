@@ -7,17 +7,22 @@ import { test } from 'node:test';
 
 import { Pool } from 'pg';
 
+import { photoProject } from '../collectible-project-test-support.js';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresAccountDeletionService } from '../postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
-import { seedLocalShowcase, SHOWCASE_MERCHANT_ID } from './local-seed.js';
+import { PostgresMerchantAccessControl } from '../postgres/merchant-access.js';
+import { requireActiveMerchantMember } from '../postgres/merchant-membership.js';
+import { PostgresCollectibleProjectService } from '../postgres/collectible-project.js';
+import { seedLocalShowcase, SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
+import { WOLGYE_STORES } from './wolgye-seed.js';
 import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './access-requests.js';
 
 const execFileAsync = promisify(execFile);
 
 const secret = 'test-only-access-request-secret-at-least-32-bytes-long';
 
-/** A fresh masscom_showcase_ci_<uuid>_test database, migrated and seeded with the three local demo merchants (store A included). */
+/** A fresh masscom_showcase_ci_<uuid>_test database, migrated and seeded with the real stores and a private practice merchant. */
 async function withFreshShowcaseDatabase(run: (pool: Pool, url: URL) => Promise<void>): Promise<void> {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error('TEST_DATABASE_URL is required');
@@ -188,7 +193,7 @@ test('a non-showcase database name is refused before any row is written', async 
   }
 });
 
-test('approval grants STAFF on demo store A only and records the decision', async () => {
+test('approval grants STAFF on the private practice store only and records the decision', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const service = new ShowcaseAccessRequestService(pool, { accountDeletionHmacSecret: secret });
     await pool.query(`INSERT INTO platform_admins (account_id) VALUES ('acct_admin')`);
@@ -205,14 +210,18 @@ test('approval grants STAFF on demo store A only and records the decision', asyn
 
     const member = await pool.query(
       `SELECT role, status FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_customer'`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.deepEqual(member.rows[0], { role: 'STAFF', status: 'ACTIVE' });
     const otherMembership = await pool.query<{ total: number }>(
       `SELECT count(*)::int AS total FROM merchant_members WHERE account_id = 'acct_customer' AND merchant_id <> $1`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
-    assert.equal(otherMembership.rows[0]?.total, 0, 'approval must not touch any other demo store');
+    assert.equal(otherMembership.rows[0]?.total, 0, 'approval must not touch any other store');
+    assert.equal((await pool.query(
+      `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_customer'`,
+      [WOLGYE_STORES[0]!.id],
+    )).rowCount, 0, 'approval must not grant access to a real-data store');
 
     const decided = await pool.query(
       `SELECT status, decided_via, decided_by_account_id FROM showcase_access_requests WHERE account_id = 'acct_customer'`,
@@ -223,7 +232,33 @@ test('approval grants STAFF on demo store A only and records the decision', asyn
 
     const mine = await service.mine('acct_customer');
     assert.equal(mine.staff, true);
+    assert.equal(mine.practiceMerchantId, SHOWCASE_PRACTICE_MERCHANT_ID);
+    assert.equal(mine.trialMerchantId, null);
     assert.equal(mine.request?.status, 'APPROVED');
+  });
+});
+
+test('a stale membership cannot grant management of a real-data showcase store', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const merchantId = WOLGYE_STORES[0]!.id;
+    await pool.query(
+      `INSERT INTO merchant_members (merchant_id, account_id, role, status)
+       VALUES ($1, 'acct_stale', 'OWNER', 'ACTIVE')`, [merchantId],
+    );
+    await assert.rejects(new PostgresMerchantAccessControl(pool, { staffMayManageArt: true }).requirePermission({
+      accountId: 'acct_stale', merchantId, permission: 'MANAGE_ART',
+    }), /MERCHANT_ACCESS_DENIED/);
+    await assert.rejects(new PostgresCollectibleProjectService(pool, { staffMayManageArt: true }).create({
+      accountId: 'acct_stale', merchantId, project: photoProject('권한 없음'),
+    }), /MERCHANT_ACCESS_DENIED/);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await assert.rejects(requireActiveMerchantMember(client, merchantId, 'acct_stale'), /MERCHANT_ACCESS_DENIED/);
+      await client.query('ROLLBACK');
+    } finally {
+      client.release();
+    }
   });
 });
 
@@ -245,7 +280,7 @@ test('a non-approver and a self-decision are both rejected, and the request stay
     );
     assert.equal(stillPending.rows[0]?.status, 'PENDING');
     const member = await pool.query(
-      `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_customer'`, [SHOWCASE_MERCHANT_ID],
+      `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_customer'`, [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(member.rowCount, 0, 'a rejected decision attempt must never grant STAFF');
   });
@@ -339,7 +374,7 @@ test('ops command grants the approver role, audits it with the DB session user, 
 
     const member = await pool.query(
       `SELECT role, status FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_future_approver'`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.deepEqual(member.rows[0], { role: 'STAFF', status: 'ACTIVE' });
 
@@ -376,7 +411,7 @@ test('a revoked approver is rejected by listPending and decide, and decides noth
     );
     assert.equal(stillPending.rows[0]?.status, 'PENDING');
     const member = await pool.query(
-      `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_customer'`, [SHOWCASE_MERCHANT_ID],
+      `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_customer'`, [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(member.rowCount, 0, 'a revoked approver must never grant STAFF');
   });
@@ -476,7 +511,7 @@ test('account deletion deletes the pending request outright, so neither APP appr
 
     const member = await pool.query(
       `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND (account_id = 'acct_leaving' OR account_id LIKE 'deleted:%')`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(member.rowCount, 0, 'neither the APP nor the OPS path may grant STAFF once the account is deleted');
     const admins = await pool.query<{ total: number }>(
@@ -514,7 +549,7 @@ test('approving a request concurrently with that account being deleted never dea
     // side won the lock race.
     const member = await pool.query<{ total: number }>(
       `SELECT count(*)::int AS total FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_contested'`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(member.rows[0]?.total, 0, 'the deleted account must never end up with a live STAFF grant');
 
@@ -571,7 +606,7 @@ test('approving a request concurrently with that same account re-requesting neve
     }
 
     const member = await pool.query(
-      `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_racer'`, [SHOWCASE_MERCHANT_ID],
+      `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_racer'`, [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.ok(member.rowCount, 'the approval must still have granted STAFF');
   });
@@ -611,7 +646,7 @@ test('two approvers deciding each other\'s pending requests at the same moment n
     const members = await pool.query<{ account_id: string }>(
       `SELECT account_id FROM merchant_members
        WHERE merchant_id = $1 AND account_id IN ('acct_mutual_a', 'acct_mutual_b') AND role = 'STAFF' AND status = 'ACTIVE'`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(members.rowCount, 2, 'both mutual approvals must have granted STAFF');
   });
@@ -647,7 +682,7 @@ test('the OPS grant-approver command run concurrently with the same account re-r
 
     const member = await pool.query(
       `SELECT role, status FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_ops_vs_request'`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.deepEqual(member.rows[0], { role: 'STAFF', status: 'ACTIVE' });
   });
@@ -683,7 +718,7 @@ test('the OPS grant-approver command run concurrently with that same account bei
     // approved first and deletion ran right after, revoking the membership it just granted.
     const member = await pool.query<{ total: number }>(
       `SELECT count(*)::int AS total FROM merchant_members WHERE merchant_id = $1 AND account_id = 'acct_ops_vs_deletion'`,
-      [SHOWCASE_MERCHANT_ID],
+      [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(member.rows[0]?.total, 0, 'the deleted account must never end up with a live STAFF grant');
   });

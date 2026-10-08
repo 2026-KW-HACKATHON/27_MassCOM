@@ -52,6 +52,12 @@ test('a demo merchant has no directions at all, because its place is not real', 
   assert.equal(directionsTargets({ roadAddress: real.roadAddress, demo: true }), null);
 });
 
+test('a Wolgye public-data store keeps address search even though visits are simulated', () => {
+  const store = { id: 'showcase-wolgye-MA010120220813334279', roadAddress: '서울특별시 노원구 월계로53길 89', demo: true };
+  assert.equal(targetsOf(store).naver.web, `https://map.naver.com/p/search/${encodeURIComponent(store.roadAddress)}`);
+  assert.equal(directionsNotice(store), null);
+});
+
 test('a blank road address has nothing to search, so there are no directions either', () => {
   assert.equal(directionsTargets({ roadAddress: '   ', demo: false }), null);
   assert.equal(directionsTargets({ roadAddress: '', demo: false }), null);

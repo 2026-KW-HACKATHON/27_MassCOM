@@ -4,15 +4,15 @@ import { test } from 'node:test';
 import { isRoutableMerchantId, merchantLink, merchantShareMessage, parseMerchantLink } from './recommend';
 
 test('builds the merchant link with the id escaped in the fragment', () => {
-  assert.equal(merchantLink('showcase-a'), 'https://masscom.kr/open#merchant=showcase-a');
-  assert.equal(merchantLink('showcase-a', 'development'), 'https://masscom.kr/open#merchant=showcase-a');
+  assert.equal(merchantLink('showcase-wolgye-MA010120220813334279'), 'https://masscom.kr/open#merchant=showcase-wolgye-MA010120220813334279');
+  assert.equal(merchantLink('showcase-wolgye-MA010120220813334279', 'development'), 'https://masscom.kr/open#merchant=showcase-wolgye-MA010120220813334279');
   assert.equal(merchantLink('a b/c#d'), 'https://masscom.kr/open#merchant=a%20b%2Fc%23d');
   // The showcase build has no https host of its own, so a link built for it uses its scheme (nothing shares it, see below).
-  assert.equal(merchantLink('showcase-a', 'showcase'), 'masscom-demo://open#merchant=showcase-a');
+  assert.equal(merchantLink('showcase-wolgye-MA010120220813334279', 'showcase'), 'masscom-demo://open#merchant=showcase-wolgye-MA010120220813334279');
 });
 
 test('reads the merchant id back, and only from our link', () => {
-  assert.equal(parseMerchantLink('https://masscom.kr/open#merchant=showcase-a', 'production'), 'showcase-a');
+  assert.equal(parseMerchantLink('https://masscom.kr/open#merchant=showcase-wolgye-MA010120220813334279', 'production'), 'showcase-wolgye-MA010120220813334279');
   assert.equal(parseMerchantLink('masscom://open#merchant=m1', 'production'), 'm1');
   assert.equal(parseMerchantLink('masscom-demo://open#merchant=m1', 'showcase'), 'm1');
   for (const [url, variant] of [
@@ -30,7 +30,7 @@ test('reads the merchant id back, and only from our link', () => {
 });
 
 test('a merchant id becomes one safe route segment or nothing: no path, escape, space, control or dot segment', () => {
-  const accepted = ['m1', 'showcase-local-merchant-b', '3f2b8c1e-5a4d-4f0e-9a7c-1b2d3e4f5a6b', '월계국밥', 'a.b', '.hidden', 'a..b', 'x'.repeat(128)];
+  const accepted = ['m1', 'showcase-wolgye-MA010120220809686086', '3f2b8c1e-5a4d-4f0e-9a7c-1b2d3e4f5a6b', '월계국밥', 'a.b', '.hidden', 'a..b', 'x'.repeat(128)];
   for (const id of accepted) assert.equal(isRoutableMerchantId(id), true, id);
   const refused = [
     '', '.', '..', '../../me/friends', 'a/b', '/a', 'a\\b', '%2e%2e', 'a%2Fb', 'a b', ' a', 'a ', 'a\tb', 'a\nb', 'a\u0000b',
@@ -51,14 +51,14 @@ test('the recommendation names the shop and the link, and says so when the shop 
   assert.match(real, /월계 국밥집/);
   assert.ok(real.includes('https://masscom.kr/open#merchant=m1'));
   assert.doesNotMatch(real, /시연용 가상 점포/);
-  const demo = merchantShareMessage({ id: 'showcase-a', name: '가상 점포 A', demo: true }, 'development');
-  assert.match(demo, /가상 점포 A \(시연용 가상 점포\)/);
-  assert.ok(demo.includes('https://masscom.kr/open#merchant=showcase-a'));
+  const demo = merchantShareMessage({ id: 'showcase-wolgye-MA010120220813334279', name: '더까까주까월계역점', demo: true }, 'development');
+  assert.match(demo, /더까까주까월계역점 \(공공데이터 가게 정보 · 방문은 체험용\)/);
+  assert.ok(demo.includes('https://masscom.kr/open#merchant=showcase-wolgye-MA010120220813334279'));
 });
 
 test('the showcase recommendation names the shop and the download link, with no shop link that cannot open', () => {
-  const message = merchantShareMessage({ id: 'showcase-a', name: '가상 점포 A', demo: true }, 'showcase');
-  assert.match(message, /가상 점포 A \(시연용 가상 점포\)/);
+  const message = merchantShareMessage({ id: 'showcase-wolgye-MA010120220813334279', name: '더까까주까월계역점', demo: true }, 'showcase');
+  assert.match(message, /더까까주까월계역점 \(공공데이터 가게 정보 · 방문은 체험용\)/);
   assert.ok(message.endsWith('\n앱 받기: https://masscom.kr/open'));
   assert.doesNotMatch(message, /#merchant=|demo\.masscom\.kr|masscom-demo|showcase-a/);
 });

@@ -71,7 +71,7 @@ export function FoundationScreen({ initialRole, onChooseRole, showcaseTour = fal
           {showcaseTour
             ? '체험용 빈 공간 다섯 개입니다. 실제 방문·수집품 정보는 탐색과 도감에서 확인하세요.'
             : onChooseRole
-            ? '체험용 가상 데이터입니다. 실제 영업점·방문 혜택과 연결되지 않습니다.'
+            ? '가게 정보는 실제 공공데이터입니다. 방문·도장·코인·혜택은 체험용 가상 데이터입니다.'
             : '개발용 화면 시안 · 실제 음식점·방문·혜택이 아닙니다.'}
         </Text>
         {inShell ? (

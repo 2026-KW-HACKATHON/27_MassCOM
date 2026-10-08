@@ -1,4 +1,5 @@
 import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
+import { getAppPackageId } from '@/config/app-identity';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
@@ -10,6 +11,7 @@ import { createStudioApiClient, displayStudioItems } from '@/studio/studio-api';
 import { StudioScene } from '@/studio/studio-scene';
 import { homeErrorText, markHomePending, needsFirstStoreRecommendation, pickFirstStore, settleHomeSection, startHomeLoad, type HomeData, type HomeSection, type HomeValues } from './home-load';
 import { homeVisitGoal } from './visit-goal';
+import { visibleHomeMerchantItems } from './showcase-visibility';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createBadgeApiClient, type BadgeApiClient, type BadgeBook, type OpenedReward } from '@/gamification/badge-api';
 import { useExperience } from '@/experience/use-experience';
@@ -100,8 +102,9 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   }, [clients, loadCollection, loadCoinShop]);
   useFocusEffect(useCallback(() => { void load(); return () => { generation.current++; }; }, [load]));
   const data = loaded?.clients === clients ? loaded.value : undefined;
+  const packageId = getAppPackageId();
   const ticketGroups = new Map<string, { name: string; count: number; grade: string }>();
-  for (const ticket of data?.coinShop?.tickets ?? []) {
+  for (const ticket of visibleHomeMerchantItems(data?.coinShop?.tickets ?? [], packageId)) {
     if (ticket.status !== 'UNUSED' || Date.parse(ticket.expiresAt) <= (data?.loadedAt ?? 0)) continue;
     const pool = data?.coinShop?.pools.find((pool) => pool.id === ticket.poolId);
     const group = ticketGroups.get(ticket.merchantId);
@@ -111,7 +114,8 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const goal = data?.collection && data.merchants ? homeVisitGoal(data.merchants, data.collection, data.loadedAt) : undefined;
   const failed = (section: HomeSection) => data?.errors.includes(section) === true;
   const firstStore = pickFirstStore(data, goal);
-  const emptyRoom = data?.studio && displayStudioItems(data.studio).length === 0;
+  const roomItems = data?.studio ? visibleHomeMerchantItems(displayStudioItems(data.studio), packageId) : [];
+  const emptyRoom = data?.studio && roomItems.length === 0;
   const collectedCount = data?.collection?.collectibles.length ?? 0;
   const heading = { color: world.cardInk, fontSize: 21, fontWeight: '800' as const };
   const body = { color: world.cardMuted, fontSize: 13, lineHeight: 19 };
@@ -151,7 +155,7 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
             <Text style={{ color: palette.primary, fontWeight: '800' }}>꾸미기</Text>
           </Pressable></Link>
         </View> : null}
-        {showRoom ? data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={displayStudioItems(data.studio)}
+        {showRoom ? data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={roomItems}
           furnitureItems={data.studio.furnitureItems} avatar={data.studio.avatar} clothing={equippedClothingArt(shop)} apiUrl={apiUrl}
           width={sceneWidth} height={sceneHeight} experienceProfile={experience.snapshot?.profile}
           emptyAction={emptyRoom && collectedCount > 0 ? { label: `수집품 ${collectedCount}개 · 방에 놓기`, onPress: () => router.push('/studio') } : undefined} /></View>

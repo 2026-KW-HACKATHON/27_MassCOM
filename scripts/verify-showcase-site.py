@@ -3,6 +3,7 @@
 
 from html.parser import HTMLParser
 from pathlib import Path
+import json
 import re
 import sys
 
@@ -139,18 +140,25 @@ def main() -> None:
     page.feed(html_file.read_text(encoding="utf-8"))
     if not (page.korean and page.main and page.local_css and page.csp):
         fail("한국어·본문·로컬 CSS·CSP 중 하나가 없음")
-    if page.merchants != 3:
-        fail("가상 점포 수가 3이 아님")
+    stores = json.loads((Path(__file__).resolve().parent.parent / "apps/api/src/showcase/wolgye-stores.json").read_text(encoding="utf-8"))["stores"]
+    if len(stores) != 30:
+        fail("월계 공공데이터 점포 원본 수가 30이 아님")
+    if page.merchants != len(stores):
+        fail("월계 가게 수가 30이 아님")
     if any(
-        "가상 점포 · 실제 방문할 수 없습니다" not in " ".join(card)
+        "실제 가게 정보로 만든 시연 · 참여하지 않은 가게" not in " ".join(card)
         for card in page.merchant_visible
     ):
-        fail("필수 문구 없음: 가상 점포")
+        fail("필수 문구 없음: 공공데이터 가게")
+    for card, store in zip(page.merchant_visible, stores):
+        if store["name"] not in " ".join(card) or store["roadAddress"] not in " ".join(card):
+            fail("월계 공공데이터 점포 정보 불일치")
 
     visible = " ".join(page.visible)
     required = (
-        "체험용 가상 데이터로 서비스 흐름을 보여드립니다",
-        "가상 점포 · 실제 방문할 수 없습니다",
+        "가게 정보는 공공데이터에 등록된 실제 음식점입니다",
+        "방문·도장·코인·혜택은 체험용 가상 데이터",
+        "실제 가게 정보로 만든 시연 · 참여하지 않은 가게",
         "예시 방문 기록",
         "앱 안의 예시 수집품 · 실제 NFT가 아닙니다",
         "앱의 체험 진행 결과와 자동으로 동기화되지 않습니다",

@@ -11,7 +11,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
  */
 export function FullScreenModal({ visible, animationType, onRequestClose, children }: {
   visible: boolean;
-  animationType: 'fade' | 'slide';
+  animationType: 'fade' | 'slide' | 'none';
   onRequestClose: () => void;
   children: ReactNode;
 }) {

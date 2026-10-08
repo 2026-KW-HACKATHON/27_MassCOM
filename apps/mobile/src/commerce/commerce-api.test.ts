@@ -420,14 +420,14 @@ test('#295 테스트 방문 만들기는 merchantId만 보내고 방문 수령 �
       requestedBody = JSON.parse(String(init?.body));
       return Response.json({
         claimSlotId: 'claim-slot-1',
-        merchantId: 'showcase-local-merchant',
-        merchantName: '가상 점포 A',
+        merchantId: 'showcase-wolgye-MA010120220813334279',
+        merchantName: '더까까주까월계역점',
         campaignTitle: '체험 방문 도감',
         status: 'CLAIMED',
         replayed: false,
         visit: {
           visitEventId: 'visit-1',
-          campaignId: 'showcase-local-campaign',
+          campaignId: 'showcase-wolgye-campaign',
           businessDate: '2026-10-02',
           verificationLevel: 'MERCHANT_CONFIRMED',
           progressCounted: true,
@@ -437,10 +437,10 @@ test('#295 테스트 방문 만들기는 merchantId만 보내고 방문 수령 �
       });
     },
   });
-  const result = await client.createTestVisit('showcase-local-merchant');
+  const result = await client.createTestVisit('showcase-wolgye-MA010120220813334279');
   assert.equal(requestedUrl, 'https://api.example.test/showcase/test-visits');
-  assert.deepEqual(requestedBody, { merchantId: 'showcase-local-merchant' });
-  assert.equal(result.merchantId, 'showcase-local-merchant');
+  assert.deepEqual(requestedBody, { merchantId: 'showcase-wolgye-MA010120220813334279' });
+  assert.equal(result.merchantId, 'showcase-wolgye-MA010120220813334279');
   assert.equal(result.visit.progressCounted, true);
 });
 
@@ -450,7 +450,7 @@ test('#295 테스트 방문 만들기는 방문 수령과 같은 오류 코드�
     credential: { kind: 'demo', accountId: 'customer-1', allowInsecureReauthentication: false },
     fetcher: async () => Response.json({ code: 'SHOWCASE_TEST_VISIT_RATE_LIMITED' }, { status: 429 }),
   });
-  await assert.rejects(client.createTestVisit('showcase-local-merchant'),
+  await assert.rejects(client.createTestVisit('showcase-wolgye-MA010120220813334279'),
     (error: unknown) => error instanceof CommerceApiError && error.status === 429 && error.code === 'SHOWCASE_TEST_VISIT_RATE_LIMITED');
 });
 
@@ -776,7 +776,7 @@ test('점주 체험 권한 요청 조회·생성은 인증 헤더로만 간다(#
       return Response.json({ request: { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null } }, { status: 201 });
     },
   });
-  assert.deepEqual(await client.getShowcaseAccessState(), { request: null, staff: false, approver: true, trialMerchantId: null });
+  assert.deepEqual(await client.getShowcaseAccessState(), { request: null, staff: false, approver: true, trialMerchantId: null, practiceMerchantId: null });
   assert.deepEqual(await client.requestShowcaseAccess(), { code: 'ABCDEFGH', status: 'PENDING', createdAt: '2026-10-01T00:00:00.000Z', decidedAt: null });
   assert.deepEqual(requests, [
     { url: 'https://api.example.test/showcase/access-requests/mine', method: undefined, body: undefined },
@@ -789,13 +789,22 @@ test('체험 로그인 계정의 권한 조회는 자기 체험 가게 id를 돌
     apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'guest-session' },
     fetcher: async () => Response.json({ request: null, staff: true, approver: false, trialMerchantId: 'trial-abc123' }),
   });
-  assert.deepEqual(await withTrial.getShowcaseAccessState(), { request: null, staff: true, approver: false, trialMerchantId: 'trial-abc123' });
+  assert.deepEqual(await withTrial.getShowcaseAccessState(), { request: null, staff: true, approver: false, trialMerchantId: 'trial-abc123', practiceMerchantId: null });
 
   const olderServer = createCommerceApiClient({
     apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
     fetcher: async () => Response.json({ request: null, staff: false, approver: true }),
   });
   assert.equal((await olderServer.getShowcaseAccessState()).trialMerchantId, null);
+  assert.equal((await olderServer.getShowcaseAccessState()).practiceMerchantId, null);
+});
+
+test('approved showcase staff receive only their private practice merchant id', async () => {
+  const client = createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ request: null, staff: true, approver: false, trialMerchantId: null, practiceMerchantId: 'showcase-practice-merchant' }),
+  });
+  assert.equal((await client.getShowcaseAccessState()).practiceMerchantId, 'showcase-practice-merchant');
 });
 
 test('점주 체험 권한 요청의 잘못된 응답과 요청 실패는 성공으로 바뀌지 않는다(#294)', async () => {

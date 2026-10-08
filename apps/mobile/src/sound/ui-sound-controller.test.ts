@@ -18,6 +18,7 @@ function deferred<T>() {
 }
 
 async function flush() {
+  await new Promise<void>((resolve) => setTimeout(resolve, 0));
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
@@ -45,12 +46,13 @@ function fixture(options: { stored?: string | null; prepare?: () => Promise<void
         return player;
       },
       createMusicPlayer: options.music ? (name) => {
-        let listener: ((status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) | undefined;
+        let listener: ((status: { didJustFinish?: boolean; isLoaded?: boolean; playing?: boolean }) => void) | undefined;
         let loaded = options.musicLoaded !== false;
         const player = {
           ...playerFor(name),
+          play() { events.push(`${name}:play`); listener?.({ playing: true }); },
           get isLoaded() { return loaded; },
-          addListener(_event: 'playbackStatusUpdate', next: (status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) {
+          addListener(_event: 'playbackStatusUpdate', next: (status: { didJustFinish?: boolean; isLoaded?: boolean; playing?: boolean }) => void) {
             listener = next;
             return { remove() { listener = undefined; } };
           },
@@ -275,10 +277,10 @@ test('draw music plays intro on focus, switches to loop on finish, and falls bac
   await flush();
   controller.setDrawMusicFocused(true);
   await flush();
-  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play', 'drawIntro:play']);
   musicPlayers.get('drawIntro')!.finish!();
   await flush();
-  assert.equal(events.includes('drawLoop:play'), true);
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play', 'drawIntro:play', 'drawLoop:play']);
   controller.setDrawMusicFocused(false);
   await flush();
   assert.equal(events.at(-1), 'drawLoop:play');
@@ -377,7 +379,7 @@ test('stale intro finish, disabled BGM and foreground changes cannot restart old
   controller.setDrawMusicFocused(false);
   musicPlayers.get('drawIntro')!.finish!();
   await flush();
-  assert.equal(events.filter((event) => event === 'drawLoop:play').length, 1);
+  assert.equal(events.filter((event) => event === 'drawLoop:play').length, 2);
   controller.setBgmEnabled(false);
   controller.setDrawMusicFocused(true);
   await flush();
@@ -412,24 +414,153 @@ test('volume, haptic mode and reset persist together while updating live players
   stop();
 });
 
-test('music players are not created until the draw screen is first focused', async () => {
+test('native music players are created after startup and play the hydrated loop without draw focus', async () => {
   const { controller, events, players, musicPlayers } = fixture({ music: true });
   const stop = controller.start(true);
-  await flush();
+  assert.equal(musicPlayers.size, 0, 'no music players in the first-render entry path');
+  await Promise.resolve();
+  await Promise.resolve();
   assert.equal(players.size, UI_SOUND_NAMES.length, 'native-style start still creates the seven UI players');
-  assert.equal(musicPlayers.size, 0, 'no BGM player before the draw screen');
-  controller.setForeground(false);
-  controller.setForeground(true);
+  assert.equal(musicPlayers.size, 0, 'music creation waits beyond hydration and backend microtasks');
   controller.setBgmVolume(0.5);
-  await flush();
-  assert.equal(musicPlayers.size, 0, 'foreground and volume changes do not create BGM players');
-  controller.setDrawMusicFocused(true);
   await flush();
   assert.deepEqual([...musicPlayers.keys()].sort(), ['drawIntro', 'drawLoop']);
   assert.equal(musicPlayers.get('drawIntro')!.volume, 0.5, 'a volume chosen before creation is applied at creation');
-  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  assert.equal(musicPlayers.get('drawLoop')!.volume, 0.5);
+  assert.equal(musicPlayers.get('drawLoop')!.loop, true);
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
   stop();
   assert.ok(events.includes('drawIntro:remove') && events.includes('drawLoop:remove'));
+});
+
+test('native app-wide loop waits for hydration and asset loading, and cancels on background or stop', async () => {
+  for (const deactivate of ['background', 'stop'] as const) {
+    const pending = deferred<string | null>();
+    const { controller, events, musicPlayers } = fixture({ music: true, musicLoaded: false, read: () => pending.promise });
+    const stop = controller.start(true);
+    await flush();
+    assert.equal(musicPlayers.size, 0, 'do not create music before preferences are known');
+    pending.resolve(JSON.stringify({ bgmVolume: 0.7 }));
+    await flush();
+    assert.equal(musicPlayers.get('drawLoop')!.volume, 0.7);
+    assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
+    if (deactivate === 'background') controller.setForeground(false);
+    else stop();
+    musicPlayers.get('drawLoop')!.load!();
+    await flush();
+    assert.deepEqual(events.filter((event) => event.endsWith(':play')), [], deactivate);
+    if (deactivate === 'background') {
+      controller.setForeground(true);
+      await flush();
+      assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
+    }
+    stop();
+  }
+});
+
+test('disabled BGM stays silent after hydration and draw focus; reset restores the app-wide loop', async () => {
+  for (const deferUiPlayers of [false, true]) {
+    const { controller, events, musicPlayers } = fixture({ music: true, deferUiPlayers, stored: JSON.stringify({ bgmEnabled: false }) });
+    const stop = controller.start(true);
+    controller.loadUiPlayers();
+    await flush();
+    controller.setDrawMusicFocused(true);
+    await flush();
+    assert.equal(musicPlayers.size, 0, 'disabled music is not downloaded');
+    assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
+    controller.setDrawMusicFocused(false);
+    controller.reset();
+    await flush();
+    if (deferUiPlayers) {
+      assert.deepEqual(events.filter((event) => event.endsWith(':play')), [], 'reset cannot bypass the cold web gesture gate');
+      controller.loadUiPlayers();
+    }
+    assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
+    stop();
+  }
+});
+
+test('web BGM waits for first input even when draw is focused, then keeps intro and loop transitions', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true, deferUiPlayers: true });
+  const stop = controller.start(true);
+  await flush();
+  controller.setForeground(false);
+  controller.setForeground(true);
+  controller.reset();
+  await flush();
+  assert.equal(musicPlayers.size, 0);
+  controller.setDrawMusicFocused(true);
+  await flush();
+  assert.equal(musicPlayers.size, 0, 'draw focus cannot bypass the web gesture gate');
+  controller.loadUiPlayers();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  controller.loadUiPlayers();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play'], 'input loading is idempotent');
+  musicPlayers.get('drawIntro')!.finish!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play', 'drawLoop:play']);
+  stop();
+});
+
+test('web first input before backend readiness retains the gesture gate until a loaded-player gesture', async () => {
+  const pending = deferred<void>();
+  const { controller, events, musicPlayers } = fixture({ music: true, deferUiPlayers: true, musicLoaded: false, prepare: () => pending.promise });
+  const stop = controller.start(true);
+  controller.loadUiPlayers();
+  assert.equal(musicPlayers.size, 0);
+  pending.resolve();
+  await flush();
+  assert.equal(musicPlayers.size, 2);
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
+  musicPlayers.get('drawLoop')!.load!();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), [], 'a load callback is outside the gesture');
+  controller.loadUiPlayers();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
+  stop();
+});
+
+test('web hydrated app-wide BGM starts at first input and teardown restores the gesture gate', async () => {
+  const { controller, events, musicPlayers } = fixture({ music: true, deferUiPlayers: true });
+  const stop = controller.start(true);
+  await flush();
+  assert.equal(controller.getSnapshot().ready, true);
+  assert.equal(musicPlayers.size, 0);
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
+  controller.loadUiPlayers();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
+  stop();
+  musicPlayers.clear();
+  events.length = 0;
+  const again = controller.start(true);
+  await flush();
+  assert.equal(musicPlayers.size, 0);
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
+  controller.loadUiPlayers();
+  await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
+  again();
+});
+
+test('BGM playback failures stay optional and teardown cancels deferred native creation', async () => {
+  const { controller, musicPlayers } = fixture({ music: true, deferUiPlayers: true });
+  const stop = controller.start(true);
+  controller.loadUiPlayers();
+  await flush();
+  musicPlayers.get('drawLoop')!.play = () => { throw Error('autoplay blocked'); };
+  assert.doesNotThrow(() => controller.setForeground(true));
+  musicPlayers.get('drawIntro')!.play = () => { throw Error('autoplay blocked'); };
+  assert.doesNotThrow(() => controller.setDrawMusicFocused(true));
+  await flush();
+  stop();
+
+  const native = fixture({ music: true });
+  native.controller.start(true)();
+  await flush();
+  assert.equal(native.musicPlayers.size, 0);
 });
 
 test('draw focus before the audio backend is ready creates the music players once it is', async () => {

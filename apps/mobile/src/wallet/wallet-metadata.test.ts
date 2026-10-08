@@ -18,7 +18,7 @@ test('wallet prompts identify the public service without changing native return 
 test('showcase wallet metadata is distinct from the operating service', () => {
   assert.deepEqual(createWalletMetadata('masscom-demo'), {
     name: '월계 마스코트 체험용',
-    description: '체험용 가상 점포와 마스코트 수집 · 실제 방문 혜택이 아닙니다.',
+    description: '월계 실제 가게 정보를 둘러보고 가상 방문·코인을 체험합니다 · 실제 방문 혜택이 아닙니다.',
     url: 'https://demo.masscom.kr',
     icons: ['https://masscom.kr/assets/wallet-mark.svg'],
     redirect: { native: 'masscom-demo://wallet' },

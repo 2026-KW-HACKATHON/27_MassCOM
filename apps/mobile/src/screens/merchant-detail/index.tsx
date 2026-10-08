@@ -130,7 +130,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const openRoute=()=>{
     const destination=merchant.demo?null:merchant.location?.entrance??merchant.position;
     const exact=destination?coordinateWalkTargets({name:merchant.name,destination,origin:discoveryState.snapshot().origin}):null;
-    const fallback=directionsTargets({roadAddress:merchant.roadAddress,demo:merchant.demo});
+    const fallback=directionsTargets({id:merchant.id,roadAddress:merchant.roadAddress,demo:merchant.demo});
     if(!exact&&!fallback){Alert.alert('길찾기 불가','확인된 위치나 검색할 주소가 없습니다.');return;}
     const go=(provider:DirectionsProvider)=>{
       const targets=exact?{naver:exact.naver,kakao:exact.kakao??exact.naver}:fallback!;

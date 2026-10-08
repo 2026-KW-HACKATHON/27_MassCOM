@@ -2,14 +2,18 @@ import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, type ScrollView } from 'react-native';
+import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { RegistrationAlbum } from '@/acquisition/registration-album';
 import type { AccountCredential } from '@/auth/account-credential';
 import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
 import { getAppPackageId } from '@/config/app-identity';
 import { useExperience } from '@/experience/use-experience';
+import { FullScreenModal } from '@/gamification/full-screen-modal';
+import { useMotionEnabled } from '@/motion/use-motion';
+import { classifyTicketCoinAcquisition, type CoinAcquisitionStatus } from '@/shop/coin-acquisition';
 import { CoinApiError, coinEntryLabel, createCoinApiClient, coinErrorMessage, sortCoinEntries, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
 import { clearCoinPending, coinPendingKey, readCoinPending, writeCoinPending, type CoinPending } from '@/shop/coin-pending';
 import { pendingFocusSnapshot } from '@/shop/pending-focus';
@@ -34,6 +38,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
+  const motionEnabled = useMotionEnabled();
   const api = useMemo(() => createCoinApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const pendingKey = useMemo(() => coinPendingKey(accountId, apiUrl, getAppPackageId() ?? 'app'), [accountId, apiUrl]);
@@ -46,6 +51,10 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const [message, setMessage] = useState<string>();
   const [result, setResult] = useState<OwnedCoin>();
   const [resultTicketId, setResultTicketId] = useState<string>();
+  const [resultStatus, setResultStatus] = useState<CoinAcquisitionStatus>('owned');
+  const [resultSourceLabel, setResultSourceLabel] = useState('가게 뽑기권');
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [settledRegistrationReceiptId, setSettledRegistrationReceiptId] = useState<string>();
   const [confirmTicket, setConfirmTicket] = useState<CoinShop['tickets'][number]>();
   const [pendingTicketId, setPendingTicketId] = useState<string>();
   const [now, setNow] = useState(() => Date.now());
@@ -152,30 +161,45 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
 
   async function openCoinTicket(ticketId: string) {
     if (inFlight.current) return;
+    const epoch = focusEpoch.current;
+    const stillCurrent = () => current.current && focusEpoch.current === epoch;
     inFlight.current = true; setBusy(true); setMessage(undefined);
     try {
+      const ticket = shop?.tickets.find((item) => item.id === ticketId);
+      const pool = shop?.pools.find((item) => item.id === ticket?.poolId);
+      const sourceLabel = pool
+        ? `${publicDataDemoStoreName(pool.merchantId, pool.merchantName)} · ${ticket?.eventName ?? pool.eventName}`
+        : ticket ? `${publicDataDemoStoreName(ticket.merchantId, '가게 확인 필요')} · ${ticket.eventName}` : '가게 뽑기권';
       await AsyncStorage.setItem(ticketUseKey, ticketId);
+      if (!stillCurrent()) return;
       setPendingTicketId(ticketId);
       const used = await api.useTicket(ticketId);
-      if (!current.current) return;
-      await AsyncStorage.removeItem(ticketUseKey);
-      setPendingTicketId(undefined);
+      if (!stillCurrent()) return;
       loadGeneration.current += 1;
       setLoading(false);
-      setShop((old) => old && { ...old, pools: old.pools.map((pool) => pool.id === used.ticket.poolId ? { ...pool, entries: [] } : pool),
-        tickets: old.tickets.map((ticket) => ticket.id === ticketId ? used.ticket : ticket) });
+      setShop((old) => old && { ...old, pools: old.pools.map((pool) => pool.id === used.ticket.poolId ? { ...pool, entries: [] } : pool), tickets: old.tickets.map((ticket) => ticket.id === ticketId ? used.ticket : ticket) });
+      setResultStatus(classifyTicketCoinAcquisition({ coin: used.coin, replayed: used.replayed }));
+      setResultSourceLabel(sourceLabel);
       setResult(used.coin);
       setResultTicketId(used.ticket.id);
+      // Keep the replay marker until this focus has received the authoritative result.
+      await AsyncStorage.removeItem(ticketUseKey);
+      if (stillCurrent()) setPendingTicketId(undefined);
       void load();
     } catch (error) {
       if (error instanceof CoinApiError && error.status >= 400 && error.status < 500) {
         await AsyncStorage.removeItem(ticketUseKey).catch(() => undefined);
+        if (!stillCurrent()) return;
         setPendingTicketId(undefined); await load();
       }
-      if (current.current) setMessage(coinErrorMessage(error));
+      if (stillCurrent()) setMessage(coinErrorMessage(error));
     }
+    // This shared lock also blocks a refocused screen; release it without exposing the stale result.
     finally { inFlight.current = false; if (current.current) setBusy(false); }
   }
+
+  const resultReceiptId = result ? resultTicketId ?? `${result.publicationId}:${result.gradeId}` : undefined;
+  const resultRegistrationStatus = resultReceiptId && settledRegistrationReceiptId === resultReceiptId ? 'owned' : resultStatus;
 
   return <SkyBackdrop><SkyScrollView ref={scrollView} header={<BackHeader title="가게 코인 뽑기권" />}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} progressViewOffset={insets.top} onRefresh={() => {
@@ -193,7 +217,8 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
     {result ? <FloatingCard style={styles.card}><Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인을 받았어요</Text>
       {parseCollectibleArtwork(result.summary) ? <Image source={{ uri: parseCollectibleArtwork(result.summary)!.thumbnailDataUrl }}
         accessibilityLabel={`${result.name} 코인 그림`} style={styles.coinImage} resizeMode="contain" /> : null}
-      <Text style={{ color: palette.label }}>{result.name} · 총 {result.quantity}개{result.quantity > 1 ? ' · 중복 수집' : ''}</Text>
+      <Text style={{ color: palette.label }}>{result.name} · 총 {result.quantity}개{resultStatus === 'new' ? ' · 신규' : resultStatus === 'duplicate' ? ' · 중복 수집' : ' · 확인됨'}</Text>
+      <Text style={{ color: palette.secondaryLabel }}>{resultSourceLabel}</Text>
       <Text style={{ color: palette.secondaryLabel }}>방문 {result.visitQuantity}개 · 뽑기 {result.drawQuantity}개</Text>
       {resultTicketId ? <Pressable accessibilityRole="button" disabled={experience.saving} onPress={() => {
         void experience.save({ coinSource: { sourceKind: 'STORE_DRAW', sourceId: resultTicketId } }).then((saved) => {
@@ -203,10 +228,15 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
         <Text style={{ color: palette.primary }}>{experience.saving ? '설정 중…' : '대표 코인으로 설정 ›'}</Text>
       </Pressable> : null}
       {experience.error ? <Text style={{ color: palette.error }}>{experience.error}</Text> : null}
-      <Pressable accessibilityRole="button" onPress={() => { setResult(undefined); void load(); }} style={[styles.button, { backgroundColor: palette.primary }]}>
-        <Text style={[styles.buttonText, { color: palette.onPrimary }]}>확인하고 다음으로</Text>
+      <Pressable accessibilityRole="button" onPress={() => setRegistrationOpen(true)} style={[styles.button, { backgroundColor: palette.primary }]}>
+        <Text style={[styles.buttonText, { color: palette.onPrimary }]}>도감 등록 확인</Text>
       </Pressable>
-      <Pressable accessibilityRole="button" onPress={() => { setResult(undefined); router.push('/coin-collection'); }} style={styles.link}>
+      <Pressable accessibilityRole="button" onPress={() => { setResult(undefined); setRegistrationOpen(false); void load(); }} style={[styles.button, { backgroundColor: palette.primaryContainer }]}>
+        <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>확인하고 다음으로</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => { setResult(undefined);
+        router.push({ pathname: '/coin-collection', params: { publicationId: result.publicationId, gradeId: result.gradeId, receiptId: resultTicketId ?? '' } });
+      }} style={styles.link}>
         <Text style={{ color: palette.primary }}>도감에서 보기 ›</Text>
       </Pressable>
       <Pressable accessibilityRole="button" onPress={() => { setResult(undefined);
@@ -288,7 +318,39 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
     <Pressable accessibilityRole="button" onPress={() => router.push('/coin-collection')} style={styles.link}>
       <Text style={{ color: palette.primary }}>내 코인과 시리즈 보기 ›</Text>
     </Pressable>
-  </SkyScrollView></SkyBackdrop>;
+  </SkyScrollView>
+    {result ? <FullScreenModal visible={registrationOpen} animationType={motionEnabled ? 'slide' : 'none'} onRequestClose={() => { if (resultReceiptId) setSettledRegistrationReceiptId(resultReceiptId); setRegistrationOpen(false); }}>
+      <View style={[styles.modalRoot, { backgroundColor: palette.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
+        <ScrollView contentContainerStyle={styles.modalContent}>
+          <RegistrationAlbum
+            receiptId={resultReceiptId ?? `${result.publicationId}:${result.gradeId}`}
+            sourceLabel={resultSourceLabel}
+            collectionLabel="코인 도감"
+            items={[{
+              id: `${result.publicationId}:${result.gradeId}`,
+              name: result.name,
+              kindLabel: '가게 코인',
+              status: resultRegistrationStatus,
+              detail: `${resultSourceLabel} · 총 ${result.quantity}개 · 방문 ${result.visitQuantity} · 뽑기 ${result.drawQuantity}`,
+              artwork: parseCollectibleArtwork(result.summary)
+                ? <Image source={{ uri: parseCollectibleArtwork(result.summary)!.thumbnailDataUrl }} accessibilityLabel={`${result.name} 코인 그림`} style={styles.albumArtwork} resizeMode="contain" />
+                : <Text accessibilityLabel={`${result.name} 코인 그림`} style={styles.albumFallback}>🪙</Text>,
+            }]}
+            onDone={() => {
+              if (resultReceiptId) setSettledRegistrationReceiptId(resultReceiptId);
+              setRegistrationOpen(false); setResult(undefined);
+              router.push({ pathname: '/coin-collection', params: { publicationId: result.publicationId, gradeId: result.gradeId, receiptId: resultTicketId ?? '' } });
+            }}
+            onOpenCollection={() => {
+              if (resultReceiptId) setSettledRegistrationReceiptId(resultReceiptId);
+              setRegistrationOpen(false); setResult(undefined);
+              router.push({ pathname: '/coin-collection', params: { publicationId: result.publicationId, gradeId: result.gradeId, receiptId: resultTicketId ?? '' } });
+            }}
+          />
+        </ScrollView>
+      </View>
+    </FullScreenModal> : null}
+  </SkyBackdrop>;
 }
 
 const styles = StyleSheet.create({
@@ -301,4 +363,6 @@ const styles = StyleSheet.create({
   coinImage: { width: 152, height: 152, alignSelf: 'center' }, entryRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   entryImage: { width: 52, height: 52 },
   confirmRow: { flexDirection: 'row', gap: 10 }, confirmButton: { flex: 1, minHeight: 48, justifyContent: 'center', alignItems: 'center', borderRadius: 12 },
+  modalRoot: { flex: 1 }, modalContent: { padding: 20, paddingBottom: 32 },
+  albumArtwork: { width: 120, height: 120 }, albumFallback: { fontSize: 64, textAlign: 'center' },
 });

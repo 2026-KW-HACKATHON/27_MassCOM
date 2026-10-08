@@ -890,7 +890,7 @@ test('#294 showcase access-request routes exist only when wired, rate-limit requ
   const fake = accessRequestsFixture({
     mine: async (accountId) => {
       calls.push(`mine:${accountId}`);
-      return { request: view, staff: false, approver: false, trialMerchantId: null };
+      return { request: view, staff: false, approver: false, trialMerchantId: null, practiceMerchantId: null };
     },
     request: async (accountId) => { calls.push(`request:${accountId}`); return { created: true, request: view }; },
     listPending: async (accountId) => {
@@ -910,7 +910,7 @@ test('#294 showcase access-request routes exist only when wired, rate-limit requ
 
   const mine = await fetch(`${showcase}/showcase/access-requests/mine`, { headers: { 'x-account-id': 'acct_a' } });
   assert.equal(mine.status, 200);
-  assert.deepEqual(await mine.json(), { request: view, staff: false, approver: false, trialMerchantId: null });
+  assert.deepEqual(await mine.json(), { request: view, staff: false, approver: false, trialMerchantId: null, practiceMerchantId: null });
 
   const created = await fetch(`${showcase}/showcase/access-requests`, { method: 'POST', headers: { 'x-account-id': 'acct_a' } });
   assert.equal(created.status, 201);
@@ -1050,7 +1050,7 @@ test('#309 the local demo-header deployment also resolves guest Bearer sessions;
   const accessRequests = accessRequestsFixture({
     mine: async (accountId) => {
       seen.push(accountId);
-      return { request: null, staff: true, approver: false, trialMerchantId: null };
+      return { request: null, staff: true, approver: false, trialMerchantId: null, practiceMerchantId: null };
     },
   });
   const guestResolves: string[] = [];
@@ -1130,7 +1130,7 @@ test('#295 showcase test-visit route exists only when wired, rate-limits, issues
   const calls: unknown[][] = [];
   let issueError: ClaimSlotError | undefined;
   const redeemed: RedeemedClaimSlot = {
-    claimSlotId: 'slot-1', merchantId: 'showcase-merchant-a', merchantName: '가상 점포 A', campaignTitle: '체험 방문 도감',
+    claimSlotId: 'slot-1', merchantId: 'showcase-wolgye-MA010120220813334279', merchantName: '더까까주까월계역점', campaignTitle: '체험 방문 도감',
     status: 'CLAIMED', replayed: false,
     visit: { visitEventId: 'visit-1', campaignId: 'campaign-a', businessDate: '2026-10-02', verificationLevel: 'MERCHANT_CONFIRMED',
       progressCounted: true, progressVisitCount: 1 },
@@ -3623,7 +3623,7 @@ test('API bind host stays loopback by default and only permits the container wil
 
 const sampleCoupon = {
   couponId: '00000000-0000-4000-8000-000000000001', milestone: 1 as const, merchantId: 'm',
-  merchantName: '가상 점포 A', title: '체험 음료 1잔', detail: '시연 혜택', status: 'ISSUED' as const,
+  merchantName: '체험 점주 가게', title: '체험 음료 1잔', detail: '시연 혜택', status: 'ISSUED' as const,
   issuedAt: '2026-09-29T00:00:00.000Z', expiresAt: '2026-10-29T00:00:00.000Z', redeemedAt: null,
 };
 const sampleSnapshot = {

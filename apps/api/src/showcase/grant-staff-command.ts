@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 import { resolveShowcaseInviteConfig } from './invite-config.js';
 import { staffAccountIdForHash, grantShowcaseStaff } from './grant-staff.js';
 import { assertHostedShowcaseDatabaseUrl } from './host-seed.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
 
 async function main() {
   const databaseUrl = assertHostedShowcaseDatabaseUrl(process.env.DATABASE_URL ?? '');
@@ -21,7 +22,7 @@ async function main() {
     const accountId = staffAccountIdForHash(identities.rows, staffHash);
     await grantShowcaseStaff(pool, {
       accountId,
-      merchantId: 'showcase-local-merchant',
+      merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
       allowedSubjectHashes: inviteConfig.allowedSubjectHashes,
       accountDeletionHmacSecret: deletionSecret,
     });

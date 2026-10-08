@@ -1,9 +1,119 @@
-현재 자동 시험 합계(2026-10-09 KST, 브랜치 `fix/ai-image-gap-fixes`에 `origin/main` `8aa8b724`를 병합한 HEAD `43c0cee0` 기준): API 단위 675/675 · 모바일 2165/2165. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이 한 줄은 README와 PROJECT_STATE가 동일하게 유지합니다. 이전 기준선·브랜치별 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존합니다.
+<p align="center">
+
+  <img src="docs/assets/readme/hero.png" width="100%" alt="월계동 식당 거리와 파란 월계 마스코트가 함께 있는 MassCOM 콘셉트 일러스트">
+</p>
+
+<h1 align="center">월계 마스코트 · MassCOM</h1>
+
+<p align="center">동네 가게를 발견하고, 방문을 기록하고, 마스코트를 모으는 Android 서비스.<br>외부 지갑 NFT는 선택 기능이며 앱 수집품과 실제 발행 상태를 구분합니다.</p>
+
+<p align="center">
+  <img alt="React Native" src="https://img.shields.io/badge/React_Native-Android-2358C7?logo=react&amp;logoColor=white">
+  <img alt="Expo SDK 57" src="https://img.shields.io/badge/Expo-SDK_57-152A4A?logo=expo&amp;logoColor=white">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-API%20%26%20App-3178C6?logo=typescript&amp;logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-Data-336791?logo=postgresql&amp;logoColor=white">
+  <img alt="Base Sepolia" src="https://img.shields.io/badge/Base_Sepolia-Testnet-0052FF">
+</p>
+
+<p align="center">
+  <a href="https://demo-api.masscom.kr/play/">시연 웹 보기</a> ·
+  <a href="https://www.masscom.kr/preview/">도감 미리보기</a> ·
+  <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22">시연 APK 받기</a> ·
+  <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13">운영 테스트 APK 받기</a> ·
+  <a href="https://www.masscom.kr/app/">운영 웹 보기</a> ·
+  <a href="docs/TEST_STATUS.md">검증 현황</a> ·
+  <a href="#설치검증">직접 실행</a>
+</p>
+
+> 배너는 콘셉트 일러스트입니다. 시연 고객 점포 30곳의 이름·주소·위치는 2026-06-30 기준 공공 상가정보에서 가져왔지만, MassCOM에 참여한 가게가 아니며 방문·보상은 시연 데이터입니다. 협약 점포, Google Play 승인, 매출 증가를 뜻하지 않습니다.
+
+## 무엇인가
+
+MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모으는 Android 서비스입니다.
+대상은 지역 이용자와 점주·직원입니다.
+흐름은 "가게 탐색 → QR 방문 인증 → 도감·코인 수집 → 놀이·마이룸 → 다음 가게 추천"입니다.
+외부 지갑 NFT는 선택 기능입니다. 앱 수집품과 실제 발행 상태를 구분합니다.
+
+## 왜 만드는가
+
+대회 주제는 월계1동 중심의 지역 문제 해결입니다.
+우리는 이용자가 익숙한 가게 밖의 지역 음식점을 발견하기 어렵다고 보았습니다. 점주·직원은 방문 확인과 중복 수령을 구분해야 합니다.
+이 진단은 설계 가설입니다. 현장 검증은 `NOT_RUN`이고, 월계1동 점주·이용자 기록과 매출 변화 자료는 없습니다. 매출 상승은 검증 전 가설입니다([PRD](docs/PRD.md), [현장 검증 계획](docs/FIELD_VALIDATION.md)).
+
+| 대상 | 다루는 문제 | MassCOM의 접근 | 현재 근거 |
+| --- | --- | --- | --- |
+| 지역 이용자 | 가게를 찾은 뒤 방문 경험이 이어지지 않음 | 탐색 → 방문 기록 → 마스코트 도감 → 다음 가게 추천 | [가상 점포 3곳·두 계정 폰 실기](docs/evidence/showcase-two-account-phone-2026-09-27.json) |
+| 점주·직원 | 방문 확인과 중복 수령을 구분해야 함 | 서버 권한 확인 뒤 일회용 코드 발급, 사용 후 추가 효과 차단 | [Android 발급·수령·재입력](docs/evidence/showcase-two-account-phone-2026-09-27.json) |
+| 지갑이 없는 사람 | 탐색과 방문에 암호화폐 지갑이 진입 장벽이 됨 | 앱 수집품은 지갑 없이 사용하고 NFT 발행만 외부 지갑으로 분리 | [도감의 앱 수집품 1·실제 NFT 0](docs/evidence/showcase-android-apk-2026-09-27.json) |
+
+## 바로 체험
+
+| 방법 | 열기 | 참고 |
+| --- | --- | --- |
+| 웹에서 로그인 없이 | [시연 체험 `/play/`](https://demo-api.masscom.kr/play/) | T9 소스의 고객 시연 점포는 월계동 공공 상가정보 기반 30곳뿐입니다. 실제 가게의 참여를 뜻하지 않으며, 각 가게에 공공자료·비참여 고지를 표시합니다. 공개 서버에는 아직 적용하지 않았습니다. 24시간 임시 계정이며 웹에서는 QR 촬영과 폰 기울임을 쓸 수 없습니다. |
+| 설치 링크 고르기 | [masscom.kr/open](https://www.masscom.kr/open) | 운영과 시연 중 고릅니다. 지금 test.13과 Preview 22를 가리킵니다. |
+| 시연 Android 앱 | [Preview 22 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22) | "로그인 없이 바로 체험"으로 시작합니다. 다음 T9 설치본은 공공자료 점포와 가상 방문·코인을 사용합니다. 아래 공개 설치본은 이전 버전입니다. |
+| 운영 Android 앱 | [test.13 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13) | 고객용. 실제 API·DB와 Google 로그인을 씁니다. 운영 점포는 0곳입니다. |
+| 설치 없이 보기 | [체험 도감 미리보기](https://www.masscom.kr/preview/) · [운영 웹](https://www.masscom.kr/app/) | 미리보기는 읽기 전용 예시입니다. |
+
+두 APK를 로그인 없이 다시 내려받아 SHA-256을 계산했고 게시 해시와 일치했습니다(PASS): [운영 test.13](docs/evidence/operating-android-test13-2026-10-08.json), [시연 Preview 22](docs/evidence/showcase-preview22-release-2026-10-08.json). T9는 서버·웹·앱에 아직 배포하지 않았습니다. 링크된 공개본은 이전 버전이며, 30곳 전환의 라이브 검증 근거가 아닙니다.
+
+공개 설치본과 `/play/`는 소스 `5ca98955` 기준이고, 그 뒤 main에 들어간 수정은 다음 빌드부터 반영됩니다. 5분 시연 순서는 [DEMO_RUNBOOK](docs/DEMO_RUNBOOK.md)에 있습니다.
+
+## 지금 한계
+
+- 실제 제휴 점포는 0곳입니다. 운영 점포도 0건입니다. T9 소스의 고객 시연은 공공 상가정보 30곳만 사용하며 참여 점포가 아닙니다. 기존 가상 점포는 숨기고 방문·코인 이력을 보존합니다. 점주 체험은 공개 목록에 없는 연습 가게에서만 합니다.
+- 현장 실증(필드 검증)은 전체 `NOT_RUN`입니다. 재방문율과 매출 효과는 측정하지 않았습니다.
+- 최신 APK(test.13·Preview 22)의 실제 휴대전화 실행은 `NOT_RUN`입니다. 서명·해시·권한 검사만 PASS입니다.
+- Google Play에는 제출하지 않았습니다. 일반 공개나 심사 승인이 아닙니다.
+- 이용약관과 개인정보처리방침은 법률 검토 전 문안입니다.
+- NFT는 Base Sepolia 테스트넷까지만 검증했습니다. 메인넷 발행은 없습니다.
+- 필수 시험 36개 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`입니다([시험 원장](docs/TEST_STATUS.md)).
+
+## 증거 링크
+
+- 획득 경험: [보상 전체 결과 → 도감 등록 확인 → 도감·전시](docs/REWARD_ALBUM_QA_2026-10-09.md). 신규 수집품의 등장·도장과 기존 보유 결과를 구분하는 공통 고객 코드 변경이며, 공개 설치본 반영·실제 휴대전화 검증은 별도입니다.
+- [제품 경험·지역 가치·사업화 기반 보고서 — 공유 풀 수정본](docs/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.md) ([Word 원본](docs/source/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.docx))
+- [완성 과제와 수정·개선 제안](docs/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.md) ([Word 원본](docs/source/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.docx))
+
+- 시험·상태: [TEST_STATUS](docs/TEST_STATUS.md) · [PROJECT_STATE](docs/PROJECT_STATE.md) · [HANDOFF](docs/HANDOFF.md) · [평가 대응표](docs/EVALUATION_MAP.md)
+- 시연: [5분 시연·질의 대비](docs/DEMO_RUNBOOK.md) · [대체 시연 영상(웹 체험 4분 8초, 390×844, 이전 `/play/` 번들)](docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm) · [공개 체험 재측정](docs/evidence/submission-2026-10-08-recheck/README.md)
+- 배포: 운영 API·웹은 main `687427c2`, 시연 API는 `2d483ed`, `/play/` 번들은 소스 `5ca98955`입니다(migration 68건). `687427c2` 재배포의 별도 증거 JSON은 아직 없습니다. 원장을 올린 [`09dfceb0` 운영 배포](docs/evidence/production-deployment-09dfceb-2026-10-08.json)와 [시연 배포](docs/evidence/showcase-deployment-2d483ed-2026-10-08.json)를 함께 봅니다.
+- 복원: 운영 DB 복제본으로 한 [실제 복원 리허설](docs/evidence/production-restore-rehearsal-2026-10-08.json)은 PASS입니다.
+- 용량·현재 배포: [Android 설치본 용량 분석](docs/APK_SIZE_ANALYSIS.md)(원인은 단정하지 않음) · 현재 배포 상태를 손으로 고치는 기준 파일 [CURRENT_RELEASE.json](docs/CURRENT_RELEASE.json)(`/open` 생성 블록과 일치 검사 범위, 고정 문자열 세 군데는 [운영 절차](docs/OPERATIONS_RUNBOOK.md))
+- 비교·제출: [경쟁 비교](docs/DIFFERENTIATION.md) · [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md) · [AI 사용 기록](docs/AI_USAGE.md) · [참여도 근거](docs/CONTRIBUTIONS.md)
+- 옛 상태 문단과 Issue별 변경 이력: [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)의 맨 위 절에 옮겼습니다.
+
+## 심사위원용 3분 요약
+
+아래 두 표는 위 요약의 근거입니다. 되는 것과 아직 안 된 것을 나눠 적습니다.
+
+| 지금 실제로 되는 것 | 근거 |
+| --- | --- |
+| 시연 앱: 가상 점포 3곳 탐색·QR 방문·도감, 하늘 동네·탐험 여권(배지·상자·쿠폰), 동네 지도·길찾기, 친구 탭 | [이전 Preview 18 Samsung 고객 방문 5회·골드 수집품·상점 뽑기](docs/evidence/showcase-preview18-release-2026-10-04.json), [이전 Preview 17 에뮬레이터 가상 점포 B 상세](docs/evidence/showcase-preview17-release-2026-10-03.json), [탐험 여권 실기](docs/evidence/explorer-passport-emulator-2026-09-29/README.md), [지도 실폰](docs/evidence/town-map-2026-09-29/README.md), [친구 배포](docs/evidence/friends-deployment-2026-09-29.json) (두 계정 사이 친구 코드·QR 추가는 `NOT_RUN`) |
+| 시연 점주 앱: 방문 확인·오늘/현황·가게 꾸미기 3탭, 전체 화면 방문 QR·만료 카운트다운, 쿠폰 시트·방문/쿠폰 되돌리기·손님 의견 | [Issue #341 시험 기록](docs/TEST_STATUS.md) (자동 시험 통과, 실제 설치·카메라·시트 터치·큰 글꼴은 `NOT_RUN`) |
+| 점주 웹: 가게 현황(방문·쿠폰 요약 카드, 첫/재방문·수집품·상세 조회 지표, 해결 동작이 붙은 오픈 준비 체크리스트, 운영 배포됨), 사진 수집품 제작기, 방문·쿠폰 되돌리기 화면 | [TEST_STATUS](docs/TEST_STATUS.md) (실제 방문을 되돌리는 실행과 실제 점주 화면 확인은 `NOT_RUN`) |
+| 서버: 실제 점포 운영 시작·약관 동의·NFT 메타데이터 API가 운영·시연에 배포됨 | [배포 증거](docs/evidence/store-consent-nft-deployment-2026-09-30.json) |
+| NFT: Local Anvil·Base Sepolia 테스트넷 발행·장애 복구 검증 | [Worker 검증](docs/TEST_STATUS.md) |
+| 최신 운영 test.13·시연 Preview 22 APK 게시 | [운영 test.13](docs/evidence/operating-android-test13-2026-10-08.json) · [시연 Preview 22](docs/evidence/showcase-preview22-release-2026-10-08.json). 서명·녹음 권한 없음 PASS; 익명 다운로드 해시 대조 PASS; 최신 APK 실폰·에뮬레이터·로그인·QR·지갑·TalkBack은 `NOT_RUN` |
+| 도감 카드 실기 확인(라이트·다크·글자 200%, 잘림·명암비 이상 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
+| DB 백업의 실제 복원(운영 데이터 복제본 migration 43→68건·`account_consents` 5=5 보존, 시연 DB도 PASS) | [운영 복원 리허설](docs/evidence/production-restore-rehearsal-2026-10-08.json) · [시연 배포·복원 증거](docs/evidence/showcase-deployment-2d483ed-2026-10-08.json) |
+
+| 꺼져 있거나 아직 안 된 것 | 근거 |
+| --- | --- |
+| 실제 제휴 점포 0곳(운영 점포 0건, 시연은 가상 3곳뿐) | [운영 관리자 현황](docs/evidence/operating-admin-status-deployment-2026-09-29.json) |
+| 현장 실증(필드 검증) 전체 `NOT_RUN` | [FIELD_VALIDATION](docs/FIELD_VALIDATION.md) |
+| AI 가게 그림 실제 호출 꺼짐(OpenAI 키 미투입, [B-026](docs/BLOCKERS.md)) | [켜기 준비 리허설](docs/evidence/ai-art-enable-rehearsal-2026-09-30.json) |
+| NFT는 Base Sepolia 테스트넷까지만, 메인넷 발행 없음 | [BLOCKERS](docs/BLOCKERS.md) |
+| 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
+| #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
+
+현재 자동 시험 합계(2026-10-09 KST, PR #434·#435·#437 통합 HEAD `5e4e648e` 위 `fix/album-registration-followups`의 미커밋 수정 기준, API는 통합 시 기존 측정값·모바일은 이번 재실행): API 단위 674/674 · 모바일 2203/2203. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
+앱 시작 배경음 수정은 로컬 구현·검증됐다. 네이티브는 첫 렌더 뒤, 웹은 첫 입력과 자산 준비 뒤 일반 배경음을 재생하며 뽑기 화면의 intro→loop는 유지한다. 실제 브라우저·각 Android 앱 청음과 배포는 별도다([D-103](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 
 Issue #412 T3 PR 2의 캠페인 혜택·발급 상한·추가 원가 패널·고객 쿠폰 수령은 로컬 구현/검증됐다([D-094](docs/DECISIONS.md), [실행 결과](docs/TEST_STATUS.md)). 운영·시연 배포와 설치본은 바꾸지 않았다(소유자 결정 A).
-코스(Issue #412 T4 A)는 서로 다른 가게 2–4곳에서 받은 코인을 모아 팀이 정한 장면을 여는 기능입니다. 방문 상황에 맞춘 코스를 팀이 구성하고 각 점주의 참여 동의 참조를 기록합니다. 완료는 서버가 코스 기간 안의 취소되지 않은 유효 방문으로 확인하고, 리롤은 진행을 지우지 않으며 취소된 방문은 다시 미완료가 됩니다. 완성 재화·쿠폰은 없습니다. 현재 이용할 수 없는 가게는 단계 완료에서 제외하고, 중지·종료된 코스의 장면은 이미 연 사용자에게도 숨깁니다. 코드만 구현했고 배포하지 않았습니다([D-093](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
-
-2026-10-09 통합 소스에는 점주 체험 AI 이미지의 계정 공통 한도(한국 날짜 기준 시안 3회·최종 3회, 생성 요청 사이 60초), 100개 공유 마스코트 풀, 유효한 음식점 뽑기권 보유자만 보는 현재 확률, 7일 미사용권 만료, 일반 보상 상자, 코인·재뽑기권 재뽑기, 실제 동의한 2–4개 가게의 기간형 연합 미션이 구현됐다. 자동 시험은 통과했지만 이 새 API·DB 변경·앱은 아직 운영·시연에 배포되지 않았다. 새 개인정보 안내를 포함하므로 API·웹·양쪽 APK·시연 웹을 함께 갱신해야 한다. 운영·시연 API의 OpenAI 키와 기존 점포별 제한은 이미 설정됐지만 실제 유료 이미지 생성은 `NOT_RUN`이다. 브라우저 QA 캡처와 visual verdict 93 PASS는 [검증 자료](docs/evidence/alliance-draw-2026-10-09/README.md)에 있다. 점포와 방문은 가상 시연 데이터다. 세부 구현·배포 경계는 [현재 상태](docs/PROJECT_STATE.md)와 [검증 기록](docs/TEST_STATUS.md)에 있다.
+코스(Issue #412 T4 A)는 서로 다른 가게 2–4곳에서 받은 코인을 모아 팀이 정한 장면을 여는 기능입니다. 방문 상황에 맞춘 코스를 팀이 구성하고 각 점주의 참여 동의 참조를 기록합니다. 완료는 서버가 보상권으로 확인하고, 리롤은 진행을 지우지 않으며 취소된 방문은 다시 미완료가 됩니다. 완성 재화·쿠폰은 없습니다. 현재 이용할 수 없는 가게는 단계 완료에서 제외합니다. 중지·종료된 코스는 미회수 unlock이 있는 계정의 지난 코스 목록·상세·획득 장면에서 계속 읽을 수 있으며, 다른 계정의 탐색·추천과 새 장면 열기에서는 제외합니다. 코드만 구현했고 배포하지 않았습니다([D-093](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 
 PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이전 기준선·브랜치별 검증은 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
@@ -27,7 +137,7 @@ PR #425 병합 전 검증 기록(2026-10-08 KST, Issue #412 T3 브랜치 `feat/p
 | --- | --- | --- |
 | 운영 웹 | [www.masscom.kr/app/](https://www.masscom.kr/app/) | 실제 운영 데이터, Google 로그인·읽기 전용 본인 도감. Samsung Chrome의 www 로그인·재열기·로그아웃 확인 |
 | 운영 관리자 웹 | [www.masscom.kr/admin/](https://www.masscom.kr/admin/) | 별도 서버 관리자 권한으로 실제 점포만 관리. [주 계정·빈 운영 현황](docs/evidence/operating-admin-status-deployment-2026-09-29.json)과 [비공개 캠페인 초안 빈 상태](docs/evidence/operating-campaign-draft-deployment-2026-09-29.json)는 인증 브라우저 확인. 실제 점포 등록·캠페인 입력은 `NOT_RUN` |
-| **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | 가상 점포 A·B·C와 예시 수집품을 표시하는 정적 시연, 실제 방문·NFT 실적 아님 |
+| **시연 웹** | [설치 없이 바로 보기](https://www.masscom.kr/preview/) · [GitHub 웹 전용 미리보기 태그](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-web-v0.1.0-preview.1) | T9 소스는 공공자료 점포 30곳과 예시 수집품을 표시하는 정적 시연입니다. 공개 페이지는 이전 버전이며 실제 방문·NFT 실적이 아닙니다 |
 | 운영 Android 테스트 앱 | [test.13 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13) | source `5ca98955`, [업로드 인증서·익명 다운로드 재해시·지갑 표면·녹음 권한 없음](docs/evidence/operating-android-test13-2026-10-08.json) PASS. 실제 설치·실행·로그인·실제 QR·지갑·TalkBack·Google Play는 `NOT_RUN`. [이전 test.9 Samsung 설치·실행](docs/evidence/operating-android-test9-2026-10-04.json)은 이전 설치본 증거 |
 | **시연 Android 앱** | [공개 Preview 22 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22) · [설치·검증 상태](docs/ANDROID_DOWNLOADS.md) | source `5ca98955`, [시연 전용 API 내장·서명 인증서·익명 다운로드 재해시·녹음 권한 없음](docs/evidence/showcase-preview22-release-2026-10-08.json) PASS. 실제 휴대전화·에뮬레이터 실행, 로그인, 실제 QR, 지갑, TalkBack은 `NOT_RUN`. [이전 Preview 19의 에뮬레이터 임시 체험 진입·동의 거절 후 로그아웃](docs/evidence/showcase-preview19-release-2026-10-05.json)은 이전 설치본 증거 |
 
@@ -67,7 +177,7 @@ PR #425 병합 전 검증 기록(2026-10-08 KST, Issue #412 T3 브랜치 `feat/p
 - [공개 프로젝트 포털](https://www.masscom.kr): 다운로드 없이 열리는 기존 AWS Lightsail의 실제 HTTPS 배포
 - [Android 설치본 상태](docs/ANDROID_DOWNLOADS.md): 운영 테스트 APK와 별도 시연 APK의 설치 링크·패키지·미검증 범위
 - [시연용 읽기 전용 웹](apps/showcase-web/README.md) · [운영용 읽기 전용 웹](apps/production-web/README.md): 별도 코드·데이터 경계. 기존 apex에서 Android Chrome의 서로 다른 2계정 순차 로그인은 확인했고, 새 www에서는 1계정 로그인·로그아웃과 apex 세션 유지까지 확인했습니다. www의 두 번째 계정과 기록이 있는 도감의 교차 노출은 미검증입니다.
-- [현재 HTTPS 시연 웹](https://www.masscom.kr/preview/): 가상 점포 A·B·C 고정 예시. 기존 Vercel 주소는 장애 복구용으로 보존
+- [현재 HTTPS 시연 웹](https://www.masscom.kr/preview/): T9의 공공자료 30곳 전환은 미배포입니다. 기존 Vercel 주소는 장애 복구용으로 보존
 - [공개 계정 삭제 안내](https://www.masscom.kr/account-deletion): 웹 Google 로그인(최근 10분 안)으로 본인을 확인해 접수하면 접수번호를 받고(24시간 안 취소 가능), 운영자가 접수 뒤 7일 안에 처리하며 접수번호로 결과를 조회합니다([D-052](docs/DECISIONS.md), [설계](docs/superpowers/specs/2026-09-30-account-deletion-processing-design.md)). 시연 앱은 앱 안에서 같은 방식으로 접수하고 운영자가 CLI로 처리합니다. 앱 안 직접 삭제의 5분 `auth_time` 조건(D-026)은 그대로입니다. 이 버전은 [PR #247](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/247)로 main `02cb7e7`에 병합돼 운영 API·웹과 시연 API에 배포됐고 migration 0031이 적용됐습니다([배포 증거](docs/evidence/reversal-deletion-deployment-2026-09-30.json): 접수번호를 모르는 조회 404·세션 쿠키 없는 접수 401·Origin 없는 조회 403, 관리자 웹에 `계정 삭제 요청`). 운영에서 접수하거나 처리한 계정은 없고([옛 접수 전용 배포 기록](docs/evidence/operating-deletion-intake-deployment-2026-09-28.json)은 이전 버전), 폐기용 실계정의 종단 실행은 `NOT_RUN`, Play 제출은 [미완료](docs/BLOCKERS.md)입니다.
 - [공개 이용약관](https://www.masscom.kr/terms) · [개인정보처리방침](https://www.masscom.kr/privacy): 무료 개발 단계·양도 불가 NFT·점주가 제공하는 혜택·금지 행위·책임 한계와, 실제로 실행되는 보관 기간(계정 삭제 때까지, 세션 만료, 삭제 접수·감사 기록 1년, 백업 30일, 컨테이너 로그는 용량 기준)·OpenAI 문의처. 첫 로그인 동의로 두 버전을 기록한다
 - [현장 검증 빈 기록지](docs/FIELD_VALIDATION.md): 동의·과업·결과를 미리 채우지 않은 양식
@@ -138,9 +248,9 @@ sequenceDiagram
 
 | 지도 탭: 그림 지도와 핀 | 핀 카드: 길찾기 가능한 가게 |
 | :---: | :---: |
-| <img src="docs/evidence/town-map-2026-09-29/02-map-top-phone.png" width="250" alt="실제 휴대전화의 동네 지도 화면, 그림 지도 위에 도장 받은 가상 점포 A·B의 이중 테두리 핀과 아직 없는 C의 점선 핀"> | <img src="docs/evidence/town-map-2026-09-29/04-pin-sheet-real-phone.png" width="250" alt="검수용 가게 핀 카드, 아직 도장이 없어요와 자세히 보기·길찾기 버튼"> |
+| <img src="docs/evidence/town-map-2026-09-29/02-map-top-phone.png" width="250" alt="실제 휴대전화의 동네 지도 화면, 그림 지도 위에 이전 시연 점포의 이중 테두리 핀과 점선 핀"> | <img src="docs/evidence/town-map-2026-09-29/04-pin-sheet-real-phone.png" width="250" alt="검수용 가게 핀 카드, 아직 도장이 없어요와 자세히 보기·길찾기 버튼"> |
 | **길찾기: 지도 앱 선택** | **가상 점포는 길찾기 대신 이유** |
-| <img src="docs/evidence/town-map-2026-09-29/05-directions-chooser-phone.png" width="250" alt="어느 지도로 열까요 선택 창, 네이버 지도·카카오맵·취소"> | <img src="docs/evidence/town-map-2026-09-29/06-pin-sheet-demo-phone.png" width="250" alt="가상 점포 A 핀 카드, 길찾기 버튼 없이 가상 위치라 길찾기를 할 수 없어요 문구"> |
+| <img src="docs/evidence/town-map-2026-09-29/05-directions-chooser-phone.png" width="250" alt="어느 지도로 열까요 선택 창, 네이버 지도·카카오맵·취소"> | <img src="docs/evidence/town-map-2026-09-29/06-pin-sheet-demo-phone.png" width="250" alt="이전 시연 점포 핀 카드, 길찾기 버튼 없이 가상 위치라 길찾기를 할 수 없어요 문구"> |
 
 ### 하늘 동네 개편(Issue #224): 에뮬레이터 로컬 확인
 
@@ -162,13 +272,13 @@ sequenceDiagram
 | **도감 스탬프판: 방문 2 · 앱 수집품 1 · 실제 NFT 0** | **다음 가게 추천: 가본 곳만 스탬프** |
 | <img src="docs/evidence/ui-mascot-2026-09-27/collection.png" width="250" alt="실제 시연 앱의 방문 2건, 앱 수집품 1개, NFT 0개와 스탬프 1/3 도감 화면"> | <img src="docs/evidence/ui-mascot-2026-09-27/recommendations.png" width="250" alt="실제 시연 앱의 미방문 가상 점포 우선 추천 화면, 방문한 점포에만 마스코트 스탬프"> |
 
-### 가상 점포별 수집품 그림
+### 재사용 시연 수집품 그림
 
-가상 점포 A·B·C의 [카드 그림 3종과 적용 기준](docs/SHOWCASE_COLLECTIBLE_ART.md)을 만들었습니다. [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)에서는 해당 점포의 **본인 도감에 존재하는 가상 보상권 카드에만** 그림을 보여줍니다([새 APK 실기](docs/evidence/showcase-collectible-art-2026-09-27/device-check.json)). 아래는 이미지 자산 미리보기이지 발행 완료 NFT나 세 점포의 수집 실적이 아닙니다.
+시연 [카드 그림 3종과 적용 기준](docs/SHOWCASE_COLLECTIBLE_ART.md)을 만들었습니다. [Preview 2 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.2)에서는 해당 점포의 **본인 도감에 존재하는 가상 보상권 카드에만** 그림을 보여줍니다([새 APK 실기](docs/evidence/showcase-collectible-art-2026-09-27/device-check.json)). 아래는 이미지 자산 미리보기이지 발행 완료 NFT나 세 점포의 수집 실적이 아닙니다.
 
 | A | B | C |
 | :---: | :---: | :---: |
-| <img src="apps/mobile/assets/images/collectibles/showcase-a.png" width="180" alt="가상 점포 A 수집품용 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-b.png" width="180" alt="가상 점포 B 수집품용 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-c.png" width="180" alt="가상 점포 C 수집품용 마스코트 그림"> |
+| <img src="apps/mobile/assets/images/collectibles/showcase-a.png" width="180" alt="시연 템플릿 a 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-b.png" width="180" alt="시연 템플릿 b 마스코트 그림"> | <img src="apps/mobile/assets/images/collectibles/showcase-c.png" width="180" alt="시연 템플릿 c 마스코트 그림"> |
 
 외부 지갑의 NFT 썸네일은 별개입니다. 현재 실증 메타데이터에 이미지 URI가 없어 이번 앱 그림을 온체인 표시 완료로 계산하지 않습니다. 앞으로 발행하는 토큰은 발행 확정 때 고정한 메타데이터에 가게 그림 또는 기본 도장 이미지 주소가 들어갑니다(Issue #254, 실제 발행은 `NOT_RUN`).
 
@@ -375,7 +485,7 @@ npm run test:postgres --prefix apps/api
 - 읽기 전용 시연 웹: [https://www.masscom.kr/preview/](https://www.masscom.kr/preview/)의 가상 A·B·C HTML/CSS가 저장소 원본과 바이트 일치([전환 증거](docs/evidence/www-web-cutover-2026-09-25.json)). 로컬 라이트/다크·대비·반응형 검사도 PASS([기존 증거](docs/evidence/design-consistency-2026-09-24/README.md)). Android 시연 앱과 진행 동기화되지 않으며 고정 예시는 실제 협약 점포·방문·NFT 실적이 아닙니다.
 - 읽기 전용 운영 웹: [https://www.masscom.kr/app/](https://www.masscom.kr/app/)이 기존 Lightsail의 운영 데이터(현재 공개 점포 0곳)를 표시합니다. OAuth 비밀값은 Git 밖 권한 600 런타임에 있습니다. Samsung Android Chrome에서 www의 한 기존 Google 계정 로그인·빈 도감·URL 재열기·로그아웃과 www 로그아웃 뒤 apex 로그인 유지가 PASS입니다. 기존 apex의 두 계정 순차 로그인은 [이전 증거](docs/evidence/android-web-auth-2026-09-25.json)이고, www의 두 번째 계정과 기록이 있는 도감의 교차 노출은 `NOT_RUN`입니다.
 - 운영 Android UI: Issue #142·#146의 화면 수정과 [Samsung Android 16 개발 앱 UI](docs/evidence/android-dev-ui-2026-09-24/README.md)는 이전 실기입니다. 최신 [운영 test.13 APK](docs/evidence/operating-android-test13-2026-10-08.json)의 업로드 인증서·AAB 서명·지갑 표면·녹음 권한 없음은 확인했고 실제 휴대전화 설치·실행·로그인은 `NOT_RUN`입니다. [이전 test.12 APK](docs/evidence/operating-android-test12-2026-10-08.json)(source `9f5ebfa6`)는 이전 설치본 근거입니다. [이전 test.7 서명·공개 다운로드](docs/evidence/operating-android-test7-2026-10-03.json)는 이전 설치본 근거입니다. [test.6의 Samsung 설치·세션 복원·화면 확인](docs/evidence/operating-android-test6-2026-10-02.json)과 [test.5의 새 버전 동의 화면](docs/evidence/operating-android-test5-2026-10-01.json)은 이전 설치본 증거입니다.
-- 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 가상 점포 A·B·C와 각 점포의 1/3/5회 목표를 생성. 실제 영업점·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
+- 로컬 API 시연 데이터: [전용 DB 실행 방법](apps/api/README.md#격리된-로컬-시연-점포)에 따라 `masscom_showcase_test`에 공공자료 점포 30곳과 비공개 체험 점주 가게, 각 점포의 1/3/5회 목표를 생성. 실제 참여·방문·NFT가 아니며 운영 API/DB에는 미적용. 정적 시연 웹과도 아직 실시간 연결되지 않습니다.
 - 로컬 시연 API·DB: [독립 Docker 환경](infra/showcase-local/README.md)은 운영 Compose와 다른 프로젝트·볼륨·loopback 포트로만 실행합니다. 이는 [현재 외부 시연 API](docs/evidence/showcase-public-edge-2026-09-27.json)와 별도이며, 외부 API·폰 로그인의 최신 판정은 위 실증을 따릅니다. 고객 QR 수령·지갑·NFT는 이 로컬 환경과 외부 시연 앱 모두에서 별도 미검증입니다.
 - 운영 API: AWS Lightsail 서울 리전의 기존 [배포 이력](docs/evidence/lightsail-api-deployment-2026-09-23.json)에 이어 코드 PR #169의 merge `3c59ac0`을 배포했고 `https://api.masscom.kr/health` 200, 웹 호스트 경계 DB migration 0016·0017 및 기존 PostgreSQL 컨테이너 보존을 확인했습니다([전환 증거](docs/evidence/www-web-cutover-2026-09-25.json)). DB·API 내부 포트는 비공개이며 www 단일 계정 로그인은 PASS, 기록이 있는 두 계정 도감 격리는 별도 `NOT_RUN`입니다.
 - Google 로그인: Samsung SM-S928N Android 16에서 실제 동의→ID token→외부 API session·콜드 스타트 복원·logout revoke `PASS`; 두 번째 계정 전환은 `NOT_RUN`

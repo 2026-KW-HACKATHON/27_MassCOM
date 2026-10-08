@@ -329,7 +329,7 @@ export function ClaimRedeemScreen({
         setSelectedTestVisitMerchantId((current) => current ?? demo[0]?.id);
       })
       .catch(() => {
-        if (active) setTestVisitMessage('가상 점포 목록을 불러오지 못했습니다.');
+        if (active) setTestVisitMessage('체험 가게 목록을 불러오지 못했습니다.');
       });
     return () => { active = false; };
   }, [apiUrl, showTestVisitSection]);
@@ -517,7 +517,7 @@ export function ClaimRedeemScreen({
     }
   }
 
-  // #295: 실제 QR 없이 가상 점포 방문을 만들고 바로 확정한다. 성공 경로는 일반 redeem()과 같다(setRedeemed/celebrate 재사용).
+  // #295: 실제 QR 없이 가상 방문을 만들고 바로 확정한다. 성공 경로는 일반 redeem()과 같다(setRedeemed/celebrate 재사용).
   async function createTestVisit() {
     if (!selectedTestVisitMerchantId || testVisitBusy) return;
     setTestVisitBusy(true);
@@ -740,7 +740,7 @@ export function ClaimRedeemScreen({
           <Stagger index={3}>
           <FloatingCard style={styles.formCard}>
             <Text style={styles.sectionTitle}>테스트 방문 만들기</Text>
-            <Text selectable style={styles.securityNote}>실제 QR 없이 가상 점포 방문을 기록합니다. 진행도는 하루 한 번만 올라요.</Text>
+            <Text selectable style={styles.securityNote}>실제 QR 없이 가상 방문을 기록합니다. 진행도는 하루 한 번만 올라요.</Text>
             <View style={styles.testVisitChipRow}>
               {testVisitMerchants.map((merchant) => {
                 const selected = merchant.id === selectedTestVisitMerchantId;
@@ -935,7 +935,7 @@ function messageFor(error: unknown): string {
       CLAIM_CAMPAIGN_UNAVAILABLE: '현재 수령 가능한 캠페인이 아닙니다. 코드는 소비되지 않았습니다.',
       ACCOUNT_AUTH_NOT_CONFIGURED: 'loopback 개발 계정 모드가 꺼져 있습니다.',
       // #295 테스트 방문 만들기 전용 코드.
-      SHOWCASE_MERCHANT_NOT_FOUND: '가상 점포를 찾을 수 없습니다.',
+      SHOWCASE_MERCHANT_NOT_FOUND: '체험 가게를 찾을 수 없습니다.',
       CLAIM_MERCHANT_INACTIVE: '지금은 쉬고 있는 점포입니다.',
       SHOWCASE_TEST_VISIT_RATE_LIMITED: '테스트 방문을 너무 많이 만들었어요. 잠시 후 다시 시도해 주세요.',
       ACCOUNT_DELETED: '계정이 삭제 처리 중입니다.',

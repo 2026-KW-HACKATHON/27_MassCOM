@@ -7,7 +7,8 @@ import { Pool } from 'pg';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
 import { seedHostedShowcase } from './host-seed.js';
-import { SHOWCASE_COURSE_ID } from './local-seed.js';
+import { SHOWCASE_COURSE_ID, SHOWCASE_PRACTICE_CAMPAIGN_ID, SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
+import { WOLGYE_STORES } from './wolgye-seed.js';
 import { grantShowcaseStaff } from './grant-staff.js';
 
 const testUrl = process.env.TEST_SHOWCASE_HOST_DATABASE_URL;
@@ -20,7 +21,7 @@ const safeTestTarget = (() => {
   } catch { return false; }
 })();
 
-test('hosted seed preserves A progress, converges under retries, and rejects fixture damage', {
+test('hosted seed preserves practice progress, converges under retries, and rejects fixture damage', {
   skip: safeTestTarget ? false : 'requires the dedicated disposable PostgreSQL container on 127.0.0.1:55435',
 }, async () => {
   const pool = new Pool({ connectionString: testUrl });
@@ -35,16 +36,16 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
       pool.query('SELECT count(*)::int AS total FROM merchant_members'),
       pool.query(`SELECT count(*)::int AS total FROM badge_reward_offers WHERE status = 'ACTIVE'`),
     ]);
-    assert.deepEqual(counts.map(({ rows }) => rows[0]?.total), [33, 33, 99, 0, 3]);
+    assert.deepEqual(counts.map(({ rows }) => rows[0]?.total), [31, 31, 93, 0, 3]);
     const course = await pool.query<{ status: string; steps: number }>(
       `SELECT c.status, (SELECT count(*)::int FROM course_steps WHERE course_id=c.id) AS steps
        FROM courses c WHERE c.id=$1`, [SHOWCASE_COURSE_ID]);
     assert.deepEqual(course.rows[0], { status: 'ACTIVE', steps: 3 });
 
-    await pool.query('UPDATE campaigns SET enrolled_count = 2 WHERE id = $1', ['showcase-local-campaign']);
+    await pool.query('UPDATE campaigns SET enrolled_count = 2 WHERE id = $1', [SHOWCASE_PRACTICE_CAMPAIGN_ID]);
     await seedHostedShowcase(pool);
     const progress = await pool.query<{ enrolled_count: number }>(
-      'SELECT enrolled_count FROM campaigns WHERE id = $1', ['showcase-local-campaign'],
+      'SELECT enrolled_count FROM campaigns WHERE id = $1', [SHOWCASE_PRACTICE_CAMPAIGN_ID],
     );
     assert.equal(progress.rows[0]?.enrolled_count, 2);
 
@@ -56,7 +57,7 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
       [invitedSubject],
     );
     const grant = () => grantShowcaseStaff(pool, {
-      accountId: 'disposable-staff', merchantId: 'showcase-local-merchant',
+      accountId: 'disposable-staff', merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
       allowedSubjectHashes: new Set([invitedHash]),
       accountDeletionHmacSecret: 'disposable-deletion-secret-at-least-32-bytes',
     });
@@ -69,7 +70,7 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
       [Buffer.alloc(32, 1)],
     );
     await assert.rejects(grantShowcaseStaff(pool, {
-      accountId: 'disposable-staff', merchantId: 'showcase-local-merchant',
+      accountId: 'disposable-staff', merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
       allowedSubjectHashes: new Set(['b'.repeat(64)]),
       accountDeletionHmacSecret: 'disposable-deletion-secret-at-least-32-bytes',
     }), /SHOWCASE_STAFF_NOT_ELIGIBLE/);
@@ -77,9 +78,19 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
     await grant();
     const members = await pool.query<{ total: number }>(
       `SELECT count(*)::int AS total FROM merchant_members
-       WHERE merchant_id = 'showcase-local-merchant' AND account_id = 'disposable-staff'`,
+       WHERE merchant_id = $1 AND account_id = 'disposable-staff'`, [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(members.rows[0]?.total, 1);
+    await assert.rejects(grantShowcaseStaff(pool, {
+      accountId: 'disposable-staff', merchantId: 'showcase-local-merchant',
+      allowedSubjectHashes: new Set([invitedHash]),
+      accountDeletionHmacSecret: 'disposable-deletion-secret-at-least-32-bytes',
+    }), /SHOWCASE_STAFF_NOT_ELIGIBLE/);
+    await assert.rejects(grantShowcaseStaff(pool, {
+      accountId: 'disposable-staff', merchantId: WOLGYE_STORES[0]!.id,
+      allowedSubjectHashes: new Set([invitedHash]),
+      accountDeletionHmacSecret: 'disposable-deletion-secret-at-least-32-bytes',
+    }), /SHOWCASE_STAFF_NOT_ELIGIBLE/);
 
     await pool.query(
       `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -95,27 +106,29 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
       `INSERT INTO claim_slots
        (id, merchant_id, customer_account_id, merchant_reference_hash, created_by_account_id,
         token_hash, status, expires_at, claimed_at)
-       VALUES ('22222222-2222-4222-8222-222222222222', 'showcase-local-merchant',
+       VALUES ('22222222-2222-4222-8222-222222222222', $3,
                'disposable-customer', $1, 'disposable-staff', $2, 'CLAIMED',
                now() + interval '1 hour', now())`,
-      [Buffer.alloc(32, 2), Buffer.alloc(32, 3)],
+      [Buffer.alloc(32, 2), Buffer.alloc(32, 3), SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     await pool.query(
       `INSERT INTO visit_events
        (id, claim_slot_id, merchant_id, campaign_id, customer_account_id,
         occurred_at, business_date, verification_level, status, progress_counted)
        VALUES ('33333333-3333-4333-8333-333333333333',
-               '22222222-2222-4222-8222-222222222222', 'showcase-local-merchant',
-               'showcase-local-campaign', 'disposable-customer', now(), current_date,
+               '22222222-2222-4222-8222-222222222222', $1,
+               $2, 'disposable-customer', now(), current_date,
                'MERCHANT_CONFIRMED', 'VALID', true)`,
+      [SHOWCASE_PRACTICE_MERCHANT_ID, SHOWCASE_PRACTICE_CAMPAIGN_ID],
     );
     await pool.query(
       `INSERT INTO reward_entitlements
        (id, customer_account_id, campaign_id, target_visit_count, source_visit_event_id,
         status, policy_version, earned_at, claim_expires_at)
        VALUES ('44444444-4444-4444-8444-444444444444', 'disposable-customer',
-               'showcase-local-campaign', 1, '33333333-3333-4333-8333-333333333333',
+               $1, 1, '33333333-3333-4333-8333-333333333333',
                'GRANTED', 'test-policy', now(), now() + interval '1 day')`,
+      [SHOWCASE_PRACTICE_CAMPAIGN_ID],
     );
     await seedHostedShowcase(pool);
     const preserved = await Promise.all([
@@ -127,12 +140,12 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
 
     await pool.query(
       `UPDATE merchant_members SET status = 'REVOKED', revoked_at = now()
-       WHERE merchant_id = 'showcase-local-merchant' AND account_id = 'disposable-staff'`,
+       WHERE merchant_id = $1 AND account_id = 'disposable-staff'`, [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     await assert.rejects(grant(), /SHOWCASE_STAFF_NOT_ELIGIBLE/);
     const revoked = await pool.query<{ status: string }>(
       `SELECT status FROM merchant_members
-       WHERE merchant_id = 'showcase-local-merchant' AND account_id = 'disposable-staff'`,
+       WHERE merchant_id = $1 AND account_id = 'disposable-staff'`, [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(revoked.rows[0]?.status, 'REVOKED');
 
@@ -169,10 +182,10 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
       blocker.release();
     }
 
-    await pool.query('UPDATE merchants SET is_demo = false WHERE id = $1', ['showcase-local-merchant']);
+    await pool.query('UPDATE merchants SET is_demo = false WHERE id = $1', [SHOWCASE_PRACTICE_MERCHANT_ID]);
     await assert.rejects(seedHostedShowcase(pool), /SHOWCASE_FIXTURE_COLLISION/);
     const damaged = await pool.query<{ is_demo: boolean }>(
-      'SELECT is_demo FROM merchants WHERE id = $1', ['showcase-local-merchant'],
+      'SELECT is_demo FROM merchants WHERE id = $1', [SHOWCASE_PRACTICE_MERCHANT_ID],
     );
     assert.equal(damaged.rows[0]?.is_demo, false);
   } finally {

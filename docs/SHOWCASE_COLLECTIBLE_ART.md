@@ -1,10 +1,12 @@
-# 가상 점포 수집품 그림
+# 재사용 시연 수집품 그림
 
-가상 점포 A·B·C의 보상권을 구분해 보여주는 **시연 앱용 카드 그림**입니다. 실제 제휴 음식점이나 이미 발행된 NFT의 이미지가 아닙니다.
+월계 공공자료 점포의 가상 보상권에 재사용하는 **시연 앱용 카드 그림**입니다. 실제 제휴 음식점이나 이미 발행된 NFT의 이미지가 아닙니다.
 
-| 가상 점포 A | 가상 점포 B | 가상 점포 C |
+| 템플릿 a | 템플릿 b | 템플릿 c |
 | :---: | :---: | :---: |
 | <img src="../apps/mobile/assets/images/collectibles/showcase-a.png" width="220" alt="파란 차양 앞의 월계 마스코트"> | <img src="../apps/mobile/assets/images/collectibles/showcase-b.png" width="220" alt="초록 차양 앞에서 지도를 보는 월계 마스코트"> | <img src="../apps/mobile/assets/images/collectibles/showcase-c.png" width="220" alt="저녁 거리에서 방문 카드를 든 월계 마스코트"> |
+
+T9(2026-10-09): 고객 점포는 공공자료 30곳뿐입니다. API는 기존 그림 키 `a`/`b`/`c`를 분류별로 재사용하고 모바일의 대표 세 점포 fallback은 `b`/`b`/`c`입니다. 더까까주까월계역점만 5회 프리즘이며 나머지는 골드입니다. 새 그림·실제 점주 참여·온체인 발행을 뜻하지 않습니다. 아래 A/B/C·이전 APK 실기는 자산 제작 당시 이력이며 T9 설치본 검증이 아닙니다.
 
 ## 적용 범위
 

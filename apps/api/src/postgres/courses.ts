@@ -14,6 +14,7 @@ import type { RealWorldProfile } from '../real-world-contract.js';
 import { businessStateAt } from '../real-world-hours.js';
 import { normalizeDocumentReference } from '../store-go-live-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from '../showcase/local-seed.js';
 import { AdminError, assertPlatformAdmin } from './admin.js';
 import { AccountLifecycleError } from './account-lifecycle.js';
 import type { PostgresAccountLifecycle } from './account-lifecycle.js';
@@ -397,25 +398,43 @@ export class PostgresCourseService implements CourseService {
       (row.ends_at === null || row.ends_at > now);
   }
 
-  private async activeCourses(): Promise<CourseRow[]> {
+  private async selectedCourses(accountId: string | null = null): Promise<CourseRow[]> {
     const now = this.now();
     // Cap active courses before joining their steps so this endpoint has a predictable maximum read size.
     const result = await this.pool.query<CourseRow>(
-      `SELECT * FROM courses WHERE status = 'ACTIVE' AND (starts_at IS NULL OR starts_at <= $1)
-       AND (ends_at IS NULL OR ends_at > $1)
-       AND ($2::boolean OR NOT EXISTS (SELECT 1 FROM course_steps step
-         JOIN merchants merchant ON merchant.id = step.merchant_id
-         WHERE step.course_id = courses.id AND merchant.is_demo))
-       ORDER BY created_at DESC, id LIMIT 50`, [now, this.includeDemo]);
+      `WITH active AS (
+         SELECT * FROM courses WHERE status = 'ACTIVE' AND (starts_at IS NULL OR starts_at <= $1)
+           AND (ends_at IS NULL OR ends_at > $1)
+           AND NOT EXISTS (SELECT 1 FROM course_steps step WHERE step.course_id = courses.id
+             AND step.merchant_id = $3)
+           AND ($2::boolean OR NOT EXISTS (SELECT 1 FROM course_steps step
+             JOIN merchants merchant ON merchant.id = step.merchant_id
+             WHERE step.course_id = courses.id AND merchant.is_demo))
+         ORDER BY created_at DESC, id LIMIT 50
+       )
+       SELECT selected.* FROM (
+         SELECT active.*, 0 AS source FROM active
+         UNION ALL
+         SELECT course.*, 1 AS source FROM courses course
+         JOIN course_unlocks unlocked ON unlocked.course_id = course.id
+         WHERE unlocked.account_id = $4 AND unlocked.revoked_at IS NULL
+           AND course.status IN ('PAUSED', 'ENDED')
+           AND NOT EXISTS (SELECT 1 FROM course_steps step WHERE step.course_id = course.id
+             AND step.merchant_id = $3)
+           AND ($2::boolean OR NOT EXISTS (SELECT 1 FROM course_steps step
+             JOIN merchants merchant ON merchant.id = step.merchant_id
+             WHERE step.course_id = course.id AND merchant.is_demo))
+       ) selected ORDER BY selected.source, selected.created_at DESC, selected.id`,
+      [now, this.includeDemo, SHOWCASE_PRACTICE_MERCHANT_ID, accountId]);
     return result.rows;
   }
 
   async list(accountId: string): Promise<CourseView[]> {
-    return this.customerViews(this.pool, accountId, await this.activeCourses());
+    return this.customerViews(this.pool, accountId, await this.selectedCourses(accountId));
   }
 
   async listHints(accountId: string): Promise<CourseNextHint[]> {
-    const rows = await this.activeCourses();
+    const rows = await this.selectedCourses();
     const steps = await this.steps(this.pool, rows.map(row => row.id), this.now(), false);
     const visits = await this.countedVisits(this.pool, accountId, rows.map(row => row.id));
     return rows.flatMap(row => {
@@ -433,9 +452,16 @@ export class PostgresCourseService implements CourseService {
 
   async get(accountId: string, id: string): Promise<CourseView> {
     const row = await this.course(this.pool, id);
-    if (!this.visible(row, this.now())) throw new CourseError('COURSE_NOT_FOUND');
-    const demo = await this.pool.query<{ is_demo: boolean }>(
-      'SELECT merchant.is_demo FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+    if (!this.visible(row, this.now())) {
+      if (row.status !== 'PAUSED' && row.status !== 'ENDED') throw new CourseError('COURSE_NOT_FOUND');
+      const unlock = await this.pool.query(
+        'SELECT 1 FROM course_unlocks WHERE account_id = $1 AND course_id = $2 AND revoked_at IS NULL',
+        [accountId, id]);
+      if (unlock.rowCount === 0) throw new CourseError('COURSE_NOT_FOUND');
+    }
+    const demo = await this.pool.query<{ is_demo: boolean; merchant_id: string }>(
+      'SELECT merchant.is_demo, merchant.id AS merchant_id FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+    if (demo.rows.some(step => step.merchant_id === SHOWCASE_PRACTICE_MERCHANT_ID)) throw new CourseError('COURSE_NOT_FOUND');
     if (!this.includeDemo && demo.rows.some(step => step.is_demo)) throw new CourseError('COURSE_NOT_FOUND');
     return this.customerView(this.pool, accountId, row);
   }
@@ -450,8 +476,9 @@ export class PostgresCourseService implements CourseService {
       await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`course:${accountId}:${id}`]);
       const row = await this.course(db, id, 'SHARE');
       if (!this.visible(row, this.now())) throw new CourseError('COURSE_UNAVAILABLE');
-      const demo = await db.query<{ is_demo: boolean }>(
-        'SELECT merchant.is_demo FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+      const demo = await db.query<{ is_demo: boolean; merchant_id: string }>(
+        'SELECT merchant.is_demo, merchant.id AS merchant_id FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+      if (demo.rows.some(step => step.merchant_id === SHOWCASE_PRACTICE_MERCHANT_ID)) throw new CourseError('COURSE_UNAVAILABLE');
       if (!this.includeDemo && demo.rows.some(step => step.is_demo)) throw new CourseError('COURSE_UNAVAILABLE');
       const course = await this.customerView(db, accountId, row, true);
       if (course.steps.some(step => step.state === 'UNAVAILABLE')) {

@@ -5,7 +5,7 @@ import { BadgeApiError, createBadgeApiClient, parseBadgeBook, parseCampaignBenef
 
 function couponFixture(overrides: Record<string, unknown> = {}) {
   return {
-    couponId: 'coupon-1', milestone: 1, merchantId: 'm-a', merchantName: '가상 점포 A',
+    couponId: 'coupon-1', milestone: 1, merchantId: 'm-a', merchantName: '더까까주까월계역점',
     title: '체험 음료 1잔', detail: '음료 1잔', status: 'ISSUED',
     issuedAt: '2026-09-29T01:00:00.000Z', expiresAt: '2026-10-29T01:00:00.000Z', redeemedAt: null,
     ...overrides,
@@ -24,7 +24,7 @@ function bookFixture() {
       { milestone: 1, requiredTiers: 3, state: 'OPENED', offer: null, coupon: couponFixture() },
       {
         milestone: 2, requiredTiers: 6, state: 'LOCKED',
-        offer: { merchantId: 'm-b', merchantName: '가상 점포 B', title: '체험 디저트', detail: '', validDays: 30 },
+        offer: { merchantId: 'm-b', merchantName: '갱스터떡볶이인덕대점', title: '체험 디저트', detail: '', validDays: 30 },
         coupon: null,
       },
       { milestone: 3, requiredTiers: 9, state: 'LOCKED', offer: null, coupon: null },
@@ -41,7 +41,7 @@ test('parses the §4 badge book and normalises medal and reward order', () => {
   assert.deepEqual(book.rewards.map((reward) => reward.milestone), [1, 2, 3]);
   assert.equal(book.earnedTiers, 3);
   assert.equal(book.rewards[0]?.coupon?.title, '체험 음료 1잔');
-  assert.equal(book.rewards[1]?.offer?.merchantName, '가상 점포 B');
+  assert.equal(book.rewards[1]?.offer?.merchantName, '갱스터떡볶이인덕대점');
 });
 
 test('reads the optional unavailableReason only on an UNAVAILABLE box and ignores it elsewhere or when unknown', () => {

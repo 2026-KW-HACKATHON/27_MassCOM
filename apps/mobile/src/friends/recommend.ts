@@ -1,4 +1,5 @@
 import { APP_DOWNLOAD_LINK, openLinkBase, openLinkFragment, type LinkVariant } from './link';
+import { isPublicDataDemoStore } from '@/merchant/public-data-demo-store';
 
 const maxMerchantIdLength = 128;
 // Merchant ids are free-form text in the database (a UUID for registered shops, a slug for the showcase seed). The id becomes a
@@ -38,7 +39,7 @@ export function merchantShareMessage(
   merchant: { id: string; name: string; demo: boolean },
   variant: LinkVariant = 'production',
 ): string {
-  const demo = merchant.demo ? ' (시연용 가상 점포)' : '';
+  const demo = merchant.demo ? isPublicDataDemoStore(merchant.id) ? ' (공공데이터 가게 정보 · 방문은 체험용)' : ' (시연용 체험 가게)' : '';
   const intro = `월계 마스코트에서 '${merchant.name}${demo}' 가게를 추천해요!`;
   return variant === 'showcase'
     ? `${intro}\n앱 받기: ${APP_DOWNLOAD_LINK}`

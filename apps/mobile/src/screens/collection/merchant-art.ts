@@ -15,7 +15,7 @@ export type MerchantArt = { source: ImageSourcePropType; fromServer: boolean };
 
 /**
  * The picture for a merchant, or undefined so the caller draws the glyph stamp. Order (D-048): the art the owner chose (served
- * by the API at `apiUrl`), then the bundled showcase illustration (demo app, fixed virtual merchants only), then none.
+ * by the API at `apiUrl`), then the bundled showcase illustration (demo app, selected public-data merchants only), then none.
  */
 export function merchantArt(merchant: MerchantArtSubject, apiUrl?: string): MerchantArt | undefined {
   const { id: merchantId, artUrl } = merchant;

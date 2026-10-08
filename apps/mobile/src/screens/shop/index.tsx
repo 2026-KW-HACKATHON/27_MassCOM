@@ -180,6 +180,8 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
   const [ownedBefore, setOwnedBefore] = useState<readonly string[]>([]);
   const purchaseOwnership = useRef<readonly string[]>([]);
   const [reveal, setReveal] = useState<ShopRerollResult>();
+  const [revealReceiptId, setRevealReceiptId] = useState<string>();
+  const recoveryReceiptId = useRef<string | undefined>(undefined);
   // chooseAvatar() 응답은 요청이 시작된 결과 모달이 여전히 열려 있을 때만 그 모달에 반영한다.
   const revealRef = useRef(reveal);
   useEffect(() => { revealRef.current = reveal; }, [reveal]);
@@ -235,6 +237,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       reroll: (input) => apiRef.current.reroll(input),
       isCurrent,
       onStart: (stored) => {
+        recoveryReceiptId.current = stored.requestId;
         setSelectedGrade(stored.grade);
         setMachineOpen(true);
         setPending({ grade: stored.grade, requestId: stored.requestId });
@@ -244,6 +247,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       onSuccess: (result) => {
         setPending(undefined);
         shopRef.current.applyReroll(result);
+        setRevealReceiptId(recoveryReceiptId.current);
         setReveal(result);
         setHistoryRefreshToken((value) => value + 1);
         void refreshExperience();
@@ -313,6 +317,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       if (storedAttempt) setSelectedGrade(storedAttempt.grade);
       setOwnedBefore(purchaseOwnership.current);
       setReveal(undefined);
+      setRevealReceiptId(attempt.requestId);
       setPending(attempt);
       setBusyGrade(attempt.grade);
       setNotice(undefined);
@@ -406,6 +411,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       shop.applyAvatar(avatar);
       if (targetReveal && revealRef.current === targetReveal) {
         setReveal(undefined);
+        setRevealReceiptId(undefined);
         setMachineOpen(false);
         onGachaClose?.();
       }
@@ -475,6 +481,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     snapshot={snapshot} profile={experience.snapshot?.profile} bonusSaving={experience.saving} bonusError={experience.error}
     onEquipBonus={reveal?.bonus ? () => { if (reveal.bonus) void experience.save({ cosmetics: { [reveal.bonus.slot]: reveal.bonus.id } }); } : undefined}
     result={reveal} selectedGrade={selectedGrade} ownedBefore={ownedBefore} isAvatar={snapshot.avatar === reveal?.item.id}
+    receiptId={revealReceiptId}
     busy={Boolean(busyGrade) || avatarBusy || experience.saving} error={notice?.tone === 'error' ? notice.text : undefined}
     avatarBusy={avatarBusy} avatarError={avatarError}
     wishId={experience.snapshot?.profile.wishlist} onWish={(itemId) => { void experience.wish(itemId); }}
@@ -484,10 +491,10 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     onSetAvatar={() => { if (reveal) void chooseAvatar(reveal.item.id, reveal); }}
     onOpenStudio={() => {
       const avatarItemId = reveal?.item.id;
-      setMachineOpen(false); setReveal(undefined); onGachaClose?.();
+      setMachineOpen(false); setReveal(undefined); setRevealReceiptId(undefined); onGachaClose?.();
       router.push({ pathname: '/studio', params: avatarItemId ? { avatar: avatarItemId } : {} });
     }}
-    onClose={() => { setMachineOpen(false); setReveal(undefined); setAvatarError(undefined); onGachaClose?.(); }}
+    onClose={() => { setMachineOpen(false); setReveal(undefined); setRevealReceiptId(undefined); setAvatarError(undefined); onGachaClose?.(); }}
   /> : selectedPool ? <GradeDrawMachine
     pool={selectedPool} balance={drawShop?.balance ?? snapshot.mileage.balance} result={gradeResult}
     busy={Boolean(busyGrade) || avatarBusy || experience.saving} error={notice?.tone === 'error' ? notice.text : drawError}
@@ -499,7 +506,16 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       if (reward?.kind === 'CHARACTER') void chooseAvatar(reward.id);
       if (reward?.kind === 'THEME') void experience.save({ cosmetics: { [reward.slot]: reward.id } });
     }}
-    onOpenCollection={() => { setMachineOpen(false); setGradeResult(undefined); onGachaClose?.(); router.push('/coin-collection'); }}
+    onOpenCollection={(focus) => {
+      const reward = gradeResult?.reward;
+      const target = focus ?? (reward?.kind === 'COIN'
+        ? { publicationId: reward.publicationId, gradeId: reward.gradeId, receiptId: gradeResult?.drawId ?? '' }
+        : undefined);
+      setMachineOpen(false); setGradeResult(undefined); onGachaClose?.();
+      router.push(target
+        ? { pathname: '/coin-collection', params: target }
+        : '/coin-collection');
+    }}
     onClose={() => { setMachineOpen(false); setGradeResult(undefined); setAvatarError(undefined); onGachaClose?.(); }}
     onRefresh={() => { void refresh(); }}
   /> : <FullScreenModal visible animationType="fade" onRequestClose={onGachaClose ?? (() => setMachineOpen(false))}>
