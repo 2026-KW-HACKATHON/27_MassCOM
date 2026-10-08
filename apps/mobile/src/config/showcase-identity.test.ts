@@ -17,12 +17,30 @@ test('showcase installed package uses only its own Google ID and no inherited wa
   });
 });
 
+test('showcase installed package uses only its dedicated wallet project', () => {
+  const reownProjectId = 'a'.repeat(32);
+  assert.deepEqual(resolveRuntimeIdentity('kr.masscom.wolgye.demo', {
+    masscomShowcase: {
+      googleWebClientId: '456-showcase.apps.googleusercontent.com',
+      reownProjectId,
+    },
+  }, production), {
+    googleWebClientId: '456-showcase.apps.googleusercontent.com',
+    reownProjectId,
+  });
+});
+
 test('showcase missing or malformed ID never falls back to production', () => {
   for (const extra of [undefined, {}, { masscomShowcase: { googleWebClientId: 'invalid' } }]) {
     assert.deepEqual(resolveRuntimeIdentity('kr.masscom.wolgye.demo', extra, production), {
       googleWebClientId: undefined,
       reownProjectId: undefined,
     });
+  }
+  for (const reownProjectId of ['invalid', 'a'.repeat(31), 'a'.repeat(32) + 'x']) {
+    assert.equal(resolveRuntimeIdentity('kr.masscom.wolgye.demo', {
+      masscomShowcase: { reownProjectId },
+    }, production).reownProjectId, undefined);
   }
 });
 

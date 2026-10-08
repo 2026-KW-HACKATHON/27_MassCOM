@@ -68,6 +68,11 @@ function validateBuildEnvironment(variant, environment) {
     if (!googleWebClientId || !/^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(googleWebClientId)) {
       throw new Error('showcase MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID is required');
     }
+    const reownProjectId = environment.MASSCOM_SHOWCASE_REOWN_PROJECT_ID;
+    if (reownProjectId !== undefined && reownProjectId !== '' &&
+        !/^[0-9a-f]{32}$/i.test(reownProjectId.trim())) {
+      throw new Error('showcase MASSCOM_SHOWCASE_REOWN_PROJECT_ID must be 32 hexadecimal characters');
+    }
   }
 }
 

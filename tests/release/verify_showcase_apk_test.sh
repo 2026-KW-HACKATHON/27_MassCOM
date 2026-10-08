@@ -28,6 +28,7 @@ done
 common=(
   MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-showcase.apps.googleusercontent.com
   MASSCOM_OPERATING_GOOGLE_WEB_CLIENT_ID=456-operating.apps.googleusercontent.com
+  EXPO_PUBLIC_TMAP_MAP_APP_KEY=public-tmap-test-id
   MASSCOM_SHOWCASE_KEYSTORE_FILE="$key"
   MASSCOM_SHOWCASE_KEY_ALIAS=masscom-showcase
   MASSCOM_SHOWCASE_CERT_SHA256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -92,6 +93,12 @@ result="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_I
   echo "showcase check overstated readiness: $result" >&2
   exit 1
 }
+result="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_ID \
+  "${common[@]}" MASSCOM_SHOWCASE_REOWN_PROJECT_ID=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa bash "$builder" --check)"
+[[ "$result" == *'local showcase APK preflight PASS'* ]] || {
+  echo 'dedicated showcase wallet project was rejected' >&2
+  exit 1
+}
 
 mkdir "$scratch/bin"
 printf '%s\n' \
@@ -113,6 +120,12 @@ expect_rejected 'inherited operating audience' 'showcase build rejects EXPO_PUBL
   EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=456-operating.apps.googleusercontent.com
 expect_rejected 'inherited wallet project' 'showcase build rejects EXPO_PUBLIC_REOWN_PROJECT_ID' \
   EXPO_PUBLIC_REOWN_PROJECT_ID=production-wallet-project
+expect_rejected 'malformed showcase wallet project' 'MASSCOM_SHOWCASE_REOWN_PROJECT_ID must be 32 hexadecimal characters' \
+  MASSCOM_SHOWCASE_REOWN_PROJECT_ID=invalid
+expect_rejected 'missing showcase TMAP map ID' 'showcase EXPO_PUBLIC_TMAP_MAP_APP_KEY is required' \
+  EXPO_PUBLIC_TMAP_MAP_APP_KEY=
+expect_rejected 'blank showcase TMAP map ID' 'showcase EXPO_PUBLIC_TMAP_MAP_APP_KEY is required' \
+  EXPO_PUBLIC_TMAP_MAP_APP_KEY='   '
 expect_rejected 'inherited operating API' 'showcase build rejects EXPO_PUBLIC_API_URL' \
   EXPO_PUBLIC_API_URL=https://api.masscom.kr
 expect_rejected 'insecure demo account' 'showcase build rejects EXPO_PUBLIC_DEMO_ACCOUNT_ID' \
@@ -147,6 +160,44 @@ expect_rejected 'symlink keystore' 'showcase-only keystore is required' \
   echo 'showcase --check unexpectedly created a native Android project' >&2
   exit 1
 }
+node - "$builder" "$scratch" <<'NODE'
+const assert = require('node:assert/strict');
+const { execFileSync, spawnSync } = require('node:child_process');
+const { mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
+const { join } = require('node:path');
+const source = readFileSync(process.argv[2], 'utf8');
+for (const value of [
+  'EXPO_PUBLIC_TMAP_MAP_APP_KEY="$tmap_map_key" EXPO_PUBLIC_NAVER_MAP_CLIENT_ID="$naver_map_client"',
+  'node "$repo_root/scripts/check-embedded-maps.mjs" "$embedded_artifact"',
+  "config.extra?.masscomShowcase?.reownProjectId !== process.env.MASSCOM_SHOWCASE_REOWN_PROJECT_ID",
+  "embeddedMaps: 'PASS'",
+]) assert.ok(source.includes(value), `showcase build gate missing: ${value}`);
+assert.equal(source.split('EXPO_PUBLIC_TMAP_MAP_APP_KEY="$tmap_map_key" EXPO_PUBLIC_NAVER_MAP_CLIENT_ID="$naver_map_client"').length - 1, 2);
+assert.ok(source.indexOf('cp "$built_apk" "$apk"') < source.indexOf('node "$repo_root/scripts/check-embedded-maps.mjs" "$embedded_artifact"'));
+assert.ok(source.indexOf('node "$repo_root/scripts/check-embedded-maps.mjs" "$embedded_artifact"') < source.indexOf("embeddedMaps: 'PASS'"));
+const reownCheck = source.split('    node - "$embedded_artifact" <<\'NODE\'\n')[1]?.split('\nNODE')[0];
+assert.ok(reownCheck, 'archive Reown check must exist');
+const expectedId = 'a'.repeat(32);
+for (const extension of ['apk', 'aab']) {
+  const entry = extension === 'aab' ? 'base/assets' : 'assets';
+  const folder = join(process.argv[3], `${extension}-config`);
+  mkdirSync(join(folder, entry), { recursive: true });
+  const configPath = join(folder, entry, 'app.config');
+  const artifact = join(process.argv[3], `wallet-check.${extension}`);
+  for (const [embeddedId, accepted] of [[expectedId, true], ['b'.repeat(32), false]]) {
+    writeFileSync(configPath, JSON.stringify({ extra: { masscomShowcase: { reownProjectId: embeddedId } } }));
+    rmSync(artifact, { force: true });
+    execFileSync('zip', ['-q', '-r', artifact, '.'], { cwd: folder });
+    const result = spawnSync(process.execPath, ['-', artifact], {
+      input: reownCheck,
+      encoding: 'utf8',
+      env: { ...process.env, MASSCOM_SHOWCASE_REOWN_PROJECT_ID: expectedId },
+    });
+    assert.equal(result.status, accepted ? 0 : 1, `${extension}: ${result.stderr}`);
+    assert.ok(!result.stderr.includes(expectedId), 'Reown ID must not appear in error output');
+  }
+}
+NODE
 bash "$repo_root/scripts/check-secrets.sh" "$builder" >/dev/null || {
   echo 'showcase builder is rejected by repository secret scanning' >&2
   exit 1
