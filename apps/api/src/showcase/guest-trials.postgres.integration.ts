@@ -24,7 +24,7 @@ import { PostgresMerchantArtService } from '../postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from '../postgres/merchant-catalog.js';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresRecommendationSource } from '../postgres/recommendation.js';
-import { createApiServer, createBearerAccountResolver } from '../server.js';
+import { createApiServer, createBearerAccountResolver } from '../server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from '../wallet-challenge-service.js';
 import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './access-requests.js';
 import { GUEST_TRIAL_TTL_MS, GuestTrialError, ShowcaseGuestTrialService } from './guest-trials.js';

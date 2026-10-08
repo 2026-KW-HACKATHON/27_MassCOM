@@ -39,7 +39,7 @@ import {
   type AccountResolver,
   type ReauthenticationGuard,
   type ExperienceServices,
-} from './server.js';
+} from './server-test-support.js';
 import { ShowcaseAccessRequestError, type ShowcaseAccessRequestService } from './showcase/access-requests.js';
 import { GuestTrialError, type ShowcaseGuestTrialService } from './showcase/guest-trials.js';
 import {

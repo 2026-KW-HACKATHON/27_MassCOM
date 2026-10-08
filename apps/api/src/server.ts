@@ -4,22 +4,13 @@ import { pathToFileURL } from 'node:url';
 
 import { Pool, type PoolClient } from 'pg';
 
-import {
-  AccountDeletionError,
-  type AccountDeletionService,
-} from './account-deletion.js';
-import type { ConsentService } from './account-consent.js';
+import { AccountDeletionError } from './account-deletion.js';
 import type { AuthSessionService } from './auth-session.js';
-import type { BadgeRewardService } from './badge-rewards.js';
 import { OpenAiImageClient } from './ai-art-client.js';
 import { aiArtStartupLine, resolveAiArtConfigOrDisabled } from './ai-art-rules.js';
 import { isRewardMilestone } from './badge-rules.js';
-import type { ClaimSlotService } from './claim-slot-service.js';
-import type { CustomerIdentityService } from './customer-identity.js';
-import type { FriendService } from './friends.js';
-import type { StoreTicketService } from './store-tickets.js';
 import { PostgresStoreTicketService } from './postgres/store-tickets.js';
-import { startNotificationsRunner, type SocialService } from './social.js';
+import { startNotificationsRunner } from './social.js';
 import { handleSocialHttp, SocialHttpError } from './social-http.js';
 import { PostgresSocialService } from './postgres/social.js';
 import { PostgresRealWorldService } from './postgres/real-world.js';
@@ -30,7 +21,7 @@ import { MapProvider } from './map-provider.js';
 import { RealWorldError } from './real-world-contract.js';
 import { handleRealWorldHttp } from './real-world-http.js';
 import { ExpoPushGateway } from './expo-push-gateway.js';
-import type { PlayService, Studio } from './play.js';
+import type { Studio } from './play.js';
 import { ExperienceError, type Equipment } from './collection-experience.js';
 import { NotificationError, type NotificationPreferences } from './notifications.js';
 import { PostgresCollectionExperienceService } from './postgres/collection-experience.js';
@@ -39,15 +30,10 @@ import { PostgresNotificationService, fcmConfigFromEnv } from './postgres/notifi
 import { startNotificationScheduler } from './notification-scheduler.js';
 import { isGameKind, type GameAction } from './play-rules.js';
 import { GoogleIdTokenVerifier } from './google-id-token.js';
-import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
+import { WebAuthError, WebAuthService, resolveWebAuthConfig } from './web-auth.js';
 import { WebSessionError, freshWebSessionMs } from './web-session.js';
 import { resolveWebOrigin } from './web-origin.js';
-import type {
-  AccountDeletionIntakeService,
-  AccountDeletionProcessingService,
-} from './account-deletion-intake.js';
-import type { CampaignEnrollmentService } from './campaign-enrollment.js';
-import { parseNftMintingMode, type CollectionReader } from './collection.js';
+import { parseNftMintingMode } from './collection.js';
 import { collectibleBodyLimit, type CollectibleProjectService } from './collectible-project.js';
 import {
   InMemoryChallengeStore,
@@ -55,32 +41,16 @@ import {
   WalletChallengeService,
   type ChallengeStore,
 } from './wallet-challenge-service.js';
-import {
-  MerchantAccessError,
-  type MerchantAccessControl,
-} from './merchant-access.js';
-import type { MerchantArtService } from './merchant-art.js';
-import { MerchantProfileError, type MerchantProfileService } from './merchant-profile.js';
-import type { MerchantOverviewReader } from './merchant-overview-rules.js';
-import { isDetailViewSource, type CollectiblePreviewService, type MerchantDetailViewService } from './merchant-discovery.js';
-import type { AdminFunnelReader } from './admin-funnel.js';
+import { MerchantAccessError } from './merchant-access.js';
+import { MerchantProfileError } from './merchant-profile.js';
+import { isDetailViewSource } from './merchant-discovery.js';
 import { DEFAULT_STAMP_V1_PNG } from './nft-default-stamp.js';
-import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
-import type { MerchantCatalog } from './merchant-catalog.js';
-import {
-  mintConsentVersionFromEnv,
-  refuseMintRequestsWhilePreparing,
-  type MintRequestService,
-} from './mint-request-service.js';
+import { matchNftMetadataRoute } from './nft-metadata.js';
+import { mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing } from './mint-request-service.js';
 import type { ReversalService } from './reversal.js';
-import type { MileageShopService } from './mileage-shop.js';
 import type { PublishCoinPoolInput, PublishCoinSeriesInput } from './coin-economy.js';
 import { isMileageGrade } from './mileage-rules.js';
-import type { VisitorFeedbackService } from './visitor-feedback.js';
-import {
-  RecommendationService,
-  type RecommendationReader,
-} from './recommendation-service.js';
+import { RecommendationService } from './recommendation-service.js';
 import { safeErrorMetadata } from './security-log.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
@@ -182,66 +152,7 @@ export function realWorldAdminCheck(accountLifecycle: PostgresAccountLifecycle):
   };
 }
 
-export function createApiServer(
-  service: WalletChallengeService,
-  baseAccountResolver: AccountResolver,
-  merchantCatalog?: MerchantCatalog,
-  merchantAccess?: MerchantAccessControl,
-  claimSlots?: ClaimSlotService,
-  collection?: CollectionReader,
-  recommendations?: RecommendationReader,
-  mintRequests?: MintRequestService,
-  accountDeletions?: AccountDeletionService,
-  requireReauthentication?: ReauthenticationGuard,
-  campaignEnrollments?: CampaignEnrollmentService,
-  authSessions?: AuthSessionService,
-  authLoginLimiter?: AuthLoginLimiter,
-  trustProxyClientIp = false,
-  webAuth?: WebAuthHandler,
-  webWwwEnabled = false,
-  customerIdentities?: CustomerIdentityService,
-  admin?: Pick<PostgresAdminService, 'isAdmin' | 'listMerchants' | 'createMerchant' | 'updateMerchant' | 'hideMerchant'> &
-    Partial<Pick<PostgresAdminService, 'operationsStatus' | 'listCampaignDrafts' | 'createCampaignDraft' |
-      'listMerchantCoupons' | 'voidCoupon' | 'publishMerchant' | 'listOwners' | 'promoteOwner' | 'demoteOwner' |
-      'listRewardOffers' | 'createRewardOffer' | 'pauseRewardOffer' | 'listCampaigns' | 'publishCampaign' |
-      'pauseCampaign' | 'extendCampaign'>>,
-  deletionIntake?: AccountDeletionIntakeService,
-  staffRegistration?: Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>,
-  badges?: BadgeRewardService,
-  friends?: FriendService,
-  merchantArt?: MerchantArtService,
-  showcaseDeletionIntake?: AccountDeletionIntakeService,
-  deletionProcessing?: AccountDeletionProcessingService,
-  reversals?: ReversalService,
-  consent?: ConsentService,
-  nftMetadata?: NftMetadataReader,
-  collectibleProjects?: CollectibleProjectService,
-  mileageShop?: MileageShopService,
-  accessRequests?: Pick<ShowcaseAccessRequestService, 'mine' | 'request' | 'listPending' | 'decide'>,
-  guestTrials?: Pick<ShowcaseGuestTrialService, 'start' | 'resolve'>,
-  merchantOverview?: MerchantOverviewReader,
-  visitorFeedback?: VisitorFeedbackService,
-  collectiblePreview?: CollectiblePreviewService,
-  merchantDetailViews?: MerchantDetailViewService,
-  adminFunnel?: AdminFunnelReader,
-  play?: PlayService,
-  merchantProfile?: MerchantProfileService,
-  experienceServices: ExperienceServices = {},
-  storeTickets?: StoreTicketService,
-  social?: SocialService,
-) {
-  return createApiServerFromDeps({
-    service, baseAccountResolver, merchantCatalog, merchantAccess, claimSlots, collection, recommendations,
-    mintRequests, accountDeletions, requireReauthentication, campaignEnrollments, authSessions, authLoginLimiter,
-    trustProxyClientIp, webAuth, webWwwEnabled, customerIdentities, admin, deletionIntake, staffRegistration,
-    badges, friends, merchantArt, showcaseDeletionIntake, deletionProcessing, reversals, consent, nftMetadata,
-    collectibleProjects, mileageShop, accessRequests, guestTrials, merchantOverview, visitorFeedback,
-    collectiblePreview, merchantDetailViews, adminFunnel, play, merchantProfile, experienceServices, storeTickets,
-    social,
-  });
-}
-
-function createApiServerFromDeps(deps: ApiDeps) {
+export function createApiServer(deps: ApiDeps) {
   const {
     service, baseAccountResolver, merchantCatalog, merchantAccess, claimSlots, collection, recommendations,
     mintRequests, accountDeletions, requireReauthentication, campaignEnrollments, authSessions, authLoginLimiter,
@@ -2590,9 +2501,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     searchId: process.env.NAVER_SEARCH_CLIENT_ID ?? '', searchSecret: process.env.NAVER_SEARCH_CLIENT_SECRET ?? '',
   }) : undefined;
   const play = pool && accountLifecycle ? new PostgresPlayService(pool, accountLifecycle) : undefined;
-  const server = createApiServer(
-    configuredService(bindingStore, challengeStore),
-    accountResolver,
+  const deps: Required<ApiDeps> = {
+    service: configuredService(bindingStore, challengeStore),
+    baseAccountResolver: accountResolver,
     merchantCatalog,
     merchantAccess,
     claimSlots,
@@ -2600,54 +2511,54 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     recommendations,
     mintRequests,
     accountDeletions,
-    reauthenticationGuard,
+    requireReauthentication: reauthenticationGuard,
     campaignEnrollments,
     authSessions,
     authLoginLimiter,
-    authMode.kind === 'production' && process.env.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',
+    trustProxyClientIp: authMode.kind === 'production' && process.env.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',
     webAuth,
-    webAuthConfig?.wwwEnabled ?? false,
+    webWwwEnabled: webAuthConfig?.wwwEnabled ?? false,
     customerIdentities,
-    adminService,
-    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+    admin: adminService,
+    deletionIntake: pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret) : undefined,
-    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+    staffRegistration: pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresStaffRegistration(pool, accountDeletionHmacSecret) : undefined,
     badges,
     friends,
     merchantArt,
-    pool && accountDeletionHmacSecret && showcaseInvites
+    showcaseDeletionIntake: pool && accountDeletionHmacSecret && showcaseInvites
       ? new PostgresAccountDeletionIntakeService(pool, accountDeletionHmacSecret, { source: 'SHOWCASE_APP' }) : undefined,
-    pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
+    deletionProcessing: pool && accountDeletionHmacSecret && webAuth && !showcaseInvites
       ? new PostgresAccountDeletionProcessingService(pool, {
           hmacSecret: accountDeletionHmacSecret,
           policyVersion: process.env.ACCOUNT_DELETION_POLICY_VERSION ?? 'account-deletion-v1',
         }) : undefined,
     reversals,
     consent,
-    pool ? new PostgresNftMetadataReader(pool) : undefined,
-    pool ? new PostgresCollectibleProjectService(pool, {
+    nftMetadata: pool ? new PostgresNftMetadataReader(pool) : undefined,
+    collectibleProjects: pool ? new PostgresCollectibleProjectService(pool, {
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
     mileageShop,
-    pool && accountDeletionHmacSecret && showcaseDeployment
+    accessRequests: pool && accountDeletionHmacSecret && showcaseDeployment
       ? new ShowcaseAccessRequestService(pool, { accountDeletionHmacSecret }) : undefined,
     // 로그인 없는 시연 웹 체험(#309)도 권한 요청과 같은 시연 배치에서만 만든다. 운영 로그인에서는 undefined라 경로가 404다.
-    pool && accountDeletionHmacSecret && showcaseDeployment
+    guestTrials: pool && accountDeletionHmacSecret && showcaseDeployment
       ? new ShowcaseGuestTrialService(pool, { accountDeletionHmacSecret }) : undefined,
     // 점주 가게 현황(#330)은 읽기 전용 집계라 pool만 있으면 만든다. 경로는 점주 웹(staffRegistration)이 있는 배치에서만 열린다.
-    pool ? new PostgresMerchantOverviewService(pool) : undefined,
+    merchantOverview: pool ? new PostgresMerchantOverviewService(pool) : undefined,
     visitorFeedback,
-    pool ? new PostgresCollectiblePreviewService(pool) : undefined,
-    pool ? new PostgresMerchantDetailViewService(pool) : undefined,
-    pool ? new PostgresAdminFunnelService(pool) : undefined,
+    collectiblePreview: pool ? new PostgresCollectiblePreviewService(pool) : undefined,
+    merchantDetailViews: pool ? new PostgresMerchantDetailViewService(pool) : undefined,
+    adminFunnel: pool ? new PostgresAdminFunnelService(pool) : undefined,
     play,
-    pool ? new PostgresMerchantProfileService(pool, {
+    merchantProfile: pool ? new PostgresMerchantProfileService(pool, {
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
-    {
+    experienceServices: {
       gradeDraw: pool && accountLifecycle ? new PostgresGradeDrawService(pool, accountLifecycle, { ...allAccess.mileageShop }) : undefined,
       coinEconomy: pool && accountLifecycle ? new PostgresCoinEconomyService(pool, { accountLifecycle, ...allAccess.mileageShop }) : undefined,
       roomCommunity: pool && accountLifecycle && play ? new PostgresRoomCommunityService(pool, { accountLifecycle, play }) : undefined,
@@ -2660,10 +2571,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       tmap,
       mapProvider: tmap && naver ? new MapProvider(tmap, naver) : undefined,
     },
-    pool && accountLifecycle && collection
+    storeTickets: pool && accountLifecycle && collection
       ? new PostgresStoreTicketService(pool, collection, accountLifecycle) : undefined,
     social,
-  );
+  };
+  const server = createApiServer(deps);
   let stopNotifications: (() => void) | undefined;
   server.once('close', () => stopNotifications?.());
   server.listen(port, bindHost, () => {

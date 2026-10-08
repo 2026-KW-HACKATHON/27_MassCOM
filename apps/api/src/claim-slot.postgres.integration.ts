@@ -7,7 +7,7 @@ import { Pool } from 'pg';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { runMigrations } from './postgres/migrate.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 test('one-person claim slots keep only hashes, reissue in place, and consume once under concurrency', async (t) => {

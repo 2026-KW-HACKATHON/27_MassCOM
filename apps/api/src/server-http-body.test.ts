@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { listen, positionalArgs, send, webHeaders } from './http-test-support.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 
 // 리팩터링 안전망: 요청 본문 읽기(readJson)의 한도와 형식 오류를 고정한다.
 // 기본 한도는 64KiB, 점포 수집품 저장은 8MiB, 실제 점포 사진은 5MiB다. 한도를 넘으면 JSON 해석 전에 413이다.

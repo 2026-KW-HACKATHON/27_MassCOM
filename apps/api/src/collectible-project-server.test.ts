@@ -5,7 +5,7 @@ import { CollectibleProjectError, type CollectibleProjectService } from './colle
 import { photoProject } from './collectible-project-test-support.js';
 import { MerchantAccessError } from './merchant-access.js';
 import type { PostgresStaffRegistration } from './postgres/staff-registration.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 import { WebSessionError } from './web-session.js';
 import type { WebAuthHandler } from './web-auth.js';

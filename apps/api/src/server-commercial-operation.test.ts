@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import { MerchantAccessError } from './merchant-access.js';
 import { MerchantProfileError, type MerchantProfile } from './merchant-profile.js';
 import { AdminError } from './postgres/admin.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { WebAuthError } from './web-auth.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 

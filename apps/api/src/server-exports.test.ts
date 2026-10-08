@@ -6,7 +6,7 @@ import {
   createApiServer, developmentHeaderAccountResolver,
   type AccountResolver, type AuthLoginLimiter, type AuthMode, type ExperienceServices, type ReauthenticationGuard,
   type ShowcaseDeployment,
-} from './server.js';
+} from './server-test-support.js';
 import { listen, positionalArgs, send } from './http-test-support.js';
 
 // 리팩터링 안전망: server.ts는 진입점(package.json start*, api.Dockerfile, qa-local.sh)이자 테스트가 가져다 쓰는 공개 표면이다.

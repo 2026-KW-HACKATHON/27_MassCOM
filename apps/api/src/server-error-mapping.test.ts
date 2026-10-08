@@ -42,7 +42,7 @@ import { StaffRegistrationError } from './postgres/staff-registration.js';
 import { GuestTrialError } from './showcase/guest-trials.js';
 import { ShowcaseAccessRequestError } from './showcase/access-requests.js';
 import { listen, send, walletService } from './http-test-support.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 
 // 리팩터링 안전망: 서비스가 던진 오류가 HTTP 상태·본문·Retry-After로 바뀌는 대응표(server.ts의 instanceof 사슬과 statusFor*)를
 // 클래스마다 코드 하나하나 고정한다. 경로와 무관한 사슬이라 가장 단순한 GET /collection 으로 오류를 던진다.

@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
 import { MileageShopError } from './mileage-shop.js';
 import { listen, positionalArgs, send, webHeaders } from './http-test-support.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 
 // 리팩터링 안전망: 기존 시험이 건드리지 않던 경로(관리자 웹의 방 신고·도장 숨기기·코인 시리즈·티켓 지급·풀 중지,
 // 마일리지 상점의 재뽑기·아바타·옷)와 "알려진 경로에서 메서드가 틀리면 405" 규칙을 지금 모습 그대로 고정한다.

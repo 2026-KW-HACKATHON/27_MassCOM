@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { listen, send, walletService, webHeaders } from './http-test-support.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 
 // 리팩터링 안전망: 서비스를 하나도 연결하지 않은 서버에서 (메서드, URL)마다 어떤 상태·코드가 나오는지 지금 모습 그대로 고정한다.
 // 서비스 계열마다 *_NOT_CONFIGURED 코드가 달라서, 경로가 엉뚱한 처리기로 가거나 순서가 바뀌면 여기서 드러난다.

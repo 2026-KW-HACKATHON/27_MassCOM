@@ -10,7 +10,7 @@ import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } f
 import { defaultStudio, type PlayService } from './play.js';
 import type { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresPlayService } from './postgres/play.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 // Exercise the HTTP handler with Node request/response streams, without opening a listening socket.
