@@ -367,6 +367,19 @@ video { width: 100%; max-width: 28rem; aspect-ratio: 4 / 3; object-fit: cover; b
 .panel form, .admin-panel > form, .admin-panel form { display: grid; gap: 14px; }
 .panel .status { margin: 0; }
 #merchant-content, #admin-content { display: grid; gap: 20px; margin-top: 24px; }
+.merchant-view-nav {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px; border-radius: var(--mc-radius-control); background: var(--mc-bg);
+}
+.merchant-view-nav > button {
+  min-height: 44px; padding: 8px 14px; border-radius: var(--mc-radius-control);
+  border: 1px solid var(--mc-separator); background: var(--mc-surface); color: var(--mc-label);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.merchant-view-nav > button[aria-current="page"] {
+  border-color: var(--mc-primary); background: var(--mc-primary); color: #fff;
+}
+.merchant-view-hidden, .merchant-workflow-secondary { display: none !important; }
 #merchant-memberships { display: grid; gap: 8px; }
 #merchant-memberships p { padding: 12px 14px; border-radius: var(--mc-radius-control); background: var(--mc-bg); font-weight: 700; color: var(--mc-label); }
 #merchant-claim-issued-qr { justify-self: start; width: min(240px, 100%); height: auto; aspect-ratio: 1; padding: 12px; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px var(--mc-separator); }

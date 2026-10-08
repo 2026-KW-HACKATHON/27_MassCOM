@@ -48,12 +48,12 @@ export function validateShowcaseCaddyConfig(config) {
     // 시연 웹 번들은 시연 API 출처에서만 준다(운영 출처 masscom.kr에서 시연 코드가 돌지 않게).
     if (JSON.stringify(otherRoute).includes(showcaseWebRoot)) invalid();
   }
-  // masscom.kr/demo(/*)는 시연 API 출처의 /play/로 302만 한다.
+  // masscom.kr/demo(/*)·/play(/*)는 시연 API 출처의 /play/로 302만 한다.
   const demoEntries = otherRoutes.flatMap((otherRoute) => routesIn(otherRoute.handle)).filter((candidate) =>
     candidate.handle.some((handler) => handler.handler === 'static_response' &&
       JSON.stringify(handler).includes('/play/')));
   if (demoEntries.length !== 1 || demoEntries[0].handle.length !== 1 ||
-      !sameJson(demoEntries[0].match, [{ path: ['/demo', '/demo/*'] }]) ||
+      !sameJson(demoEntries[0].match, [{ path: ['/demo', '/demo/*', '/play', '/play/*'] }]) ||
       demoEntries[0].handle[0].status_code !== 302 ||
       !sameJson(demoEntries[0].handle[0].headers, { Location: ['https://demo-api.masscom.kr/play/'] })) invalid();
 
@@ -77,6 +77,11 @@ export function validateShowcaseCaddyConfig(config) {
   const playRedirects = routesIn(route.handle).filter((candidate) => sameJson(candidate.match, [{ path: ['/play'] }]));
   if (playRedirects.length !== 1 || !sameJson(playRedirects[0].handle, [{
     handler: 'static_response', headers: { Location: ['/play/'] }, status_code: 308,
+  }])) invalid();
+  // 시연 API 도메인의 뿌리(/)만 /play/로 302한다. API 경로는 그대로 프록시된다.
+  const rootRedirects = routesIn(route.handle).filter((candidate) => sameJson(candidate.match, [{ path: ['/'] }]));
+  if (rootRedirects.length !== 1 || !sameJson(rootRedirects[0].handle, [{
+    handler: 'static_response', headers: { Location: ['/play/'] }, status_code: 302,
   }])) invalid();
 
   const securityHeaders = handlersIn(route.handle, 'headers').filter((headers) =>

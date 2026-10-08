@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-08",
+  "environment": "synthetic merchant fixture; Codex in-app Chromium",
+  "url": "http://127.0.0.1:4190/merchant/",
+  "source": {
+    "name": "87_55169d4f1d3c8_1309.png",
+    "width": 336,
+    "height": 286
+  },
+  "project": {
+    "name": "해골 탐험 · 방문 코인",
+    "shape": "serrated",
+    "photoStyle": "raised",
+    "backgroundHex": "#1a352a",
+    "backgroundRgb": [
+      26,
+      53,
+      42
+    ],
+    "savedVersion": 6,
+    "status": "published",
+    "campaign": "로컬 방문 캠페인",
+    "visitGoals": {
+      "1": "bronze",
+      "3": "silver",
+      "5": "gold"
+    }
+  },
+  "verified": [
+    "file chooser upload",
+    "mouse crop movement",
+    "clean brush, undo arrow, redo arrow, then reset trial stroke",
+    "grade-specific incised/raised material",
+    "RGB and HEX background",
+    "four grade PNG downloads from result UI",
+    "published version 6 and reopened result"
+  ],
+  "siteTests": {
+    "pass": 401,
+    "fail": 0,
+    "skipped": 0
+  },
+  "boundaries": [
+    "No production deployment or database write",
+    "No actual AI generation",
+    "No real visit or reward redemption"
+  ],
+  "files": [
+    {
+      "file": "01-photo-placement.jpg",
+      "bytes": 57729,
+      "sha256": "90a4932ca3aef9f6eb41bb40510fcf7aa823c87b2a51dbb17d019951bafa7e8a"
+    },
+    {
+      "file": "02-photo-editor.jpg",
+      "bytes": 50220,
+      "sha256": "9d3cc3a71986866cf09c43b3812086a2b0d3836296e72e19591da0e4d8d25579"
+    },
+    {
+      "file": "03-silver-raised.jpg",
+      "bytes": 41165,
+      "sha256": "30d6c0f71fc1f52d25c4ef8881e0cb2ec477e5ff17283fd9b60eb8dd2d19fdd4"
+    },
+    {
+      "file": "04-gold-incised.jpg",
+      "bytes": 46242,
+      "sha256": "75bce3fb78c324336af0de235158cbfdd671269e31a5b2c168baf456d5d79cee"
+    },
+    {
+      "file": "05-prism-raised.jpg",
+      "bytes": 46075,
+      "sha256": "6959ebba6e6b740b30516876f161694e9e50812b575d315827d7232692425981"
+    },
+    {
+      "file": "06-bronze-raised.jpg",
+      "bytes": 43752,
+      "sha256": "9f03739af7e60aa892c47ac60330571c3bbf9100720200213761084077fc0774"
+    },
+    {
+      "file": "07-background-rgb.jpg",
+      "bytes": 42320,
+      "sha256": "668f0ce77a347d2703ae46e3777db8d2ac067249c1607984ec115cad9789e3f1"
+    },
+    {
+      "file": "08-result-export.jpg",
+      "bytes": 45811,
+      "sha256": "6355489a6d2aeec066f398ae1be5ef2751a17d904bb90527c94858c70f1d5d5f"
+    },
+    {
+      "file": "09-visit-rewards-published.jpg",
+      "bytes": 56204,
+      "sha256": "073795ae0df04810456712ba3b60f3637494aa864d2a0ff36b3d8cd77af2da5a"
+    },
+    {
+      "file": "10-merchant-visit-only.jpg",
+      "bytes": 40412,
+      "sha256": "4d6cbaf41ced78f4c6f524726ba96c538a1b08a5b4f6fdf95f31c0c9cfdbd91e"
+    },
+    {
+      "file": "11-complete-gold-preview.jpg",
+      "bytes": 38167,
+      "sha256": "64e871714926930c2b888ca18b8295e7a189c6fd2be99bb0a84cd1f2833e5835"
+    },
+    {
+      "file": "coin-bronze.png",
+      "bytes": 682885,
+      "sha256": "b02d1a8cd6a3895659bb687a1bb7dbe5af15d96febc09a15961b7e0513c4e3ae",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "coin-gold.png",
+      "bytes": 751219,
+      "sha256": "7d6d9631d299a73631c112ac4089a6ce1febee7db9625f0deeb9c67983b0c22a",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "coin-prism.png",
+      "bytes": 707520,
+      "sha256": "470b874b78d7a16950bc9fa87206196cd4d84f85caff4618bb091941e776275a",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "coin-silver.png",
+      "bytes": 525584,
+      "sha256": "599c43806190e2609bee87c3861dec20d7172bb92328a31a9c03cf3b0bff03c6",
+      "width": 1024,
+      "height": 1024
+    }
+  ]
+}

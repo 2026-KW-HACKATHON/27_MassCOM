@@ -11,6 +11,7 @@ import { IERC5192 } from "./IERC5192.sol";
 
 /// @title Wolgye Mascot
 /// @notice Non-upgradeable, permanently locked NFT collection for fixed visit rewards.
+/// @dev A series has no supply cap. `everMinted` only counts what a series has issued so far.
 contract WolgyeMascot is ERC721, AccessControl, Pausable, IERC5192 {
     using Strings for uint256;
 
@@ -19,7 +20,6 @@ contract WolgyeMascot is ERC721, AccessControl, Pausable, IERC5192 {
 
     struct Series {
         string baseTokenURI;
-        uint64 maxEverMinted;
         uint64 everMinted;
         bool active;
     }
@@ -27,18 +27,16 @@ contract WolgyeMascot is ERC721, AccessControl, Pausable, IERC5192 {
     error ZeroRoleHolder();
     error ZeroSeriesId();
     error EmptyBaseTokenURI();
-    error InvalidSeriesSupply();
     error SeriesAlreadyExists(bytes32 seriesId);
     error SeriesNotFound(bytes32 seriesId);
     error SeriesAlreadyActive(bytes32 seriesId);
     error SeriesNotActive(bytes32 seriesId);
-    error SeriesSupplyExceeded(bytes32 seriesId, uint64 maxEverMinted);
     error ZeroRecipient();
     error ZeroRewardKey();
     error RewardKeyAlreadyUsed(bytes32 rewardKey);
     error Soulbound();
 
-    event SeriesCreated(bytes32 indexed seriesId, string baseTokenURI, uint64 maxEverMinted);
+    event SeriesCreated(bytes32 indexed seriesId, string baseTokenURI);
     event SeriesActivated(bytes32 indexed seriesId);
     event MascotMinted(
         bytes32 indexed rewardKey,
@@ -62,24 +60,22 @@ contract WolgyeMascot is ERC721, AccessControl, Pausable, IERC5192 {
         _grantRole(PAUSER_ROLE, pauser);
     }
 
-    function createSeries(bytes32 seriesId, string calldata baseTokenURI, uint64 maxEverMinted)
+    function createSeries(bytes32 seriesId, string calldata baseTokenURI)
         external
         onlyRole(DEFAULT_ADMIN_ROLE)
     {
         if (seriesId == bytes32(0)) revert ZeroSeriesId();
         if (bytes(baseTokenURI).length == 0) revert EmptyBaseTokenURI();
-        if (maxEverMinted == 0) revert InvalidSeriesSupply();
-        if (series[seriesId].maxEverMinted != 0) revert SeriesAlreadyExists(seriesId);
+        // baseTokenURI is never empty once a series exists, so it doubles as the existence flag.
+        if (bytes(series[seriesId].baseTokenURI).length != 0) revert SeriesAlreadyExists(seriesId);
 
-        series[seriesId] = Series({
-            baseTokenURI: baseTokenURI, maxEverMinted: maxEverMinted, everMinted: 0, active: false
-        });
-        emit SeriesCreated(seriesId, baseTokenURI, maxEverMinted);
+        series[seriesId] = Series({ baseTokenURI: baseTokenURI, everMinted: 0, active: false });
+        emit SeriesCreated(seriesId, baseTokenURI);
     }
 
     function activateSeries(bytes32 seriesId) external onlyRole(DEFAULT_ADMIN_ROLE) {
         Series storage selected = series[seriesId];
-        if (selected.maxEverMinted == 0) revert SeriesNotFound(seriesId);
+        if (bytes(selected.baseTokenURI).length == 0) revert SeriesNotFound(seriesId);
         if (selected.active) revert SeriesAlreadyActive(seriesId);
         selected.active = true;
         emit SeriesActivated(seriesId);
@@ -97,9 +93,6 @@ contract WolgyeMascot is ERC721, AccessControl, Pausable, IERC5192 {
 
         Series storage selected = series[seriesId];
         if (!selected.active) revert SeriesNotActive(seriesId);
-        if (selected.everMinted >= selected.maxEverMinted) {
-            revert SeriesSupplyExceeded(seriesId, selected.maxEverMinted);
-        }
 
         tokenId = _nextTokenId++;
         selected.everMinted += 1;

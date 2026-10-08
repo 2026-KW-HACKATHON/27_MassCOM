@@ -1,15 +1,20 @@
 import {
-  shapePoints, cropTransform, effectsForGrade, cloneProject, resolveSticker, stickerLines, stickerLineOffsets, particleAt, ONCE_MS,
+  shapePoints, cropTransform, effectsForGrade, cloneProject, resolveSticker, stickerLines, stickerLineOffsets, particleAt, ONCE_MS, rotationAngleAt,
   strokeAlpha, parallaxOffset, livingPhaseAt, livingFrameAt, livingSpriteCount, livingSpriteGrid, livingBoundingBox, angleFrameIndex, MASCOT_BLINK,
 } from './collectible-model.mjs';
+import { fixedCollectibleBack, fixedCollectibleBackShape } from './collectible-back-assets.mjs';
+import { collectibleEdgeGrooves, collectibleEdgeContrast } from './collectible-edge.mjs';
+import { effectSpeedValue, effectStrengthValue, flameAuraEffects, flameFrame } from './collectible-aura.mjs';
 
 // Originals and editing instructions stay separate. Preview buffers are bounded
 // and never become the source for a later edit or a published version.
 const imageCache = new Map();
 const photoCache = new Map();
 const resizedSourceCache = new Map();
+const edgeLayerCache = new Map();
 let currentPhotoSource = '';
 let photoGeneration = 0;
+let edgeLayerDocument = null;
 const boundedSet = (cache, key, value, max) => {
   cache.set(key, value);
   while (cache.size > max) cache.delete(cache.keys().next().value);
@@ -19,15 +24,15 @@ const boundedSet = (cache, key, value, max) => {
 // PR #310 리뷰(nit): 패럴랙스 획과 living 항목마다의 합성 획(서로 다른 strokes 배열)이 한 슬롯을 같이 쓰면
 // 매번 서로를 밀어내 캐시가 전혀 안 맞는다(각도 프레임 12칸마다 다시 만듦). 획 배열+크기로 키를 잡은 Map으로 바꾼다.
 const strokeMaskCache = new Map();
-export function clearCollectibleRenderCache() { imageCache.clear(); photoCache.clear(); resizedSourceCache.clear(); currentPhotoSource = ''; photoGeneration++; strokeMaskCache.clear(); }
+export function clearCollectibleRenderCache() { imageCache.clear(); photoCache.clear(); resizedSourceCache.clear(); edgeLayerCache.clear(); edgeLayerDocument = null; currentPhotoSource = ''; photoGeneration++; strokeMaskCache.clear(); }
 
-async function imageFor(source) {
+async function imageFor(source, errorMessage = '사진을 읽지 못했어요. 다른 사진으로 다시 시도해 주세요.') {
   if (!source) return null;
   if (imageCache.has(source)) return imageCache.get(source);
   const pending = new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => { imageCache.delete(source); reject(new Error('사진을 읽지 못했어요. 다른 사진으로 다시 시도해 주세요.')); };
+    image.onerror = () => { imageCache.delete(source); reject(new Error(errorMessage)); };
     image.src = source;
   });
   return boundedSet(imageCache, source, pending, 12);
@@ -45,44 +50,119 @@ export function traceShape(context, shape, width, height, offsetX = 0, offsetY =
 }
 const clamp = (value, min = 0, max = 255) => Math.min(max, Math.max(min, value));
 const rgb = hex => /^#[0-9a-f]{6}$/i.test(hex || '') ? [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)) : [199, 151, 78];
+const rgba = (hex, alpha) => {
+  const [r, g, b] = rgb(hex);
+  return `rgba(${r},${g},${b},${alpha})`;
+};
+const PRISM_COLORS = Object.freeze(['#00D5FF', '#8B5CF6', '#FF2DB8', '#FFFFFF']);
+const PRISM_FOIL = Object.freeze(['#00D5FF', '#8B5CF6', '#FF2DB8', '#38F8C8', '#C026D3', '#00D5FF']);
+const PRISM_FOIL_RGB = PRISM_FOIL.map(rgb);
+const mixRgb = (a, b, t) => a.map((value, index) => value + (b[index] - value) * t);
+const prismRgbAt = (x, y, width, height, angle = 0, grey = 0) => {
+  const phase = ((x / Math.max(1, width - 1)) * .46 + (y / Math.max(1, height - 1)) * .28 + Math.sin(angle * Math.PI / 180) * .22 + grey * .18 + 1) % 1;
+  const position = phase * (PRISM_FOIL_RGB.length - 1), index = Math.floor(position), blend = position - index;
+  return mixRgb(PRISM_FOIL_RGB[index], PRISM_FOIL_RGB[Math.min(PRISM_FOIL_RGB.length - 1, index + 1)], blend);
+};
 
 /** Pure deterministic pixel operation, shared by preview and final export. */
-export function processPhotoPixels(input, width, height, edits = {}, style = 'original', color = '#c7974e', photoColor = 100, relief = 45) {
+export function processPhotoPixels(input, width, height, edits = {}, style = 'original', color = '#c7974e', photoColor = 100, relief = 45, angle = 0) {
   const source = new Uint8ClampedArray(input);
   const result = new Uint8ClampedArray(input);
   const base = rgb(color);
+  const prismRelief = /^#8b5cf6$/i.test(color || '');
+  const reliefAmount = Math.max(0, Math.min(100, relief || 0)) / 100;
   const brightness = (edits.brightness || 0) * 2.55;
   const contrast = 1 + (edits.contrast || 0) / 100;
   const quantize = 1 + Math.round((edits.merge || 0) / 100 * 55);
   const cartoon = (edits.cartoon || 0) / 100;
   const simplify = Math.round((edits.simplify || 0) / 100 * 3);
-  const sample = (x, y, channel) => source[(clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)) * 4 + channel];
+  const pixel = (x, y) => (clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)) * 4;
+  const sample = (x, y, channel) => source[pixel(x, y) + channel];
+  const monochrome = style === 'monochrome';
+  const hasRelief = style !== 'original' && !monochrome && reliefAmount > 0;
+  const reliefSign = style === 'incised' ? -1 : 1;
+  const radians = angle * Math.PI / 180;
+  const turn = Math.sin(radians);
+  const lightX = turn, lightY = -.38, lightZ = .78;
+  const lightLength = Math.hypot(lightX, lightY, lightZ);
+  const heights = hasRelief ? new Float32Array(width * height) : null;
+  if (hasRelief) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const index = (y * width + x) * 4;
+    heights[y * width + x] = (source[index] * .299 + source[index + 1] * .587 + source[index + 2] * .114) / 255 * (source[index + 3] / 255);
+  }
+  const heightAt = (x, y) => heights[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)];
+  const signedDepthAt = (x, y) => heightAt(x, y) * reliefSign;
+  const band = Math.max(1, Math.round(Math.min(width, height) / 72));
+  const projectionPixels = Math.max(1, Math.min(10, Math.round(Math.min(width, height) / 110))) * 2;
+  const displacement = hasRelief ? turn * reliefAmount * projectionPixels : 0;
+  const projectedIndex = displacement ? new Int32Array(width * height) : null; if (projectedIndex) projectedIndex.fill(-1);
+  const projectionDepth = displacement ? new Float32Array(width * height) : null; if (projectionDepth) projectionDepth.fill(reliefSign > 0 ? -Infinity : Infinity);
+  if (displacement) {
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const sourceOffset = y * width + x, alpha = source[sourceOffset * 4 + 3] / 255;
+      if (!alpha) continue;
+      const signedDepth = heights[sourceOffset] * reliefSign;
+      const targetX = clamp(Math.round(x + displacement * signedDepth), 0, width - 1);
+      const targetOffset = y * width + targetX;
+      if (reliefSign > 0 ? signedDepth >= projectionDepth[targetOffset] : signedDepth <= projectionDepth[targetOffset]) {
+        projectionDepth[targetOffset] = signedDepth; projectedIndex[targetOffset] = sourceOffset;
+      }
+    }
+  }
+  const reliefRgb = (x, y, values, grey = (values[0] * .299 + values[1] * .587 + values[2] * .114) / 255) => {
+    const signedDx = (signedDepthAt(x + band, y) - signedDepthAt(x - band, y)) / 2;
+    const signedDy = (signedDepthAt(x, y + band) - signedDepthAt(x, y - band)) / 2;
+    const normalScale = 3.2 * reliefAmount;
+    const normalX = -signedDx * normalScale, normalY = -signedDy * normalScale, normalZ = 1;
+    const normalLength = Math.hypot(normalX, normalY, normalZ);
+    const directional = reliefAmount ? ((normalX * lightX + normalY * lightY + normalZ * lightZ) / (normalLength * lightLength) - lightZ / lightLength) : 0;
+    const bevel = reliefAmount * (signedDx * lightX + signedDy * lightY) * 165;
+    const cavity = -reliefAmount * Math.hypot(signedDx, signedDy) * 110;
+    const depthBias = -reliefAmount * signedDepthAt(x, y) * (1 - photoColor / 100) * 28;
+    const metalRgb = prismRelief ? prismRgbAt(x, y, width, height, angle, grey) : base;
+    return values.map((value, channel) => {
+      const metalBase = metalRgb[channel];
+      const metal = metalBase * (.52 + grey * .58);
+      return clamp(metal * (1 - photoColor / 100) + value * photoColor / 100 + directional * 100 + bevel + cavity + depthBias);
+    });
+  };
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const index = (y * width + x) * 4;
       const lum = channel => (sample(x, y, channel) + sample(x + simplify, y, channel) + sample(x, y + simplify, channel)) / 3;
       const edge = Math.abs(sample(x - 1, y - 1, 0) - sample(x + 1, y + 1, 0)) / 255;
-      const reliefSign = style === 'incised' ? -1 : 1;
-      const ridge = ((sample(x - 1, y - 1, 0) + sample(x - 1, y - 1, 1) + sample(x - 1, y - 1, 2)) - (sample(x + 1, y + 1, 0) + sample(x + 1, y + 1, 1) + sample(x + 1, y + 1, 2))) / 3;
       const grey = (sample(x, y, 0) * .299 + sample(x, y, 1) * .587 + sample(x, y, 2) * .114) / 255;
+      const values = [];
       for (let channel = 0; channel < 3; channel++) {
         let value = clamp((lum(channel) - 128) * contrast + 128 + brightness);
         value = Math.round(value / quantize) * quantize;
         if (cartoon) value = value * (1 - cartoon) + Math.round(value / 48) * 48 * cartoon - edge * 95 * cartoon;
-        if (style !== 'original') {
-          const metal = base[channel] * (.52 + grey * .58) + reliefSign * ridge * relief / 45;
-          value = metal * (1 - photoColor / 100) + value * photoColor / 100;
-          // Opposite directional highlights distinguish raised and incised relief
-          // even when the merchant keeps some original photographic color.
-          value += reliefSign * ridge * relief / 85;
-        }
-        result[index + channel] = clamp(value);
+        values[channel] = value;
+      }
+      const editedGrey = values[0] * .299 + values[1] * .587 + values[2] * .114;
+      const rendered = monochrome ? [editedGrey, editedGrey, editedGrey] : hasRelief ? reliefRgb(x, y, values, grey) : values.map(value => clamp(value));
+      for (let channel = 0; channel < 3; channel++) result[index + channel] = rendered[channel];
+    }
+  }
+  if (style !== 'original' && displacement) {
+    const lit = new Uint8ClampedArray(result);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const target = y * width + x, targetIndex = target * 4, projected = projectedIndex[target];
+      if (projected >= 0) {
+        const sourceIndex = projected * 4;
+        for (let channel = 0; channel < 3; channel++) result[targetIndex + channel] = lit[sourceIndex + channel];
+      } else if (source[targetIndex + 3]) {
+        for (let channel = 0; channel < 3; channel++) result[targetIndex + channel] = clamp(result[targetIndex + channel] - reliefAmount * Math.abs(turn) * 42);
       }
     }
   }
+  const restoredPixels = style === 'original' ? source : new Uint8ClampedArray(result);
   for (const stroke of edits.strokes || []) {
     const radius = Math.max(1, (stroke.size || .04) * Math.min(width, height) / 2);
     const paint = rgb(stroke.color);
+    const hardness = Math.min(100, Math.max(0, stroke.hardness ?? 100)) / 100;
+    const hardRadius = radius * hardness;
+    const feather = Math.max(1e-6, radius - hardRadius);
     const points = stroke.points || [];
     for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
       const first = points[Math.max(0, pointIndex - 1)], last = points[pointIndex];
@@ -95,12 +175,16 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
         const neighbor = (sy * width + sx) * 4;
         for (let y = Math.max(0, Math.floor(cy - radius)); y <= Math.min(height - 1, Math.ceil(cy + radius)); y++) {
           for (let x = Math.max(0, Math.floor(cx - radius)); x <= Math.min(width - 1, Math.ceil(cx + radius)); x++) {
-            if (Math.hypot(x - cx, y - cy) > radius) continue;
+            const brushDistance = Math.hypot(x - cx, y - cy);
+            if (brushDistance > radius) continue;
+            const weight = hardness >= 1 ? 1 : clamp((radius - brushDistance) / feather, 0, 1);
             const index = (y * width + x) * 4;
-            if (stroke.tool === 'erase') result[index + 3] = 0;
-            else if (stroke.tool === 'restore') for (let channel = 0; channel < 4; channel++) result[index + channel] = source[index + channel];
-            else if (stroke.tool === 'color') for (let channel = 0; channel < 3; channel++) result[index + channel] = paint[channel];
-            else if (stroke.tool === 'clean') for (let channel = 0; channel < 3; channel++) result[index + channel] = result[index + channel] * .2 + source[neighbor + channel] * .8;
+            if (stroke.tool === 'erase') result[index + 3] = Math.round(result[index + 3] * (1 - weight));
+            else if (stroke.tool === 'restore') for (let channel = 0; channel < 4; channel++) result[index + channel] = Math.round(result[index + channel] * (1 - weight) + restoredPixels[index + channel] * weight);
+            else if (stroke.tool === 'color') {
+              const values = hasRelief ? reliefRgb(x, y, paint) : paint;
+              for (let channel = 0; channel < 3; channel++) result[index + channel] = Math.round(result[index + channel] * (1 - weight) + values[channel] * weight);
+            } else if (stroke.tool === 'clean') for (let channel = 0; channel < 3; channel++) result[index + channel] = Math.round(result[index + channel] * (1 - weight * .8) + restoredPixels[neighbor + channel] * weight * .8);
           }
         }
       }
@@ -109,13 +193,19 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
   return result;
 }
 
-async function photoFor(project, max = 960, style = project.style) {
+export function collectibleReliefTint(project, gradeId = project?.gradeId || '') {
+  const gradeName = project?.grades?.find(item => item.id === gradeId)?.name ?? project?.gradeName ?? '';
+  return collectibleMetalColors(gradeId || project?.gradeId || '', gradeName)[1];
+}
+
+async function photoFor(project, max = 960, style = project.style, gradeId, angle = 0) {
   const source = project.photo?.originalDataUrl;
   if (!source) return null;
-  const edits = structuredClone(project.photoEdits), color = project.baseColor, photoColor = project.photoColor, relief = project.relief;
+  const edits = structuredClone(project.photoEdits), color = style === 'original' ? project.baseColor : collectibleReliefTint(project, gradeId), photoColor = project.photoColor, relief = project.relief;
+  const reliefAngle = style === 'original' || style === 'monochrome' || !relief ? 0 : Math.round(angle / 5) * 5;
   if (source !== currentPhotoSource) { currentPhotoSource = source; photoCache.clear(); photoGeneration++; }
   // Avoid serializing megabytes of unchanged original image bytes on every frame.
-  const key = JSON.stringify([photoGeneration, edits, style, color, photoColor, relief, max]);
+  const key = JSON.stringify([photoGeneration, edits, style, color, photoColor, relief, reliefAngle, max]);
   if (photoCache.has(key)) return photoCache.get(key);
   // Decode one bounded editing buffer per original rather than retaining a full
   // multi-megapixel texture for every undo state. Original file bytes stay private.
@@ -143,7 +233,7 @@ async function photoFor(project, max = 960, style = project.style) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   context.drawImage(resized, 0, 0, canvas.width, canvas.height);
   const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-  pixels.data.set(processPhotoPixels(pixels.data, canvas.width, canvas.height, edits, style, color, photoColor, relief));
+  pixels.data.set(processPhotoPixels(pixels.data, canvas.width, canvas.height, edits, style, color, photoColor, relief, reliefAngle));
   context.putImageData(pixels, 0, 0);
   return boundedSet(photoCache, key, canvas, 3);
 }
@@ -154,7 +244,7 @@ function checkerboard(context, size) {
   }
 }
 export async function renderCrop(canvas, project) {
-  project = cloneProject(project);
+  project = cloneProject({ ...project, derived: {}, audio: null, story: null });
   const size = canvas.width;
   const context = canvas.getContext('2d');
   const photo = await photoFor(project, 700, 'original');
@@ -176,7 +266,8 @@ export async function renderCrop(canvas, project) {
 }
 
 function effectPaint(context, effect, size, angle, time = 0, shape = 'circle') {
-  const strength = (effect.strength ?? 45) / 100;
+  const strength = effectStrengthValue(effect) / 100;
+  if (strength <= 0) return;
   context.save();
   if (effect.type === 'glow') {
     context.shadowColor = effect.color || '#f1d391'; context.shadowBlur = size * .05 * strength;
@@ -197,7 +288,7 @@ function effectPaint(context, effect, size, angle, time = 0, shape = 'circle') {
     const shift = Math.sin(phase * Math.PI) * size * .55;
     const gradient = context.createLinearGradient(-size * .3 + shift, 0, size * 1.3 + shift, size);
     if (effect.type === 'hologram') {
-      ['#ad76ff', '#48e5ce', '#ffc85e', '#ed91ee', '#4dd5ef'].forEach((color, index) => gradient.addColorStop(index / 4, color));
+      ['#7C3AED', '#00D5FF', '#FF2DB8', '#38F8C8', '#C026D3'].forEach((color, index) => gradient.addColorStop(index / 4, color));
       context.globalCompositeOperation = 'color'; context.globalAlpha = strength * .8;
     } else if (effect.type === 'pearl') {
       gradient.addColorStop(0, '#e2c8e7'); gradient.addColorStop(.5, '#f8faf6'); gradient.addColorStop(1, '#b9dfda');
@@ -213,7 +304,8 @@ function effectPaint(context, effect, size, angle, time = 0, shape = 'circle') {
 async function stickerLayer(sticker, size, effects, angle, time) {
   const layer = canvasOf(size, size), context = layer.getContext('2d');
   context.translate(sticker.x * size, sticker.y * size); context.rotate((sticker.rotation || 0) * Math.PI / 180);
-  if (effects.some(effect => effect.type === 'glow')) { context.shadowColor = effects.find(effect => effect.type === 'glow').color || '#fff'; context.shadowBlur = size * .025; }
+  const glow = effects.find(effect => effect.type === 'glow' && effectStrengthValue(effect) > 0);
+  if (glow) { context.shadowColor = glow.color || '#fff'; context.shadowBlur = size * .025 * (effectStrengthValue(glow) / 100); }
   if (sticker.kind === 'mascot') {
     const image = await imageFor(`/app/assets/mascot/${sticker.text}.png`);
     const dimension = Math.max(16, (sticker.size || 42) * size / 512) * 2;
@@ -311,12 +403,12 @@ async function paintLivingItem(context, project, item, gradeId, size, phase, pho
 }
 
 /** 이 등급의 living 항목을 전부 phase 시점으로 합성한 size×size 투명 오버레이. 항목이 없으면 null. */
-export async function livingOverlayFor(project, gradeId, size, phase) {
+export async function livingOverlayFor(project, gradeId, size, phase, angle = 0) {
   const items = (project.living?.items ?? []).filter((item) => item.gradeIds?.includes(gradeId));
   if (!items.length) return null;
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
   traceShape(context, project.shape, size, size); context.clip();
-  const photo = await photoFor(project);
+  const photo = await photoFor(project, size, project.style, gradeId, angle);
   for (const item of items) await paintLivingItem(context, project, item, gradeId, size, phase, photo);
   return canvas;
 }
@@ -326,7 +418,7 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
   traceShape(context, project.shape, size, size); context.clip();
   context.fillStyle = project.baseColor || '#c7974e'; context.fillRect(0, 0, size, size);
-  const photo = await photoFor(project);
+  const photo = await photoFor(project, size, project.style, gradeId, angle);
   const parallaxStrength = Math.max(0, Math.min(100, project.parallax?.strength ?? 0));
   const parallaxStrokes = project.parallax?.strokes ?? [];
   const hasParallax = applyEffects && parallaxStrength > 0 && parallaxStrokes.length > 0;
@@ -364,7 +456,11 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   }
   const border = canvasOf(size, size), borderContext = border.getContext('2d');
   traceShape(borderContext, project.shape, size * .97, size * .97, size * .015, size * .015);
-  borderContext.strokeStyle = project.baseColor || '#c7974e'; borderContext.lineWidth = size * .055; borderContext.stroke();
+  const rimColors = collectibleMetalColors(gradeId, project.grades?.find(item => item.id === gradeId)?.name ?? project.gradeName ?? '');
+  const rim = borderContext.createLinearGradient(size * (.1 + Math.sin(angle * Math.PI / 180) * .18), 0, size, size);
+  rimColors.forEach((color, index) => rim.addColorStop(index / (rimColors.length - 1), color));
+  borderContext.strokeStyle = rim;
+  borderContext.lineWidth = size * .055; borderContext.stroke();
   for (const effect of applyEffects ? effectsForGrade(project, gradeId, 'border') : []) {
     const overlay = canvasOf(size, size), overlayContext = overlay.getContext('2d');
     overlayContext.drawImage(border, 0, 0); effectPaint(overlayContext, effect, size, angle, time, project.shape);
@@ -376,44 +472,169 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   context.strokeStyle = 'rgba(255,255,255,.55)'; context.lineWidth = size * .006; context.stroke();
   return canvas;
 }
-/**
- * 뒷면. 기본: 바탕색·안쪽 테두리·가게 이름·수집품 이름·등급·마스코트 도장. 커스텀: 뒷면색 + 뒷면 스티커(효과 없음, 앞면 전용 유지).
- */
-export async function backFor(project, gradeId, size, merchantName = '') {
+/** 새 제작물의 뒷면은 확정된 음각 이미지 한 장을 앞면과 같은 모양으로 자른다. 옛 back 편집값은 저장만 유지한다. */
+export async function backFor(project, gradeId, size) {
+  const asset = fixedCollectibleBack(project.shape, gradeId);
+  const texture = await imageFor(asset.path, '정해진 뒷면 이미지를 불러오지 못했어요. 다시 시도해 주세요.');
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
-  traceShape(context, project.shape, size, size); context.clip();
-  const back = project.back || { mode: 'default', color: project.baseColor, stickers: [] };
-  context.fillStyle = back.color || project.baseColor || '#c7974e'; context.fillRect(0, 0, size, size);
-  if (back.mode === 'custom') {
-    for (const sticker of [...(back.stickers || [])].sort((a, b) => a.order - b.order)) {
-      context.drawImage(await stickerLayer(sticker, size, [], 0, 0), 0, 0);
-    }
-  } else {
-    traceShape(context, project.shape, size * .86, size * .86, size * .07, size * .07);
-    context.strokeStyle = 'rgba(255,255,255,.55)'; context.lineWidth = size * .012; context.stroke();
-    const grade = project.grades.find(item => item.id === gradeId);
-    context.textAlign = 'center'; context.fillStyle = '#fff6e6';
-    context.font = `700 ${size * .06}px system-ui, sans-serif`; context.fillText(merchantName || '', size / 2, size * .3, size * .7);
-    context.font = `700 ${size * .05}px system-ui, sans-serif`; context.fillText(project.name || '', size / 2, size * .42, size * .7);
-    context.font = `400 ${size * .04}px system-ui, sans-serif`; context.fillText(grade?.name || '', size / 2, size * .5, size * .7);
-    const mascot = await imageFor('/app/assets/mascot/stamp.png');
-    if (mascot) context.drawImage(mascot, size * .35, size * .56, size * .3, size * .3);
-  }
-  const border = canvasOf(size, size), borderContext = border.getContext('2d');
-  traceShape(borderContext, project.shape, size * .97, size * .97, size * .015, size * .015);
-  borderContext.strokeStyle = back.color || project.baseColor || '#c7974e'; borderContext.lineWidth = size * .055; borderContext.stroke();
-  context.drawImage(border, 0, 0);
+  traceShape(context, asset.shape, size, size); context.clip();
+  context.drawImage(texture, 0, 0, size, size);
   return canvas;
 }
 /** Same grade aliases and metal stops as the mobile material preset. */
 export function collectibleMetalColors(gradeId, gradeName = '') {
   const grade = `${gradeId} ${gradeName}`.toLowerCase();
-  return /prism|special|프리즘|특별/.test(grade) ? ['#67E8F9', '#E8C5FF', '#FFFFFF']
+  return /prism|special|프리즘|특별/.test(grade) ? [...PRISM_COLORS]
     : /gold|골드|금색|금등급/.test(grade) ? ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C']
       : /silver|실버|은색|은등급/.test(grade) ? ['#D3E2EF', '#FFFFFF', '#8DACC8']
         : ['#E3BB8B', '#FFF1DC', '#A9673F'];
 }
 
+function animatedAngle(project, options, motion, playback = 'loop') {
+  const angle = options.angle ?? project.angle ?? 0;
+  if (options.staticFrame || motion !== 'rotate') return angle;
+  const elapsed = options.rotationTime ?? options.time ?? 0;
+  const time = playback === 'once' ? Math.min(elapsed, ONCE_MS.rotate - 1) : elapsed;
+  return rotationAngleAt(angle, time, options.rotationSpeed ?? project.rotationSpeed);
+}
+function drawableEffects(project, gradeId, target) {
+  const effects = project.effects ?? [];
+  if (!effects.length) return [];
+  if (project.grades?.some((grade) => grade.id === gradeId && grade.enabled)) return effectsForGrade(project, gradeId, target);
+  return effects.filter((effect) => (effect.gradeIds?.length ? effect.gradeIds.includes(gradeId) : true)
+    && (target === undefined || effect.target === target));
+}
+function flameGradient(context, size, color) {
+  const gradient = context.createLinearGradient(0, size * .56, 0, -size * .6);
+  gradient.addColorStop(0, rgba(color, 0));
+  gradient.addColorStop(.48, color);
+  gradient.addColorStop(1, 'rgba(255,255,255,.9)');
+  return gradient;
+}
+function traceProjectedShape(context, points, size, horizontal, offset) {
+  points.forEach((point, index) => context[index ? 'lineTo' : 'moveTo']((point.x - size / 2) * horizontal + offset, point.y - size / 2));
+  context.closePath();
+}
+function projectedPoint(point, size, horizontal, offset) {
+  return { x: (point.x - size / 2) * horizontal + offset, y: point.y - size / 2 };
+}
+function signedArea(points) {
+  let area = 0;
+  for (let index = 0; index < points.length; index++) {
+    const current = points[index], next = points[(index + 1) % points.length];
+    area += current.x * next.y - next.x * current.y;
+  }
+  return area / 2;
+}
+function tracePolygon(context, polygon) {
+  polygon.forEach((point, index) => context[index ? 'lineTo' : 'moveTo'](point.x, point.y));
+  context.closePath();
+}
+function traceSweptVolume(context, points, size, horizontal, signedDepth) {
+  const frontOffset = -signedDepth / 2, backOffset = signedDepth / 2;
+  const backCap = points.map(point => projectedPoint(point, size, horizontal, backOffset));
+  const capSign = Math.sign(signedArea(backCap)) || 1;
+  tracePolygon(context, backCap);
+  if (Math.abs(signedDepth) <= .5) return;
+  for (let index = 0; index < points.length; index++) {
+    const point = points[index], next = points[(index + 1) % points.length];
+    let quad = [
+      projectedPoint(point, size, horizontal, frontOffset),
+      projectedPoint(next, size, horizontal, frontOffset),
+      projectedPoint(next, size, horizontal, backOffset),
+      projectedPoint(point, size, horizontal, backOffset),
+    ];
+    if ((Math.sign(signedArea(quad)) || capSign) !== capSign) quad = quad.reverse();
+    tracePolygon(context, quad);
+  }
+}
+function paintFlameAura(context, project, gradeId, size, horizontal, angle, time) {
+  const effects = flameAuraEffects(drawableEffects(project, gradeId, 'aura'));
+  if (!effects.length) return;
+  for (const effect of effects) {
+    const strength = effectStrengthValue(effect);
+    const color = effect.color || '#5dd8ff';
+    const tongues = flameFrame(project.shape, size, angle, time, effectSpeedValue(effect), strength);
+    if (!tongues.length) continue;
+    context.save();
+    context.scale(horizontal, 1);
+    traceShape(context, project.shape, size * 1.03, size * 1.03, -size * .515, -size * .515);
+    context.shadowColor = color; context.shadowBlur = size * (.035 + .035 * strength / 100);
+    context.strokeStyle = color; context.globalAlpha = .22 * strength / 100; context.lineWidth = size * .028; context.stroke();
+    const gradient = flameGradient(context, size, color);
+    const buckets = [[], [], [], []];
+    for (const tongue of tongues) {
+      buckets[Math.min(3, Math.floor(tongue.alpha * 4))].push(tongue);
+    }
+    context.fillStyle = gradient;
+    for (const [bucket, items] of buckets.entries()) {
+      if (!items.length) continue;
+      context.beginPath();
+      for (const tongue of items) {
+        context.moveTo(tongue.x - tongue.width, tongue.y);
+        context.quadraticCurveTo(tongue.x, (tongue.y + tongue.tipY) / 2, tongue.tipX, tongue.tipY);
+        context.quadraticCurveTo(tongue.x + tongue.width, (tongue.y + tongue.tipY) / 2, tongue.x + tongue.width, tongue.y);
+        context.closePath();
+      }
+      context.globalAlpha = (.18 + bucket * .18) * strength / 100;
+      context.fill();
+    }
+    context.restore();
+  }
+}
+function edgeLayerFor(width, height, yOffset, project, size, horizontal, signedDepth, faceSign) {
+  const grooves = collectibleEdgeGrooves(project.shape, size, horizontal, signedDepth);
+  if (!grooves.length) return null;
+  if (edgeLayerDocument !== document) { edgeLayerCache.clear(); edgeLayerDocument = document; }
+  const key = JSON.stringify([project.shape, Math.round(width), Math.round(height), Math.round(yOffset * 10) / 10, Math.round(size * 10) / 10, Math.round(horizontal * 1000) / 1000, Math.round(signedDepth * 10) / 10, faceSign]);
+  const cached = edgeLayerCache.get(key);
+  if (cached) return cached;
+  const edgeCanvas = canvasOf(width, height), edgeContext = edgeCanvas.getContext('2d');
+  const edgeContrast = collectibleEdgeContrast(signedDepth);
+  const edgeOutline = shapePoints(project.shape, size, size);
+  edgeContext.translate(width / 2, height / 2 + yOffset);
+  edgeContext.beginPath();
+  traceSweptVolume(edgeContext, edgeOutline, size, horizontal, signedDepth);
+  edgeContext.clip(); edgeContext.lineWidth = edgeContrast.lineWidth;
+  for (const groove of grooves) {
+    edgeContext.beginPath(); edgeContext.moveTo(groove.frontX, groove.y); edgeContext.lineTo(groove.backX, groove.y);
+    edgeContext.strokeStyle = `rgba(10,17,32,${edgeContrast.opacity})`; edgeContext.stroke();
+    edgeContext.beginPath(); edgeContext.moveTo(groove.frontX, groove.y + .6); edgeContext.lineTo(groove.backX, groove.y + .6);
+    edgeContext.strokeStyle = `rgba(255,255,255,${edgeContrast.opacity * .85})`; edgeContext.stroke();
+  }
+  edgeContext.globalCompositeOperation = 'destination-out';
+  edgeContext.beginPath();
+  traceProjectedShape(edgeContext, edgeOutline, size, horizontal, -signedDepth / 2);
+  edgeContext.fill();
+  return boundedSet(edgeLayerCache, key, edgeCanvas, 16);
+}
+function paintBackLighting(context, shape, size, metal, gradeId, angle, time) {
+  const phase = (Math.sin(angle * Math.PI / 180) + 1) / 2;
+  const shift = (phase * 1.35 - .2) * size;
+  const sweep = context.createLinearGradient(shift - size * .45, -size * .5, shift + size * .25, size * .5);
+  sweep.addColorStop(0, 'rgba(255,255,255,0)');
+  sweep.addColorStop(.45, 'rgba(255,255,255,.46)');
+  sweep.addColorStop(.55, 'rgba(255,255,255,.2)');
+  sweep.addColorStop(1, 'rgba(0,0,0,0)');
+  context.globalCompositeOperation = 'screen';
+  context.fillStyle = sweep; context.globalAlpha = .42; context.fillRect(-size / 2, -size / 2, size, size);
+  const shade = context.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
+  shade.addColorStop(0, 'rgba(0,0,0,.2)'); shade.addColorStop(.5, 'rgba(255,255,255,.1)'); shade.addColorStop(1, 'rgba(0,0,0,.18)');
+  context.globalCompositeOperation = 'soft-light'; context.globalAlpha = .55; context.fillStyle = shade; context.fillRect(-size / 2, -size / 2, size, size);
+  if (/prism|special|프리즘|특별/i.test(gradeId || '')) {
+    const foil = context.createLinearGradient(-size * .55 + Math.sin(time / 700) * size * .18, -size / 2, size * .55, size / 2);
+    PRISM_FOIL.forEach((color, index) => foil.addColorStop(index / (PRISM_FOIL.length - 1), color));
+    context.globalCompositeOperation = 'color'; context.globalAlpha = .46; context.fillStyle = foil; context.fillRect(-size / 2, -size / 2, size, size);
+    context.globalCompositeOperation = 'screen'; context.globalAlpha = .18; context.fillStyle = foil; context.fillRect(-size / 2, -size / 2, size, size);
+  } else {
+    const tint = context.createLinearGradient(-size / 2, 0, size / 2, 0);
+    metal.forEach((color, index) => tint.addColorStop(index / (metal.length - 1), color));
+    context.globalCompositeOperation = 'color'; context.globalAlpha = .16; context.fillStyle = tint; context.fillRect(-size / 2, -size / 2, size, size);
+  }
+  traceShape(context, shape, size * .94, size * .94, -size * .47, -size * .47);
+  context.globalCompositeOperation = 'screen'; context.globalAlpha = .35; context.strokeStyle = 'rgba(255,255,255,.9)'; context.lineWidth = size * .006; context.stroke();
+  context.globalCompositeOperation = 'source-over'; context.globalAlpha = 1;
+}
 function drawVolume(canvas, front, project, options = {}) {
   const context = canvas.getContext('2d'), width = canvas.width, height = canvas.height;
   context.clearRect(0, 0, width, height);
@@ -422,10 +643,10 @@ function drawVolume(canvas, front, project, options = {}) {
   // 'once' 재생은 ONCE_MS만큼 진행한 뒤 그 지점에서 멈춘다(무한 반복하지 않음). 경계값에서 modulo가 0으로
   // 되감기지 않게 1ms 여유를 둔다.
   const duration = ONCE_MS[motion];
-  const rawTime = options.staticFrame ? 0 : (options.time || 0);
+  const rawTime = options.time || 0;
   const time = playback === 'once' && duration ? Math.min(rawTime, duration - 1) : rawTime;
-  const manualAngle = options.angle ?? project.angle ?? 0;
-  const angle = motion === 'rotate' ? manualAngle + time / 75 : manualAngle;
+  const effectTime = options.reducedMotion ? 0 : (options.effectTime ?? (options.staticFrame ? 0 : time));
+  const angle = animatedAngle(project, options, motion, playback);
   const radians = angle * Math.PI / 180;
   let scale = 1, yOffset = 0;
   if (motion === 'float') yOffset = Math.sin(time / 800) * height * .025;
@@ -433,30 +654,34 @@ function drawVolume(canvas, front, project, options = {}) {
   if (motion === 'pulse') scale = 1 + Math.sin(time / 900) * .025;
   const size = Math.min(width, height) * .78 * scale;
   const horizontal = Math.max(.025, Math.abs(Math.cos(radians)));
-  const depth = Math.abs(Math.sin(radians)) * (project.thickness || 8) * size / 512;
+  const signedDepth = Math.sin(radians) * (project.thickness || 8) * size / 512;
+  const depth = Math.abs(signedDepth), depthDirection = signedDepth < 0 ? -1 : 1;
   const gradeName = project.grades?.find(item => item.id === options.gradeId)?.name ?? project.gradeName ?? '';
   const metal = collectibleMetalColors(options.gradeId || project.gradeId || '', gradeName);
   const sideLight = context.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
   metal.forEach((color, index) => sideLight.addColorStop(index / (metal.length - 1), color));
   context.save(); context.translate(width / 2, height / 2 + yOffset);
+  paintFlameAura(context, project, options.gradeId || project.gradeId || '', size, horizontal, angle, effectTime);
   context.shadowColor = 'rgba(12,27,35,.25)'; context.shadowBlur = size * .045; context.shadowOffsetY = size * .045;
-  for (let offset = Math.ceil(depth); offset >= 0; offset--) {
-    // Cast one contact shadow; each edge slice must not darken it again.
-    context.shadowBlur = offset === Math.ceil(depth) ? size * .045 : 0;
-    context.shadowOffsetY = offset === Math.ceil(depth) ? size * .045 : 0;
-    context.save(); context.translate(offset - depth / 2, 0); context.scale(horizontal, 1);
-    traceShape(context, project.shape, size, size, -size / 2, -size / 2);
-    context.fillStyle = offset % 3 ? sideLight : metal[1]; context.fill(); context.restore();
-  }
+  const sideOutline = shapePoints(project.shape, size, size);
+  // Blur one simple cap; blurring the overlapping swept quads is expensive.
+  context.beginPath();
+  traceProjectedShape(context, sideOutline, size, horizontal, signedDepth / 2);
+  context.fillStyle = sideLight; context.fill();
   context.shadowBlur = 0; context.shadowOffsetY = 0;
-  context.translate(-depth / 2, 0); context.scale(horizontal, 1);
+  context.beginPath();
+  traceSweptVolume(context, sideOutline, size, horizontal, signedDepth);
+  context.fillStyle = sideLight; context.fill();
+  const edgeCanvas = edgeLayerFor(width, height, yOffset, project, size, horizontal, signedDepth, Math.cos(radians) < 0 ? -1 : 1);
+  if (edgeCanvas) {
+    context.drawImage(edgeCanvas, -width / 2, -height / 2 - yOffset);
+  }
+  context.translate(-signedDepth / 2, 0); context.scale(horizontal, 1);
   if (Math.cos(radians) < 0) {
     traceShape(context, project.shape, size, size, -size / 2, -size / 2);
-    if (options.back) { context.save(); context.clip(); context.drawImage(options.back, -size / 2, -size / 2, size, size); context.restore(); }
-    else {
-      context.fillStyle = project.baseColor || '#c7974e'; context.fill();
-      context.fillStyle = '#39281d'; context.font = `700 ${size * .075}px system-ui`; context.textAlign = 'center'; context.fillText(project.name || '가게 수집품', 0, 0, size * .72);
-    }
+    context.save(); context.clip(); context.drawImage(options.back, -size / 2, -size / 2, size, size);
+    paintBackLighting(context, project.shape, size, metal, options.gradeId || project.gradeId || '', angle, effectTime);
+    context.restore();
   } else {
     context.drawImage(front, -size / 2, -size / 2, size, size);
     if (motion === 'shine' || motion === 'sparkle') {
@@ -484,23 +709,25 @@ function drawVolume(canvas, front, project, options = {}) {
   }
 }
 export async function renderCollectible(canvas, project, gradeId, options = {}) {
-  project = cloneProject(project);
+  // Published sprites/audio/story are not inputs to the live coin renderer.
+  // Leave their potentially large bytes out of every animation-frame snapshot.
+  project = cloneProject({ ...project, derived: {}, audio: null, story: null });
   const size = Math.min(options.textureSize || 640, 1024);
   const motion = (project.motion || []).find(item => item.gradeIds.includes(gradeId));
   const animation = options.staticFrame ? 'still' : (options.animation || motion?.type || 'still');
   const playback = options.playback ?? motion?.playback ?? 'loop';
   const particle = options.particle ?? motion?.particle;
-  const angle = options.angle ?? project.angle ?? 0;
+  const faceAngle = animatedAngle(project, options, animation, playback);
   // PR #310 리뷰 2차 P2: living이 가져다 쓰는 스티커는 정지 포즈로 frontFor가 또 그리면, 아래서 합성하는
   // living 오버레이와 겹쳐 이중으로 보인다(발행 경로의 angleFramesFor·livingStickerTargets와 같은 규칙).
-  let front = await frontFor(project, gradeId, size, angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0), options.time, true, livingStickerTargets(project, gradeId));
+  let front = await frontFor(project, gradeId, size, faceAngle, options.time, true, livingStickerTargets(project, gradeId));
   // 편집기 미리보기도 living 항목(sway/bob/steam/blink)을 시간에 맞춰 보여준다(PR #310 리뷰 P2: 전에는 게시된
   // 스프라이트를 뷰어만 그리고 편집 중에는 미리 볼 방법이 없었다). 카드 전체 동작(staticFrame, "지금 재생 중인가")과는
   // 독립적인 시계(livingTime)와 깃발(reducedMotion, "동작 줄이기인가")을 따로 받는다 — 재생 중이 아니어도 living은
   // 계속 움직이고, 동작 줄이기일 때만 정지 포즈(phase 0)로 고정한다.
-  const livingOverlay = await livingOverlayFor(project, gradeId, size, options.reducedMotion ? 0 : livingPhaseAt(options.livingTime ?? options.time ?? 0, project.living?.periodMs ?? 2400));
+  const livingOverlay = await livingOverlayFor(project, gradeId, size, options.reducedMotion ? 0 : livingPhaseAt(options.livingTime ?? options.time ?? 0, project.living?.periodMs ?? 2400), faceAngle);
   if (livingOverlay) { const composed = canvasOf(size, size), context = composed.getContext('2d'); context.drawImage(front, 0, 0); context.drawImage(livingOverlay, 0, 0); front = composed; }
-  const back = await backFor(project, gradeId, size, options.merchantName || '');
+  const back = await backFor(project, gradeId, size);
   drawVolume(canvas, front, project, { ...options, gradeId, animation, playback, particle, back });
 }
 /** angleFrames 스프라이트의 i번째 칸(4×side 그리드)만 잘라낸 side×side 캔버스. */
@@ -533,7 +760,10 @@ async function livingOverlayCell(living, t) {
   return cell;
 }
 export async function renderPublishedCollectible(canvas, snapshot, options = {}) {
-  const angle = (options.angle ?? snapshot.angle ?? 0) + (!options.staticFrame && snapshot.animation === 'rotate' ? (options.time || 0) / 75 : 0);
+  // 모바일 구 발행본의 gear 별칭도 동일한 톱니 윤곽으로 읽으며 원본 snapshot은 고치지 않는다.
+  snapshot = { ...snapshot, shape: fixedCollectibleBackShape(snapshot.shape) };
+  const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
+  const angle = animatedAngle(snapshot, options, animation, options.playback ?? 'loop');
   let front = snapshot.angleFrames ? await angleFrameFront(snapshot.angleFrames, angle) : null;
   if (!front) front = await imageFor(snapshot.baseDataUrl || snapshot.imageDataUrl || snapshot.thumbnailDataUrl);
   if (!front) return;
@@ -542,6 +772,7 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
     const painted = canvasOf(front.naturalWidth || front.width, front.naturalHeight || front.height), context = painted.getContext('2d');
     context.drawImage(front, 0, 0);
     for (const effect of snapshot.effects || []) {
+      if (effect.target === 'aura') continue;
       const mask = await imageFor(snapshot.effectMasks[effect.target]); if (!mask) continue;
       const overlay = canvasOf(painted.width, painted.height), paint = overlay.getContext('2d'); paint.drawImage(painted, 0, 0);
       effectPaint(paint, effect, painted.width, angle, options.time, snapshot.shape);
@@ -566,10 +797,10 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
       front = composed;
     }
   }
-  // v1 발행본·뒷면 미생성본은 backImageDataUrl이 없어 drawVolume이 오늘의 모습(바탕색+이름)으로 대체한다.
-  const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl) : null;
+  // 이미 받은 발행본의 뒷면은 그대로 쓴다. 뒷면이 없는 옛 발행본만 확정된 공용 이미지로 보완한다.
+  const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl)
+    : await backFor(snapshot, snapshot.gradeId, Math.min(options.textureSize || 640, 1024));
   // 호출자가 특정 동작(예: once 모션 "다시 보기")을 명시하면 그 값을, 아니면 게시된 기본(loop 또는 still) 동작을 쓴다.
-  const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
   drawVolume(canvas, front, snapshot, { ...options, gradeId: snapshot.gradeId, animation, back });
 }
 // 게시용 이미지는 WebP(품질 0.9)로 저장해 크기를 줄인다(서버 완성본 1 MiB·썸네일 128 KiB·본문 8 MiB 상한 안에 넣기 위함).
@@ -585,7 +816,7 @@ async function maskFor(project, gradeId, target, size) {
   traceShape(context, project.shape, size, size); context.clip();
   if (target === 'surface') { context.fillStyle = '#fff'; context.fillRect(0, 0, size, size); }
   else if (target === 'photo') {
-    const photo = await photoFor(project); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
+    const photo = await photoFor(project, size, project.style, gradeId, 0); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
   } else if (target === 'border') {
     traceShape(context, project.shape, size * .97, size * .97, size * .015, size * .015); context.strokeStyle = '#fff'; context.lineWidth = size * .055; context.stroke();
   } else {
@@ -608,7 +839,8 @@ const ANGLE_MATERIALS = Object.freeze(['metallic', 'hologram', 'pearl']);
 function gradeNeedsAngleFrames(project, gradeId) {
   const hasMaterial = (project.effects ?? []).some((effect) => effect.gradeIds.includes(gradeId) && ANGLE_MATERIALS.includes(effect.type));
   const hasParallax = (project.parallax?.strength ?? 0) > 0 && (project.parallax?.strokes?.length ?? 0) > 0;
-  return hasMaterial || hasParallax;
+  const hasRelief = project.style !== 'original' && (project.relief ?? 0) > 0;
+  return hasMaterial || hasParallax || hasRelief;
 }
 /** 이 등급에서 living이 가져다 쓰는 앞면 스티커 id(각도 프레임에서 뺀다, 설계 문서 "각도 프레임" 항목). */
 function livingStickerTargets(project, gradeId) {
@@ -632,30 +864,30 @@ async function livingSpriteFor(project, gradeId, side, quality) {
   const grid = livingSpriteGrid(count, cellWidth, cellHeight); if (!grid) return undefined;
   const sprite = canvasOf(grid.width, grid.height), context = sprite.getContext('2d');
   for (let index = 0; index < count; index++) {
-    const overlay = await livingOverlayFor(project, gradeId, side, index / count); if (!overlay) continue;
+    const overlay = await livingOverlayFor(project, gradeId, side, index / count, 0); if (!overlay) continue;
     const column = index % grid.columns, row = Math.floor(index / grid.columns);
     context.drawImage(overlay, box.x * side, box.y * side, box.w * side, box.h * side, column * cellWidth, row * cellHeight, cellWidth, cellHeight);
   }
   return { dataUrl: encodeImage(sprite, quality), count, columns: grid.columns, cellWidth, cellHeight, periodMs, box };
 }
 /**
- * 연결된 등급(campaignId와 무관하게 rewardGrades가 가리키는 등급)만 게시용으로 굽는다(설계 문서 "서버 검증" 3번
- * 근거: 연결되지 않은 등급까지 구우면 본문 용량을 낭비한다). extraGradeId는 편집기 미리보기용으로 지금 보는
- * 등급도 함께 구울 때 쓴다. base·effectMasks는 웹 뷰어가 각도별로 효과를 다시 합성하는 데 여전히 필요해
- * 연결된 등급에 한해 만든다(PR #293 P2: WP2에서 한 번 뺐다가 되살림).
+ * 기본 호출은 rewardGrades가 가리키는 등급만 굽는다. 점주 발행은 includeAllEnabledGrades로 프리즘과
+ * 추가 활성 등급까지 보존한다. extraGradeId는 개별 편집기 미리보기용이다.
+ * base·effectMasks는 웹 뷰어가 각도별 효과를 다시 합성하는 데 필요하다(PR #293 P2).
  * angleSide·spriteQuality는 게시 크기 사다리(editor.mjs publishSizeProblem 루프)가 바꿔 가며 다시 부르는 값이다.
  */
-export async function serializeDerived(project, { extraGradeId, merchantName = '', angleSide = 448, spriteQuality = .85 } = {}) {
+export async function serializeDerived(project, { extraGradeId, includeAllEnabledGrades = false, angleSide = 448, spriteQuality = .85 } = {}) {
   const linked = new Set(Object.values(project.rewardGrades || {}));
   if (extraGradeId) linked.add(extraGradeId);
   const derived = {};
-  for (const grade of project.grades.filter(item => item.enabled !== false && linked.has(item.id))) {
+  // 게시할 때는 프리즘과 추가 등급까지 보존한다. 기존 호출은 연결된 보상 등급만 굽는다.
+  for (const grade of project.grades.filter(item => item.enabled !== false && (includeAllEnabledGrades || linked.has(item.id)))) {
     const front = await frontFor(project, grade.id, 512, 0, 0);
     const base = await frontFor(project, grade.id, 512, 0, 0, false);
-    const back = await backFor(project, grade.id, 512, merchantName);
+    const back = await backFor(project, grade.id, 512);
     const thumbnail = canvasOf(160, 160); thumbnail.getContext('2d').drawImage(front, 0, 0, 160, 160);
     const effectMasks = {};
-    for (const target of new Set(effectsForGrade(project, grade.id).map(effect => effect.target))) effectMasks[target] = await maskFor(project, grade.id, target, 512);
+    for (const target of new Set(effectsForGrade(project, grade.id).map(effect => effect.target).filter(target => target !== 'aura'))) effectMasks[target] = await maskFor(project, grade.id, target, 512);
     derived[grade.id] = { imageDataUrl: encodeImage(front), thumbnailDataUrl: encodeImage(thumbnail), baseDataUrl: encodeImage(base), backImageDataUrl: encodeImage(back), effectMasks };
     const livingStickers = livingStickerTargets(project, grade.id);
     // PR #310 리뷰 P2: living 스티커만 있고(재질·패럴랙스 없음) 각도 프레임이 없던 등급은, 위 imageDataUrl의

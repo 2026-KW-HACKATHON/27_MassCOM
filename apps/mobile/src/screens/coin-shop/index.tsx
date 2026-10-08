@@ -6,6 +6,7 @@ import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorSchem
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
 import { getAppPackageId } from '@/config/app-identity';
 import { useExperience } from '@/experience/use-experience';
@@ -209,7 +210,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
     </FloatingCard> : null}
     {confirmTicket ? <FloatingCard style={styles.card}>
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>뽑기권을 사용할까요?</Text>
-      <Text style={{ color: palette.label }}>{shop?.pools.find((pool) => pool.id === confirmTicket.poolId)?.merchantName ?? '가게'} · {confirmTicket.eventName}</Text>
+      <Text style={{ color: palette.label }}>{publicDataDemoStoreName(shop?.pools.find((pool) => pool.id === confirmTicket.poolId)?.merchantId, shop?.pools.find((pool) => pool.id === confirmTicket.poolId)?.merchantName ?? '가게')} · {confirmTicket.eventName}</Text>
       <Text style={{ color: palette.secondaryLabel }}>뽑기권 1장으로 새 코인을 받아요. 기존 보유 코인은 그대로 유지돼요.</Text>
       <View style={styles.confirmRow}>
         <Pressable accessibilityRole="button" disabled={busy} onPress={() => setConfirmTicket(undefined)} style={[styles.confirmButton, { backgroundColor: palette.surface }]}><Text style={{ color: palette.label }}>취소</Text></Pressable>
@@ -224,7 +225,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       {shop.tickets.filter((ticket) => ticket.status === 'UNUSED' && Date.parse(ticket.expiresAt) > now).length === 0 ? <StateScene kind="empty" title="아직 사용할 뽑기권이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
         shop.tickets.filter((ticket) => ticket.status === 'UNUSED' && Date.parse(ticket.expiresAt) > now).map((ticket) => {
           const pool = shop.pools.find((candidate) => candidate.id === ticket.poolId);
-          const merchantName = pool?.merchantName ?? '가게 확인 필요';
+          const merchantName = publicDataDemoStoreName(pool?.merchantId, pool?.merchantName ?? '가게 확인 필요');
           const canUse = Boolean(pool?.entries.length) && pool?.unavailableReason !== 'MEDIA_REMOVED' && Date.parse(ticket.expiresAt) > now;
           return <Fold key={ticket.id} title={`${merchantName} · ${ticket.eventName} · ${gradeName[ticket.grade]}`}
             summary={`사용 기한 ${dateText(ticket.expiresAt)} · 코인 확률 보기`}>
@@ -259,12 +260,12 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
         shop.pools.map((pool) => {
           const available = pool.status === 'ACTIVE' && !pool.unavailableReason && Date.parse(pool.purchaseStartsAt) <= now && Date.parse(pool.purchaseEndsAt) > now && pool.issuedCount < pool.issuanceCap;
           return <FloatingCard key={pool.id} style={styles.card}>
-            <Text style={[styles.name, { color: palette.label }]}>{pool.merchantName} · {pool.eventName}</Text>
+            <Text style={[styles.name, { color: palette.label }]}>{publicDataDemoStoreName(pool.merchantId, pool.merchantName)} · {pool.eventName}</Text>
             <Text style={{ color: palette.label }}>{gradeName[pool.grade]} · {pool.price.toLocaleString()}P</Text>
             <Text style={{ color: palette.secondaryLabel }}>구매 {dateText(pool.purchaseStartsAt)} ~ {dateText(pool.purchaseEndsAt)}</Text>
             <Text style={{ color: palette.secondaryLabel }}>구매 후 7일 안에 사용 · 1인 {pool.perAccountLimit}장 · 전체 {pool.issuanceCap}장</Text>
             <Text style={{ color: palette.secondaryLabel }}>코인별 현재 확률은 유효한 미사용 뽑기권을 보유한 동안 확인할 수 있어요.</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel={`${pool.merchantName} ${pool.eventName} ${gradeName[pool.grade]} 뽑기권 구매`}
+            <Pressable accessibilityRole="button" accessibilityLabel={`${publicDataDemoStoreName(pool.merchantId, pool.merchantName)} ${pool.eventName} ${gradeName[pool.grade]} 뽑기권 구매`}
               accessibilityState={{ disabled: busy || Boolean(pending) || !available || shop.mileage.balance < pool.price }}
               disabled={busy || Boolean(pending) || !available || shop.mileage.balance < pool.price}
               onPress={() => void buy(pool)} style={[styles.button, { backgroundColor: palette.primary }]}>

@@ -23,6 +23,37 @@ const creatorStores = new WeakMap();
 const merchantMemberships = new WeakMap();
 const operationBindings = new WeakMap();
 const realWorldCleanups = new WeakMap();
+const merchantSelectedViews = new WeakMap();
+
+const merchantViewOrder = ['create', 'claim', 'results'];
+
+function merchantViewSections(doc) {
+  return [...(doc.body ?? doc).querySelectorAll('[data-merchant-view]')];
+}
+
+function availableMerchantViews(doc) {
+  return merchantViewOrder.filter(view => merchantViewSections(doc)
+    .some(section => section.dataset.merchantView === view && !section.hidden));
+}
+
+export function setMerchantView(doc, requested = merchantSelectedViews.get(doc) ?? 'create') {
+  const nav = doc.getElementById('merchant-owner-nav');
+  const available = availableMerchantViews(doc);
+  const selected = available.includes(requested) ? requested : (available[0] ?? 'create');
+  merchantSelectedViews.set(doc, selected);
+  for (const section of merchantViewSections(doc)) {
+    section.classList.toggle('merchant-view-hidden', section.dataset.merchantView !== selected);
+  }
+  for (const button of (doc.body ?? doc).querySelectorAll('[data-merchant-view-target]')) {
+    const target = button.dataset.merchantViewTarget;
+    button.hidden = !available.includes(target);
+    if (target === selected && available.includes(target)) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
+  if (nav) nav.hidden = available.length === 0;
+  return selected;
+}
+
 function clearRealWorld(doc) {
   realWorldCleanups.get(doc)?.();
   realWorldCleanups.delete(doc);
@@ -36,6 +67,22 @@ function closeCreator(doc, reason) {
   creators.delete(doc);
   creatorStores.delete(doc);
   doc.getElementById('merchant-creator-editor')?.replaceChildren();
+  const dialog = doc.getElementById('merchant-creator-dialog');
+  if (dialog?.open) dialog.close();
+}
+
+function creatorDialog(doc) {
+  let dialog = doc.getElementById('merchant-creator-dialog');
+  if (dialog) return dialog;
+  const editor = doc.getElementById('merchant-creator-editor');
+  if (!editor) return null;
+  dialog = doc.createElement('dialog');
+  if (typeof dialog.showModal !== 'function') return null;
+  dialog.id = 'merchant-creator-dialog'; dialog.className = 'merchant-creator-dialog';
+  dialog.setAttribute('aria-label', '가게 수집품 만들기');
+  const close = doc.createElement('button'); close.id = 'merchant-creator-close'; close.type = 'button'; close.textContent = '← 운영 화면으로';
+  dialog.append(close, editor); doc.body.append(dialog);
+  return dialog;
 }
 
 // 기기 저장소 인자를 생략해(clearCollectibleDrafts가 전역 기기 저장소를 기본값으로 쓴다) 이 화면의 소스에는
@@ -86,6 +133,16 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   // 저장하지 않은 편집이 있으면 제작기를 다시 열거나 점포를 바꾸기 전에 묻는다. 거절하면 그대로 둔다.
   const isDirty = () => creators.get(doc)?.isDirty?.() === true;
   const keepEdits = () => isDirty() && !confirm(discardMessage);
+  const dialog = creatorDialog(doc);
+  const leaveCreator = () => {
+    const discarding = isDirty();
+    if (keepEdits()) return false;
+    closeCreator(doc, discarding ? 'discard' : undefined); open.focus(); return true;
+  };
+  if (dialog) {
+    doc.getElementById('merchant-creator-close').onclick = leaveCreator;
+    dialog.oncancel = event => { event.preventDefault(); leaveCreator(); };
+  }
   select.onchange = () => {
     const mounted = creatorStores.get(doc);
     if (!mounted || select.value === mounted) return;
@@ -134,6 +191,7 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
       if (merchantRequests.get(doc) !== currentRequest) { cleanup?.(); return; }
       creators.set(doc, cleanup);
       creatorStores.set(doc, merchant.id);
+      if (dialog && !dialog.open) dialog.showModal();
     } catch (error) {
       if (merchantRequests.get(doc) === currentRequest) doc.getElementById('merchant-status').textContent = error.status === 403
         ? creatorDenied : '제작기를 열지 못했어요. 다시 시도해 주세요.';
@@ -365,7 +423,7 @@ export async function loadMerchantAlliances(fetcher, doc, merchantId, current = 
   }
 }
 
-export function configureMerchantOperations(fetcher, doc, merchants, onCampaignChanged = () => {}) {
+export function configureMerchantOperations(fetcher, doc, merchants) {
   const panel = doc.getElementById('merchant-operations');
   const select = doc.getElementById('merchant-operations-merchant');
   if (!panel || !select) return;
@@ -385,41 +443,27 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
     if (owners.some(merchant => merchant.id === old)) select.value = old;
   };
   configure(merchants);
-  const campaignSelect = doc.getElementById('merchant-extension-campaign');
-  const campaignStatus = doc.getElementById('merchant-extension-status');
+  const campaignSelect = doc.getElementById('merchant-benefit-campaign');
   const benefitStatus = doc.getElementById('merchant-benefit-status');
-  const current = doc.getElementById('merchant-extension-current');
   const staffList = doc.getElementById('merchant-staff-list');
   const staffStatus = doc.getElementById('merchant-staff-status');
   const exportStatus = doc.getElementById('merchant-export-status');
-  const state = { campaigns: [], generation: 0 };
+  const state = { generation: 0 };
   operationBindings.set(doc, state);
   const active = generation => operationBindings.get(doc) === state && state.generation === generation;
   const refresh = async () => {
     const generation = ++state.generation;
     campaignSelect?.replaceChildren(); staffList?.replaceChildren();
-    if (current) current.textContent = '';
-    if (campaignStatus) campaignStatus.textContent = '';
     if (benefitStatus) benefitStatus.textContent = '';
     if (staffStatus) staffStatus.textContent = '';
     if (!select.value) return;
     const merchantId = select.value;
     void loadMerchantAlliances(fetcher, doc, merchantId, () => active(generation) && select.value === merchantId);
+    void loadCampaigns(generation, merchantId);
     try {
-      const [campaigns, staff] = await Promise.all([
-        request(fetcher, `${operationsBase(merchantId)}/campaigns`),
-        request(fetcher, `${operationsBase(merchantId)}/staff`),
-      ]);
+      const staff = await request(fetcher, `${operationsBase(merchantId)}/staff`);
       if (!active(generation) || select.value !== merchantId) return;
-      state.campaigns = campaigns.campaigns;
-      if (!Array.isArray(state.campaigns) || !Array.isArray(staff.staff)) throw new Error('invalid operations data');
-      for (const campaign of state.campaigns) {
-        const option = doc.createElement('option'); option.value = campaign.id;
-        option.textContent = `${campaign.title} · ${new Date(campaign.endsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
-        campaignSelect.append(option);
-      }
-      showCampaign();
-      void loadBenefit(generation);
+      if (!Array.isArray(staff.staff)) throw new Error('invalid operations data');
       for (const member of staff.staff) {
         const item = doc.createElement('li');
         const label = doc.createElement('span'); label.textContent = `직원 ${member.accountId}`;
@@ -452,20 +496,26 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
       }
     } catch {
       if (active(generation)) {
-        campaignStatus.textContent = '캠페인을 불러오지 못했습니다.';
         staffStatus.textContent = '직원 목록을 불러오지 못했습니다.';
       }
     }
   };
-  const showCampaign = () => {
-    const campaign = state.campaigns.find(item => item.id === campaignSelect?.value);
-    if (!current) return;
-    const days = Number(doc.getElementById('merchant-extension-form')?.elements?.days?.value ?? 30);
-    const old = campaign && new Date(campaign.endsAt);
-    const next = old && new Date(Math.max(Date.now(), old.getTime()) + days * 86_400_000);
-    current.textContent = campaign
-      ? `현재 종료: ${old.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. ${days}일 연장 후 예상 종료: ${next.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. 확정 시각은 서버 기준입니다.`
-      : '연장할 캠페인이 없습니다.';
+  const loadCampaigns = async (generation, merchantId) => {
+    if (!campaignSelect || !benefitStatus) return;
+    benefitStatus.textContent = '캠페인을 불러오는 중이에요.';
+    try {
+      const campaigns = await request(fetcher, `${operationsBase(merchantId)}/campaigns`);
+      if (!active(generation) || select.value !== merchantId) return;
+      if (!Array.isArray(campaigns.campaigns)) throw new Error('invalid campaign data');
+      for (const campaign of campaigns.campaigns) {
+        const option = doc.createElement('option'); option.value = campaign.id;
+        option.textContent = `${campaign.title} · ${new Date(campaign.endsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
+        campaignSelect.append(option);
+      }
+      void loadBenefit(generation);
+    } catch {
+      if (active(generation) && select.value === merchantId) benefitStatus.textContent = '캠페인을 불러오지 못했습니다.';
+    }
   };
   const loadBenefit = async generation => {
     if (!benefitStatus) return;
@@ -488,28 +538,7 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
   state.configure = members => { configure(members); if (!panel.hidden) void refresh(); };
   if (!panel.hidden) void refresh();
   select.addEventListener('change', () => { void refresh(); });
-  campaignSelect?.addEventListener('change', () => { showCampaign(); void loadBenefit(state.generation); });
-  doc.getElementById('merchant-extension-form')?.elements?.days?.addEventListener?.('change', showCampaign);
-  doc.getElementById('merchant-extension-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const campaign = state.campaigns.find(item => item.id === campaignSelect.value);
-    if (!campaign || !select.value) return;
-    const button = form.querySelector('button'); button.disabled = true;
-    const requestId = globalThis.crypto?.randomUUID?.();
-    try {
-      await request(fetcher, `${operationsBase(select.value)}/campaigns/${encodeURIComponent(campaign.id)}/extend`, 'POST', {
-        days: Number(form.elements.days.value), expectedEndsAt: campaign.endsAt,
-        consentAccepted: form.elements.consent.checked, requestId,
-      });
-      form.elements.consent.checked = false;
-      await refresh(); campaignStatus.textContent = '기간 연장을 완료했습니다.'; onCampaignChanged(select.value);
-    } catch (error) {
-      campaignStatus.textContent = error.status === 409 ? '종료일이 변경됐습니다. 최신 값을 확인해 주세요.'
-        : error.status === 403 ? '점주 권한 또는 연장 조건을 확인해 주세요.' : '연장 결과를 확인하지 못했습니다. 새로 고침해 확인해 주세요.';
-      await refresh();
-    } finally { button.disabled = false; }
-  });
+  campaignSelect?.addEventListener('change', () => { void loadBenefit(state.generation); });
   doc.getElementById('merchant-staff-approve')?.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -560,6 +589,8 @@ export async function loadMerchant(fetcher, doc) {
   const claimForm = doc.getElementById('merchant-claim-form');
   const claimSelect = doc.getElementById('merchant-claim-merchant');
   content.hidden = true;
+  merchantSelectedViews.set(doc, 'create');
+  setMerchantView(doc);
   login.hidden = true;
   logout.hidden = true;
   list.replaceChildren();
@@ -618,11 +649,7 @@ export async function loadMerchant(fetcher, doc) {
     if (!Array.isArray(mine.merchants) || !Array.isArray(eligible.merchants)) throw new Error('invalid merchant data');
     merchantMemberships.set(doc, mine.merchants);
     configureCreator(fetcher, doc, mine);
-    configureMerchantOperations(fetcher, doc, mine.merchants, merchantId => {
-      const overview = doc.getElementById('merchant-overview-merchant');
-      if (overview) overview.value = merchantId;
-      return overviewRefreshers.get(doc)?.();
-    });
+    configureMerchantOperations(fetcher, doc, mine.merchants);
     for (const merchant of mine.merchants) {
       const item = doc.createElement('p');
       item.textContent = `${merchant.name} · ${merchant.role === 'OWNER' ? '점주' : '직원'}`;
@@ -664,6 +691,7 @@ export async function loadMerchant(fetcher, doc) {
     registration.hidden = select.children.length === 0;
     registration.querySelector('button').disabled = false;
     content.hidden = false;
+    setMerchantView(doc, 'create');
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';
     realWorldCleanups.set(doc, mountRealWorldMerchant(fetcher, doc, mine.merchants));
@@ -710,6 +738,11 @@ export function bindMerchant(fetcher, doc) {
   let couponBusy = false;
   let coupons = [];
   let couponButtons = [];
+  doc.getElementById('merchant-owner-nav')?.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-merchant-view-target]');
+    if (!button || button.hidden) return;
+    setMerchantView(doc, button.dataset.merchantViewTarget);
+  });
   const syncCouponControls = () => {
     couponLookup.disabled = issuing || couponBusy;
     for (const button of couponButtons) button.disabled = issuing || couponBusy;
@@ -1555,7 +1588,10 @@ export function bindMerchant(fetcher, doc) {
             button.disabled = true;
             try {
               await opener.onclick?.();
-              if (creatorStores.get(doc) === merchant.id) jumpTo(doc.getElementById('merchant-creator-title'));
+              if (creatorStores.get(doc) === merchant.id) {
+                setMerchantView(doc, 'create');
+                jumpTo(doc.getElementById('merchant-creator-title'));
+              }
               else select.value = previous;
             } finally { button.disabled = false; }
           });

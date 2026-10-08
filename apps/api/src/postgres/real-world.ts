@@ -311,13 +311,13 @@ export class PostgresRealWorldService {
     const at = this.now();
     const photos = await client.query<PhotoRow>(
       `SELECT id, digest, mime_type, width, height, kind, caption, updated_at
-       FROM merchant_real_world_photos WHERE merchant_id = $1 AND deleted_at IS NULL ORDER BY created_at, id`, [merchant.id]);
+       FROM merchant_real_world_photos WHERE merchant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC, id DESC`, [merchant.id]);
     const profile = profileFor(merchant);
     const publicPhotos = photos.rows.map(toPhoto);
     const campaigns = await this.campaigns([merchant.id], at, client);
     return { schemaVersion: 1, asOf: at.toISOString(), merchantId: merchant.id, version: merchant.version,
       profile, photos: publicPhotos,
-      preview: this.detail(merchant, at, campaigns.get(merchant.id) ?? null, publicPhotos), readiness: [
+      preview: this.detail(merchant, at, campaigns.get(merchant.id) ?? null, [...publicPhotos].reverse()), readiness: [
         { key: 'location', ready: profile.location !== null, label: '확인된 위치', field: 'location' },
         { key: 'schedule', ready: profile.schedule !== null, label: '영업시간', field: 'schedule' },
         { key: 'menu', ready: profile.menuItems.length > 0, label: '메뉴', field: 'menuItems' },

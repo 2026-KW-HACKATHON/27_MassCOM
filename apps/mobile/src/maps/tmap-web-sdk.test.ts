@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import { mock, test } from 'node:test';
 import { loadTmapWebSdk } from './tmap-web-sdk';
 
 const bootstrap = 'var domian="topopentile1";var e="/scriptSDKV3/";c=["tmapjs3.min.js?version=20231206"];h="vsm.css";document.write(d.join(""));';
@@ -56,11 +56,14 @@ test('auth failure and malformed bootstrap reject before any CDN asset is insert
 
 test('deferred CDN script times out, removes script and style, then retries', async () => {
   const stub = browserStub();
+  mock.timers.enable({ apis: ['setTimeout'] });
   try {
     const pending = loadTmapWebSdk('deferred', 10);
+    const rejected = assert.rejects(pending, /SDK unavailable/);
     await tick();
     stub.elements[0]!.onload?.();
-    await assert.rejects(pending, /SDK unavailable/);
+    mock.timers.tick(10);
+    await rejected;
     assert.equal(stub.elements[0]!.removed, true);
     assert.equal(stub.elements[1]!.removed, true);
     assert.equal(stub.elements[1]!.onload, null);
@@ -71,7 +74,7 @@ test('deferred CDN script times out, removes script and style, then retries', as
     stub.elements[3]!.onload?.();
     assert.equal(await retried, sdk);
     assert.equal(stub.requested.length, 2);
-  } finally { stub.restore(); }
+  } finally { mock.timers.reset(); stub.restore(); }
 });
 
 test('stylesheet failure cleans its tag and does not leave the SDK pending', async () => {

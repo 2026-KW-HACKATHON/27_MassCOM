@@ -1,6 +1,12 @@
 import { CollectibleProjectError, type CollectibleDetail, type CollectibleProject } from './collectible-project.js';
 
 const mb = 1024 * 1024;
+export const collectiblePublicationGradeRowsLimit = 24 * mb;
+export function assertCollectiblePublicationGradeRowsSize(rows: readonly { summary: string; detail: string }[]): void {
+  if (rows.reduce((total, row) => total + Buffer.byteLength(row.summary) + Buffer.byteLength(row.detail), 0) > collectiblePublicationGradeRowsLimit) {
+    throw new CollectibleProjectError('COLLECTIBLE_PUBLICATION_SIZE_LIMIT');
+  }
+}
 const imageMimes = ['image/png', 'image/jpeg', 'image/webp'];
 // 뒷면·각도·living 스프라이트는 픽셀 좌표로 자르고 배치하므로 JPEG의 EXIF Orientation 회전을 허용하지 않는다.
 // 편집기도 이 셋은 WebP/PNG로만 만든다.
@@ -250,11 +256,12 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
 
 function validateUpgradedProject(value: unknown, publish: boolean): CollectibleProject {
   const p = object(value, ['schemaVersion','name','campaignId','theme','photo','shape','crop','photoEdits','style','baseColor','photoColor','relief',
-    'stickers','back','grades','effects','motion','thickness','angle','greeting','greetingOverrides','audio','story','parallax','living','derived','rewardGrades']);
+    'stickers','back','grades','effects','motion','thickness','angle','greeting','greetingOverrides','audio','story','parallax','living','derived','rewardGrades'], ['rotationSpeed']);
   if (p.schemaVersion !== 2) invalid();
   string(p.name, 80); string(p.campaignId, 120, true); const theme = object(p.theme, ['name']); string(theme.name, 80);
-  enumeration(p.shape, ['circle','stamp','serrated']); enumeration(p.style, ['original','incised','raised']);
-  color(p.baseColor); number(p.photoColor, 0, 100); number(p.relief, 0, 100); number(p.thickness, 1, 24); number(p.angle, -180, 180);
+  enumeration(p.shape, ['circle','stamp','serrated']); enumeration(p.style, ['original','incised','raised','monochrome']);
+  color(p.baseColor); number(p.photoColor, 0, 100); number(p.relief, 0, 100); number(p.thickness, 1, 48); number(p.angle, -180, 180);
+  if (p.rotationSpeed !== undefined) number(p.rotationSpeed, .25, 3);
   const photo = object(p.photo, ['originalDataUrl','width','height']);
   if (photo.originalDataUrl === '') { if (photo.width !== 0 || photo.height !== 0 || publish) throw new CollectibleProjectError(publish ? 'COLLECTIBLE_NOT_READY' : 'COLLECTIBLE_INVALID_PROJECT'); }
   else {
@@ -268,7 +275,8 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
   number(edits.brightness, -100, 100); number(edits.contrast, -100, 100);
   for (const key of ['merge','simplify','cartoon']) number(edits[key], 0, 100);
   for (const raw of array(edits.strokes, 100)) {
-    const stroke = object(raw, ['tool','points','size','color']); enumeration(stroke.tool, ['clean','erase','restore','color']); color(stroke.color); number(stroke.size, 0.01, 0.2);
+    const stroke = object(raw, ['tool','points','size','color'], ['hardness']); enumeration(stroke.tool, ['clean','erase','restore','color']); color(stroke.color); number(stroke.size, 0.01, 0.2);
+    if (stroke.hardness !== undefined) number(stroke.hardness, 0, 100);
     for (const pointRaw of array(stroke.points, 1000, 1)) { const point = object(pointRaw, ['x','y']); number(point.x, 0, 1); number(point.y, 0, 1); }
   }
   const grades = array(p.grades, 16, 1).map(raw => object(raw, ['id','name','kind','enabled'])); uniqueIds(grades);
@@ -279,8 +287,15 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
   const back = object(p.back, ['mode','color','stickers']); enumeration(back.mode, backModes); color(back.color);
   const backStickers = array(back.stickers, 10).map(raw => parseSticker(raw, gradeIds, false));
   uniqueIds([...stickers, ...backStickers]);
-  const effects = array(p.effects, 64).map(raw => object(raw,['id','type','target','gradeIds','strength','color','roughness'])); uniqueIds(effects);
-  for (const effect of effects) { id(effect.id); enumeration(effect.type,['metallic','hologram','pearl','matte','glow','enamel','glass']); if (!['surface','photo','border', ...stickers.map(s => s.id)].includes(effect.target)) invalid(); scope(effect.gradeIds); number(effect.strength,0,100); number(effect.roughness,0,100); color(effect.color); }
+  const effects = array(p.effects, 64).map(raw => object(raw,['id','type','target','gradeIds','strength','color','roughness'], ['speed'])); uniqueIds(effects);
+  for (const effect of effects) {
+    id(effect.id); enumeration(effect.type,['metallic','hologram','pearl','matte','glow','enamel','glass','flame']);
+    if (effect.type === 'flame') {
+      if (effect.target !== 'aura') invalid();
+      if (effect.speed !== undefined) number(effect.speed, .25, 3);
+    } else if (effect.speed !== undefined || effect.target === 'aura' || !['surface','photo','border', ...stickers.map(s => s.id)].includes(effect.target)) invalid();
+    scope(effect.gradeIds); number(effect.strength,0,100); number(effect.roughness,0,100); color(effect.color);
+  }
   const motions = array(p.motion, 10).map(raw => parseMotion(raw, gradeIds)); uniqueIds(motions);
   string(p.greeting, 300, true);
   const greetingOverrides = array(p.greetingOverrides, 16).map(raw => parseGreetingOverride(raw, gradeIds)); uniqueIds(greetingOverrides);
@@ -325,7 +340,7 @@ function validateUpgradedProject(value: unknown, publish: boolean): CollectibleP
     if (asset.effectMasks !== undefined) {
       if (!asset.effectMasks || typeof asset.effectMasks !== 'object' || Array.isArray(asset.effectMasks)) invalid();
       const masks = Object.entries(asset.effectMasks); if (masks.length > 64) invalid();
-      const targets = effects.filter(e => (e.gradeIds as string[]).includes(gradeId)).map(e => e.target);
+      const targets = effects.filter(e => e.target !== 'aura' && (e.gradeIds as string[]).includes(gradeId)).map(e => e.target);
       for (const [target, mask] of masks) { if (!targets.includes(target)) invalid(); validateCollectibleMedia(mask,'image',256*1024,editorSide); }
     }
     if (asset.backImageDataUrl !== undefined) validateCollectibleMedia(asset.backImageDataUrl, 'image', 256 * 1024, 512, spriteImageMimes);
@@ -614,11 +629,12 @@ export function collectibleSnapshot(project: CollectibleProject, projectId: stri
   return {
     projectId, publicationId, gradeId, gradeName: grade.name, name: project.name, shape: project.shape,
     theme: { name: project.theme.name }, ...safeAsset, thickness: project.thickness, angle: project.angle,
+    ...(project.rotationSpeed !== undefined ? { rotationSpeed: project.rotationSpeed } : {}),
     animation: gradeMotions.find(m => (m.playback ?? 'loop') === 'loop')?.type ?? 'still',
     motions: gradeMotions.map(({ type, playback, particle }) => ({ type, playback: playback ?? 'loop', ...(particle !== undefined ? { particle } : {}) })),
     greeting: resolveGreeting(project, gradeId),
     audio: structuredClone(project.audio), story,
-    effects: project.effects.filter(effect => effect.gradeIds.includes(gradeId)).map(({type,target,strength,color,roughness}) => ({type,target,strength,color,roughness})),
+    effects: project.effects.filter(effect => effect.gradeIds.includes(gradeId)).map(({type,target,strength,color,roughness,speed}) => ({type,target,strength,color,roughness, ...(speed !== undefined ? { speed } : {})})),
   };
 }
 // model.mjs resolveGreeting과 값이 같아야 하며(등급+테마 > 등급 > 테마 > 기본, 동점은 배열 순서), 같은 vectors 픽스처로 함께 시험한다.

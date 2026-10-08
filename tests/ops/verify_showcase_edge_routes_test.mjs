@@ -23,6 +23,10 @@ function safeConfig() {
     match: [{ path: ['/play'] }],
     handle: [{ handler: 'static_response', headers: { Location: ['/play/'] }, status_code: 308 }],
   };
+  const rootRedirect = {
+    match: [{ path: ['/'] }],
+    handle: [{ handler: 'static_response', headers: { Location: ['/play/'] }, status_code: 302 }],
+  };
   const play = {
     group: 'group9', match: [{ path: ['/play/*'] }],
     handle: [{ handler: 'subroute', routes: [
@@ -38,14 +42,14 @@ function safeConfig() {
   };
   const api = { group: 'group9', handle: [{ handler: 'subroute', routes: [{ handle: [proxy] }] }] };
   const demoEntry = {
-    match: [{ path: ['/demo', '/demo/*'] }],
+    match: [{ path: ['/demo', '/demo/*', '/play', '/play/*'] }],
     handle: [{ handler: 'static_response', headers: { Location: ['https://demo-api.masscom.kr/play/'] }, status_code: 302 }],
   };
   return {
     apps: { http: { servers: { srv0: { routes: [
       { match: [{ host: ['api.masscom.kr'] }], handle: [{ handler: 'subroute', routes: [] }] },
       { match: [{ host: ['demo-api.masscom.kr'] }], handle: [{ handler: 'subroute', routes: [
-        { handle: [securityHeaders] }, playRedirect, play, api,
+        { handle: [securityHeaders] }, playRedirect, rootRedirect, play, api,
       ] }] },
       { match: [{ host: ['masscom.kr'] }], handle: [{ handler: 'subroute', routes: [
         demoEntry, { handle: [{ handler: 'file_server', root: '/srv/masscom' }] },
@@ -55,12 +59,12 @@ function safeConfig() {
 }
 
 const demoRoutes = (config) => config.apps.http.servers.srv0.routes[1].handle[0].routes;
-const playRoutes = (config) => demoRoutes(config)[2].handle[0].routes;
+const playRoutes = (config) => demoRoutes(config)[3].handle[0].routes;
 const webRoutes = (config) => config.apps.http.servers.srv0.routes[2].handle[0].routes;
 
 test('demo API host reaches only the showcase upstream with a single rewritten client IP', () => {
   assert.doesNotThrow(() => validateShowcaseCaddyConfig(safeConfig()));
-  const proxyOf = (config) => demoRoutes(config)[3].handle[0].routes[0].handle[0];
+  const proxyOf = (config) => demoRoutes(config)[4].handle[0].routes[0].handle[0];
   const mutations = [
     (config) => { config.apps.http.servers.srv0.routes[1].match[0].host = ['api.masscom.kr']; },
     (config) => { proxyOf(config).upstreams[0].dial = 'api:3000'; },
@@ -84,17 +88,21 @@ test('#309 the showcase web bundle is served only under demo-api /play/ with its
     (config) => { playRoutes(config)[0].handle[0].root = '/srv/masscom'; },
     (config) => { playRoutes(config)[0].handle[1].response.set['Content-Security-Policy'] = ["default-src *"]; },
     (config) => { playRoutes(config)[0].handle.splice(1, 1); },
-    (config) => { demoRoutes(config)[2].match = [{ path: ['/*'] }]; },
+    (config) => { demoRoutes(config)[3].match = [{ path: ['/*'] }]; },
     (config) => { playRoutes(config)[2].handle.push({ handler: 'reverse_proxy', upstreams: [{ dial: 'showcase-api:3000' }] }); },
-    (config) => { demoRoutes(config).splice(3, 0, structuredClone(demoRoutes(config)[2])); },
+    (config) => { demoRoutes(config).splice(4, 0, structuredClone(demoRoutes(config)[3])); },
     (config) => { demoRoutes(config).splice(1, 1); },
     // 운영 출처는 시연 웹 번들을 주지 않는다
     (config) => { webRoutes(config)[1].handle[0].root = '/srv/showcase-web'; },
-    (config) => { config.apps.http.servers.srv0.routes[0].handle[0].routes.push(structuredClone(demoRoutes(config)[2])); },
+    (config) => { config.apps.http.servers.srv0.routes[0].handle[0].routes.push(structuredClone(demoRoutes(config)[3])); },
     // masscom.kr/demo 302
     (config) => { webRoutes(config)[0].handle[0].status_code = 301; },
     (config) => { webRoutes(config)[0].handle[0].headers.Location = ['https://masscom.kr/play/']; },
     (config) => { webRoutes(config)[0].match = [{ path: ['/demo'] }]; },
+    (config) => { webRoutes(config)[0].match = [{ path: ['/demo', '/demo/*'] }]; },
+    (config) => { demoRoutes(config).splice(2, 1); },
+    (config) => { demoRoutes(config)[2].handle[0].headers.Location = ['https://masscom.kr/']; },
+    (config) => { demoRoutes(config)[2].match = [{ path: ['/*'] }]; },
     (config) => { webRoutes(config).shift(); },
   ];
   for (const mutate of mutations) {

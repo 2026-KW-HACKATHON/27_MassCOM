@@ -532,7 +532,7 @@ test('D-023: a visit earns the reward without any campaign enrollment even when 
   } finally { await pool.end(); }
 });
 
-test('0032 keeps deployed API statements working and, through 0072, accepts exactly the twenty-three audit actions', { skip }, async () => {
+test('0032 keeps deployed API statements working and, through 0069 and 0072, accepts exactly the twenty-three audit actions', { skip }, async () => {
   const pool = new Pool({ connectionString: testUrl });
   const client = await pool.connect();
   try {
@@ -579,7 +579,7 @@ test('0032 keeps deployed API statements working and, through 0072, accepts exac
       await assert.rejects(client.query(sql, params), (error: { code?: string }) => error.code === '23514');
       await client.query('ROLLBACK TO SAVEPOINT refused');
     };
-    // 0072도 0068의 목적 action을 보존하고 코스 action 네 개만 보탠다.
+    // 0072도 0068·0069의 목적·혜택 action을 보존하고 코스 action 네 개를 보탠다.
     for (const action of ['CAMPAIGN_PURPOSE_SET', 'COURSE_CREATED', 'COURSE_CHECKED', 'COURSE_PUBLISHED', 'COURSE_PAUSED']) {
       await client.query(
         `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, after_state)
@@ -595,7 +595,16 @@ test('0032 keeps deployed API statements working and, through 0072, accepts exac
       consent_document_ref) VALUES ($1, 1, $2, '전화', '', 30, 'PAUSED', '기록', '010-1234-5678')`, [randomUUID(), merchantId]);
     const check = await client.query<{ definition: string }>(
       `SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'platform_admin_audit_action_check'`);
-    assert.equal((check.rows[0]!.definition.match(/'[A-Z_]+'::text/g) ?? []).length, 23);
+    const actions = check.rows[0]!.definition.match(/'[A-Z_]+'::text/g) ?? [];
+    assert.equal(actions.length, 23);
+    assert.deepEqual(actions.map(action => action.slice(1, -7)).sort(), [
+      'MERCHANT_CREATED', 'MERCHANT_UPDATED', 'MERCHANT_HIDDEN', 'CAMPAIGN_DRAFT_CREATED', 'COUPON_VOIDED',
+      'ACCOUNT_DELETION_PROCESSED', 'ACCOUNT_DELETION_REJECTED', 'ACCOUNT_DELETION_RECONCILED',
+      'MERCHANT_PUBLISHED', 'MERCHANT_OWNER_GRANTED', 'MERCHANT_OWNER_REVOKED',
+      'REWARD_OFFER_CREATED', 'REWARD_OFFER_PAUSED', 'CAMPAIGN_PUBLISHED', 'CAMPAIGN_PAUSED',
+      'CAMPAIGN_EXTENDED', 'CAMPAIGN_PURPOSE_SET', 'CAMPAIGN_BENEFIT_CREATED', 'CAMPAIGN_BENEFIT_PAUSED',
+      'COURSE_CREATED', 'COURSE_CHECKED', 'COURSE_PUBLISHED', 'COURSE_PAUSED',
+    ].sort());
   } finally {
     await client.query('ROLLBACK');
     client.release();

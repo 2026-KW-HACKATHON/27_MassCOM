@@ -1,5 +1,50 @@
 # 사장님 사진 수집품 제작기
 
+## 재생·회전 속도 (2026-10-08 후속, PR #418)
+
+이름·시즌은1단계에서 먼저 입력한다.3단계 맨 위에는 **표현 스타일**을 먼저 두고 원본·흑백·음각·양각을 고른다. 그 아래 **애니메이션과 효과**는 접힘 없이 보이며, **회전**과 **움직임**은 별도 탭이다. 기본 탭은 회전이고, 움직임 탭은 기존 once/loop 템플릿을 고른다. 재질 효과·오라·목소리·살아 있는 그림·가게 이야기는 같은 영역의 별도 탭으로 고른다.4단계는 완성 이미지·고정 방문 보상·게시만 확인한다. 항목 제목700·패널 제목800 굵기로 구분한다. 두께는1~48로 늘리고 기존4/8/14 프리셋에32(아주 두껍게)를 추가했다. 실제 제작 치수가 아닌 화면 측면 값이다. 두께25~48 게시본은 상한을 확장한 고객 앱과 함께 배포해야 하며 구 APK의24상한 파서는 해당 수집품을 표시하지 못한다.
+
+제작기에서 재생·전체 미리보기는 등급의 기존 동작과 함께 코인도 회전한다. 회전 속도는0.25~3배이며 재생 중 변경해도 각도를 이어 간다. 정지는 현재 각도, 재개는 멈춘 각도, 다시 보기는 처음부터다. 수동 각도는 회전을 멈추고 적용한다. 정지한 옆면·뒷면에서 앞면 스티커를 드래그할 수 없으며 정면 보기 후 편집한다. 움직임 줄이기를 켜면 재생을 눌러도 회전하지 않는다. 회전 탭의 속도·각도 설정과 움직임 탭의 등장/반사/흔들림 템플릿은 서로 다른 저장 항목이다.
+
+프로젝트와 등급별 불변 게시·획득 상세에 선택 필드 `rotationSpeed`를 보존한다. API는 유한한0.25~3 숫자를 검사하며 구 저장본·업그레이드에는 새 필드를 강제로 넣지 않는다. 앱은 누락·잘못된 선택 값을1배로 읽고 기존 rotate 동작의 각속도에 적용한다. 기존 once/loop 시간·다른 동작·1/3/5 지급 조건·이미지 형식과 크기 한도는 유지한다. 이번 새 후속에서는 실제 재생의 회전을 웹·앱 모두75ms/도×선택 배율로 계산한다. 모든 움직임 템플릿에서도 회전하며 정지·숨김·움직임 줄이기에서 시계를 멈춘다. 이전 rotate helper의90ms/도는 과거 계약 시험에만 남는다. [캡처·시험·재현](evidence/rotation-playback-2026-10-08/README.md).
+
+## 2026-10-08 방문 보상·사진 편집 현재 계약 (PR #418)
+
+점주 첫 화면은 방문 보상 만들기·방문 확인·운영 결과로 나누며 메뉴 등록은 제작의 선행 조건이 아니다. 제작기는 **1 사진 배치 → 2 사진 편집 → 3 코인 만들기 → 4 결과·방문 보상** 순서다. 이전·다음은 원본·편집값을 보존한다. 사진 편집은 이동·잡티 제거·지우개·복원·칠하기·필터·보정·텍스트/스티커 도구 중 한 묶음만 보여 준다. 실행 취소·다시 실행은 화살표이며 Ctrl/Cmd+Z·Ctrl/Cmd+Shift+Z를 지원한다. 글자 입력 중에는 브라우저 자체 실행 취소를 유지한다.
+
+코인 만들기에서 선택한 등급의 금속색으로 음각·양각을 처리한다. 배경색은 이 금속색과 독립적으로 추천 색·HEX·RGB(0~255)를 지정한다. 미리보기·등급 썸네일·PNG 저장·게시용 파생 이미지가 같은 등급 재질을 사용한다. 결과 단계는 자동 연결된 표준 방문 보상(1회 브론즈·3회 실버·5회 골드)을 확인하고 게시한다. 이름은1단계, 표현 스타일은3단계 상단, 회전·움직임·재질 효과·오라·목소리·living·이야기는3단계의 애니메이션과 효과에서 설정한다. [실제 마우스 조작·이전 편집기 검증](evidence/merchant-photo-editor-2026-10-08/README.md).
+
+2026-10-09 새 PR 후속은 편집 화면을 실제 사진 편집기에 가깝게 넓혔다. 편집 확대는100~300%이며 붓은 크기와 경도0~100을 따로 둔다. 2단계는 신규 사용자에게 기본 스티커를 자동으로 넣지 않고, 점주가 직접 추가한 스티커만 저장한다. 새 점포를 만들 때도 추천 motif나 메뉴 문구를 새 스티커로 생성하지 않는다. 이미 저장된 사용자 스티커는 그대로 보존한다. 재질 효과는 선택 등급에 즉시 적용·해제되고 강도0은 no-op이다. 불꽃은 재질 효과가 아니라 **오라** 항목이며 색·강도·속도0.25~3만 metadata로 저장하고 웹·native 런타임에서 그린다. 새 오라 타일 이미지를 저장하지 않는다. 미리보기 버튼은 재생/정지 하나로 바뀌며, 재생 중에는 회전·움직임·재질·오라가 함께 보인다.
+
+## 회전 깊이와 저장 형식 (2026-10-08 후속)
+
+음각·양각은 원본 밝기×alpha에서 공통 높이를 얻어 부호를 한 번 반전하고, 회전 방향의 조명·경사·수평 변위를 계산한다. 편집 버퍼는 원본을 덮어쓰지 않으며 depth=0/원본 스타일에서는 높이 처리를 건너뛴다. 웹 측면도 회전 부호를 유지한다. 이 표현은 2.5D이고 실제 3D mesh는 아니다.
+
+| 저장 자료 | 형식·한도 |
+| --- | --- |
+| 편집 프로젝트 | 원본·붓·스티커·설정 JSON, 원본 이미지 3MiB·4096px |
+| 정면·base·썸네일 | 512px 정면/base 각 1MiB, 160px 썸네일 128KiB |
+| 고정 뒷면 | 512px WebP/PNG, 256KiB |
+| 각도별 앞면 | 정적 WebP/PNG 스프라이트 12칸·4열·3행·15°, 전체 1MiB |
+| 움직임 | 기존 once/loop 모션 JSON; 움직이는 WebP를 저장하지 않음 |
+| 전체 요청 | UTF-8 JSON 8MiB, 448→384→320→256px·품질 .85→.7로 게시 크기 조정 |
+
+음각·양각이면 별도 재질 효과가 없어도 각도 프레임을 생성한다. 게시 파생 이미지는 브론즈·실버·골드·프리즘과 모든 활성 추가 등급에 대해 만든다. 초안 저장은 원본·설정만 보관하고 게시할 때 파생 이미지를 생성한다. 서버는 완성 등급 summary/detail JSONB를 저장하고 기존 획득본은 publication+grade를 참조한다. 앱은 같은 12/4/15 자료를 읽어 인접 칸을 섞고 뒤로 돌면 저장 뒷면을 보여 준다. 정면 0°는 −7.5°/+7.5°의 보간이라 편집 원본보다 미세한 윤곽이 부드러울 수 있다. 모바일은 별도 재질 조명과 60ms 갱신 주기를 사용하므로 속도·픽셀이 동일하다는 의미는 아니다. [저장 후 비교·브라우저·실기 경계](evidence/fixed-visit-relief-2026-10-08/README.md).
+
+## 프리즘·추가 등급과 용량 (2026-10-08 최신 후속)
+
+기본 제작·발행 등급은 브론즈·실버·골드·프리즘 네 개다. 방문 지급은 1회 브론즈·3회 실버·5회 골드로 유지하며 프리즘 지급 조건을 임의로 추가하지 않는다. 게시할 때 네 기본 등급과 모든 활성 특수등급의 정면·뒷면·프레임을 저장한다. 추가 등급은 고유 ID와 이름을 보존하며 총16개(기본4+특수12) 상한을 유지한다. 프리즘은 기본 음각·양각에도 청록·분홍·보라의 각도별 색 이동과 같은 계열 테두리를 사용한다. 프리즘 후면3종은 음각 문양을 유지해 built-in 이미지 생성으로 색을 개선했다. 현재 웹·앱 뒷면12종은 동일한512px WebP767,082바이트(749.1KiB)로 원본41,909,062바이트보다98.17% 작다. 사용하지 않는 v1PNG는 최신 개발자 변경에서 제거했고 기존 게시본은 보존한다. 모바일 번들은 v2만 사용한다. [최신 색감·용량·확장·검증](evidence/prism-collectibles-2026-10-08/README.md).
+
+전체 UTF-8 JSON8MiB·등급별 회전 스프라이트1MiB·뒷면256KiB 상한을 유지한다. 모든 활성 등급을 포함한 본문 전체가 통과할 때까지448→384→320→256px로 줄이며 등급을 자동 삭제하지 않는다. 그래도 크면 초안·기존 게시본을 보존하고 게시 오류를 안내한다. 모르는 등급은 현재 브론즈 외형으로 대체한다. 고유 신규 재질은 웹·앱 재질과 모양3종의 versioned 후면 카탈로그에 등록해야 한다.
+
+## 2026-10-08 현재 뒷면 계약
+
+사용자의 추가 요청으로 새 수집품은 모양별로 확정한 금속 음각 뒷면을 재사용한다. 원형·우표/엽서형·톱니형 × 브론즈·실버·골드·프리즘 12종을 built-in 이미지 생성으로 확정했다. 3단계에서 현재 모양·등급을 안내하고 뒷면 모드·색·스티커 면 선택은 제거했다. 앞면 스티커와 사진 편집은 그대로 쓴다. 사용자 등급은 이름과 관계없이 브론즈, `gear`는 톱니, 알 수 없는 모양은 원형이다.
+
+아래 `back` 스키마와 과거 뒷면 편집 구현 기록은 저장된 프로젝트 호환을 위한 이력이다. 새 게시본에는 고정 이미지로 만든 `backImageDataUrl`(512px·256KiB 이내)을 넣고, 기존 발행본의 저장된 뒷면은 보존한다. 이미지 없는 구 수집품의 웹·앱 fallback도 같은 고정 파일을 쓴다. v1은 생성 원본 이력이며 현재 런타임은 압축v2WebP다. [현재12종·프리즘 프롬프트·검수](evidence/prism-collectibles-2026-10-08/README.md), [v1원본 이력](evidence/fixed-collectible-backs-2026-10-08/README.md).
+
+2026-10-09 후속은 정면처럼 후면도 회전 각도에 따라 조명과 반짝임을 다시 계산한다. 후면 고정 이미지는 그대로 쓰고, 브론즈·실버·골드·프리즘의 핵심 색과 프리즘 foil/glint만 런타임 합성한다. 프리즘이 아닌 테두리는 `baseColor` 하나로 칠하지 않고 현재 등급 금속색 gradient를 사용한다. 이 기준은 실버 앞면 림이 브론즈색처럼 보이던 원인을 막기 위한 계약이다. 옆면은 모양별 고정 reeded edge를 쓰며 144칸 기준으로 간격이 2px보다 작아지는 홈은 생략한다. 얇은 코인에서는 홈 강도를 줄이고, 앞면 투명 영역으로 홈이 비쳐 보이지 않게 앞면 영역을 빼고 그린다. 실버 테두리·오라·회전 분리·얇은 옆면의 [캡처·저장·성능 실측](evidence/coin-edge-2026-10-09/README.md)과 [TEST_STATUS](TEST_STATUS.md)를 함께 확인한다.
+
 ## 근거와 작업 범위
 
 2026-09-30 사용자가 전달한 `월계_마스코트_개발전달_최종기획노트.docx`를 저장소 기준 커밋 `4081999eb2e7741eb2dac455e9f751ef7b795ea4`의 실제 코드와 대조했다. 사용자의 실제 코드 반영 요청에 따라 점주 웹의 제작기, 비공개 초안·게시 버전, 기존 방문 보상과 연결되는 외형, 고객 웹과 운영·시연 Android 공통 코드의 획득품 상세 경로를 추가한다. 문서의 예시 수치·제안·정책을 과거의 사용자 승인으로 바꾸지 않는다.
@@ -21,15 +66,17 @@
 
 ## 제작과 획득 흐름
 
+2026-10-08 Issue #417의 웹 시작점은 AI 초안과 준비 이미지 두 갈래다. AI는 기존 가게 이름·메뉴 생성 라운드를 사용하며, 초안을 고르면 아래 2단계의 사진 배치로 들어간다. 이 선택은 대표 그림 적용이나 게시가 아니다. 준비 이미지는 AI 상태와 관계없이 직접 가져올 수 있고, 점주가 등록한 최근 가게 사진도 별도 선택할 수 있다. 웹 입력은 JPG·PNG·WebP 20 MiB·48MP·한 변 12,000픽셀까지이며 브라우저에서 기존 저장 제한(3 MiB·4,096픽셀)으로 정규화한다. 서버의 파일 형식·바이트·총 본문 검증은 그대로 유지한다.
+
 1. 권한 있는 점주가 내 점포의 수집품 프로젝트를 만들거나 저장한 초안을 연다.
 2. 대표 사진 한 장을 고르고 원형·우표·뾰족한 톱니를 선택한다. 사진을 실시간으로 이동·확대하여 자른다.
 3. 원본 색·음각·양각을 비교한다. 고급 패널에서 보정·스티커·효과·등급·동작·두께·대사·음성·가게 이야기를 선택한다.
 4. 현재 미리보기 등급 한 개와 효과·동작을 적용할 복수 등급을 각각 조작한다. 고급 입력을 하지 않아도 기본 결과를 만들 수 있다.
-5. 초안으로 저장한다. 게시할 때 같은 점포의 기존 캠페인과 기존 목표에 표시할 외형을 명시적으로 연결한다.
+5. 초안으로 저장한다. 게시할 때 같은 점포의 배포 가능한 표준 캠페인에 자동 연결하며 외형은 1회 브론즈·3회 실버·5회 골드로 고정한다. 점주는 캠페인·지급 등급·기간 연장을 선택하지 않는다.
 6. 이후 기존 방문 인증·보상권 생성이 정상 완료되면 해당 보상에 연결된 게시 버전의 외형을 보관한다. 애니메이션·음성·장면은 보상 생성의 성공 조건이 아니다.
 7. 고객은 도감의 정적 썸네일에서 보유자 전용 상세를 열어 회전·대사·음성·가게 이야기를 다시 본다. 장면을 건너뛰거나 소리를 끄더라도 획득 기록은 남는다.
 
-기존 캠페인의 1·3·5회는 새로 만든 요구 수치가 아니다. `rewardGrades`는 이 기존 목표에 **외형만** 연결하는 항목이다. 초기값은 빈 객체이며, 점주가 선택하기 전 자동 연결하지 않는다. 이미 획득한 보상에 새 게시물을 소급해서 붙이거나, 등급 추가·시즌 변경으로 보상 횟수·확률·NFT를 변경하지 않는다.
+기존 캠페인의 1·3·5회는 새로 만든 요구 수치가 아니다. `rewardGrades`는 이 기존 목표에 **외형만** 연결하는 항목이며 게시 시 1회 브론즈·3회 실버·5회 골드로 고정된다. 점주 화면은 방문 횟수나 등급 연결을 조작하지 않는다. 이미 획득한 보상에 새 게시물을 소급해서 붙이거나, 등급 추가·시즌 변경으로 보상 횟수·확률·NFT를 변경하지 않는다.
 
 ## 요구사항과 수용 기준
 
@@ -62,7 +109,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 | 필드 | 의미·단위 |
 | --- | --- |
-| `name`, `theme.name`, `campaignId` | 수집품 이름, 독립 시즌 이름, 선택한 기존 캠페인 ID. 초안의 캠페인은 비어 있을 수 있음. |
+| `name`, `theme.name`, `campaignId` | 수집품 이름, 독립 시즌 이름, 자동 연결한 표준 캠페인 ID. 초안의 캠페인은 비어 있을 수 있음. |
 | `photo.originalDataUrl`, `width`, `height` | 선택한 원본 자료와 크기. 자른 결과를 다음 편집의 원본으로 덮어쓰지 않음. 사진 없는 초안은 빈 문자열·0×0. |
 | `shape`, `crop` | `circle / stamp / serrated`. 원본 fit-cover 기준 이동 `x/y`는 -1~1, `zoom`은 1~8. |
 | `photoEdits` | 밝기·대비 -100~100, 합치기·단순화·만화 강도 0~100. 붓 도구·원본 0~1 좌표·크기·색. |
@@ -75,7 +122,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | `greeting`, `audio` | 공통 대사, 선택 음성 data URL·MIME·길이. 음성이 없어도 정상 프로젝트. |
 | `story` | 없음·확대·넓은 장면·추적·사건 유형, 추가 프레임과 크기, 만화 스타일·강도. |
 | `derived` | 등급 ID별 완성 정면 이미지와 정적 썸네일. 웹의 대상별 재질 재생에 쓰는 바탕·대상 마스크 같은 파생 자료도 원본·편집 상태와 별도. |
-| `rewardGrades` | 기존 목표 문자열 `1 / 3 / 5` 중 명시적으로 선택한 목표와 제작 등급 ID. 빈 초안 초기값. |
+| `rewardGrades` | 표준 방문 보상 목표 `1 / 3 / 5`와 제작 등급 ID. 게시 시 `1=bronze`, `3=silver`, `5=gold`로 고정. |
 
 ### v2 추가 필드 (Issue #284 WP1, 2026-10-01)
 
@@ -118,7 +165,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 
 - **패럴랙스:** 모델의 순수 `strokeAlpha(strokes, w, h)`(전경 255/배경 0 마스크, `processPhotoPixels`와 같은 원 찍기 수식)와 `parallaxOffset(angleDeg, strength, size)`(`s = sin(angle)·strength/100·0.04·size`)를 렌더러 `frontFor`가 쓴다: 배경 레이어는 `1+.08·strength/100`배로 확대하고 `-s/2` 이동, 전경(사진∩마스크)은 `+s` 이동, 스티커는 `+1.2s`, 테두리는 고정이다. 편집기 "사진 세부 조정"에 붓 대상(사진/패럴랙스) select·강도 슬라이더·fg/bg 붓을 더해 기존 자르기 캔버스 포인터 코드를 재사용했고, 붓 대상이 사진이 아니면 `strokeAlpha`로 지금까지 칠한 자리를 색 오버레이로 보여 준다.
 - **living picture:** 모델의 순수 `livingPhaseAt`/`livingFrameAt`(주기성, t=0과 t=periodMs가 같은 칸)·`livingSpriteCount`(periodMs/100을 8..24로 clamp)·`livingSpriteGrid`(count칸을 columns 1..8·4096px 안에 배치)·`livingBoundingBox`(등급별 합집합 박스, 패딩)를 렌더러의 `livingOverlayFor`/`paintLivingItem`이 쓴다: `region` 대상은 (사진∩영역 마스크)를 sway(회전, 6° 상한)·bob(이동, 3% 상한)·steam(올라가는 반투명 점)으로, 스티커 대상은 그 스티커 레이어를 같은 방식으로 변형하거나 blink(마스코트 포즈를 `<pose>-blink`로 교체, 주기당 160ms)로 그린다. 편집기에 "살아 있는 그림" 섹션(항목 추가·삭제, 등급 토글, 움직임 크기, region 대상의 붓 칠하기(점 20개 상한))을 새로 만들었다.
-- **각도 프레임·living 스프라이트·크기 사다리:** `serializeDerived`가 metallic/hologram/pearl 효과가 있거나(패럴랙스 강도>0이고 획이 있는) 등급에 `angleFrames`(12칸, 4×3, −82.5°+15°·i, living 대상 스티커는 뺀다)를, living 항목이 있는 등급에 `living` 스프라이트(count·columns·cellWidth/cellHeight·box)를 굽는다. 편집기 게시 경로가 크기 사다리(`SPRITE_SIZE_LADDER`: 448→384→320→256px, 화질 .85→.7)로 `publishSizeProblem`을 통과할 때까지 다시 시도하고, 끝까지 넘으면 가장 작은 단계로 기존 초과 안내를 보인다.
+- **각도 프레임·living 스프라이트·크기 사다리:** `serializeDerived`가 metallic/hologram/pearl 효과가 있거나(패럴랙스 강도>0이고 획이 있는) 등급에(2026-10-08 후속부터 음각·양각 relief>0 등급도 포함) `angleFrames`(12칸, 4×3, −82.5°+15°·i, living 대상 스티커는 뺀다)를, living 항목이 있는 등급에 `living` 스프라이트(count·columns·cellWidth/cellHeight·box)를 굽는다. 편집기 게시 경로가 크기 사다리(`SPRITE_SIZE_LADDER`: 448→384→320→256px, 화질 .85→.7)로 `publishSizeProblem`을 통과할 때까지 다시 시도하고, 끝까지 넘으면 가장 작은 단계로 기존 초과 안내를 보인다.
 - **뷰어:** `angleFrames`가 있으면 `angleFrameIndex`로 가장 가까운 두 칸을 크로스페이드하고(없으면 기존 base+mask 재합성 폴백), `living`이 있으면 시간에 맞는 칸을 정면 위 `box` 자리에 얹는다. "기울여서 보기" 토글이 `deviceorientation` 감마(켤 때 잡은 값을 0점, 저역통과 .2, ±30°)로 각도를 돌리고, iOS는 토글 클릭에서 `requestPermission()`을 부르며, 미지원·동작 줄이기면 토글을 만들지 않고 탭이 숨겨지면 멈춘다. 편집기 미리보기에는 기울임을 넣지 않았다.
 - **PR #293 후속 P2 3건:** (a) `maskFor`가 `gradeId`를 받아 `resolveSticker`를 거쳐, 등급별로 재배치된 스티커 효과도 그 자리에 맞는 마스크를 만든다. (b) 모션을 once→loop로 바꿀 때도 반복끼리 등급당 하나 배타 규칙을 다시 적용해, 겹치는 등급만 다른 loop 모션에서 뗀다. (c) `applyDraftEdits`가 v1 시절 스티커(align·layouts 없음)를 병합할 때 직접 두 필드를 채워, "이 등급만 따로 배치" 토글이 던지지 않게 한다.
 - **알려진 한계(설계 문서 "위험" 그대로):** living 스티커 오버레이는 패럴랙스를 받지 않고 항상 각도 0 재질을 쓴다. mini-dom 시험은 canvas 호출을 전부 no-op으로 흉내 내 실제 픽셀 합성은 검증하지 못해(모양·치수·DOM 상태만 확인), 실제 브라우저 확인은 `NOT_RUN`이다.
@@ -137,7 +184,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | 효과 합성 | 사진 보정/명암 → 사진 대상 효과 → 표면 효과 → 순서대로 스티커와 개별 효과 → 테두리 효과. 강도 0도 저장하며 선택 효과를 삭제하지 않음. |
 | 동작 적용 | 한 등급에 실제 재생하는 템플릿을 구분하고, 공통 템플릿 목록은 선택 항목만 재생. 저성능·동작 줄이기에서 정적 결과 사용. 실제 지원 기기 성능 보증은 별도 측정. |
 | 게시 후 편집 | 게시 버전을 보존하고 수정은 새 초안 복사로 진행. 기존 획득의 게시 버전은 유지. 초안 저장은 명시적 동작과 버전 충돌 안내를 제공. 기기 안 자동 저장(Issue #282, 아래 절)은 브라우저 로컬 저장일 뿐 서버 자동 저장이 아니며, 명시적 초안 저장·게시와 구분해 기록한다. |
-| 획득 외형 | 기존 캠페인 목표에 점주가 직접 연결한 등급만 이후 보상권에 적용. 최소 하나의 명시 연결 후 게시. 고급 입력·특수등급·음성·장면은 선택 사항. |
+| 획득 외형 | 표준 캠페인의 1회 브론즈·3회 실버·5회 골드에 자동 연결한다. 서버 게시 단계도 입력 맵을 고정값으로 정리하며 필수 네 등급의 활성 상태와 모든 활성 등급의 파생 이미지·living 준비, 정확한 1·3·5 목표를 검사한다. 고급 입력·특수등급·음성·장면은 선택 사항. |
 
 미디어 서명 검사·파일 크기·유한 수치·허용 필드·안정 ID·참조 관계를 서버에서 확인한다. 저장할 때 원본 사진·장면 원본·완성 이미지 모두에서 EXIF/XMP/ICC 등 메타데이터를 제거하고(JPEG 방향값만 유지), MP3의 ID3·APE 태그를 제거한다. **미디어 헤더(매직 바이트·PNG IHDR/WebP VP8X 같은 치수 필드) 확인은 모든 디코딩 오류·전체 파일 안전성을 보증하지 않는다** — 헤더가 유효한 PNG/WebP/JPEG를 선언해도 그 안의 픽셀 데이터(IDAT 등)까지 실제로 디코드해 내용을 확인하지는 않는다(전체 디코드에는 새 이미지 디코딩 의존성이 필요해 별도 승인 없이 추가하지 않는다). 이 한계는 v1부터 있던 모든 이미지 필드(`photo.originalDataUrl`, `derived[g].imageDataUrl` 등)와 v2에서 추가한 스프라이트 필드(`derived[g].backImageDataUrl`·`angleFrames.dataUrl`·`living.dataUrl`) 모두에 똑같이 적용된다. 공개 원본 저장소나 임의 외부 URL을 허용하는 근거가 아니다.
 
@@ -156,7 +203,7 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 ```
 
 - 이 점포의 `status='ACTIVE'`·공개·기간 안(`startsAt ≤ 지금 < endsAt`) 캠페인만, `startsAt` 최신순. 게시 API가 받는 조건과 같다.
-- `goals`는 그 캠페인에 실제로 있는 기존 목표 중 1·3·5만 오름차순. `rewardGrades`의 키는 이 안에서만 고른다(없는 목표는 게시가 409 `COLLECTIBLE_CAMPAIGN_UNAVAILABLE`).
+- `goals`는 그 캠페인에 실제로 있는 기존 목표 중 1·3·5를 오름차순으로 반환한다. 제작기는 정확히 세 목표가 있는 표준 캠페인만 자동 연결하고, 서버도 누락된 목표에는 게시를 409 `COLLECTIBLE_CAMPAIGN_UNAVAILABLE`로 거절한다.
 - `publication`은 지금 그 캠페인에 연결돼 새 방문 고객에게 나가는 발행본(없으면 `null`).
 - 오류: 세션 없음·만료 401(`WEB_SESSION_*`), 다른 호스트 403, 권한 없음 403 `MERCHANT_ACCESS_DENIED`, 삭제된 계정 410 `ACCOUNT_DELETED`.
 
@@ -174,14 +221,15 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | `POST /:projectId/delete` | `{ expectedVersion }` | 200 `{ projectId, deleted: true, unlinkedCampaignId }` (초안은 행 삭제, 게시본은 게시 중지 + 비공개 원본 비움) |
 
 - 저장·생성·복사 응답의 `project`는 서버가 정리한 값이다: 모든 이미지의 메타데이터 제거(바이트가 달라짐), MP3는 태그 제거와 프레임 기준 `durationSeconds`. 편집기는 응답의 `project`를 새 기준값으로 삼아야 "저장하지 않은 변경" 비교가 어긋나지 않는다.
+- 게시 등급 행 전체의 JSON 직렬화 크기는 24 MiB 이하이며 초과하면 413 `COLLECTIBLE_PUBLICATION_SIZE_LIMIT`이다. 기본 네 등급 누락은 409 `COLLECTIBLE_DEFAULT_GRADE_MISSING`과 "편집기를 새로고침한 뒤 다시 게시해 주세요"로 안내한다. API와 웹 자산은 D-096에 따라 같은 배포 창에서 전환한다.
 - 본문 상한 8 MiB(413 `BODY_TOO_LARGE`). 점포당 미디어가 남은 발행본은 100개까지다(409 `COLLECTIBLE_PUBLICATION_LIMIT`; 게시본은 이미 받은 고객을 위해 남아 삭제·게시 중지로 줄지 않고, 운영자 미디어 제거만 자리를 비운다). 생성·저장·복사·게시는 점포마다 1분 20번(429 `COLLECTIBLE_RATE_LIMITED`, `Retry-After` 초).
 - 이미지: PNG/JPEG/WebP data URL만. 원본 사진 3 MiB·4096 px, 장면 원본 512 KiB·4096 px(최대 5장), 완성 `imageDataUrl`·`baseDataUrl` 1 MiB·512 px, `effectMasks` 256 KiB·512 px, `thumbnailDataUrl` 128 KiB·160 px, 장면 `previewDataUrl` 512 KiB·512 px. 애니메이션 WebP 거절. 음성: MP3(ID3/APE 태그 뒤 MPEG Layer III 프레임만, 30.5초 초과 413 `COLLECTIBLE_MEDIA_TOO_LARGE`), WebM/Ogg(브라우저 녹음의 Opus만, 서버가 길이를 다시 계산해 30.5초 초과 413. Ogg는 태그를 비우고, WebM은 Tags·Attachments·Chapters·제목이 있으면 400).
-- 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_PUBLICATION_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_FOUND`(404), `MERCHANT_NOT_FOUND`(404), `MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED`(503), `VIEW_SOURCE_INVALID`(400), `VIEW_RATE_LIMITED`(429, `Retry-After` 초), `ADMIN_FUNNEL_NOT_CONFIGURED`(503), `FUNNEL_DAYS_INVALID`(400).
+- 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `COLLECTIBLE_PUBLICATION_SIZE_LIMIT`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_DEFAULT_GRADE_MISSING`·`COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_PUBLICATION_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_FOUND`(404), `MERCHANT_NOT_FOUND`(404), `MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED`(503), `VIEW_SOURCE_INVALID`(400), `VIEW_RATE_LIMITED`(429, `Retry-After` 초), `ADMIN_FUNNEL_NOT_CONFIGURED`(503), `FUNNEL_DAYS_INVALID`(400), `AI_ART_NOT_CONFIGURED`(503), `AI_ART_DAILY_LIMIT`(429), `AI_ART_BUDGET_EXHAUSTED`(503), `AI_ART_TRIAL_DISABLED`(403), `AI_ART_ROUND_IN_PROGRESS`(409), `AI_ART_MODERATION_BLOCKED`(409), `AI_ART_UPSTREAM_UNAVAILABLE`(503), `AI_ART_TIMEOUT`(503), `AI_ART_INTERRUPTED`(409).
 - 새 탐색·집계 경로의 오류: 공개 `GET /merchants/:merchantId/collectible-preview`는 서비스 미설정 또는 공개 중인 수집품이 없을 때 각각 `COLLECTIBLE_PREVIEW_NOT_CONFIGURED`·`COLLECTIBLE_PREVIEW_NOT_FOUND`를 반환한다. 공개 `POST /merchants/:merchantId/views`는 서비스 미설정, 잘못된 `source`, 요청 제한, 공개 목록에서 찾을 수 없는 가게에 각각 `MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED`·`VIEW_SOURCE_INVALID`·`VIEW_RATE_LIMITED`·`MERCHANT_NOT_FOUND`를 반환한다. 운영자 `GET /api/web/admin/funnel`은 서비스 미설정 또는 7~90일 밖의 `days`에 각각 `ADMIN_FUNNEL_NOT_CONFIGURED`·`FUNNEL_DAYS_INVALID`를 반환한다.
 
 ### 웹 제작기의 연결 (PR #257 인수 후속, 2026-10-01)
 
-- **캠페인:** 제작기는 공개 `/merchants`를 읽지 않고 위 `collectible-campaigns`만 쓴다(열 때·저장 목록 새로 보기·게시 직전에 다시 읽는다). 선택한 캠페인의 `goals`에 없는 방문 목표는 보이지 않고, 캠페인을 바꾸면 그 목표의 연결은 풀린다. 게시 직전 목록에 없는 캠페인은 서버에 보내기 전에 막는다. 목록 읽기에 실패하면 권한·세션 이유를 알리고 게시만 막는다.
+- **캠페인:** 제작기는 공개 `/merchants`를 읽지 않고 위 `collectible-campaigns`만 쓴다(열 때·저장 목록 새로 보기·게시 직전에 다시 읽는다). 점주는 캠페인이나 방문 목표별 등급을 고르지 않는다. 현재 배포 가능한 표준 1·3·5회 방문 보상 캠페인이 없으면 서버에 보내기 전에 게시를 막고, 목록 읽기에 실패하면 권한·세션 이유를 알리고 게시만 막는다.
 - **기준값:** 저장·생성·게시 응답의 `project`(이미지 바이트·MP3 길이를 서버가 정리한 값, 게시 때 만든 파생 이미지 포함)를 새 기준으로 삼아, 저장 중 새로 편집한 내용이 없으면 "저장하지 않은 변경"이 남지 않는다. 있으면 편집 내용을 지키고 버전만 이어 한 번 더 저장하게 한다. 시즌 복사는 서버의 새 초안을 저장 대상으로 삼고 이름·캠페인·보상 연결만 바꿔 저장 전까지 변경으로 본다.
 - **게시 중지·삭제:** 게시 옆 `게시 중지`(`POST …/unpublish`)와 `삭제`(`POST …/delete`)는 확인 대화상자 뒤 `expectedVersion`으로 요청한다. 게시 중지는 새 손님에게 나가는 것만 멈추고, 게시 프로젝트 삭제는 원본·편집 자료가 지워지며 이미 받은 손님의 수집품은 남는다고 알린다. 목록·카드·상태 줄은 `distributingCampaignId`로 지금 나가는 캠페인 이름을 보여 준다.
 - **오류 문구:** 위 오류 코드마다 `collectible-errors.mjs`의 고유한 한국어 문구가 있고(계약 문서·서버 코드 목록과 어긋나면 시험이 실패한다), 429는 `Retry-After` 초를, 413은 본문·미디어 상한을 알린다. "인터넷 연결 확인"은 요청이 서버에 닿지 못했을 때만 쓴다.

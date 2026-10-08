@@ -10,6 +10,7 @@ import { cancelAnimation, useDerivedValue, useSharedValue, withTiming } from 're
 
 import type { CollectibleAngleFrames, CollectibleLiving, CollectibleMotion, PublishedCollectible } from '@/commerce/collectible-artwork';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { colorsForScheme } from '@/theme/palette';
 import { canUseTiltSensor } from '@/ui/can-use-tilt-sensor';
@@ -18,9 +19,11 @@ import { StateScene } from '@/ui/state-scene';
 
 import { CollectibleDefaultBack, CollectibleFaceOutline, CollectibleFaceShape, collectibleGradeColors, collectibleWebClipPath } from './collectible-default-back';
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
+import { CollectibleAuraLayer } from './collectible-aura-layer';
+import { CollectibleEdgeLayer } from './collectible-edge-layer';
 import type { CollectibleDetailInput, LegacyCollectibleDetail } from './legacy-collectible-detail';
 import {
-  angleFrameWebMask, angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
+  angleFrameWebMask, angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, collectibleRotationAngle, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
   onceMotions, ONCE_MS, particleAt,
 } from './collectible-motion';
 import { TiltSensor } from './collectible-tilt';
@@ -247,6 +250,9 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
   const lightClipId = `collectible-light-outline-${useId().replace(/:/g, '')}`;
   const materialActive = moving && !scene && cardVisible;
   const materialClock = useGradeMaterialClock(materialActive);
+  const auraActive = Boolean(snapshot.effects?.some(effect => effect.type === 'flame' && effect.target === 'aura' && effect.strength > 0))
+    && playing && moving && !dragging && !scene && cardVisible;
+  const auraClock = useGradeMaterialClock(auraActive);
   const materialAngle = useSharedValue(snapshot.angle);
   const dragLight = useSharedValue({ x: 0, y: 0 });
   const gravityLight = useSharedValue({ x: 0, y: 0 });
@@ -316,16 +322,15 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
       }
       if (playing && !dragging) {
         setAnimationTime(elapsed);
-        if (activeAnimation === 'rotate') {
-          angleRef.current = ((startAngle + elapsed / 90 + 180) % 360) - 180;
-          setAngle(angleRef.current);
-          setDraftAngle(angleRef.current);
-          gesture.current.angle = angleRef.current;
-        }
+        // 선택한 떠오름·빛·입자 동작 위에 회전을 함께 재생한다.
+        angleRef.current = collectibleRotationAngle(startAngle, elapsed, snapshot.rotationSpeed);
+        setAngle(angleRef.current);
+        setDraftAngle(angleRef.current);
+        gesture.current.angle = angleRef.current;
       }
     }, 60);
     return () => clearInterval(timer);
-  }, [playing, moving, dragging, scene, activeAnimation, animationReplay, sceneReplay]);
+  }, [playing, moving, dragging, scene, activeAnimation, animationReplay, sceneReplay, snapshot.rotationSpeed]);
 
   const playMotionSequence = useCallback((sequence: readonly CollectibleMotion[]) => {
     cancelSequence();
@@ -424,7 +429,7 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
   const depth = collectibleEdgeOffset(angle, snapshot.thickness * size / 512);
   const reverse = collectibleFace(angle) === 'back';
   const picture = imageFailed ? snapshot.thumbnailDataUrl : snapshot.imageDataUrl;
-  const animationFrame = collectibleMotionFrame(playing && moving ? activeAnimation : 'still', animationTime, size);
+  const animationFrame = collectibleMotionFrame(playing && moving ? activeAnimation : 'still', animationTime, size, snapshot.rotationSpeed);
   const frames = snapshot.story.frames;
   const shownProgress = moving ? sceneProgress : .75;
   const frameIndex = Math.min(frames.length - 1, Math.floor(shownProgress * frames.length));
@@ -451,35 +456,35 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
   return (
     <DetailFrame onLayout={onViewportLayout} onScroll={onDetailScroll}>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]}>{snapshot.name}</Text>
-      <Text selectable style={[styles.meta, { color: palette.secondaryLabel }]}>{merchantName} · {snapshot.gradeName} · {snapshot.theme.name}</Text>
+      <Text selectable style={[styles.meta, { color: palette.secondaryLabel }]}>{publicDataDemoStoreName(merchantId, merchantName)} · {snapshot.gradeName} · {snapshot.theme.name}</Text>
       <View onLayout={onCardLayout} style={[styles.stage, { width: size, height: size, backgroundColor: palette.surface }]}>
         {scene ? (
           <>
-            <Image source={{ uri: sceneUri }} resizeMode="cover" accessibilityLabel={`${merchantName} 가게 이야기`}
+            <Image source={{ uri: sceneUri }} resizeMode="cover" accessibilityLabel={`${publicDataDemoStoreName(merchantId, merchantName)} 가게 이야기`}
               style={{ width: size, height: size, transform: [{ scale: sceneScale }, { translateX: scenePan }] }} />
             {snapshot.story.type === 'follow' ? <View style={{ position: 'absolute', left: size * (.1 + shownProgress * .65), bottom: size * .1 }}><Mascot pose="wave" size={size * .16} breathe={false} /></View> : null}
           </>
         ) : (
           <GestureDetector gesture={materialGesture}>
-          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
-            {[1, .8, .6, .4, .2].map((fraction) => <View key={fraction} pointerEvents="none" accessible={false}
-              style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09 + depth * fraction, transform: [{ scaleX }] }}>
-              <CollectibleFaceShape shape={snapshot.shape} size={displayFace} fill={gradeColors.shade} />
-            </View>)}
+          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${publicDataDemoStoreName(merchantId, merchantName)}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
+            <CollectibleAuraLayer effects={snapshot.effects} shape={snapshot.shape} size={size} faceSize={displayFace}
+              horizontal={scaleX} angle={materialAngle} clock={auraClock} />
+            <CollectibleEdgeLayer shape={snapshot.shape} size={displayFace} horizontal={scaleX} depth={depth}
+              left={size * .09} top={size * .09} material={material} shade={gradeColors.shade} />
             {reverse ? (
               snapshot.backImageDataUrl ? (
                 <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
                 <CollectibleFaceShape shape={snapshot.shape} size={displayFace} fill={gradeColors.container} />
                 <FaceImage uri={snapshot.backImageDataUrl} shape={snapshot.shape} size={displayFace} />
                 <GradeMaterialLayer material={material} size={displayFace} shape={snapshot.shape}
-                  tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} />
+                  tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} showGlints />
                 </View>
               ) : (
                 <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
-                  <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={merchantName}
+                  <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={publicDataDemoStoreName(merchantId, merchantName)}
                     name={snapshot.name} gradeId={snapshot.gradeId} gradeName={snapshot.gradeName} />
                   <GradeMaterialLayer material={material} size={displayFace} shape={snapshot.shape}
-                    tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} intensityScale={.45} />
+                    tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} intensityScale={.45} showGlints />
                 </View>
               )
             ) : (
@@ -576,9 +581,9 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
       </View> : null}
       <Text style={[styles.meta, { color: palette.secondaryLabel }]}>이 수집품은 도감에 보관되어 있어요.</Text>
       {onPlaceInStudio ? <Control label="내 공간에 놓기" onPress={() => { pause(); onPlaceInStudio(); }} /> : null}
-      {merchantId ? <Pressable accessibilityRole="link" accessibilityLabel={`${merchantName} 보기`}
+      {merchantId ? <Pressable accessibilityRole="link" accessibilityLabel={`${publicDataDemoStoreName(merchantId, merchantName)} 보기`}
         onPress={() => { close(); router.push({ pathname: '/merchants/[merchantId]', params: { merchantId, from: 'collection' } }); }}
-        style={styles.merchantLink}><Text style={[styles.controlText, { color: palette.primary }]}>{merchantName} 보기 →</Text></Pressable> : null}
+        style={styles.merchantLink}><Text style={[styles.controlText, { color: palette.primary }]}>{publicDataDemoStoreName(merchantId, merchantName)} 보기 →</Text></Pressable> : null}
       <Control label="도감으로 돌아가기" onPress={close} />
     </DetailFrame>
   );

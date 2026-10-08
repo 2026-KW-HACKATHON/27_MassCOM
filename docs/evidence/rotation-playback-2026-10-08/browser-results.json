@@ -1,0 +1,36 @@
+{
+  "browserObserved": {
+    "laterAngle": "-177°",
+    "play": true,
+    "pausedAngle": "-145°",
+    "savedAngle": "0°",
+    "speed": "2×",
+    "initialAngle": "5°"
+  },
+  "synthetic": true,
+  "name": "회전 속도 QA · 2배 프리즘",
+  "captures": [
+    {
+      "name": "01-play-speed-2x.jpg",
+      "sha256": "c0e82cc2f0578ace95df4ba6162bd3cb94a67e01fe4aa678bd020052b296997b",
+      "bytes": 66687
+    },
+    {
+      "name": "02-saved-speed-2x.jpg",
+      "sha256": "479096f577ff4561ad85f0522954b0a269d2c81c4fa8b3706a50377d343f20a5",
+      "bytes": 73040
+    }
+  ],
+  "origin": "http://127.0.0.1:4193",
+  "rotationSpeed": 2,
+  "version": 3,
+  "acquiredSnapshotSpeed": 2,
+  "publicationId": "bb41067b-db00-45dc-938f-d426fd3e3c09",
+  "projectId": "aac76e09-60ca-4a9e-bd49-8db222752a06",
+  "grades": [
+    "bronze",
+    "silver",
+    "gold",
+    "prism"
+  ]
+}

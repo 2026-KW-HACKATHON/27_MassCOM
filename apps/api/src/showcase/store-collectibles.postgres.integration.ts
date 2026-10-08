@@ -40,20 +40,22 @@ test('hosted seed publishes one collectible per virtual store, idempotently, and
     await seedHostedShowcase(pool);
     await Promise.all(Array.from({ length: 4 }, () => seedHostedShowcase(pool)));
     await seedHostedShowcase(pool);
-    // #333(R-333a), #365: 게시물마다 세 등급 행이 있어 등급 행은 3 × 3 = 9개다. C의 최상위 등급은 프리즘이다.
-    assert.deepEqual(await publicationCounts(pool), [3, 3, 9, 3]);
+    // Each of the 33 public demo campaigns has one publication and three grade snapshots.
+    assert.deepEqual(await publicationCounts(pool), [33, 33, 99, 33]);
     const gradeRows = await pool.query<{ campaign_id: string; grades: string[] }>(
       `SELECT link.campaign_id, array_agg(grade.grade_id ORDER BY grade.grade_id) AS grades
        FROM campaign_collectible_publications link
        JOIN collectible_publication_grades grade ON grade.publication_id = link.publication_id
-       GROUP BY link.campaign_id ORDER BY link.campaign_id`);
+       WHERE link.campaign_id = ANY($1::text[])
+       GROUP BY link.campaign_id ORDER BY link.campaign_id`, [storeCampaigns]);
     assert.deepEqual(gradeRows.rows.map((row) => [row.campaign_id, row.grades]), [
       ['showcase-local-campaign', ['bronze', 'gold', 'silver']],
       ['showcase-local-campaign-b', ['bronze', 'gold', 'silver']],
       ['showcase-local-campaign-c', ['bronze', 'prism', 'silver']],
     ]);
     const linked = await pool.query<{ campaign_id: string }>(
-      'SELECT campaign_id FROM campaign_collectible_publications ORDER BY campaign_id');
+      'SELECT campaign_id FROM campaign_collectible_publications WHERE campaign_id = ANY($1::text[]) ORDER BY campaign_id',
+      [storeCampaigns]);
     assert.deepEqual(linked.rows.map((row) => row.campaign_id), [...storeCampaigns].sort());
     // 호스트 시드는 계정·점주 멤버 행을 만들지 않는다(#322도 마찬가지).
     const members = await pool.query('SELECT 1 FROM merchant_members');
@@ -82,7 +84,7 @@ test('hosted seed publishes one collectible per virtual store, idempotently, and
         assert.equal(course.steps[0]?.artwork?.thumbnailDataUrl, item.artwork.thumbnailDataUrl);
       }
     }
-    assert.deepEqual(await publicationCounts(pool), [3, 3, 9, 3]);
+    assert.deepEqual(await publicationCounts(pool), [33, 33, 99, 33]);
   } finally {
     await pool.end();
   }

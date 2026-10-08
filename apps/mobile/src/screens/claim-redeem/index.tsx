@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { platformSecureStore } from '@/auth/platform-secure-store';
 import {
   CommerceApiError,
@@ -583,6 +584,7 @@ export function ClaimRedeemScreen({
     const diff = diffBadgeBooks(previous, after);
     if (badgeBookGate.isCurrent(request)) setOpenableBoxClaimSlot(hasOpenableBox(after) ? result.claimSlotId : undefined);
     setCelebration({
+      merchantId: result.merchantId,
       claimSlotId: result.claimSlotId,
       grantedRewards: result.grantedRewards,
       merchantName: result.merchantName,
@@ -750,7 +752,7 @@ export function ClaimRedeemScreen({
                     onPress={() => setSelectedTestVisitMerchantId(merchant.id)}
                     style={[styles.testVisitChip, selected && styles.testVisitChipSelected]}
                   >
-                    <Text style={[styles.testVisitChipText, selected && styles.testVisitChipTextSelected]}>{merchant.name}</Text>
+                    <Text style={[styles.testVisitChipText, selected && styles.testVisitChipTextSelected]}>{publicDataDemoStoreName(merchant.id, merchant.name)}</Text>
                   </Pressable>
                 );
               })}
@@ -777,7 +779,7 @@ export function ClaimRedeemScreen({
           <FloatingCard style={styles.previewCard}>
             <Text style={styles.sectionTitle}>2 · 방문 확정</Text>
             <StatusRow palette={palette} label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
-            <StatusRow palette={palette} label="가게" value={preview.merchantName} />
+            <StatusRow palette={palette} label="가게" value={publicDataDemoStoreName(preview.merchantId, preview.merchantName)} />
             <StatusRow palette={palette} label="캠페인" value={preview.campaignTitle} />
             <StatusRow palette={palette} label="만료" value={formatDateTime(preview.expiresAt)} />
             {recoveryAction?.kind === 'collection-check' ? (

@@ -19,8 +19,6 @@ export type MerchantStaffMember = { accountId: string; grantedAt: string;
 
 export interface MerchantOperations {
   listCampaigns(accountId: string, merchantId: string): Promise<MerchantCampaignOption[]>;
-  extendCampaign(input: { accountId: string; merchantId: string; campaignId: string; days: 30 | 90;
-    expectedEndsAt: string; consentAccepted: boolean; requestId: string }): Promise<MerchantCampaignOption & { replayed: boolean }>;
   listStaff(accountId: string, merchantId: string): Promise<MerchantStaffMember[]>;
   approveStaff(input: { accountId: string; merchantId: string; code: string }): Promise<MerchantStaffMember>;
   updateStaffPermissions(input: { accountId: string; merchantId: string; targetAccountId: string;

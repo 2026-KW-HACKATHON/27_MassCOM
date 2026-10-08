@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, Ellipse, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import { focusForAccessibility } from '@/accessibility/focus-component';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { celebrationNote } from '@/commerce/progress-note';
 import type { AfterVisitAction } from '@/commerce/after-visit-action';
 import { useMotionEnabled } from '@/motion/use-motion';
@@ -43,6 +44,7 @@ import type { RedeemedClaim } from '@/commerce/commerce-api';
 
 export type CelebrationContent = {
   claimSlotId?: string;
+  merchantId?: string;
   merchantName: string;
   progressCounted: boolean;
   progressExcludedReason?: 'STAFF_SELF';
@@ -151,7 +153,7 @@ function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAc
         {(cheering || companionArt) && shownBeat === 1 ? <Companion art={companionArt} celebrate size={Math.min(140, Math.round(stage * 0.62))} /> : null}
 
         <Text ref={title} accessibilityRole="header" style={styles.celebrationTitle}>
-          {content.merchantName} 도장 쾅!
+          {publicDataDemoStoreName(content.merchantId, content.merchantName)} 도장 쾅!
         </Text>
         <Text accessibilityLiveRegion="polite" style={styles.celebrationBody}>
           {celebrationNote(content)}

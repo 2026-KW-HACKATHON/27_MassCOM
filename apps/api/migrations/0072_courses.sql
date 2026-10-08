@@ -2,7 +2,7 @@
 -- 방문·보상권·코인 표(visit_events, reward_entitlements, collectible_*, coin_*)와 그 트리거는 건드리지 않는다.
 -- 코스 진행은 기간 내 유효 방문을 읽어 서버가 계산하며, 이 표들은 "어떤 코스인지"와 "열어 본 기록"만 저장한다.
 -- 이전 API는 이 표를 쓰지 않으므로 먼저 적용하거나 이전 이미지로 롤백해도 기존 쓰기를 그대로 허용한다.
--- 0068–0071은 열린 다른 PR의 번호라 비어 있다. migration 실행기는 번호가 이어져야 한다고 요구하지 않는다.
+-- 파일명 순서로 0068·0069 뒤에 적용한다. migration 실행기는 번호가 이어져야 한다고 요구하지 않는다.
 
 -- 실행기가 파일마다 BEGIN … COMMIT으로 감싼다. 운영 표의 잠금 대기는 5초에서 포기한다.
 SET LOCAL lock_timeout = '5s';
@@ -120,9 +120,10 @@ $$;
 CREATE TRIGGER course_steps_immutable BEFORE INSERT OR UPDATE OR DELETE ON course_steps
   FOR EACH ROW EXECUTE FUNCTION course_steps_guard();
 
--- 0043·0068·0069의 action에 코스 4개를 더한다. 선행 혜택 감사 action도 유지한다.
+-- 파일명 순서 0068 → 0069 → 0072에 따라 CHECK를 교체하므로 0069의 혜택 action 두 개도 보존해야 한다.
+-- 0043의 16개·0068의 목적 1개·0069의 혜택 2개·코스 4개의 합집합(23개)을 유지해 혜택 감사 INSERT 실패를 막는다.
 -- 코스 감사는 단계에 든 가게마다 한 행씩 남긴다(merchant_id가 NOT NULL이고 점포별로 조회하기 때문). 코스 전체는 after_state에 있다.
--- 기존 행은 더 좁은 0043 CHECK를 이미 만족한다. NOT VALID로 재검사를 생략해 잠금을 짧게 유지하고 새 쓰기에는 즉시 적용한다.
+-- 기존 행은 더 좁은 0069 CHECK를 이미 만족한다. NOT VALID로 재검사를 생략해 잠금을 짧게 유지하고 새 쓰기에는 즉시 적용한다.
 ALTER TABLE platform_admin_audit
   DROP CONSTRAINT platform_admin_audit_action_check;
 

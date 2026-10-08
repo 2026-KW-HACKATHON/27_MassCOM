@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CollectibleProjectError } from './collectible-project.js';
-import { collectibleSnapshot, inspectWebmOpus, normalizeMp3, normalizeOggOpus, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
+import { assertCollectiblePublicationGradeRowsSize, collectiblePublicationGradeRowsLimit, collectibleSnapshot, inspectWebmOpus, normalizeMp3, normalizeOggOpus, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
 import { photoProject, tinyPng } from './collectible-project-test-support.js';
+import { isStandardVisitGoalSet, standardizeStandardVisitPublicationProject } from './postgres/collectible-project.js';
 
 test('empty draft and source photo round trip preserve original bytes; publish requires explicit mapped finals', () => {
   const project = photoProject(); const saved = validateCollectibleProject(project, true);
@@ -12,6 +13,60 @@ test('empty draft and source photo round trip preserve original bytes; publish r
   assert.throws(() => validateCollectibleProject(draft, true), { code: 'COLLECTIBLE_NOT_READY' });
   project.rewardGrades = {};
   assert.throws(() => validateCollectibleProject(project, true), { code: 'COLLECTIBLE_NOT_READY' });
+});
+
+
+test('standard visit publication ignores crafted reward mappings and requires ready bronze silver gold prism grades', () => {
+  const crafted = photoProject();
+  crafted.rewardGrades = { '5': 'custom', '3': 'bronze', '1': 'custom' };
+  const published = standardizeStandardVisitPublicationProject(crafted);
+  assert.deepEqual(published.rewardGrades, { '1': 'bronze', '3': 'silver', '5': 'gold' });
+
+  const disabled = photoProject();
+  disabled.grades.find(grade => grade.id === 'prism')!.enabled = false;
+  assert.throws(() => standardizeStandardVisitPublicationProject(disabled), { code: 'COLLECTIBLE_DEFAULT_GRADE_MISSING' });
+
+  const missing = photoProject();
+  missing.grades = missing.grades.filter(grade => grade.id !== 'silver');
+  delete missing.derived.silver;
+  assert.throws(() => standardizeStandardVisitPublicationProject(missing), { code: 'COLLECTIBLE_DEFAULT_GRADE_MISSING' });
+
+  const fullDraft = photoProject();
+  fullDraft.grades = fullDraft.grades.filter(grade => grade.id !== 'silver');
+  delete fullDraft.derived.silver;
+  fullDraft.rewardGrades['3'] = 'custom';
+  fullDraft.grades.push(...Array.from({ length: 12 }, (_, index) => ({
+    id: `extra-${index}`, name: `추가 ${index}`, kind: 'special' as const, enabled: true,
+  })));
+  assert.equal(validateCollectibleProject(fullDraft).grades.length, 16);
+  assert.throws(() => standardizeStandardVisitPublicationProject(fullDraft), { code: 'COLLECTIBLE_DEFAULT_GRADE_MISSING' });
+
+  const missingDerived = photoProject();
+  delete missingDerived.derived.prism;
+  assert.throws(() => standardizeStandardVisitPublicationProject(missingDerived), { code: 'COLLECTIBLE_NOT_READY' });
+
+  const missingCustomDerived = photoProject();
+  delete missingCustomDerived.derived.custom;
+  assert.throws(() => standardizeStandardVisitPublicationProject(missingCustomDerived), { code: 'COLLECTIBLE_NOT_READY' });
+
+  const missingCustomLiving = photoProject();
+  missingCustomLiving.living.items = [{ id: 'living-custom', kind: 'sway', target: 'region', gradeIds: ['custom'], amplitude: 20, pivot: { x: .5, y: .5 }, strokes: [{ x: .4, y: .4 }, { x: .6, y: .6 }] }];
+  assert.throws(() => standardizeStandardVisitPublicationProject(missingCustomLiving), { code: 'COLLECTIBLE_NOT_READY' });
+});
+
+test('publication row size counts serialized UTF-8 copies across all grades', () => {
+  const half = JSON.stringify('x'.repeat(collectiblePublicationGradeRowsLimit / 2 - 4));
+  const rows = [{ summary: '""', detail: half }, { summary: '""', detail: half }];
+  assert.doesNotThrow(() => assertCollectiblePublicationGradeRowsSize(rows));
+  assert.throws(() => assertCollectiblePublicationGradeRowsSize([...rows, { summary: '"가"', detail: '' }]),
+    { code: 'COLLECTIBLE_PUBLICATION_SIZE_LIMIT' });
+});
+
+test('standard visit campaign goals must be exactly 1, 3 and 5', () => {
+  assert.equal(isStandardVisitGoalSet([5, 1, 3]), true);
+  assert.equal(isStandardVisitGoalSet([1, 3]), false);
+  assert.equal(isStandardVisitGoalSet([1, 3, 5, 7]), false);
+  assert.equal(isStandardVisitGoalSet([1, 1, 3, 5]), false);
 });
 
 test('dynamic grade names and all-off effects are accepted without invented reward mappings', () => {
@@ -62,6 +117,91 @@ test('publication snapshot contains final assets, grade scoped effects and anima
   assert.equal(snapshot.animation,'float'); assert.equal(snapshot.gradeName,'가게 특별판'); assert.equal(snapshot.effects.length,1);
   assert.deepEqual(Object.keys(snapshot).sort(), ['projectId','publicationId','gradeId','gradeName','name','shape','theme','imageDataUrl','thumbnailDataUrl','backImageDataUrl','thickness','angle','animation','motions','greeting','audio','story','effects'].sort());
   assert.equal(collectibleSnapshot(photoProject(),'p','pub','bronze').effects.length,0);
+});
+
+test('optional rotation speed survives project validation and every grade snapshot without changing authored motions', () => {
+  for (const rotationSpeed of [.25, 1, 1.5, 3]) {
+    const project = photoProject(); project.rotationSpeed = rotationSpeed;
+    const saved = validateCollectibleProject(project, true);
+    assert.equal(saved.rotationSpeed, rotationSpeed);
+    assert.deepEqual(saved.motion, project.motion);
+    for (const grade of saved.grades) {
+      const snapshot = collectibleSnapshot(saved, 'p', 'pub', grade.id);
+      assert.equal(snapshot.rotationSpeed, rotationSpeed);
+      assert.equal(snapshot.animation, grade.id === 'custom' ? 'float' : 'still');
+    }
+  }
+  const legacy = validateCollectibleProject(photoProject(), true);
+  assert.equal('rotationSpeed' in legacy, false);
+  assert.equal('rotationSpeed' in collectibleSnapshot(legacy, 'p', 'pub', 'custom'), false);
+});
+
+test('rotation speed rejects nonfinite values, wrong types and values outside .25 through 3', () => {
+  for (const rotationSpeed of [0, .249, 3.001, Infinity, -Infinity, NaN, '1', null, true]) {
+    assert.throws(() => validateCollectibleProject({ ...photoProject(), rotationSpeed }), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+});
+
+test('coin thickness up to 48 survives validation and every shape and grade publication snapshot', () => {
+  for (const shape of ['circle', 'stamp', 'serrated'] as const) {
+    for (const thickness of [1, 24, 25, 47.5, 48]) {
+      const project = photoProject(); project.shape = shape; project.thickness = thickness;
+      const saved = validateCollectibleProject(project, true);
+      assert.equal(saved.thickness, thickness);
+      for (const grade of saved.grades) {
+        assert.equal(collectibleSnapshot(saved, 'p', 'pub', grade.id).thickness, thickness);
+      }
+    }
+  }
+  for (const thickness of [0, .999, 48.001, Infinity, -Infinity, NaN, '48', null]) {
+    assert.throws(() => validateCollectibleProject({ ...photoProject(), thickness }), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+});
+
+test('monochrome and optional brush hardness preserve source settings without inserting legacy defaults', () => {
+  const project = photoProject(); project.style = 'monochrome';
+  project.photoEdits.strokes = [{ tool: 'erase', points: [{ x: .5, y: .5 }], size: .05, color: '#000000' }];
+  const legacyStroke = validateCollectibleProject(project, true).photoEdits.strokes[0]!;
+  assert.equal('hardness' in legacyStroke, false);
+  for (const hardness of [0, 40.5, 100]) {
+    project.photoEdits.strokes[0]!.hardness = hardness;
+    const saved = validateCollectibleProject(project, true);
+    assert.equal(saved.style, 'monochrome'); assert.equal(saved.photoEdits.strokes[0]!.hardness, hardness);
+    assert.equal('photoEdits' in collectibleSnapshot(saved, 'p', 'pub', 'silver'), false);
+  }
+  for (const hardness of [-.001, 100.001, Infinity, NaN, '40', null]) {
+    const bad = structuredClone(project) as any; bad.photoEdits.strokes[0].hardness = hardness;
+    assert.throws(() => validateCollectibleProject(bad), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+  for (const style of ['original', 'incised', 'raised'] as const) {
+    assert.equal(validateCollectibleProject({ ...photoProject(), style }).style, style);
+  }
+});
+
+test('flame aura is grade scoped with optional speed and no new bitmap or legacy speed default', () => {
+  const project = photoProject();
+  project.effects.push({ id: 'aura', type: 'flame', target: 'aura', gradeIds: ['silver'], strength: 70, color: '#5dd8ff', roughness: 0 });
+  const withoutSpeed = validateCollectibleProject(project, true);
+  assert.equal('speed' in withoutSpeed.effects[1]!, false);
+  assert.equal('speed' in collectibleSnapshot(withoutSpeed, 'p', 'pub', 'silver').effects[0]!, false);
+  for (const speed of [.25, 1, 1.5, 3]) {
+    project.effects[1]!.speed = speed;
+    const saved = validateCollectibleProject(project, true);
+    assert.deepEqual(collectibleSnapshot(saved, 'p', 'pub', 'silver').effects, [{ type: 'flame', target: 'aura', strength: 70, color: '#5dd8ff', roughness: 0, speed }]);
+    assert.deepEqual(collectibleSnapshot(saved, 'p', 'pub', 'bronze').effects, []);
+    assert.deepEqual(saved.derived, project.derived);
+  }
+  const mutations: ((value: any) => void)[] = [
+    p => { p.effects[1].target = 'surface'; }, p => { p.effects[1].target = 'photo'; },
+    p => { p.effects[1].type = 'glow'; }, p => { p.effects[0].speed = 1; },
+    p => { p.effects[1].unknown = 1; }, p => { p.effects[1].gradeIds = ['missing']; },
+    p => { p.derived.silver.effectMasks = { aura: tinyPng }; },
+    ...[0, .249, 3.001, Infinity, NaN, '1', null].map(speed => (p: any) => { p.effects[1].speed = speed; }),
+  ];
+  for (const mutate of mutations) {
+    const bad = structuredClone(project); mutate(bad);
+    assert.throws(() => validateCollectibleProject(bad), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
 });
 
 test('real image dimensions prevent spoofed pixel counts and oversized decode even when metadata claims a tiny photo',()=>{

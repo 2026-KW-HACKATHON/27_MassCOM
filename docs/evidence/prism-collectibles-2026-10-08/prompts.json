@@ -1,0 +1,33 @@
+{
+  "method": "Built-in image_gen.imagegen: precise-object-edit of v1 prism PNG; sharp is used only for runtime resize/encoding.",
+  "generatedAt": "2026-10-08",
+  "encoding": {
+    "width": 512,
+    "height": 512,
+    "format": "webp",
+    "quality": 80
+  },
+  "images": [
+    {
+      "shape": "circle",
+      "prompt": "Use case: precise-object-edit. The referenced PNG is the EDIT TARGET: preserve the exact centered incised penguin with leaf sprout, moon, stars, laurel and engraving layout. Change ONLY the metallic color finish into a desirable premium PRISM collectible: a jewel-toned violet base, clear saturated cyan/teal reflections, vivid magenta and fuchsia bands, small warm golden glints. Strong colorful iridescence must fill the face, not pale silver or grey with faint rainbow wash. Keep dark recessed engraving and sharp colorful bevel highlights, readable at small sizes, sophisticated polished metal rather than plastic/glitter. Preserve full-bleed square, perfectly orthographic face texture, zero perspective or thickness. No new objects, letters, numbers, labels, watermark, external coin silhouette, packaging or background. Preserve the current composition and carved mascot identity; output ONE square texture asset. Keep the double circular guilloche border unchanged.",
+      "reference": "C:/Hackerton/27_MassCOM-latest/apps/production-web/assets/collectible-backs/v1/circle-prism.png",
+      "generatedSource": "C:/Users/hellt/.codex/generated_images/01a119b7-178f-7b93-8fd2-79b87fe12f3d/exec-e1eccdff-10ed-4c77-bbcd-b0f3013c355c.png",
+      "preservedOriginal": ".omx/prism-back-source-v2/circle-prism.png"
+    },
+    {
+      "shape": "stamp",
+      "prompt": "Use case: precise-object-edit. The referenced PNG is the EDIT TARGET: preserve the exact centered incised penguin with leaf sprout, moon, stars, laurel and engraving layout. Change ONLY the metallic color finish into a desirable premium PRISM collectible: a jewel-toned violet base, clear saturated cyan/teal reflections, vivid magenta and fuchsia bands, small warm golden glints. Strong colorful iridescence must fill the face, not pale silver or grey with faint rainbow wash. Keep dark recessed engraving and sharp colorful bevel highlights, readable at small sizes, sophisticated polished metal rather than plastic/glitter. Preserve full-bleed square, perfectly orthographic face texture, zero perspective or thickness. No new objects, letters, numbers, labels, watermark, external coin silhouette, packaging or background. Preserve the current composition and carved mascot identity; output ONE square texture asset. Keep the rectangular decorative stamp border unchanged.",
+      "reference": "C:/Hackerton/27_MassCOM-latest/apps/production-web/assets/collectible-backs/v1/stamp-prism.png",
+      "generatedSource": "C:/Users/hellt/.codex/generated_images/01a119b7-178f-7b93-8fd2-79b87fe12f3d/exec-eb77b0ea-4765-4e32-9476-5b351a59e005.png",
+      "preservedOriginal": ".omx/prism-back-source-v2/stamp-prism.png"
+    },
+    {
+      "shape": "serrated",
+      "prompt": "Use case: precise-object-edit. The referenced PNG is the EDIT TARGET: preserve the exact centered incised penguin with leaf sprout, moon, stars, laurel and engraving layout. Change ONLY the metallic color finish into a desirable premium PRISM collectible: a jewel-toned violet base, clear saturated cyan/teal reflections, vivid magenta and fuchsia bands, small warm golden glints. Strong colorful iridescence must fill the face, not pale silver or grey with faint rainbow wash. Keep dark recessed engraving and sharp colorful bevel highlights, readable at small sizes, sophisticated polished metal rather than plastic/glitter. Preserve full-bleed square, perfectly orthographic face texture, zero perspective or thickness. No new objects, letters, numbers, labels, watermark, external coin silhouette, packaging or background. Preserve the current composition and carved mascot identity; output ONE square texture asset. Keep the radial serrated ornamental border unchanged.",
+      "reference": "C:/Hackerton/27_MassCOM-latest/apps/production-web/assets/collectible-backs/v1/serrated-prism.png",
+      "generatedSource": "C:/Users/hellt/.codex/generated_images/01a119b7-178f-7b93-8fd2-79b87fe12f3d/exec-aadce3bb-01ab-4f69-848c-a963cc6c492b.png",
+      "preservedOriginal": ".omx/prism-back-source-v2/serrated-prism.png"
+    }
+  ]
+}

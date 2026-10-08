@@ -17,7 +17,7 @@ function sources(directory: string): string[] {
   });
 }
 
-const files = sources(sourceRoot).map((path) => ({ path, name: relative(sourceRoot, path), text: readFileSync(path, 'utf8') }));
+const files = sources(sourceRoot).map((path) => ({ path, name: relative(sourceRoot, path).replaceAll('\\', '/'), text: readFileSync(path, 'utf8') }));
 const lineOf = (text: string, index: number) => text.slice(0, index).split('\n').length;
 
 /** 이미지로 내보내는 공유 카드: 화면 글자가 아니라 그림이라 작은 글자를 허용한다. */

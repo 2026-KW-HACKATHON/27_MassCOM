@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Image, Pressable, RefreshControl, ScrollView, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
@@ -268,7 +269,7 @@ export function TownMapScreen({ apiUrl, credential, onSessionInvalid, selectionM
                       onPress={() => select(item)}
                       style={styles.overflowRow}
                     >
-                      <Text style={styles.overflowName}>{item.name}</Text>
+                      <Text style={styles.overflowName}>{publicDataDemoStoreName(item.merchantId, item.name)}</Text>
                       <Text style={styles.overflowState}>{item.status === 'visited' ? '도장 받음' : item.status === 'none' ? '도장 아직 없음' : '확인 안 됨'}</Text>
                     </Pressable>
                   ))}

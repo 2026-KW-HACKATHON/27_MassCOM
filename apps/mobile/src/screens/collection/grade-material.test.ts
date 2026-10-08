@@ -23,6 +23,9 @@ test('골드·프리즘의 강도와 바탕 불투명도는 실버보다 높고 
   assert.ok(gold.glintCount >= 4 && gold.glintCount <= 6);
   assert.ok(prism.glintCount >= 8 && prism.glintCount <= 10);
   assert.ok(prism.rainbowStops.length >= 6);
+  assert.deepEqual(prism.colors, ['#00D5FF', '#8B5CF6', '#FF2DB8', '#FFFFFF']);
+  assert.equal(prism.tint, '#8B5CF6');
+  assert.deepEqual(PRISM_FOIL_STOPS, ['#00D5FF', '#8B5CF6', '#FF2DB8', '#38F8C8', '#C026D3', '#00D5FF']);
   assert.ok(gold.baseOpacity >= .18 && gold.baseOpacity <= .25);
   assert.equal(prism.baseOpacity, .44);
   assert.equal(silver.intensity, .50);

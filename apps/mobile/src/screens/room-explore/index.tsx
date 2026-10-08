@@ -4,6 +4,7 @@ import { Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useDiscovery } from '@/discovery/discovery-provider';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
@@ -262,7 +263,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
       {neighborError ? <Pressable accessibilityRole="button" onPress={() => void load(true)}><Text style={[styles.linkText, { color: palette.primary }]}>이웃 목록을 불러오지 못했어요 · 다시 시도</Text></Pressable>
         : neighborGroups.size ? [...neighborGroups.values()].map((group) => <View key={group.merchantId} style={{ gap: 6 }}>
           <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: group.merchantId } })} style={styles.checkRow}>
-            <View style={{ flex: 1 }}><Text style={[styles.status, { color: palette.label }]}>{group.merchantName}</Text>
+            <View style={{ flex: 1 }}><Text style={[styles.status, { color: palette.label }]}>{publicDataDemoStoreName(group.merchantId, group.merchantName)}</Text>
               <Text style={[styles.body, { color: palette.secondaryLabel }]}>함께 방문한 공개 이웃 {group.rooms.length}명</Text></View>
             <Text style={[styles.linkText, { color: palette.primary }]}>가게 ›</Text>
           </Pressable>
@@ -297,7 +298,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
       <Text style={[styles.body, { color: palette.secondaryLabel }]}>진열한 수집품 {displayStudioItems(room.studio).length}개</Text>
       {room.sharedMerchants.map((merchant) => <Pressable key={merchant.merchantId} accessibilityRole="button"
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: merchant.merchantId } })} style={styles.checkRow}>
-        <Text style={[styles.linkText, { color: palette.primary }]}>{merchant.merchantName} · 가게와 획득 조건 보기 ›</Text>
+        <Text style={[styles.linkText, { color: palette.primary }]}>{publicDataDemoStoreName(merchant.merchantId, merchant.merchantName)} · 가게와 획득 조건 보기 ›</Text>
       </Pressable>)}
       {!ownRoom && !room.friendshipId && room.visibility === 'NEIGHBORS' ? <View style={{ gap: 6 }}>
         <Text style={[styles.body, { color: palette.secondaryLabel }]}>친구가 아니어도 이웃 방을 방문할 수 있어요.</Text>

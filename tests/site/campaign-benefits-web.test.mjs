@@ -110,7 +110,7 @@ function node() {
 }
 
 test('owner panel reads the selected campaign and displays all old and current obligations', async () => {
-  const ids = ['merchant-operations', 'merchant-operations-merchant', 'merchant-extension-campaign',
+  const ids = ['merchant-operations', 'merchant-operations-merchant', 'merchant-benefit-campaign',
     'merchant-extension-status', 'merchant-extension-current', 'merchant-benefit-status',
     'merchant-staff-list', 'merchant-staff-status'];
   const nodes = Object.fromEntries(ids.map(id => [id, node()]));

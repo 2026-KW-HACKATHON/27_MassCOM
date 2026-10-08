@@ -26,6 +26,24 @@ test('앞면·뒷면 정면에서는 모서리 가로 이동이 정확히 0이�
   for (const angle of [0, 180, -180]) assert.equal(collectibleEdgeOffset(angle, 12), 0, `${angle}°`);
 });
 
+test('두께 48은 이전 최대치보다 두 배의 측면을 만들며 모든 회전 각도와 화면 크기에서 잘리지 않는다', () => {
+  for (const size of [160, 256, 360]) {
+    const thickEdge = collectibleEdgeOffset(90, 48 * size / 512);
+    const oldEdge = collectibleEdgeOffset(90, 24 * size / 512);
+    assert.equal(thickEdge, oldEdge * 2);
+    for (let angle = -180; angle <= 180; angle += 5) {
+      const faceSize = size * .82;
+      const scaleX = Math.max(.04, Math.abs(Math.cos(angle * Math.PI / 180)));
+      const depth = collectibleEdgeOffset(angle, 48 * size / 512);
+      for (const fraction of [0, .2, .4, .6, .8, 1]) {
+        const left = size * .09 + depth * fraction + faceSize * (1 - scaleX) / 2;
+        assert.ok(left >= 0 && left + faceSize * scaleX <= size, `${size}px ${angle}° layer ${fraction}`);
+      }
+    }
+  }
+  assert.match(detail, /collectibleEdgeOffset\(angle, snapshot\.thickness \* size \/ 512\)/);
+});
+
 test('게시 사진과 각도별 프레임은 앞뒷면 공통 윤곽으로 잘린다', () => {
   assert.match(detail, /function FaceImage\([\s\S]*?overflow: 'hidden', borderRadius:/);
   assert.match(detail, /function FaceImage\([\s\S]*?<ClipPath id=\{clipId\}>[\s\S]*?<CollectibleFaceOutline shape=\{shape\}/);
@@ -52,25 +70,42 @@ test('상세 화면의 수집품 면 접근성 이름에 앞면·뒷면과 수�
 
 test('상세 화면은 각도별 모서리 이동과 등급별 어두운 색을 사용한다', () => {
   assert.match(detail, /collectibleEdgeOffset\(angle,/);
-  assert.match(detail, /left:\s*size\s*\*\s*\.09\s*\+\s*depth\s*\*\s*fraction/);
-  assert.match(detail, /<CollectibleFaceShape\s+shape=\{snapshot\.shape\}[^>]*fill=\{gradeColors\.shade\}/);
+  assert.match(detail, /<CollectibleEdgeLayer shape=\{snapshot\.shape\} size=\{displayFace\} horizontal=\{scaleX\} depth=\{depth\}/);
+  assert.match(detail, /left=\{size \* \.09\} top=\{size \* \.09\} material=\{material\} shade=\{gradeColors\.shade\}/);
+  assert.doesNotMatch(detail, /depth \* fraction/);
 });
 
-test('기본 뒷면의 마스코트 도장은 앱 자산만 사용한다', () => {
+test('기본 뒷면은 모양·등급별 고정 로컬 이미지만 사용한다', () => {
   const back = readFileSync(new URL('./collectible-default-back.tsx', import.meta.url), 'utf8');
-  assert.match(back, /mascotArt\.stamp/);
+  for (const shape of ['circle', 'stamp', 'serrated']) {
+    for (const grade of ['bronze', 'silver', 'gold', 'prism']) {
+      assert.match(back, new RegExp(`collectibles/backs/v2/${shape}-${grade}\\.webp`));
+    }
+  }
+  assert.doesNotMatch(back, /collectibles\/backs\/v1\/[^'"]+\.png/);
+  assert.match(back, /collectibleFixedBackSource\(shape, gradeId, gradeName\)/);
+  assert.doesNotMatch(back, /mascotArt\.stamp/);
+  assert.doesNotMatch(back, /MassCOM 월계 수집/);
+  assert.doesNotMatch(back, /\{merchantName\}/);
+  assert.doesNotMatch(back, /\{name\}/);
   assert.doesNotMatch(back, /\buri\s*:/);
   assert.doesNotMatch(back, /https?:\/\//);
 });
 
-test('기본 뒷면은 공통 등급 판별과 프리즘 무지개·골드 금속 그라데이션을 쓰고 글자를 패널 위에 둔다', () => {
+test('기본 뒷면은 공통 등급 판별과 프리즘 무지개·골드 금속 그라데이션을 쓴다', () => {
   const back = readFileSync(new URL('./collectible-default-back.tsx', import.meta.url), 'utf8');
   assert.match(back, /const material = gradeMaterialFor\(gradeId, gradeName\)/);
   assert.match(back, /gradeMaterialPresets\.prism\.rainbowStops/);
   assert.match(back, /gradeMaterialPresets\.gold\.colors/);
   assert.match(back, /<CollectibleFaceShape[^>]*material=\{material\}/);
-  assert.match(back, /backgroundColor: colors\.container/);
-  assert.match(back, /color: colors\.onContainer/);
+  assert.match(back, /fixedBackShape\(shape\)/);
+  assert.match(back, /fixedBackGrade\(gradeId, gradeName\)/);
+  assert.match(back, /shape === 'stamp' \? 'stamp' : \(shape === 'serrated' \|\| shape === 'gear'\)/);
+  assert.match(back, /return fixedBackGrades\.includes\(id as FixedBackGrade\) \? id as FixedBackGrade : 'bronze'/);
+  assert.doesNotMatch(back.match(/export function fixedBackGrade[\s\S]*?\n}/)?.[0] ?? '', /프리즘|특별|골드|실버|gold|silver|prism/);
+  assert.match(back, /const clipId = `fixed-back-\$\{useId\(\)\.replace/);
+  assert.match(back, /clipPath: collectibleWebClipPath\(fixedShape\)/);
+  assert.match(back, /<CollectibleFaceOutline shape=\{fixedShape\}/);
 });
 
 test('앞면·사용자 뒷면·기본 뒷면은 회전 부모 안에서 같은 조명 입력과 시계를 쓴다', () => {
@@ -79,6 +114,8 @@ test('앞면·사용자 뒷면·기본 뒷면은 회전 부모 안에서 같은 
   assert.match(detail, /<GradeMaterialLayer material=\{material\} size=\{displayFace\} shape=\{snapshot\.shape\}/);
   assert.match(detail, /clipPath: collectibleWebClipPath\(snapshot\.shape\)/);
   assert.match(detail, /intensityScale=\{animationFrame\.light \? \.9 : 1\}/);
+  assert.equal((detail.match(/showGlints/g) ?? []).length, 2, '고정 뒷면과 사용자 뒷면에만 별빛을 켠다');
+  assert.match(detail, /materialAngle\.set\(dragging \? draftAngle : angle\)/);
   // 상세는 Modal 안이라 제스처 루트를 다시 둬야 한다(#358: 없으면 개발 빌드는 렌더 오류, 릴리스는 재질·끌기가 빠진다).
   assert.match(detail, /<GestureHandlerRootView style=\{\{ flex: 1 \}\}>\s*<ScrollView/);
 });

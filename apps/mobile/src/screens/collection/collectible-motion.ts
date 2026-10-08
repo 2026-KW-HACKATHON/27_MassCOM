@@ -14,6 +14,15 @@ export function collectibleEdgeOffset(angle: number, thickness: number): number 
   return Math.abs(sine) < 1e-10 ? 0 : sine * thickness;
 }
 
+/** Rotation is a separate playback channel; a resumed channel starts at its last held angle. */
+export function collectibleRotationAngle(startAngle: number, milliseconds: number, rotationSpeed = 1): number {
+  const initial = Number.isFinite(startAngle) ? startAngle : 0;
+  const elapsed = Number.isFinite(milliseconds) ? Math.max(0, milliseconds) : 0;
+  const speed = Number.isFinite(rotationSpeed) && rotationSpeed >= .25 && rotationSpeed <= 3 ? rotationSpeed : 1;
+  const angle = initial + elapsed / 75 * speed;
+  return ((angle % 360) + 540) % 360 - 180;
+}
+
 const PARTICLE_COLORS: Record<string, readonly string[]> = {
   confetti: ['#ffb165', '#8adcc0', '#da9fdd'],
   snow: ['#ffffff', '#eaf6ff', '#d7ecff'],
@@ -121,11 +130,12 @@ export function motionSequenceEnd<T extends MotionLike>(sequence: readonly T[], 
 }
 
 /** Shared by the native detail timer and its presentation; milliseconds never become seconds. */
-export function collectibleMotionFrame(type: string, milliseconds: number, size: number) {
+export function collectibleMotionFrame(type: string, milliseconds: number, size: number, rotationSpeed = 1) {
   const time = Number.isFinite(milliseconds) ? Math.max(0, milliseconds) : 0;
+  const speed = Number.isFinite(rotationSpeed) && rotationSpeed >= .25 && rotationSpeed <= 3 ? rotationSpeed : 1;
   const phase = (time % 5000) / 2000;
   return {
-    rotation: type === 'rotate' ? time / 90 : 0,
+    rotation: type === 'rotate' ? time / 90 * speed : 0,
     lift: type === 'float' ? Math.sin(time / 800) * size * .025 : 0,
     scale: type === 'pulse' ? 1 + Math.sin(time / 900) * .025
       : type === 'stamp' ? 1 + Math.max(0, 1 - (time % 3500) / 500) * .18 : 1,

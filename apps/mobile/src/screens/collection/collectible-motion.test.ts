@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  angleFrameBlend, angleFrameOpacities, collectibleMotionFrame, livingCell, type MotionLike, motionAutoplayObjects, motionAutoplaySequence,
+  angleFrameBlend, angleFrameOpacities, collectibleMotionFrame, collectibleRotationAngle, livingCell, type MotionLike, motionAutoplayObjects, motionAutoplaySequence,
   motionEntrySequence, motionSequenceEnd, onceMotionTypes, particleAt,
 } from './collectible-motion';
 
@@ -101,6 +101,51 @@ test('저장한 동작은 일반 회전으로 바뀌지 않고 각자의 변화�
   assert.notEqual(collectibleMotionFrame('pulse', 600, 320).scale, 1);
   assert.ok(collectibleMotionFrame('stamp', 0, 320).scale > 1);
   assert.equal(collectibleMotionFrame('stamp', 1000, 320).scale, 1);
+});
+
+test('저장한 회전 속도는 회전 각도만 바꾸고 기존 동작과 once 재생 시간은 유지한다', () => {
+  const base = collectibleMotionFrame('rotate', 9000, 320);
+  assert.equal(base.rotation, 100);
+  for (const speed of [.25, 1, 1.5, 3]) {
+    assert.equal(collectibleMotionFrame('rotate', 9000, 320, speed).rotation, 100 * speed);
+    for (const type of ['still', 'float', 'shine', 'stamp', 'sparkle', 'pulse', 'confetti']) {
+      assert.deepEqual(collectibleMotionFrame(type, 600, 320, speed), collectibleMotionFrame(type, 600, 320));
+    }
+  }
+  for (const speed of [0, .249, 3.001, Infinity, NaN]) {
+    assert.deepEqual(collectibleMotionFrame('rotate', 9000, 320, speed), base);
+  }
+  const detail = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
+  assert.match(detail, /collectibleRotationAngle\(startAngle, elapsed, snapshot\.rotationSpeed\)/);
+  assert.match(detail, /const holdMs = ONCE_MS\[motion\.type\] \?\? 2000/);
+});
+
+test('재생 회전은 선택한 동작과 병렬이며 웹과 같은 속도로 현재 각도에서 중단·재개한다', () => {
+  for (const start of [-180, -91, 0, 89, 180]) {
+    for (const speed of [.25, 1, 1.5, 3]) {
+      const elapsed = 6000;
+      const held = collectibleRotationAngle(start, elapsed, speed);
+      assert.ok(held >= -180 && held < 180);
+      assert.equal(collectibleRotationAngle(held, 0, speed), held, 'pause keeps the exact displayed angle');
+      for (const resumedMs of [60, 2000, 600000]) {
+        assert.ok(Math.abs(collectibleRotationAngle(held, resumedMs, speed) - collectibleRotationAngle(start, elapsed + resumedMs, speed)) < 1e-9);
+      }
+      const before = collectibleRotationAngle(start, elapsed - .001, speed) * Math.PI / 180;
+      const after = collectibleRotationAngle(held, .001, speed) * Math.PI / 180;
+      assert.ok(Math.hypot(Math.cos(before) - Math.cos(after), Math.sin(before) - Math.sin(after)) < .000002);
+    }
+  }
+  assert.equal(collectibleRotationAngle(0, 7500), 100, 'default web rate is one degree per 75ms');
+  assert.equal(collectibleRotationAngle(35, -100, 3), 35);
+  assert.equal(collectibleRotationAngle(NaN, NaN, Infinity), 0);
+  const detail = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
+  const ticker = detail.slice(detail.indexOf('// 회전 애니메이션'), detail.indexOf('const playMotionSequence'));
+  assert.match(ticker, /if \(playing && !dragging\)/);
+  assert.match(ticker, /if \(!moving\) return/);
+  assert.doesNotMatch(ticker, /if \(activeAnimation === 'rotate'\)/);
+  assert.match(ticker, /const startAngle = angleRef\.current/);
+  assert.match(detail, /collectibleMotionFrame\(playing && moving \? activeAnimation : 'still', animationTime, size, snapshot\.rotationSpeed\)/);
+  assert.match(detail, /end\.action === 'stop'\) sequenceTimeout\.current = setTimeout\(\(\) => setPlaying\(false\), holdMs\)/);
 });
 
 test('빛의 위치는 재생 시간에 반응하고 축하 입자는 짧은 구간에만 보인다', () => {

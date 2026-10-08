@@ -1,60 +1,23 @@
-# 로컬 백업·복원·장애 대응 Runbook
-
-이 문서는 실행 절차와 확인된 복원 기록입니다. RPC·발행 중지·민터 잔액·DB 장애의 Worker 동작은 Local Anvil과 Docker PostgreSQL에서 검증해 O02를 `PASS`로 기록했습니다(Issue #77). 2026-10-08 운영 DB의 서버 안 실제 복원 리허설은 P03 첫 `PASS` 증거이며, 외부 백업 저장소와 운영 RPC 제공자의 실제 장애는 검증하지 않았습니다.
-
-
-## 푸시·소리 운영 메모 (Issue #367 당시 기록)
-
-- Expo push 전송 토큰은 API 컨테이너의 `EXPO_PUSH_ACCESS_TOKEN`으로만 주입한다. 운영 runtime.env는 `EXPO_PUSH_ACCESS_TOKEN`, 시연 runtime.env는 별도 `SHOWCASE_EXPO_PUSH_ACCESS_TOKEN`을 사용하며 Compose가 시연 값도 API 내부의 `EXPO_PUSH_ACCESS_TOKEN`으로 전달한다. 값이 비어 있으면 기존 무토큰 동작을 유지한다. 토큰 값은 문서, 로그, 커밋, PR 본문에 쓰지 않는다.
-- 모바일 빌드의 `MASSCOM_NOTIFICATION_PROJECT_ID`는 Expo project UUID일 때만 앱 설정의 `extra.eas.projectId`로 들어간다. `MASSCOM_FIREBASE_ANDROID_CONFIG`는 Android Firebase 설정 파일 경로이며 파일 내용은 Git에 넣지 않는다.
-- 앱 variant는 push token DB에서 `ANDROID`와 `SHOWCASE_APP`만 허용한다. 운영/시연 토큰을 섞어 재사용하지 않는다.
-- 알림 outbox는 우편·식사 초대 응답 알림을 재시도/영수증 상태로 추적하기 위한 로컬 큐다. `0053_social_notification_deliveries.sql` 적용 뒤에는 social outbox 1건에 token별 `social_notification_deliveries`가 생기고 `lease_generation`으로 stale gateway/receipt 완료를 막는다. `0054_push_token_binding_revision.sql` 적용 뒤에는 deviceId별 active binding과 `binding_revision`으로 늦은 register/unregister가 새 계정 binding을 지우지 못하게 한다. `0055_notification_delivery_token_version.sql` 적용 뒤에는 social delivery가 dispatch 때 authorization된 push token id와 binding revision을 저장해 receipt 효과를 그 binding으로만 제한한다. Upstream `notification_deliveries`는 collection/FCM 알림함 경로로 보존한다.
-- Issue #367 당시 migration·cycle 검증은 이력이다. 현재 배포 명세는 아래 Issue #401 절의 실제 파일 목록과 릴리스 관문을 따른다. 이미 적용한 파일의 이름·내용을 고치거나 재번호화하지 않는다.
-- 운영 판단 경계: dispatch authorization transaction commit이 외부 Expo gateway 호출을 시작해도 되는 시점이다. commit 전 revoke/삭제/동의 철회는 발송 0건이어야 한다. commit 뒤 이미 authorization된 generic push는 회수할 수 없으므로 receipt와 retry 상태로 추적한다. Expo receipt OK는 gateway 처리 근거이지 실제 기기 수신 증명이 아니다. receipt 처리는 0055의 token-version fence를 통과한 `social_notification_deliveries` row에만 반영한다.
-- cycle3 architecture review의 push HIGH 5건과 cycle7 Code/Architect blocker는 보정 입력으로 보존한다. cycle8 cold-response fence repair 뒤 CodeReviewer는 APPROVE 0 issues, Architect는 CLEAR 0 blockers다. Live QA는 baseline 14 PASS·0 findings·cleanup 0, UltraQA 15 PASS·1 NOT_RUN·0 findings·cleanup 0이고 final `tools/gate.sh`는 exit 0 PASS다. Native audio/haptics/hardwareBack/remote push, media-less seed의 실제 display ACK, unsupported runtime cancel/resume/hung CLI class는 계속 `NOT_RUN`이다. 당시 Draft PR #374와 한국어 checker PASS 기록이다. #374는 이후 병합됐으며 공개 배포 근거는 별도로 확인한다.
-- 실제 Android 기기 push delivery와 수신 UX, hardware back은 아직 `NOT_RUN`이므로 공개 배포 전 FCM/EAS credential과 실제 기기로 확인해야 한다.
-- BGM 자산은 사용자 제공 `draw-intro.mp3`·`draw-loop.mp3`, SE 자산은 Kenney CC0 WAV다. 실제 기기 청음, Android 무음 모드, 진동 체감은 ADB/기기 검증이 없어 아직 `NOT_RUN`이다.
-
-## 최신 배포 명세·동시 전환 관문 (Issue #401, 2026-10-08)
-
-**현재 기록:** 시연 서버는 main `2d483ed8645151b502253ac35860b3546e3473c5`로 배포 완료했다. 시연 서버 안 실제 복원 리허설 PASS 뒤 migration 43→68건(마지막 `0067_room_guestbook.sql`), API·`/play/` 공개 확인과 retention 검증을 마쳤다([시연 배포](evidence/showcase-deployment-2d483ed-2026-10-08.json)). 시연 Preview 20·운영 test.11 APK도 게시하고 익명 다운로드 해시를 확인했다([시연](evidence/showcase-preview20-release-2026-10-08.json), [운영](evidence/operating-android-test11-2026-10-08.json)). 운영 DB의 첫 실제 복원과 복제본 migration 리허설은 PASS다([P03 증거](evidence/production-restore-rehearsal-2026-10-08.json)). 운영 API·DB 배포는 이 문서 PR 병합 직후 진행 예정이며 결과는 후속 기록한다. 아래 순서는 시연 배포 당시 절차와 남은 운영 전환 관문이다. 시연 fixture를 운영에 복사하지 않는다.
-
-### migration 파일·원장 대조
-
-`apps/api/src/postgres/migrate.ts`는 파일명 전체를 정렬하고 `schema_migrations.filename`을 기본키로 사용한다. 다음은 실제 디렉터리에서 계산한 30개 추가 파일의 적용 순서다. `0050_quality_game_records.sql`과 `0050_social_mail.sql` 모두 적용하며 번호를 바꾸지 않는다.
-
-1. `0044_collection_experience.sql`
-2. `0045_notifications.sql`
-3. `0046_merchant_operations.sql`
-4. `0047_durable_game_achievements.sql`
-5. `0048_mileage_cosmetic_bonus.sql`
-6. `0049_notification_sources.sql`
-7. `0050_quality_game_records.sql`
-8. `0050_social_mail.sql`
-9. `0051_shop_draw_rewards.sql`
-10. `0052_store_ticket_openings.sql`
-11. `0053_social_notification_deliveries.sql`
-12. `0054_push_token_binding_revision.sql`
-13. `0055_notification_delivery_token_version.sql`
-14. `0056_real_world_profiles.sql`
-15. `0057_merchant_photos_reports.sql`
-16. `0058_discovery_events.sql`
-17. `0059_coin_economy.sql`
-18. `0060_room_community.sql`
-19. `0061_grade_draws.sql`
-20. `0062_room_furniture.sql`
-21. `0063_coin_rerolls.sql`
-22. `0064_profile_intro.sql`
-23. `0065_representative_coin_sources.sql`
-24. `0066_coin_reroll_revocation.sql`
-25. `0067_room_guestbook.sql`
-26. `0068_campaign_purposes.sql`(D-092, 새 API 이미지보다 먼저 적용)
-27. `0069_campaign_benefits.sql`(D-094, 새 API 이미지보다 먼저 적용)
-28. `0072_courses.sql`(D-093, 새 API 이미지보다 먼저 적용)
+`apps/api/src/postgres/migrate.ts`는 파일명 전체를 정렬하고 `schema_migrations.filename`을 기본키로 사용한다. 다음은 실제 디렉터리에서 계산한 32개 추가 파일의 적용 순서다. `0050_quality_game_records.sql`과 `0050_social_mail.sql` 모두 적용하며 번호를 바꾸지 않는다.
+28. `0072_courses.sql`(D-093, 0069의 혜택 감사 action 보존)
 29. `0073_shared_mascot_bags.sql`
 30. `0074_general_box_rewards.sql`
+31. `0075_nft_series_uncapped.sql`
+32. `0076_ai_art_account_limits.sql`
 
-현재 소스의 적용 대상은 **43 + 30 = 73건**이다(최대 번호 0074와 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 73건·마지막 `0074_general_box_rewards.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다.
+적용 후 예상 원장 수는 **43 + 32 = 75건**이다(최대 번호 0075과 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 75건·마지막 `0076_ai_art_account_limits.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다. 2026-10-08에 배포한 운영·시연 DB는 0067까지 68건이며, 0068·0069·0072·0073·0074·0075·0076은 아직 적용 전이다.
+
+**NFT 시리즈 0075 호환·전환(D-095):** 새 API는 `max_ever_minted`를 읽지 않아 옛 스키마에서도 동작한다. 0075는 옛 API를 위해 열을 남기고 NOT NULL만 푼다. 옛 API는 NULL 상한 행을 `CAPACITY_UNAVAILABLE`로 거절하므로 **새 API를 모든 인스턴스에 배포한 뒤에만 NULL 상한 시리즈를 삽입**한다. 옛 API로 롤백해야 한다면 원래 `integer`인 열을 `numeric(20,0)`으로 넓히고 모든 NULL 행의 `max_ever_minted`를 uint64 최댓값 `18446744073709551615`로 채운 뒤 `SET NOT NULL`을 적용한다. Base Sepolia에 배포된 기존 계약에서는 새 시리즈를 `createSeries(bytes32 seriesId, string baseTokenURI, uint64 maxEverMinted)`로 만들고 세 번째 인자에 `18446744073709551615`를 넣는다. 기존 상한 1 실증 시리즈에는 운영 발행을 보내지 않는다. 새 계약에서는 2인자 `createSeries(bytes32 seriesId, string baseTokenURI)`를 쓴다. 두 계약의 `series(bytes32)` getter 반환값도 각각 `(string,uint64,uint64,bool)`과 `(string,uint64,bool)`로 다르다. 배포·발행 전 계약 주소와 시리즈 ID가 가리키는 버전을 확인한다.
+
+옛 API 롤백이 필요한 경우 쓰기를 멈추고 DB 백업을 확인한 뒤 다음 순서로 적용한다(`integer` 열에는 uint64 최댓값을 바로 저장할 수 없다).
+
+```sql
+BEGIN;
+ALTER TABLE nft_series ALTER COLUMN max_ever_minted TYPE numeric(20,0);
+UPDATE nft_series SET max_ever_minted = 18446744073709551615 WHERE max_ever_minted IS NULL;
+ALTER TABLE nft_series ALTER COLUMN max_ever_minted SET NOT NULL;
+COMMIT;
+```
 
 ### 개인정보 재동의·설치본 관문
 
@@ -65,7 +28,7 @@ Preview 20과 test.11은 게시됐다. `/open`의 두 링크는 환경별로 독
 ### 같은 배포 창의 순서
 
 1. **사전 준비:** 최종 선택 SHA에서 API 이미지·`/play/` export·Preview 20·test.11·공개 안내·`/open` 후보를 준비한다. 현재 공개 SHA/원장/링크/해시와 rollback 포인터를 기록한다. 시연·운영의 비밀·DB·OAuth·package·서명·가상 데이터 격리를 확인한다. 이 worktree 수정 중에는 배포하지 않고 메인 스레드 통합 후 선택 SHA를 고정한다.
-2. **시연 먼저:** 시연 DB 백업과 실제 scratch 복원을 수행하고, 고객·점주 변경 요청과 seed/retention 작업을 잠시 중단한다. API 쓰기와 신규 웹 체험을 차단한 유지보수 창 안에서 27 migration을 적용해 원장 70건을 대조한다. 시연 API를 새 이미지로 교체하고 아직 입구를 열지 않는다.
+2. **시연 먼저:** 시연 DB 백업과 실제 scratch 복원을 수행하고, 고객·점주 변경 요청과 seed/retention 작업을 잠시 중단한다. API 쓰기와 신규 웹 체험을 차단한 유지보수 창 안에서 29 migration을 적용해 원장 72건을 대조한다. 시연 API를 새 이미지로 교체하고 아직 입구를 열지 않는다.
 3. **시연 묶음 전환:** 같은 소스의 `/play/` 번들을 새 불변 release 디렉터리에 두고 웹 포인터·edge mount를 갱신한다. 새 개인정보 안내·Preview 20 APK·시연 `/open` 링크를 전환한다. 운영 API·운영 APK 링크·운영 동의 안내는 기존 조합을 유지한다. 구 캐시가 새 API를 호출하지 않도록 웹 entry/자산 해시와 정책 버전을 대조한다. 구 시연 설치본에는 새 APK로 업데이트하도록 안내한다.
 4. **시연 재개 관문:** 유지보수 접근에서 새 임시 체험, 개인정보04 동의 기존 계정의 재동의 수락, 거절/철회 뒤 보호 API 차단, 로그아웃·재로그인 후 동의 상태, 테스트 방문·봉투·도감·뽑기·마이룸·이웃·점주 역할의 실제 서버 권한을 확인한다. `health` 200만으로 이 관문을 통과시키지 않는다. 정확한 Preview 20 APK와 웹을 각각 확인한 후 시연 입구/쓰기를 열고 타이머를 재개한다([5분 정본](DEMO_RUNBOOK.md)).
 5. **운영 조건 — 리허설 PASS:** 운영 서버 안 실제 복원 리허설에서 107개 테이블 일치를 확인했다. 임시 dump 186,604바이트·SHA-256 `1360fdf8c3a5db62214b36f4541ad66e57515c093e46a9a7ff55a47a8c19cdd5`는 종료 시 삭제됐다. 같은 클러스터의 `masscom_rehearsal_test` 복제본에 같은 API 코드의 migration 43→68건을 1.8초에 적용했고 `account_consents` 5=5·공개 점포 0을 확인한 뒤 DB와 dump를 삭제했다. 이는 P03의 첫 실제 복원 증거다. 새 운영 배포와 배포 전 백업은 별도 관문이다.
@@ -128,6 +91,7 @@ DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-re
 | --- | --- | --- |
 | RPC chain/contract 불일치 | Worker `PAUSED/MANUAL_REVIEW`, 전송 금지. code는 있지만 인터페이스가 다른 계약은 `CONTRACT_INTERFACE_MISMATCH` | chain ID·contract code·MINTER role·계약 주소 재검증 |
 | RPC 연결 불가 | 조치 불필요. Worker가 `RPC_UNAVAILABLE`로 물러나 작업은 `RETRYABLE`, 전송 시도 소모 없음 | `SELECT status, last_error_code, attempt_count FROM mint_jobs WHERE status = 'RETRYABLE'`로 확인, RPC 복구 뒤 다음 실행에서 자동 재개 |
+| 옛 계약 시리즈 상한 도달 | 제출 전 gas 추정에서 `SeriesSupplyExceeded`가 확인되면 `SERIES_SUPPLY_EXCEEDED`로 분류해 재시도 없이 즉시 `MANUAL_REVIEW`(추정 뒤 경합으로 채굴된 revert는 기존 `MINT_TRANSACTION_REVERTED` 재확인 경로). 권리는 `MINT_REQUESTED`에 남는다 | 계약 주소·시리즈 키와 온체인 상한을 확인한다. 기존 상한 1 실증 시리즈에는 운영 발행을 보내지 않고, 새 시리즈의 안전한 연결·기존 reward key를 대조한 뒤 운영자가 후속 처리한다 |
 | 서비스 민터 설정 오류 | `MINTER_KEYSTORE_DECRYPT_FAILED`·`MINTER_ADDRESS_MISMATCH`·`MINTER_ROLE_MISSING`으로 기동·발행 중지. signed transaction의 recovered sender 불일치는 `MINTER_SIGNER_MISMATCH`로 기록 전 차단 | keystore 파일과 전체 상위 경로의 소유자·권한, 비밀번호 파일, 민터 주소, 계약 역할을 확인. 비밀번호나 키를 로그·티켓에 붙이지 않음 |
 | 상시 Worker 컨테이너(`mint-worker`)가 unhealthy이거나 접수가 쌓임 | `docker compose … --profile nft-live ps mint-worker`가 unhealthy, 하트비트(`/tmp/mint-worker.heartbeat`)가 3분 넘게 갱신되지 않음, 로그에 `MINT_WORKER_ITERATION_FAILED`(오류 이름·코드와 `retryInMs`)가 반복됨. **하트비트·healthy는 루프가 살아 있다는 뜻이지 발행이 성공한다는 뜻이 아니다.** 작업 단위 실패(RPC 중단, `MINT_PAUSED`, `MINTER_BALANCE_LOW`)는 작업을 재시도 대기로 돌리고 반복은 정상으로 끝나므로, 아무것도 발행되지 않는 동안에도 healthy일 수 있다. 실제 신호는 대기열이다: `SELECT count(*), min(available_at) FROM outbox_events WHERE status IN ('PENDING', 'LEASED')`가 줄지 않고 `min(available_at)`이 계속 과거로 벌어지면 막힌 것이다(로그의 `MINT_WORKER_JOB_HANDLED`도 처리했거나 재시도 대기로 돌렸다는 뜻일 뿐이다) | 오류 코드에 맞는 이 표의 다른 행을 따른다(DB·RPC 장애는 복구되면 컨테이너가 알아서 재시도하므로 재시작이 필요 없다). `MINT_WORKER_LOOP_FAILED`는 설정·keystore 오류(`MINTER_KEYSTORE_*`, 환경변수 누락)로 컨테이너가 종료 코드 1로 멈춘 것이고, `MINT_WORKER_CRASHED`는 잡히지 않은 예외로 종료한 것이다. **compose가 `restart: unless-stopped`라서 설정 오류는 Docker 백오프로 계속 다시 떠 크래시 루프가 된다.** 원인을 고치기 전에 멈추려면 `docker compose … --profile nft-live stop mint-worker`를 쓴다(최대 60초, 처리 중인 한 건을 끝내려 시도하며 못 끝내면 임대 만료로 복구). 원인을 고친 뒤 다시 켠다. 켜는 절차와 조건은 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker" |
 | 같은 민터의 발행이 모두 멈춤 | 여러 작업의 `last_error_code`가 `MINTER_NONCE_BLOCKED`로 이어짐. Worker 오류 로그에 막고 있는 거래 hash가 남음 | 그 hash를 explorer에서 확인. 채굴됐으면 다음 주기에 풀림. 수수료 부족 등으로 영영 전송될 수 없으면 그 작업이 `RECEIPT_TIMEOUT`으로 닫힐 때까지 기다리거나 운영자가 해당 작업을 검토 상태로 닫는다. 새 nonce로 덮어쓰는 거래를 수동으로 보내지 않는다 |

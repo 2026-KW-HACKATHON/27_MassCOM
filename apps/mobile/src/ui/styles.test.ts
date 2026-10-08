@@ -133,7 +133,7 @@ test('the caption on a store picture stays readable on its own pill', () => {
   }
 });
 
-test('the passport stamp name keeps its second line on a real phone (411dp): simple line breaking and a little slack', () => {
+test('the passport stamp name wraps its disclosure on a real phone (411dp): simple line breaking and a little slack', () => {
   // "가상 점포 A" lost its "A" on the Galaxy S24 Ultra: the 800-weight name measured to one line but painted wider, so the wrapped
   // second line fell outside the measured box. Simple breaking makes measuring and painting agree, and the slack absorbs the rest.
   for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
@@ -145,5 +145,5 @@ test('the passport stamp name keeps its second line on a real phone (411dp): sim
   const name = source.match(/<Text[^>]*style=\{styles\.stampName\}[^>]*>/)?.[0];
   assert.ok(name, 'the stamp name Text');
   assert.match(name, /textBreakStrategy="simple"/);
-  assert.match(name, /numberOfLines=\{2\}/);
+  assert.doesNotMatch(name, /numberOfLines=/, 'the non-participation disclosure must not be truncated');
 });

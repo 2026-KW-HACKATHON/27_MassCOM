@@ -9,7 +9,10 @@ import { Pool } from 'pg';
 import { ClaimSlotError } from '../claim-slot-service.js';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
+import { PostgresCollectionReader } from '../postgres/collection.js';
 import { seedLocalShowcase, SHOWCASE_MERCHANT_ID } from './local-seed.js';
+import { storeCollectibleArt } from './store-collectible-art.js';
+import { WOLGYE_STORES } from './wolgye-seed.js';
 
 const referenceHmacSecret = 'test-only-test-visit-reference-secret-32-bytes';
 
@@ -147,6 +150,22 @@ test('a demo-store test visit counts like a normal visit: progress, badge goal 1
       [SHOWCASE_MERCHANT_ID],
     );
     assert.equal(activeIssuerMembership.rowCount, 0);
+  });
+});
+
+test('a public-data demo store test visit grants a collectible with existing template artwork', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const store = WOLGYE_STORES[0]!;
+    const accountId = 'wolgye-visitor';
+    const svc = service(pool, () => testNow);
+    const issued = await svc.issueShowcaseTestSlot({ merchantId: store.id, accountId });
+    const redeemed = await svc.redeem({ accountId, token: issued.token });
+    assert.equal(redeemed.visit.progressCounted, true);
+    assert.equal(redeemed.grantedRewards[0]?.targetVisitCount, 1);
+    const collection = await new PostgresCollectionReader(pool).getCollection(accountId);
+    const coin = collection.collectibles.find((item) => item.campaignId === `${store.id}-campaign`);
+    assert.equal(coin?.artwork?.gradeId, 'bronze');
+    assert.ok(Object.values(storeCollectibleArt).some((art) => art.thumbnail === coin?.artwork?.thumbnailDataUrl));
   });
 });
 

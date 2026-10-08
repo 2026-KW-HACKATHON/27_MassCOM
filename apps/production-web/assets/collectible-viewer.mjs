@@ -1,5 +1,5 @@
 import { renderPublishedCollectible, renderStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
-import { ONCE_MS } from './collectible-model.mjs';
+import { ONCE_MS, rotationAngleAt } from './collectible-model.mjs';
 
 const sessions = new WeakMap();
 const imagePattern = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/;
@@ -131,11 +131,22 @@ export async function openCollectible(doc, item, fetcher, opener) {
     // 숨겨진 탭이 다시 보일 때 새 루프를 거듭 걸면(겹친 rAF 체인) draw가 중복으로 돈다. 이 깃발로 "이미 돌고
     // 있으면 또 걸지 않는다"를 모든 시작 지점(재생, 다시 보기, 탭 복귀, 동작 줄이기 해제)에서 보장한다.
     let looping = false;
+    let effectElapsed = 0, effectTick = doc.defaultView.performance.now();
+    const advanceEffects = (now = doc.defaultView.performance.now()) => {
+      if ((playing || onceMotion) && !reduce.checked && !doc.hidden) {
+        const elapsed = Math.max(0, now - effectTick);
+        effectElapsed += elapsed;
+        angle = rotationAngleAt(angle, elapsed, snapshot.rotationSpeed) % 360;
+        rotation.value = String((Math.round(angle) + 360) % 360); angleValue.textContent = `${rotation.value}°`;
+      }
+      effectTick = now;
+    };
     const draw = async () => {
       if (!active) return;
       if (rendering) { dirty = true; return; }
       rendering = true;
       const now = doc.defaultView.performance.now();
+      advanceEffects(now);
       const livingTime = now - livingStarted, reducedMotion = reduce.checked;
       try {
         if (storyStarted !== undefined) {
@@ -143,7 +154,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
           if (now - storyStarted >= 6000 || reduce.checked) { storyStarted = undefined; dirty = true; }
         } else if (onceMotion) {
           const duration = ONCE_MS[onceMotion.type] ?? 2000;
-          await renderPublishedCollectible(canvas, { ...snapshot, animation: onceMotion.type }, { angle, time: now - started, livingTime, reducedMotion, playback: 'once', particle: onceMotion.particle, staticFrame: reduce.checked });
+          await renderPublishedCollectible(canvas, { ...snapshot, animation: onceMotion.type }, { angle, rotationTime: 0, time: now - started, effectTime: effectElapsed, livingTime, reducedMotion, playback: 'once', particle: onceMotion.particle, staticFrame: reduce.checked });
           if (now - started > duration + 50 || reduce.checked) {
             onceMotion = reduce.checked ? null : (onceQueue.shift() || null);
             started = now; dirty = true;
@@ -154,7 +165,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
           // living이 있으면 아무 모션도 안 걸린 등급(animation:'still')에 재생을 눌러도 뜬금없는 전체 회전으로
           // 대신하지 않는다 — living이 이미 움직임을 보여 준다.
           const fallbackAnimation = snapshot.animation === 'still' && !snapshot.living ? 'rotate' : snapshot.animation;
-          await renderPublishedCollectible(canvas, playing ? { ...snapshot, animation: fallbackAnimation } : snapshot, { angle, time: now - started, livingTime, reducedMotion, particle: loopParticle, staticFrame: !playing || reduce.checked });
+          await renderPublishedCollectible(canvas, playing ? { ...snapshot, animation: fallbackAnimation } : snapshot, { angle, rotationTime: 0, time: now - started, effectTime: effectElapsed, livingTime, reducedMotion, particle: loopParticle, staticFrame: !playing || reduce.checked });
         }
       } catch {
         fallback.hidden = false; canvas.hidden = true;
@@ -178,6 +189,7 @@ export async function openCollectible(doc, item, fetcher, opener) {
       looping = true; frame = doc.defaultView.requestAnimationFrame(loop);
     };
     const pause = () => {
+      advanceEffects();
       playing = false; onceMotion = null; onceQueue = []; doc.defaultView.cancelAnimationFrame(frame); looping = false; play.textContent = '동작 재생';
       // 카드 전체 동작만 멈춘다. living이 있으면(그리고 동작 줄이기가 아니면) 독립된 시계로 계속 돌아야 하므로
       // 다시 돌린다(loop 자체는 숨김·동작 줄이기면 스스로 멈춘다).
@@ -185,10 +197,14 @@ export async function openCollectible(doc, item, fetcher, opener) {
     };
     play.addEventListener('click', () => {
       if (playing) pause();
-      else if (!reduce.checked) { playing = true; onceMotion = null; onceQueue = []; storyStarted = undefined; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; void draw(); ensureLoop(); }
+      else if (!reduce.checked) { advanceEffects(); playing = true; onceMotion = null; onceQueue = []; storyStarted = undefined; started = doc.defaultView.performance.now(); play.textContent = '동작 정지'; void draw(); ensureLoop(); }
       else status.textContent = '움직임 줄이기를 끄면 동작을 재생할 수 있어요.';
     });
-    rotation.addEventListener('input', () => { pause(); angleValue.textContent = `${rotation.value}°`; });
+    rotation.addEventListener('input', () => {
+      const selectedAngle = Number(rotation.value);
+      pause(); angle = selectedAngle; rotation.value = String(selectedAngle);
+      angleValue.textContent = `${selectedAngle}°`;
+    });
     rotation.addEventListener('change', () => { angle = Number(rotation.value); void draw(); });
     reduce.addEventListener('change', () => {
       if (reduce.checked) {

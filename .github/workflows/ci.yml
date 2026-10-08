@@ -127,6 +127,7 @@ jobs:
       - name: 로컬 시연 API·DB 격리 설정 검사
         run: |
           node --test tests/ops/verify_showcase_local_test.mjs
+          node --test tests/ops/showcase_wolgye_selection.test.mjs
           node scripts/verify-showcase-local.mjs
           bash tests/ops/qa_local_env_test.sh
       - name: 시연 호스트 격리 설정 검사

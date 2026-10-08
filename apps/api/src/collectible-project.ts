@@ -28,19 +28,20 @@ export type CollectibleProject = {
   crop: { x: number; y: number; zoom: number };
   photoEdits: {
     brightness: number; contrast: number; merge: number; simplify: number; cartoon: number;
-    strokes: { tool: 'clean' | 'erase' | 'restore' | 'color'; points: { x: number; y: number }[]; size: number; color: string }[];
+    strokes: { tool: 'clean' | 'erase' | 'restore' | 'color'; points: { x: number; y: number }[]; size: number; color: string; hardness?: number }[];
   };
-  style: 'original' | 'incised' | 'raised';
+  style: 'original' | 'incised' | 'raised' | 'monochrome';
   baseColor: string;
   photoColor: number;
   relief: number;
   stickers: CollectibleSticker[];
   back: { mode: 'default' | 'custom'; color: string; stickers: CollectibleSticker[] };
   grades: { id: string; name: string; kind: 'basic' | 'special'; enabled: boolean }[];
-  effects: { id: string; type: 'metallic' | 'hologram' | 'pearl' | 'matte' | 'glow' | 'enamel' | 'glass'; target: string; gradeIds: string[]; strength: number; color: string; roughness: number }[];
+  effects: { id: string; type: 'metallic' | 'hologram' | 'pearl' | 'matte' | 'glow' | 'enamel' | 'glass' | 'flame'; target: string; gradeIds: string[]; strength: number; color: string; roughness: number; speed?: number }[];
   motion: CollectibleMotion[];
   thickness: number;
   angle: number;
+  rotationSpeed?: number;
   greeting: string;
   greetingOverrides: CollectibleGreetingOverride[];
   audio: null | { dataUrl: string; mimeType: string; durationSeconds: number };
@@ -60,9 +61,9 @@ export type CollectibleProjectView = {
 };
 // distributingCampaignId: 이 게시 버전이 지금 새 방문 고객에게 나가는 캠페인(게시 중지·교체·초안이면 null).
 export type CollectibleProjectSummary = Omit<CollectibleProjectView, 'project'> & { name: string; schemaVersion: 2; distributingCampaignId: string | null };
-// GET /api/web/merchant/merchants/:merchantId/collectible-campaigns 항목. goals는 이 캠페인에 실제로 있는 기존 목표(1·3·5)만.
+// GET /api/web/merchant/merchants/:merchantId/collectible-campaigns 항목. goals는 이 캠페인에 실제로 있는 기존 목표 전체다.
 export type CollectibleCampaign = {
-  id: string; title: string; status: 'ACTIVE'; startsAt: string; endsAt: string; goals: (1 | 3 | 5)[];
+  id: string; title: string; status: 'ACTIVE'; startsAt: string; endsAt: string; goals: number[];
   publication: { publicationId: string; projectId: string } | null;
 };
 export type CollectibleUnpublishResult = { projectId: string; publicationId: string; unlinkedCampaignId: string | null };
@@ -72,19 +73,21 @@ export type CollectibleArtwork = {
 };
 export type CollectibleDetail = CollectibleArtwork & {
   imageDataUrl: string; thickness: number; angle: number;
+  rotationSpeed?: number;
   baseDataUrl?: string; effectMasks?: Record<string, string>;
   backImageDataUrl?: string; angleFrames?: CollectibleDerivedAngleFrames; living?: CollectibleDerivedLiving;
   // animation은 Android 구버전이 아는 v1 8종 그대로: 등급의 loop 재생 첫 모션(없으면 'still'). motions가 전체(재생·파티클 포함) 목록이다.
   animation: CollectibleProject['motion'][number]['type'];
   motions: { type: CollectibleMotion['type']; playback: CollectibleMotion['playback']; particle?: CollectibleMotion['particle'] }[];
   greeting: string; audio: CollectibleProject['audio']; story: CollectibleProject['story'];
-  effects: Pick<CollectibleProject['effects'][number], 'type' | 'target' | 'strength' | 'color' | 'roughness'>[];
+  effects: Pick<CollectibleProject['effects'][number], 'type' | 'target' | 'strength' | 'color' | 'roughness' | 'speed'>[];
 };
 
 export type CollectibleProjectErrorCode =
   | 'COLLECTIBLE_INVALID_PROJECT' | 'COLLECTIBLE_MEDIA_TOO_LARGE' | 'COLLECTIBLE_PROJECT_NOT_FOUND'
   | 'COLLECTIBLE_VERSION_CONFLICT' | 'COLLECTIBLE_PUBLISHED_IMMUTABLE' | 'COLLECTIBLE_CAMPAIGN_UNAVAILABLE'
-  | 'COLLECTIBLE_NOT_READY' | 'COLLECTIBLE_NOT_FOUND' | 'COLLECTIBLE_PROJECT_LIMIT' | 'COLLECTIBLE_NOT_PUBLISHED' | 'COLLECTIBLE_PUBLICATION_LIMIT' | 'ACCOUNT_DELETED';
+  | 'COLLECTIBLE_NOT_READY' | 'COLLECTIBLE_NOT_FOUND' | 'COLLECTIBLE_PROJECT_LIMIT' | 'COLLECTIBLE_NOT_PUBLISHED' | 'COLLECTIBLE_PUBLICATION_LIMIT'
+  | 'COLLECTIBLE_DEFAULT_GRADE_MISSING' | 'COLLECTIBLE_PUBLICATION_SIZE_LIMIT' | 'ACCOUNT_DELETED';
 export class CollectibleProjectError extends Error {
   constructor(readonly code: CollectibleProjectErrorCode) { super(code); this.name = 'CollectibleProjectError'; }
 }

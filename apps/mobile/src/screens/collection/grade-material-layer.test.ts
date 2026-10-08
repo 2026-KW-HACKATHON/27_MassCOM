@@ -30,6 +30,14 @@ test('반사 계산은 재질 레이어당 한 번만 파생해 그라데이션�
   assert.match(source, /reflection=\{reflection\}/);
 });
 
+test('뒷면은 사진과 같은 회전 조명에 골드·프리즘 별빛을 더하고 앞면의 기존 표시를 유지한다', () => {
+  assert.match(source, /showGlints = false/);
+  assert.match(source, /variant === 'detail' && !showGlints \? 0 : preset\.glintCount/);
+  assert.match(source, /tiltX: t\.x, tiltY: t\.y/);
+  const detail = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
+  assert.equal((detail.match(/showGlints/g) ?? []).length, 2);
+});
+
 test('색·반사 합성은 사진과 같은 부모의 형제 뷰이며 각 층은 터치·접근성에서 제외된다', () => {
   const visual = source.slice(source.indexOf('function MaterialVisual'), source.indexOf('function AutonomousLayer'));
   assert.match(visual, /return <>/);

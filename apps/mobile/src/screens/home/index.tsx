@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
@@ -137,10 +138,10 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           <Text style={{ color: palette.onPrimary, fontWeight: '800', fontSize: 16 }}>가게 찾기</Text>
         </Pressable></Link> : null}
         {firstStore ? <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: firstStore.merchantId, from: 'recommendation' } }} asChild>
-          <Pressable accessibilityRole="button" accessibilityLabel={`처음이라면 ${firstStore.name}부터. ${firstStore.reason} 코인과 방문 조건을 확인해요`}
+          <Pressable accessibilityRole="button" accessibilityLabel={`처음이라면 ${publicDataDemoStoreName(firstStore.merchantId, firstStore.name)}부터. ${firstStore.reason} 코인과 방문 조건을 확인해요`}
             style={StyleSheet.flatten({ backgroundColor: palette.primaryContainer, borderRadius: 18, padding: 14, minHeight: 56, gap: 2 })}>
             <Text style={{ color: palette.onPrimaryContainer, fontSize: 12, fontWeight: '800' }}>처음이라면 이 가게부터</Text>
-            <Text style={{ color: palette.onPrimaryContainer, fontSize: 17, fontWeight: '900' }}>{firstStore.name}</Text>
+            <Text style={{ color: palette.onPrimaryContainer, fontSize: 17, fontWeight: '900' }}>{publicDataDemoStoreName(firstStore.merchantId, firstStore.name)}</Text>
             <Text style={{ color: palette.onPrimaryContainer, fontSize: 13 }}>{firstStore.reason} 첫 코인과 방문 조건 보기 ›</Text>
           </Pressable></Link> : null}
         {compactHome ? quickRow : null}
@@ -164,17 +165,17 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         </View> : null}
         {ticketGroups.size ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 6 }}>
           {[...ticketGroups].map(([id, ticket]) => <Link key={id} href="/coin-shop" asChild><Pressable accessibilityRole="button"
-            accessibilityLabel={`${ticket.name} 뽑기권 ${ticket.count}장`} style={{ backgroundColor: world.card, borderRadius: 20, width: 154, padding: 12, alignItems: 'center', gap: 6 }}>
+            accessibilityLabel={`${publicDataDemoStoreName(id, ticket.name)} 뽑기권 ${ticket.count}장`} style={{ backgroundColor: world.card, borderRadius: 20, width: 154, padding: 12, alignItems: 'center', gap: 6 }}>
             <Image source={ticket.grade === 'SILVER' ? require('../../../assets/images/shop/ticket-silver.png') : ticket.grade === 'GOLD' || ticket.grade === 'PLATINUM'
               ? require('../../../assets/images/shop/ticket-gold.png') : require('../../../assets/images/shop/ticket-bronze.png')}
               accessible={false} style={{ width: 122, height: 65 }} resizeMode="contain" />
-            <Text style={{ color: world.cardInk, fontWeight: '800' }}>{ticket.name}</Text>
+            <Text style={{ color: world.cardInk, fontWeight: '800' }}>{publicDataDemoStoreName(id, ticket.name)}</Text>
             <Text style={{ color: palette.primary, fontWeight: '800' }}>{ticket.count}장</Text>
           </Pressable></Link>)}
         </ScrollView> : null}
         <Link href="/home/missions" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ backgroundColor: world.card, padding: 16, borderRadius: 20, gap: 10 })}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <View><Text style={{ ...heading, fontSize: 17 }}>방문 목표</Text><Text style={body}>{goal ? `${goal.name} · ${goal.count}회 방문` : goal === null ? '첫 가게에서 시작해 보세요' : failed('collection') || failed('merchants') ? '방문 목표를 불러오지 못했어요' : '방문 목표 확인 중'}</Text></View>
+            <View><Text style={{ ...heading, fontSize: 17 }}>방문 목표</Text><Text style={body}>{goal ? `${publicDataDemoStoreName(goal.merchantId, goal.name)} · ${goal.count}회 방문` : goal === null ? '첫 가게에서 시작해 보세요' : failed('collection') || failed('merchants') ? '방문 목표를 불러오지 못했어요' : '방문 목표 확인 중'}</Text></View>
             <View style={{ flexDirection: 'row', gap: 12 }}>{(goal?.goals ?? []).map((count) => <View key={count} style={{ alignItems: 'center', gap: 4 }}>
               <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: (goal?.count ?? 0) >= count ? palette.primary : palette.primaryContainer }}>
                 <Text style={{ color: (goal?.count ?? 0) >= count ? palette.onPrimary : palette.primary, fontWeight: '800' }}>{(goal?.count ?? 0) >= count ? '✓' : count}</Text>

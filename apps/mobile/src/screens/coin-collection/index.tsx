@@ -5,6 +5,7 @@ import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorSchem
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
 import { coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, sameRerollOption, type CoinCollection, type CoinRerollOption, type CoinSource, type CoinSeries, type OwnedCoin, type SeriesTier } from '@/shop/coin-api';
@@ -189,7 +190,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
         const grades = merchant.types.flatMap((type) => type.grades);
         const owned = grades.filter((grade) => grade.quantity > 0).length;
         return <FloatingCard key={merchant.merchantId} style={styles.card}>
-          <Text accessibilityRole="header" style={[styles.name, { color: palette.label }]}>{merchant.merchantName} · {owned}/{grades.length}등급</Text>
+          <Text accessibilityRole="header" style={[styles.name, { color: palette.label }]}>{publicDataDemoStoreName(merchant.merchantId, merchant.merchantName)} · {owned}/{grades.length}등급</Text>
           {merchant.types.map((type) => {
             const acquired = type.grades.filter((grade) => grade.quantity > 0).length;
             return <View key={type.publicationId} style={styles.tier}>
@@ -360,7 +361,7 @@ function SeriesCard({ series, busy, onClaim, onUse, palette }: { series: CoinSer
   const [confirmingBaseFor, setConfirmingBaseFor] = useState<string>();
   const confirmingBase = confirmingBaseFor === series.id && series.claimable === 'BASE' && !series.coupon;
   return <FloatingCard style={styles.card}>
-    <Text style={[styles.name, { color: palette.label }]}>{series.title} · {series.merchantName}</Text>
+    <Text style={[styles.name, { color: palette.label }]}>{series.title} · {publicDataDemoStoreName(series.merchantId, series.merchantName)}</Text>
     <Text style={{ color: palette.secondaryLabel }}>진행 기한 {new Date(series.endsAt).toLocaleDateString('ko-KR')}</Text>
     <Tier tier={series.base} palette={palette} /><Tier tier={series.prism} palette={palette} />
     <Text style={{ color: palette.secondaryLabel }}>시리즈당 쿠폰 1회 · 기본 수령 후 프리즘으로 변경하거나 추가 발급할 수 없어요.</Text>

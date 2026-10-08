@@ -16,6 +16,7 @@ import { legacyCollectibleDetail, type LegacyCollectibleDetail } from './legacy-
 import { seriesSlotText, type StoreSeries } from './store-series';
 import type { ActiveWalletBindingResponse } from '@/wallet/wallet-api';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
@@ -116,7 +117,7 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
       {groups.length > 0 || legacy.length > 0 ? (
         <View style={{ gap: 10 }}>
           <FilterRow label="가게" selected={filter.merchantId} onSelect={(value) => setFilter((current) => ({ ...current, merchantId: value }))}
-            options={options.merchants.map((merchant) => ({ value: merchant.id, label: merchant.name }))} palette={palette} world={world} />
+            options={options.merchants.map((merchant) => ({ value: merchant.id, label: publicDataDemoStoreName(merchant.id, merchant.name) }))} palette={palette} world={world} />
           {options.themes.length > 1 ? (
             <FilterRow label="시즌" selected={filter.theme} onSelect={(value) => setFilter((current) => ({ ...current, theme: value }))}
               options={options.themes.map((theme) => ({ value: theme, label: theme }))} palette={palette} world={world} />
@@ -155,7 +156,7 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
           <Text style={[styles.subtitle, { color: world.skyInk }]}>가게별 시리즈</Text>
           {series.map((store) => (
             <FloatingCard key={store.merchantId} style={[styles.seriesCard, { backgroundColor: world.card }]}>
-              <Text style={[styles.groupName, { color: world.cardInk }]}>{store.merchantName}</Text>
+              <Text style={[styles.groupName, { color: world.cardInk }]}>{publicDataDemoStoreName(store.merchantId, store.merchantName)}</Text>
               <View style={styles.seriesSlots}>
                 {store.slots.map((slot) => slot.owned ? (
                   <View key={slot.targetVisitCount} style={[styles.seriesSlot, { borderColor: palette.primary, backgroundColor: palette.primaryContainer }]}>
@@ -163,7 +164,7 @@ export function CollectibleBrowser({ groups, legacy, artUrlByMerchant, favorites
                   </View>
                 ) : (
                   <Link key={slot.targetVisitCount} href={{ pathname: '/merchants/[merchantId]', params: { merchantId: store.merchantId, from: 'collection' } }} asChild>
-                    <Pressable accessibilityRole="link" accessibilityLabel={`${store.merchantName}, ${seriesSlotText(slot)}, 가게 보기`}
+                    <Pressable accessibilityRole="link" accessibilityLabel={`${publicDataDemoStoreName(store.merchantId, store.merchantName)}, ${seriesSlotText(slot)}, 가게 보기`}
                       style={StyleSheet.flatten([styles.seriesSlot, { borderColor: palette.separator, backgroundColor: 'transparent' }])}>
                       <Text style={[styles.seriesSlotText, { color: world.cardMuted }]}>{seriesSlotText(slot)}</Text>
                     </Pressable>
@@ -231,7 +232,7 @@ function GroupCard({ group, favorites, sharing, mint, cardWidth, materialClock, 
   const material = gradeMaterialFor(group.artwork.gradeId, group.artwork.gradeName);
   return (
     <FloatingCard style={[styles.groupCard, { width: cardWidth }, { backgroundColor: world.card }]}
-      accessibilityLabel={`${group.artwork.name}, ${group.merchantName}, ${group.artwork.gradeName}${group.count > 1 ? `, ${group.count}개 보유` : ''}`}
+      accessibilityLabel={`${group.artwork.name}, ${publicDataDemoStoreName(group.merchantId, group.merchantName)}, ${group.artwork.gradeName}${group.count > 1 ? `, ${group.count}개 보유` : ''}`}
       onPress={() => onOpenDetail(group.entitlementIds[0]!, group.merchantName)}>
       <View style={styles.groupImageFrame}>
         <MaterialThumbnail material={material} size={104} faceUri={group.artwork.thumbnailDataUrl} shape={group.artwork.shape}
@@ -245,7 +246,7 @@ function GroupCard({ group, favorites, sharing, mint, cardWidth, materialClock, 
         ) : null}
       </View>
       <Text numberOfLines={2} style={[styles.groupName, { color: world.cardInk }]}>{group.artwork.name}</Text>
-      <Text numberOfLines={2} style={[styles.groupMeta, { color: world.cardMuted }]}>{group.artwork.gradeName} · {group.merchantName}</Text>
+      <Text style={[styles.groupMeta, { color: world.cardMuted }]}>{group.artwork.gradeName} · {publicDataDemoStoreName(group.merchantId, group.merchantName)}</Text>
       <Text style={[styles.groupDates, { color: world.cardMuted }]}>
         {group.count > 1 ? `받은 날짜 ${group.earnedDates.map(earnedDateLabel).join(', ')}` : `받은 날짜 ${earnedDateLabel(group.earnedDates[0]!)}`}
       </Text>
@@ -347,7 +348,7 @@ function LegacyCard({ item, mint, artUrl, cardWidth, materialClock, materialScro
   const material = gradeMaterialFor(detail.gradeId, detail.gradeName);
   return (
     <FloatingCard style={[styles.groupCard, { width: cardWidth }, { backgroundColor: world.card }]}
-      accessibilityLabel={`${item.displayName}, ${item.merchantName}, ${item.targetVisitCount}회 목표 상세 보기`}
+      accessibilityLabel={`${item.displayName}, ${publicDataDemoStoreName(item.merchantId, item.merchantName)}, ${item.targetVisitCount}회 목표 상세 보기`}
       onPress={() => onOpenDetail(item.entitlementId, item.merchantName, legacyCollectibleDetail(item, source))}>
       {art && source ? (
         <View style={styles.groupImageFrame}>
@@ -359,7 +360,7 @@ function LegacyCard({ item, mint, artUrl, cardWidth, materialClock, materialScro
         </View>
       ) : null}
       <Text numberOfLines={2} style={[styles.groupName, { color: world.cardInk }]}>{item.displayName}</Text>
-      <Text numberOfLines={2} style={[styles.groupMeta, { color: world.cardMuted }]}>{detail.gradeName} · {item.merchantName} · {item.targetVisitCount}회</Text>
+      <Text style={[styles.groupMeta, { color: world.cardMuted }]}>{detail.gradeName} · {publicDataDemoStoreName(item.merchantId, item.merchantName)} · {item.targetVisitCount}회</Text>
       {art ? <Text style={[styles.groupDates, { color: world.cardMuted }]}>{collectibleArtNote(art.fromServer)}</Text> : null}
       <Text style={[styles.groupDates, { color: world.cardMuted }]}>받은 날짜 {earnedDateLabel(item.earnedAt)}</Text>
       <NftStatusRow entitlements={[item]} mint={mint} />

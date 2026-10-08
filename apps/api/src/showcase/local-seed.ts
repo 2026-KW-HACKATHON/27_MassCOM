@@ -4,6 +4,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import { SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS } from './all-access.js';
 import { seedStoreCollectibles } from './store-collectibles.js';
+import { seedWolgyeStores, WOLGYE_STORES } from './wolgye-seed.js';
 
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
 export const SHOWCASE_CAMPAIGN_ID = 'showcase-local-campaign';
@@ -219,6 +220,9 @@ export async function seedShowcaseFixtureData(
     for (const entry of merchants) {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${entry.merchantId}`]);
     }
+    for (const store of WOLGYE_STORES) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${store.id}`]);
+    }
     const existingEntries = new Set<ShowcaseMerchant>();
     for (const entry of merchants) {
       const existing = await readFixture(client, entry, staffAccountId);
@@ -290,6 +294,7 @@ export async function seedShowcaseFixtureData(
       );
     }
     await seedRewardOffers(client);
+    await seedWolgyeStores(client, now);
     // #322: 호스트 시연 DB에서만 가상 점포 수집품 게시물을 붙인다(로컬 QA는 qa-collectible-seed가 따로 게시한다).
     if (mode === 'hosted') {
       await seedStoreCollectibles(client, merchants.map((entry) => ({

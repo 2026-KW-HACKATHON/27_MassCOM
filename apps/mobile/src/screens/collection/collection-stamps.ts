@@ -1,5 +1,6 @@
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { PublicMerchant } from '@/merchant/merchant-api';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 
 export type StampSlot = {
   merchantId: string;
@@ -72,10 +73,11 @@ export function toPassportStamp(slot: StampSlot, goal: MerchantGoal, artUrl: str
   const statusText = slot.visited ? `방문 ${slot.visitCount}회` : '아직 안 가봤어요';
   const progressText = `보상 진행 ${goal.progressCount}${goal.nextGoal ? `/${goal.nextGoal.targetVisitCount}` : ''}회 · 앱 수집품 ${goal.earnedGoals.length}/${goal.totalGoals}`;
   // "도장 아직 없음" already says the visit status, so only a visited stamp adds the visit count.
-  const stampState = slot.visited ? `${slot.merchantName} 도장 받음, ${statusText}` : `${slot.merchantName} 도장 아직 없음`;
+  const storeName = publicDataDemoStoreName(slot.merchantId, slot.merchantName);
+  const stampState = slot.visited ? `${storeName} 도장 받음, ${statusText}` : `${storeName} 도장 아직 없음`;
   return {
     merchantId: slot.merchantId,
-    name: slot.merchantName,
+    name: storeName,
     visited: slot.visited,
     goalText: shortMerchantGoal(goal),
     statusText,

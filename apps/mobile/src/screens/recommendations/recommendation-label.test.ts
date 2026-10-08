@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import { reasonLabel, recommendationHint, recommendationLabel } from './recommendation-label';
 
 const item = {
-  merchantName: '가상 점포 B', roadAddress: '서울 노원구 월계로 2', demo: true, progressVisitCount: 2,
+  merchantId: 'showcase-b', merchantName: '가상 점포 B', roadAddress: '서울 노원구 월계로 2', demo: true, progressVisitCount: 2,
   reasonCode: 'NEXT_REWARD' as const, reasonText: '3회 도장까지 한 번 남았어요.',
   nextGoal: { targetVisitCount: 3 as const, displayName: '세 번째 방문 보상', remainingVisits: 1 },
 };
