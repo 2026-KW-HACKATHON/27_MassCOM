@@ -61,6 +61,7 @@ type SetupOptions = {
   staleAfterMs?: number;
   heartbeatMs?: number;
   client?: AiArtImageClient | 'none';
+  minGenerationIntervalMs?: number;
   lifecycle?: boolean;
   // 기본 true(시연 설정): 시험 대부분이 STAFF로 그림을 만든다. false이면 활성 OWNER만 그림을 바꿀 수 있다.
   staffMayManageArt?: boolean;
@@ -133,6 +134,9 @@ async function setup(t: TestContext, options: SetupOptions = {}) {
     config: { ...defaults, ...options.config },
     ...(options.lifecycle ? { accountLifecycle: lifecycle } : {}),
     staffMayManageArt: options.staffMayManageArt ?? true,
+    minGenerationIntervalMs: options.minGenerationIntervalMs ?? 0,
+    ...(options.config?.dailyDraftRounds !== undefined ? { accountDailyDraftRounds: options.config.dailyDraftRounds } : {}),
+    ...(options.config?.dailyFinals !== undefined ? { accountDailyFinals: options.config.dailyFinals } : {}),
     now,
     ...(options.staleAfterMs !== undefined ? { staleAfterMs: options.staleAfterMs } : {}),
     ...(options.heartbeatMs !== undefined ? { heartbeatMs: options.heartbeatMs } : {}),
@@ -547,6 +551,64 @@ test('draft rounds are limited per merchant and Korean day, with Retry-After to 
   db.state.now = new Date('2026-09-29T15:00:00.000Z');
   await readyRound(db);
   assert.deepEqual((await db.art.getState('art-a')).quota, { draftRoundsLeft: 2, finalsLeft: 3 });
+});
+
+test('one account cannot bypass the generation cooldown or daily draft quota by switching merchants', async (t) => {
+  const db = await setup(t, { minGenerationIntervalMs: 60_000 });
+  await db.pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)
+    VALUES ('art-a', 'multi', 'STAFF', 'ACTIVE'), ('art-b', 'multi', 'STAFF', 'ACTIVE')`);
+  await readyRound(db, 'art-a', 'multi');
+  const before = await spendRows(db.pool);
+  assert.deepEqual((await db.art.getState('art-b', 'multi')).quota.account, {
+    draftRoundsLeft: 2, finalsLeft: 3,
+    resetsAt: '2026-09-29T15:00:00.000Z', cooldownUntil: '2026-09-29T03:01:00.000Z',
+  });
+  await assert.rejects(db.art.createRound({ merchantId: 'art-b', accountId: 'multi' }),
+    rejectsWith('AI_ART_COOLDOWN', 60));
+  assert.deepEqual(await spendRows(db.pool), before);
+  db.state.now = new Date(db.now().getTime() + 60_000);
+  await readyRound(db, 'art-b', 'multi');
+  db.state.now = new Date(db.now().getTime() + 60_000);
+  await readyRound(db, 'art-a', 'multi');
+  db.state.now = new Date(db.now().getTime() + 60_000);
+  await assert.rejects(db.art.createRound({ merchantId: 'art-b', accountId: 'multi' }),
+    rejectsWith('AI_ART_ACCOUNT_DAILY_LIMIT', 12 * 60 * 60 - 180));
+  assert.equal((await spendRows(db.pool)).length, 12);
+  assert.equal(db.fake.calls.length, 12);
+});
+
+test('simultaneous draft requests for two merchants consume only one account generation slot', async (t) => {
+  const db = await setup(t, { minGenerationIntervalMs: 60_000 });
+  await db.pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)
+    VALUES ('art-a', 'multi', 'STAFF', 'ACTIVE'), ('art-b', 'multi', 'STAFF', 'ACTIVE')`);
+  const results = await Promise.allSettled([
+    db.art.createRound({ merchantId: 'art-a', accountId: 'multi' }),
+    db.art.createRound({ merchantId: 'art-b', accountId: 'multi' }),
+  ]);
+  await db.art.drain();
+  assert.equal(results.filter(result => result.status === 'fulfilled').length, 1);
+  assert.equal(results.filter(result => result.status === 'rejected' && rejectsWith('AI_ART_COOLDOWN', 60)(result.reason)).length, 1);
+  assert.equal((await spendRows(db.pool)).length, 4);
+  assert.equal(db.fake.calls.length, 4);
+});
+
+test('final generation is limited by the choosing account across merchants', async (t) => {
+  const db = await setup(t, { minGenerationIntervalMs: 60_000 });
+  await db.pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)
+    VALUES ('art-a', 'multi', 'STAFF', 'ACTIVE'), ('art-b', 'multi', 'STAFF', 'ACTIVE'),
+           ('art-c', 'multi', 'STAFF', 'ACTIVE'), ('art-d', 'multi', 'STAFF', 'ACTIVE')`);
+  const rounds = [];
+  for (const merchantId of ['art-a', 'art-b', 'art-c', 'art-d']) rounds.push(await readyRound(db, merchantId));
+  for (let index = 0; index < 3; index += 1) {
+    db.state.now = new Date(db.now().getTime() + 60_000);
+    await db.art.chooseDraft({ merchantId: `art-${'abcd'[index]}`, roundId: rounds[index]!.id, index: 0, accountId: 'multi' });
+    await db.art.drain();
+  }
+  db.state.now = new Date(db.now().getTime() + 60_000);
+  await assert.rejects(db.art.chooseDraft({ merchantId: 'art-d', roundId: rounds[3]!.id, index: 0, accountId: 'multi' }),
+    rejectsWith('AI_ART_ACCOUNT_DAILY_LIMIT', 12 * 60 * 60 - 240));
+  assert.equal((await db.art.getRound({ merchantId: 'art-d', roundId: rounds[3]!.id })).status, 'DRAFTS_READY');
+  assert.equal((await spendRows(db.pool)).filter(row => row.kind === 'FINAL').length, 3);
 });
 
 test('finals are limited per merchant and Korean day, counted per attempt', async (t) => {
@@ -1261,6 +1323,7 @@ test('account deletion clears the requester of art rounds in the same transactio
   assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM merchant_art')).rows[0]!.n, 1);
   assert.equal((await db.pool.query('SELECT count(*)::int AS n FROM merchant_art_rounds')).rows[0]!.n, 3);
   assert.equal((await spendRows(db.pool)).length, 13);
+  assert.equal((await db.pool.query("SELECT count(*)::int AS n FROM ai_art_spend WHERE account_id = 'staff-a'")).rows[0]!.n, 0);
   assert.equal((await db.art.getState('art-a')).current !== null, true);
   // 삭제된 계정이 라운드를 만들려 하면 거절되고, 계정 ID는 다시 저장되지 않는다.
   await assert.rejects(db.art.createRound({ merchantId: 'art-a', accountId: 'staff-a' }), rejectsWith('ACCOUNT_DELETED'));
@@ -1314,7 +1377,9 @@ test('HTTP flow: owner routes, permission, binary public image and public mercha
   assert.equal(initial.status, 200);
   assert.equal(initial.headers.get('cache-control'), 'no-store');
   assert.deepEqual(await initial.json(), {
-    configured: true, current: null, quota: { draftRoundsLeft: 3, finalsLeft: 3 }, round: null,
+    configured: true, current: null, quota: { draftRoundsLeft: 3, finalsLeft: 3,
+      account: { draftRoundsLeft: 3, finalsLeft: 3, resetsAt: '2026-09-29T15:00:00.000Z', cooldownUntil: null },
+    }, round: null,
   });
 
   const created = await call('POST', `${art}/rounds`, 'staff-a', {});

@@ -126,6 +126,7 @@ test('every failure is shown as plain Korean through the message table, never as
   assert.match(screen, /artCodeMessage\('AI_ART_NOT_CONFIGURED'\)/);
   assert.match(screen, /artCodeMessage\('AI_ART_DAILY_LIMIT'\)/);
   assert.match(hook, /ownerArtErrorMessage\(error\)/);
+  assert.match(hook, /error instanceof OwnerArtApiError && error\.status === 429\) void refresh\(\)/);
   assert.match(hook, /pollFailureMessage\(error\)/);
   assert.doesNotMatch(screen, /error\.code|\{round\??\.failureCode\}/);
   // A message the owner can dismiss is announced politely.

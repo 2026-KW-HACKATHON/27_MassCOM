@@ -55,6 +55,9 @@ type Options = {
   nextRoundId?: () => string;
   staleAfterMs?: number;
   heartbeatMs?: number;
+  minGenerationIntervalMs?: number;
+  accountDailyDraftRounds?: number;
+  accountDailyFinals?: number;
 };
 
 type RoundRow = {
@@ -79,6 +82,9 @@ export class PostgresMerchantArtService implements MerchantArtService {
   private readonly nextRoundId: () => string;
   private readonly staleAfterMs: number;
   private readonly heartbeatMs: number;
+  private readonly minGenerationIntervalMs: number;
+  private readonly accountDailyDraftRounds: number;
+  private readonly accountDailyFinals: number;
   private readonly jobs = new Set<Promise<void>>();
 
   constructor(private readonly pool: Pool, options: Options) {
@@ -90,6 +96,9 @@ export class PostgresMerchantArtService implements MerchantArtService {
     this.nextRoundId = options.nextRoundId ?? randomUUID;
     this.staleAfterMs = options.staleAfterMs ?? staleRoundMs;
     this.heartbeatMs = options.heartbeatMs ?? 60_000;
+    this.minGenerationIntervalMs = options.minGenerationIntervalMs ?? 60_000;
+    this.accountDailyDraftRounds = options.accountDailyDraftRounds ?? 3;
+    this.accountDailyFinals = options.accountDailyFinals ?? 3;
   }
 
   // 시험·종료 절차용: 백그라운드에서 돌고 있는 생성 작업이 모두 끝날 때까지 기다린다.
@@ -97,7 +106,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
     while (this.jobs.size > 0) await Promise.allSettled([...this.jobs]);
   }
 
-  async getState(merchantId: string): Promise<MerchantArtState> {
+  async getState(merchantId: string, accountId?: string): Promise<MerchantArtState> {
     await this.interruptStale(this.pool, merchantId);
     const now = this.now();
     const current = await this.pool.query<{ sha256: string }>(
@@ -113,12 +122,18 @@ export class PostgresMerchantArtService implements MerchantArtService {
     // (더 오래된 미적용 라운드는 되살리지 않는다).
     const round = row && row.status !== 'APPLIED' ? await this.view(this.pool, row) : null;
     const artUrl = artUrlFor(current.rows[0]?.sha256 ?? null);
+    const accountUsage = accountId ? await this.accountGenerationState(this.pool, accountId, now) : null;
     return {
       configured: this.client !== undefined,
       current: artUrl ? { artUrl } : null,
       quota: {
         draftRoundsLeft: Math.max(0, this.config.dailyDraftRounds - await this.draftRoundsToday(this.pool, merchantId, now)),
         finalsLeft: Math.max(0, this.config.dailyFinals - await this.finalsToday(this.pool, merchantId, now)),
+        ...(accountUsage ? { account: {
+          draftRoundsLeft: Math.max(0, this.accountDailyDraftRounds - accountUsage.drafts),
+          finalsLeft: Math.max(0, this.accountDailyFinals - accountUsage.finals),
+          resetsAt: kstDayRange(now).end.toISOString(), cooldownUntil: accountUsage.cooldownUntil,
+        } } : {}),
       },
       round,
     };
@@ -137,6 +152,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
 
     const spendIds = await this.transaction(async (client) => {
       await this.requireManageArt(client, input.merchantId, input.accountId);
+      await this.lockAccountGeneration(client, input.accountId);
       await this.lockMerchant(client, input.merchantId);
       await this.interruptStale(client, input.merchantId);
       // 오래된 미적용 라운드 정리(이미지는 CASCADE). 적용된 라운드 행은 지우지 않는다(다시 눌렀을 때 같은 결과를 주는 멱등 기록).
@@ -163,6 +179,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
       if (await this.draftRoundsToday(client, input.merchantId, now) >= this.config.dailyDraftRounds) {
         throw new MerchantArtError('AI_ART_DAILY_LIMIT', secondsUntilNextKstMidnight(now));
       }
+      await this.assertAccountGenerationLimits(client, input.accountId, 'DRAFT', now);
       await this.assertBudget(client, now, estimatedDraftCallMicroUsd * draftCount);
       try {
         await client.query(
@@ -176,7 +193,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
       }
       const ids: number[] = [];
       for (let index = 0; index < draftCount; index++) {
-        ids.push(await this.recordSpend(client, input.merchantId, roundId, 'DRAFT', estimatedDraftCallMicroUsd, now));
+        ids.push(await this.recordSpend(client, input.merchantId, roundId, input.accountId, 'DRAFT', estimatedDraftCallMicroUsd, now));
       }
       return ids;
     });
@@ -208,6 +225,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
 
     const spendId = await this.transaction(async (client) => {
       await this.requireManageArt(client, input.merchantId, input.accountId);
+      await this.lockAccountGeneration(client, input.accountId);
       await this.lockMerchant(client, input.merchantId);
       await this.interruptStale(client, input.merchantId);
       const round = await this.lockRound(client, input.merchantId, input.roundId);
@@ -224,9 +242,10 @@ export class PostgresMerchantArtService implements MerchantArtService {
       if (await this.finalsToday(client, input.merchantId, now) >= this.config.dailyFinals) {
         throw new MerchantArtError('AI_ART_DAILY_LIMIT', secondsUntilNextKstMidnight(now));
       }
+      await this.assertAccountGenerationLimits(client, input.accountId, 'FINAL', now);
       await this.assertBudget(client, now, estimatedFinalMicroUsd);
       // 이 시도의 표지(final_spend_id)는 예상 비용 행 id다. 늦게 끝나는 옛 시도의 저장·상태 갱신은 이 값과 달라 아무 일도 하지 못한다.
-      const finalSpendId = await this.recordSpend(client, input.merchantId, round.id, 'FINAL', estimatedFinalMicroUsd, now);
+      const finalSpendId = await this.recordSpend(client, input.merchantId, round.id, input.accountId, 'FINAL', estimatedFinalMicroUsd, now);
       try {
         await client.query(
           `UPDATE merchant_art_rounds
@@ -468,6 +487,47 @@ export class PostgresMerchantArtService implements MerchantArtService {
     return result.rows[0]!.used;
   }
 
+  private async lockAccountGeneration(client: PoolClient, accountId: string): Promise<void> {
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`ai-art-account:${accountId}`]);
+  }
+
+  private async assertAccountGenerationLimits(client: PoolClient, accountId: string, kind: 'DRAFT' | 'FINAL', now: Date): Promise<void> {
+    const usage = await this.accountGenerationState(client, accountId, now);
+    if ((kind === 'DRAFT' ? usage.drafts >= this.accountDailyDraftRounds
+      : usage.finals >= this.accountDailyFinals)) {
+      throw new MerchantArtError('AI_ART_ACCOUNT_DAILY_LIMIT', secondsUntilNextKstMidnight(now));
+    }
+    if (usage.cooldownUntil) {
+      throw new MerchantArtError('AI_ART_COOLDOWN',
+        Math.max(1, Math.ceil((Date.parse(usage.cooldownUntil) - now.getTime()) / 1000)));
+    }
+  }
+
+  private async accountGenerationState(db: Queryable, accountId: string, now: Date): Promise<{
+    drafts: number; finals: number; cooldownUntil: string | null;
+  }> {
+    const day = kstDayRange(now);
+    const usage = await db.query<{ drafts: number; finals: number }>(
+      `SELECT count(DISTINCT round_id) FILTER (WHERE kind = 'DRAFT')::integer AS drafts,
+              count(*) FILTER (WHERE kind = 'FINAL')::integer AS finals
+       FROM ai_art_spend WHERE account_id = $1 AND created_at >= $2 AND created_at < $3`,
+      [accountId, day.start, day.end],
+    );
+    let cooldownUntil: string | null = null;
+    if (this.minGenerationIntervalMs > 0) {
+      const latest = await db.query<{ created_at: Date }>(
+        `SELECT created_at FROM ai_art_spend WHERE account_id = $1 AND created_at > $2
+         ORDER BY created_at DESC LIMIT 1`,
+        [accountId, new Date(now.getTime() - this.minGenerationIntervalMs)],
+      );
+      if (latest.rows[0]) {
+        const until = latest.rows[0].created_at.getTime() + this.minGenerationIntervalMs;
+        if (until > now.getTime()) cooldownUntil = new Date(until).toISOString();
+      }
+    }
+    return { drafts: usage.rows[0]!.drafts, finals: usage.rows[0]!.finals, cooldownUntil };
+  }
+
   // 환경(이 DB) 전체 advisory lock으로 직렬화해 이번 달(한국) 합계에 예상 비용을 더한 값이 상한을 넘는지 본다.
   // 잠금은 거래가 끝날 때(예상 비용 기록 뒤) 풀리므로 동시에 들어온 요청이 같은 잔액을 두 번 쓰지 못한다.
   private async assertBudget(client: PoolClient, now: Date, estimateMicroUsd: number): Promise<void> {
@@ -484,12 +544,13 @@ export class PostgresMerchantArtService implements MerchantArtService {
   }
 
   private async recordSpend(
-    client: PoolClient, merchantId: string, roundId: string, kind: 'DRAFT' | 'FINAL', microUsd: number, now: Date,
+    client: PoolClient, merchantId: string, roundId: string, accountId: string,
+    kind: 'DRAFT' | 'FINAL', microUsd: number, now: Date,
   ): Promise<number> {
     const inserted = await client.query<{ id: string }>(
-      `INSERT INTO ai_art_spend (merchant_id, round_id, kind, micro_usd, created_at)
-       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-      [merchantId, roundId, kind, microUsd, now],
+      `INSERT INTO ai_art_spend (merchant_id, round_id, account_id, kind, micro_usd, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+      [merchantId, roundId, accountId, kind, microUsd, now],
     );
     return Number(inserted.rows[0]!.id);
   }
@@ -511,7 +572,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
   // 권한이 회수·강등됐을 수 있고, 가게 행 FOR SHARE는 회수·강등 트랜잭션(가게 행 FOR UPDATE)과 직렬화된다.
   // 계정 삭제는 가게 행을 잠그지 않고 merchant_members를 회수하므로 가게 행 잠금으로는 직렬화되지 않는다. 그래서 계정 advisory 잠금과
   // 삭제 확인(assertActive)을 가장 먼저 하고, 삭제가 먼저 끝났으면 ACCOUNT_DELETED로 거절한다.
-  // 잠금 순서(교착 방지): 계정 advisory(assertActive) → 가게 행 FOR SHARE → 가게별 advisory → 라운드 행 → 월 예산 advisory.
+  // 잠금 순서(교착 방지): 계정 advisory(assertActive) → 가게 행 FOR SHARE → 생성 계정 advisory → 가게별 advisory → 라운드 행 → 월 예산 advisory.
   // 회수·강등(admin.ts, staff-registration.ts)도 대상 계정 advisory → 가게 행 FOR UPDATE 순서이고 뒤쪽 잠금은 잡지 않는다.
   private async requireManageArt(client: PoolClient, merchantId: string, accountId: string): Promise<void> {
     if (this.accountLifecycle) await this.accountLifecycle.assertActive(client, accountId);

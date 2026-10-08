@@ -68,8 +68,11 @@ export function pollTarget(state: ArtScreenState, focused: boolean): string | nu
   return round && isRoundInProgress(round.status) ? round.id : null;
 }
 
-export function canStartDrafts(art: OwnerArt): boolean {
-  return art.configured && art.quota.draftRoundsLeft > 0 && !(art.round && isRoundInProgress(art.round.status));
+export function canStartDrafts(art: OwnerArt, now = Date.now()): boolean {
+  const account = art.quota.account;
+  return art.configured && art.quota.draftRoundsLeft > 0
+    && (!account || (account.draftRoundsLeft > 0 && (!account.cooldownUntil || Date.parse(account.cooldownUntil) <= now)))
+    && !(art.round && isRoundInProgress(art.round.status));
 }
 
 /**
@@ -83,12 +86,21 @@ export function canPickDraft(round: ArtRound | null): boolean {
     || (round.status === 'FAILED' && round.chosenIndex !== null && round.drafts.length === DRAFT_COUNT);
 }
 
-export function canFinalize(art: OwnerArt): boolean {
-  return art.configured && art.quota.finalsLeft > 0;
+export function canFinalize(art: OwnerArt, now = Date.now()): boolean {
+  const account = art.quota.account;
+  return art.configured && art.quota.finalsLeft > 0
+    && (!account || (account.finalsLeft > 0 && (!account.cooldownUntil || Date.parse(account.cooldownUntil) <= now)));
 }
 
-export function quotaSummary(quota: ArtQuota): string {
-  return `오늘 남은 횟수 · 시안 받기 ${quota.draftRoundsLeft}번 · 고급 그림 만들기 ${quota.finalsLeft}번`;
+export function quotaSummary(quota: ArtQuota, now = Date.now()): string {
+  const store = `이 가게 오늘 남은 횟수 · 시안 받기 ${quota.draftRoundsLeft}번 · 고급 그림 만들기 ${quota.finalsLeft}번`;
+  if (!quota.account) return store;
+  const account = quota.account;
+  const wait = account.cooldownUntil ? Math.ceil((Date.parse(account.cooldownUntil) - now) / 1000) : 0;
+  return `${store}\n계정 전체 하루 시안 3회·최종 3회 · 현재 남은 시안 ${account.draftRoundsLeft}번 · 최종 ${account.finalsLeft}번`
+    + (wait > 0 ? ` · 다음 생성까지 ${wait}초` : '')
+    + ((account.draftRoundsLeft === 0 || account.finalsLeft === 0)
+      ? `\n한국 시간 ${new Date(account.resetsAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })}에 계정 횟수가 초기화돼요.` : '');
 }
 
 /** What a screen reader says for a draft: its number and style; whether it is picked is the button's selected state. */

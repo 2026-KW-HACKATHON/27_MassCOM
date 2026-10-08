@@ -112,9 +112,21 @@ test('drafts can be started only when configured, with a try left and nothing dr
 });
 
 test('the counts line and the draft label read as words', () => {
-  assert.equal(quotaSummary({ draftRoundsLeft: 2, finalsLeft: 0 }), '오늘 남은 횟수 · 시안 받기 2번 · 고급 그림 만들기 0번');
+  assert.equal(quotaSummary({ draftRoundsLeft: 2, finalsLeft: 0 }), '이 가게 오늘 남은 횟수 · 시안 받기 2번 · 고급 그림 만들기 0번');
   assert.equal(draftAccessibilityLabel({ index: 0, label: '도장' }), 'AI 시안 1, 도장 스타일');
   assert.equal(draftAccessibilityLabel({ index: 3, label: '판화' }), 'AI 시안 4, 판화 스타일');
+});
+
+test('account attempts and cooldown control both actions until the server reset', () => {
+  const now = Date.parse('2026-10-09T12:00:00.000Z');
+  const quota = { draftRoundsLeft: 2, finalsLeft: 3, account: {
+    draftRoundsLeft: 0, finalsLeft: 1, resetsAt: '2026-10-09T15:00:00.000Z', cooldownUntil: '2026-10-09T12:00:45.000Z',
+  } };
+  assert.equal(canStartDrafts(art({ quota }), now), false);
+  assert.equal(canFinalize(art({ quota }), now), false);
+  assert.equal(canFinalize(art({ quota }), now + 45_000), true);
+  assert.match(quotaSummary(quota, now), /계정 전체 하루 시안 3회·최종 3회.*다음 생성까지 45초/);
+  assert.match(quotaSummary(quota, now), /한국 시간.*계정 횟수가 초기화돼요/);
 });
 
 test('a pick is made among the four drafts, only when they are waiting for one and nothing is busy', () => {

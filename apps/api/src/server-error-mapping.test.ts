@@ -156,11 +156,13 @@ const cases: Case[] = [
     body: { code: 'SOCIAL_SEND_LIMIT_REACHED' }, retryAfter: '13' },
   { name: 'SocialHttpError', error: () => new SocialHttpError(418, 'SOCIAL_TEAPOT'), status: 418, body: { code: 'SOCIAL_TEAPOT' } },
   ...table('MerchantArtError', (code) => new MerchantArtError(code), {
-    404: ['AI_ART_ROUND_NOT_FOUND'], 429: ['AI_ART_DAILY_LIMIT'], 403: ['AI_ART_TRIAL_DISABLED'],
+    404: ['AI_ART_ROUND_NOT_FOUND'], 429: ['AI_ART_DAILY_LIMIT', 'AI_ART_ACCOUNT_DAILY_LIMIT', 'AI_ART_COOLDOWN'], 403: ['AI_ART_TRIAL_DISABLED'],
     503: ['AI_ART_NOT_CONFIGURED', 'AI_ART_BUDGET_EXHAUSTED'], 410: ['ACCOUNT_DELETED'], 409: ['AI_ART_ROUND_IN_PROGRESS', 'AI_ART_ROUND_STATE'],
   }, (code) => (code === 'AI_ART_TRIAL_DISABLED' ? { message: '체험 가게에서는 AI 그림을 만들 수 없어요.' } : {})),
   { name: 'MerchantArtError Retry-After', error: () => new MerchantArtError('AI_ART_DAILY_LIMIT', 3600), status: 429,
     body: { code: 'AI_ART_DAILY_LIMIT' }, retryAfter: '3600' },
+  { name: 'MerchantArtError cooldown Retry-After', error: () => new MerchantArtError('AI_ART_COOLDOWN', 60), status: 429,
+    body: { code: 'AI_ART_COOLDOWN' }, retryAfter: '60' },
   { name: 'MerchantAccessError', error: () => new MerchantAccessError('MERCHANT_ACCESS_DENIED'), status: 403,
     body: { code: 'MERCHANT_ACCESS_DENIED' } },
   ...table('MerchantProfileError', (code) => new MerchantProfileError(code), {
