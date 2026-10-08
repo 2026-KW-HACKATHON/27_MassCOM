@@ -14,9 +14,12 @@ Windows / Node 24.15.0 / Chrome / JDK 17.0.20.1 / Android SDK 36. 기준 main `b
 | 시연 Android JS 번들 | `PASS` | `APP_VARIANT=showcase`, 전용 demo API와 빌드 확인용 공개 client ID 형식 fixture로 같은 export 성공. 실제 로그인·서명·배포용 빌드가 아니다. |
 | 영상·소리 | `PASS` | 두 영상 스트림 SHA-256 동일, FFmpeg decode 오류 0. 최종 AAC decode peak -3.7dBFS / mean -21.2dBFS, 클리핑 0. 제공 OGG로 repo 내 빌더 재현 성공. [자산·manifest](../apps/mobile/assets/videos/README.md). |
 | 독립 검토 | `PASS` | code-reviewer의 StrictMode 개봉 생략 지적 수정 후 재검토 APPROVE, 보조 critic CLEAR. 지정 architect 실행은 모델 지원 오류로 unavailable이며 전체 스킬 승인으로 간주하지 않는다. |
+| 로컬 gate 구성 검사 | `PASS` | `tools/gate.sh`에서 비밀·파일 크기·충돌·부트스트랩·운영 문서·증거 일관성 통과. 마지막 배포 문서 검사는 Windows CRLF 때문에 exit 1이었으며 checkout만 LF로 정규화한 뒤 `node scripts/render-current-release.mjs --check` 별도 재실행 PASS. 전체 gate 단일 재실행 PASS로 바꾸어 기록하지 않는다. |
 | 설치본·청음·실제 구매·배포 | `NOT_RUN` | 운영/시연 각 Android 설치본, 실제 청음, 실제 계정 구매, Play·서버 배포는 실행하지 않았다. |
 
 수용 기준·복구·재현 환경은 [우표 뽑기 QA](GACHA_STAMP_QA_2026-10-09.md)를 따른다. 코드/영상 자산은 공통 고객 화면이며 보상 API·정책·DB·의존성은 그대로다.
+
+구현 커밋 `6b7bc2f7`, [PR #445](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/445). GitHub CI는 이 로컬 검증과 별도로 진행한다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 4건 수정 (파일 수정만·미커밋·미배포)
 

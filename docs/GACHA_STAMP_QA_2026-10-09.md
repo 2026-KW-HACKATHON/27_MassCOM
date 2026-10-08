@@ -1,6 +1,6 @@
 # 우표 뽑기 영상과 제공 효과음 검증
 
-Issue #442 · `feat/gacha-stamp-reveal` · 기준 main `b37063c0` · 2026-10-09 KST.
+Issue #442 · [PR #445](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/445) · `feat/gacha-stamp-reveal` · 기준 main `b37063c0` · 구현 `6b7bc2f7` · 2026-10-09 KST.
 
 사용자가 승인한 검은 배경의 우표 영상 두 개를 등급 뽑기와 기존 재뽑기 화면에 연결한다. 구매 전에는 3초 대기 영상을 무음 반복하고, 서버 결과를 받은 뒤 약 4.208초 개봉 영상을 재생한다. 보상 공개와 도감 등록 확인은 기존 흐름을 따른다. 운영·시연의 공통 화면에 적용한다.
 
