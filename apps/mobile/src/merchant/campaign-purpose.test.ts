@@ -22,20 +22,23 @@ test('timeWindowLabel formats one window and rejects a malformed one', () => {
   }
 });
 
-test('an off-peak campaign shows its windows and says a visit outside them still counts', () => {
+test('an off-peak campaign shows its windows and says a visit outside them still counts, without naming a benefit', () => {
   const block = campaignPurposeBlock({
     kind: 'OFF_PEAK', featuredMenuName: '라떼',
     timeWindows: [{ days: [1, 2, 3, 4, 5], start: '14:00', end: '17:00' }, { days: [6], start: '10:00', end: '12:00' }],
   });
   assert.equal(block?.headline, '이번 캠페인: 한산한 시간대 방문 · 평일 14:00–17:00, 토 10:00–12:00');
-  assert.deepEqual(block?.lines, ['시간대는 한국 시간 기준이에요. 시간대 밖에 방문해도 방문은 인정돼요.', '대표 메뉴 · 라떼']);
+  assert.deepEqual(block?.lines, ['점주가 정한 시간대 캠페인이에요. 시간은 한국 시간 기준이고, 시간대 밖에 방문해도 방문은 인정돼요.', '대표 메뉴 · 라떼']);
+  assert.doesNotMatch(JSON.stringify(block), /혜택/);
 });
 
-test('a revisit campaign describes the day range and the owner next-step text', () => {
-  assert.deepEqual(campaignPurposeBlock({ kind: 'REVISIT', revisitMinDays: 3, revisitWindowDays: 14, nextStepText: '다음에 오시면 코인이 완성돼요' }), {
+test('a revisit campaign describes the day range and the owner next-step text, without naming a benefit', () => {
+  const block = campaignPurposeBlock({ kind: 'REVISIT', revisitMinDays: 3, revisitWindowDays: 14, nextStepText: '다음에 오시면 코인이 완성돼요' });
+  assert.deepEqual(block, {
     headline: '이번 캠페인: 다시 방문하기',
-    lines: ['처음 방문한 날로부터 3일 뒤부터 14일 안에 다시 방문하면 재방문으로 세요.', '다음에 오시면 코인이 완성돼요'],
+    lines: ['점주가 정한 재방문 기간은 처음 방문한 날로부터 3일 뒤부터 14일 안이에요.', '다음에 오시면 코인이 완성돼요'],
   });
+  assert.doesNotMatch(JSON.stringify(block), /혜택/);
   // 일수가 이상하면 그 줄만 빠진다.
   assert.deepEqual(campaignPurposeBlock({ kind: 'REVISIT', revisitMinDays: 14, revisitWindowDays: 3 }), { headline: '이번 캠페인: 다시 방문하기', lines: [] });
 });

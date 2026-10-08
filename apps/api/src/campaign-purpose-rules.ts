@@ -107,6 +107,12 @@ export function windowStatusAt(instant: Date, windows: readonly TimeWindow[] | n
   return isWithinWindows(instant, windows) ? 'IN_WINDOW' : 'OUTSIDE_WINDOW';
 }
 
+// 시간대를 판정할 시각. 코드를 만든 뒤 유효 시간(ttlMs) 안에 확정(또는 재발급)하면 만든 시각(createdAt)을 쓰고,
+// 그보다 늦으면 확정(재발급) 시각을 쓴다. 재발급으로 며칠 늦게 쓰인 코드가 처음 만든 시각의 시간대를 물려받지 못하게 한다.
+export function benefitJudgedAt(createdAt: Date, claimedAt: Date, ttlMs: number): Date {
+  return claimedAt.getTime() < createdAt.getTime() + ttlMs ? createdAt : claimedAt;
+}
+
 // 혜택 상태는 시간대 조건만 본다. 신규·재방문 조건의 판정은 혜택 발급 단계(PR 2)가 따로 한다.
 export function benefitStateFor(status: WindowStatus): BenefitState {
   return status === 'IN_WINDOW' ? 'ELIGIBLE' : status;

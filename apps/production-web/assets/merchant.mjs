@@ -3,8 +3,8 @@ import { campaignEndingNotice } from './commercial-operation.mjs';
 import { profileReadOnlyReason, serializeMerchantProfile } from './merchant-profile.mjs';
 import { mountRealWorldMerchant } from './real-world-merchant.mjs';
 
-// 점주 목적형 캠페인(#412): 시간대 밖에서 만든 방문 코드에 붙는 점원 안내. 모바일 점원 화면과 같은 문구다.
-const outsideWindowStaffNote = '지금은 혜택 시간대가 아니에요(방문은 인정돼요)';
+// 점주 목적형 캠페인(#412): 시간대 밖에서 만든 방문 코드에 붙는 점원 안내. 모바일 점원 화면과 같은 문구다. 혜택은 뒤 PR에서 생기므로 말하지 않는다.
+const outsideWindowStaffNote = '이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)';
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();

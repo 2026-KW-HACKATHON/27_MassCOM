@@ -10,7 +10,7 @@ import {
   type IssuedClaimSlot,
   type RedeemedClaimSlot,
 } from '../claim-slot-service.js';
-import { benefitStateFor, windowStatusAt } from '../campaign-purpose-rules.js';
+import { benefitJudgedAt, benefitStateFor, windowStatusAt } from '../campaign-purpose-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { isStaffAccountClaim, staffProgressExcludedReason } from '../reversal-rules.js';
 import {
@@ -120,6 +120,7 @@ type RedeemedReplayRow = {
   progress_visit_count: number;
   staff_account_claim: boolean;
   slot_created_at: Date;
+  slot_claimed_at: Date;
   time_windows: unknown;
 };
 
@@ -402,14 +403,15 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         }
         throw new ClaimSlotError('CLAIM_SLOT_NOT_REISSUABLE');
       }
-      // 재발급해도 시간대 기준은 처음 발급한 시각(created_at)이다. 점원 화면의 안내가 재발급·복구 뒤에도 같게 유지된다.
+      // 재발급해도 유효 시간 안이면 시간대 기준은 처음 발급한 시각(created_at)이라 점원 화면의 안내가 복구 뒤에도 같다.
+      // 유효 시간(ttlMs)이 지난 코드를 다시 여는 재발급은 확정 때와 같은 규칙으로 요청 시각(requestedAt)에 판정한다.
       issued = {
         claimSlotId: input.claimSlotId,
         token,
         tokenVersion: updated.rows[0]!.token_version,
         expiresAt: expiresAt.toISOString(),
         windowStatus: windowStatusAt(
-          updated.rows[0]!.created_at,
+          benefitJudgedAt(updated.rows[0]!.created_at, requestedAt, this.options.ttlMs),
           timeWindowsFromRow((await findActiveCampaign(client, input.merchantId, requestedAt))?.time_windows),
         ),
       };
@@ -500,6 +502,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
           client,
           hashValue(input.token),
           input.accountId,
+          this.options.ttlMs,
         );
         if (replayed) {
           await client.query('COMMIT');
@@ -679,8 +682,16 @@ export class PostgresClaimSlotService implements ClaimSlotService {
           ...(staffAccountClaim ? { progressExcludedReason: staffProgressExcludedReason } : {}),
         },
         grantedRewards,
-        // 혜택 기준 시각은 점원이 코드를 발급·확정한 시각(slot.created_at)이다. 고객이 스캔한 시각이 아니다.
-        benefit: { state: benefitStateFor(windowStatusAt(slot.created_at, timeWindowsFromRow(campaign.time_windows))) },
+        // 세어지지 않은 방문(직원 본인 적립 포함, 같은 날 두 번째)은 혜택 대상이 아니다. 세어진 방문의 혜택 기준 시각은
+        // 유효 시간 안에 확정했으면 점원이 코드를 만든 시각(slot.created_at), 아니면 확정 시각이다.
+        benefit: {
+          state: visit.progress_counted
+            ? benefitStateFor(windowStatusAt(
+                benefitJudgedAt(slot.created_at, redeemedAt, this.options.ttlMs),
+                timeWindowsFromRow(campaign.time_windows),
+              ))
+            : 'NONE',
+        },
       };
     } catch (error) {
       if (transactionActive) {
@@ -856,6 +867,7 @@ async function findRedeemedClaim(
   client: PoolClient,
   tokenHash: Buffer,
   accountId: string,
+  ttlMs: number,
 ): Promise<RedeemedClaimSlot | undefined> {
   const result = await client.query<RedeemedReplayRow>(
     `SELECT slot.id AS claim_slot_id,
@@ -868,6 +880,7 @@ async function findRedeemedClaim(
             visit.progress_counted,
             (visit.progress_excluded_reason IS NOT NULL) AS staff_account_claim,
             slot.created_at AS slot_created_at,
+            slot.claimed_at AS slot_claimed_at,
             purpose.time_windows,
             (
               SELECT count(*)::integer
@@ -925,7 +938,15 @@ async function findRedeemedClaim(
       status: 'GRANTED' as const,
       claimExpiresAt: reward.claim_expires_at.toISOString(),
     })),
-    benefit: { state: benefitStateFor(windowStatusAt(replay.slot_created_at, timeWindowsFromRow(replay.time_windows))) },
+    // 처음 확정할 때 저장한 claimed_at으로 판정해 재시도해도 같은 상태다. 세어지지 않은 방문(직원 본인·같은 날 두 번째)은 NONE이다.
+    benefit: {
+      state: replay.progress_counted
+        ? benefitStateFor(windowStatusAt(
+            benefitJudgedAt(replay.slot_created_at, replay.slot_claimed_at, ttlMs),
+            timeWindowsFromRow(replay.time_windows),
+          ))
+        : 'NONE',
+    },
   };
 }
 

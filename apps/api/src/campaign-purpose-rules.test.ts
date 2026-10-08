@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  benefitJudgedAt,
   benefitStateFor,
   isWithinWindows,
   kstClock,
@@ -109,6 +110,22 @@ test('windowStatusAt is NONE without a time condition and benefitStateFor maps i
   assert.equal(benefitStateFor('IN_WINDOW'), 'ELIGIBLE');
   assert.equal(benefitStateFor('OUTSIDE_WINDOW'), 'OUTSIDE_WINDOW');
   assert.equal(benefitStateFor('NONE'), 'NONE');
+});
+
+test('benefitJudgedAt uses the creation time only while the claim is inside the code validity, and the claim time after', () => {
+  const ttlMs = 15 * 60 * 1000;
+  const createdAt = kst('2026-10-05T16:50:00');
+  assert.equal(benefitJudgedAt(createdAt, kst('2026-10-05T16:50:00'), ttlMs), createdAt);
+  assert.equal(benefitJudgedAt(createdAt, kst('2026-10-05T17:04:59.999'), ttlMs), createdAt);
+  // 만든 시각 + ttl 정각부터는 확정 시각이 기준이다(끝 제외).
+  const exactly = kst('2026-10-05T17:05:00');
+  assert.equal(benefitJudgedAt(createdAt, exactly, ttlMs), exactly);
+  const days = kst('2026-10-10T15:00:00');
+  assert.equal(benefitJudgedAt(createdAt, days, ttlMs), days);
+  // 시계가 조금 어긋나 확정 시각이 만든 시각보다 앞서도 만든 시각을 쓴다.
+  assert.equal(benefitJudgedAt(createdAt, kst('2026-10-05T16:49:59'), ttlMs), createdAt);
+  assert.equal(windowStatusAt(benefitJudgedAt(createdAt, days, ttlMs), weekdayAfternoon), 'OUTSIDE_WINDOW');
+  assert.equal(windowStatusAt(benefitJudgedAt(createdAt, kst('2026-10-05T17:04:59.999'), ttlMs), weekdayAfternoon), 'IN_WINDOW');
 });
 
 test('normalizeTimeWindows accepts one to three windows and sorts the days', () => {

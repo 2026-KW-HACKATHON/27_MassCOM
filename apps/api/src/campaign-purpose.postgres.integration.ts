@@ -248,7 +248,7 @@ test('after the campaign leaves draft only the verified intro may change, and a 
     JSON.stringify([{ days: [6], start: '10:00', end: '11:00' }])), /immutable/);
   await expectCheckViolation(terms(`UPDATE campaign_purposes SET featured_menu_name = '아메리카노' WHERE campaign_id = $1`), /immutable/);
   await expectCheckViolation(terms(`UPDATE campaign_purposes SET revisit_window_days = 30 WHERE campaign_id = $1`), /immutable/);
-  await expectCheckViolation(terms(`UPDATE campaign_purposes SET campaign_id = $2 WHERE campaign_id = $1`, legacy.campaignId), /immutable/);
+  await expectCheckViolation(terms(`UPDATE campaign_purposes SET campaign_id = $2 WHERE campaign_id = $1`, legacy.campaignId), /moved/);
   await expectCheckViolation(terms(`DELETE FROM campaign_purposes WHERE campaign_id = $1`), /immutable/);
   await expectCheckViolation(pool.query(`INSERT INTO campaign_purposes(campaign_id, purpose) VALUES ($1, 'NEW_CUSTOMERS')`, [legacy.campaignId]), /draft/);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM campaign_purposes WHERE campaign_id = $1`, [legacy.campaignId])).rows[0]!.n, 0);
@@ -278,6 +278,26 @@ test('after the campaign leaves draft only the verified intro may change, and a 
   await pool.query(`INSERT INTO campaign_purposes(campaign_id, purpose) VALUES ($1, 'NEW_CUSTOMERS')`, [draftId]);
   await pool.query(`DELETE FROM campaigns WHERE id = $1`, [draftId]);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM campaign_purposes WHERE campaign_id = $1`, [draftId])).rows[0]!.n, 0);
+});
+
+test('a purpose row cannot be moved onto another campaign, so a draft row never lands on an active campaign', { skip }, async (t) => {
+  const pool = await setup(t);
+  const active = await makeWorld(pool);
+  const draftId = `cp-move-${randomUUID()}`;
+  const otherDraftId = `cp-move-${randomUUID()}`;
+  for (const id of [draftId, otherDraftId]) {
+    await pool.query(`INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
+      VALUES ($1, $2, '이동 초안', now(), now() + interval '1 day', 'DRAFT', false, 1)`, [id, active.merchantId]);
+  }
+  await pool.query(`INSERT INTO campaign_purposes(campaign_id, purpose, time_windows) VALUES ($1, 'OFF_PEAK', $2::jsonb)`,
+    [draftId, JSON.stringify(weekdayAfternoon)]);
+  // 초안 행을 이미 공개된 캠페인으로 옮기는 길(공개 뒤 조건을 사후에 심는 길)도, 다른 초안으로 옮기는 길도 막힌다.
+  await expectCheckViolation(pool.query(`UPDATE campaign_purposes SET campaign_id = $2 WHERE campaign_id = $1`, [draftId, active.campaignId]), /moved/);
+  await expectCheckViolation(pool.query(`UPDATE campaign_purposes SET campaign_id = $2 WHERE campaign_id = $1`, [draftId, otherDraftId]), /moved/);
+  assert.deepEqual((await pool.query(`SELECT campaign_id FROM campaign_purposes WHERE campaign_id IN ($1, $2, $3)`,
+    [draftId, otherDraftId, active.campaignId])).rows, [{ campaign_id: draftId }]);
+  // 같은 캠페인에 그대로 있는 초안 행은 계속 고칠 수 있다.
+  await pool.query(`UPDATE campaign_purposes SET featured_menu_name = '수정', campaign_id = campaign_id WHERE campaign_id = $1`, [draftId]);
 });
 
 test('publishing a purpose draft through the admin service freezes its conditions and the campaign list still shows the purpose', { skip }, async (t) => {
@@ -510,4 +530,95 @@ test('the public catalog and the discovery detail carry the purpose only for a c
   assert.equal(detail.campaign?.state, 'ACTIVE');
   const legacyDetail = await realWorld.merchant(legacy.merchantId);
   assert.equal('purpose' in (legacyDetail.campaign ?? {}), false);
+});
+
+test('a code reissued after its validity ended is judged when it is used, and one reissued within it by its creation time', { skip }, async (t) => {
+  const pool = await setup(t);
+  const world = await makeWorld(pool, { purpose: 'OFF_PEAK', time_windows: weekdayAfternoon });
+  const { service, clock } = claimService(pool);
+  let n = 0;
+  const issue = async (at: string) => {
+    clock.now = kst(at);
+    const customer = `cp-customer-${randomUUID()}`;
+    const issued = await service.issue({ merchantId: world.merchantId, customerAccountId: customer, merchantReference: `ttl-ref-${++n}`, createdByAccountId: world.staffId });
+    return { customer, issued };
+  };
+  const reissue = async (slot: { issued: { claimSlotId: string } }, at: string, version = 1) => {
+    clock.now = kst(at);
+    return service.reissue({ merchantId: world.merchantId, claimSlotId: slot.issued.claimSlotId, expectedTokenVersion: version, requestedByAccountId: world.staffId });
+  };
+  const redeem = async (slot: { customer: string }, token: string, at: string) => {
+    clock.now = kst(at);
+    return service.redeem({ accountId: slot.customer, token });
+  };
+
+  // 창 안(월 15:00)에 만든 코드를 유효 시간이 한참 지난 토요일 창 밖에 재발급해 쓰면 밖이다. 처음 만든 시각을 물려받지 않는다.
+  const stale = await issue('2026-10-05T15:00:00');
+  assert.equal(stale.issued.windowStatus, 'IN_WINDOW');
+  const staleReissued = await reissue(stale, '2026-10-10T15:00:00');
+  assert.equal(staleReissued.windowStatus, 'OUTSIDE_WINDOW');
+  const staleRedeemed = await redeem(stale, staleReissued.token, '2026-10-10T15:02:00');
+  assert.equal(staleRedeemed.benefit?.state, 'OUTSIDE_WINDOW');
+  // 방문 인정은 그대로다(D1).
+  assert.equal(staleRedeemed.visit.progressCounted, true);
+  assert.deepEqual(staleRedeemed.grantedRewards.map(reward => reward.targetVisitCount), [1]);
+  // 재시도는 처음 확정할 때 저장한 claimed_at으로 판정한다. 재시도 시각이 창 안이어도, 처음 만든 시각이 창 안이어도 바뀌지 않는다.
+  const replay = await redeem(stale, staleReissued.token, '2026-10-12T15:00:00');
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.benefit, { state: 'OUTSIDE_WINDOW' });
+
+  // 반대로 창 밖에서 만든 코드(월 18:00)를 며칠 뒤 창 안(수 15:00)에 재발급해 쓰면 그 시각 기준으로 안이다.
+  const lateInside = await issue('2026-10-05T18:00:00');
+  assert.equal(lateInside.issued.windowStatus, 'OUTSIDE_WINDOW');
+  const lateReissued = await reissue(lateInside, '2026-10-07T15:00:00');
+  assert.equal(lateReissued.windowStatus, 'IN_WINDOW');
+  const lateRedeemed = await redeem(lateInside, lateReissued.token, '2026-10-07T15:01:00');
+  assert.equal(lateRedeemed.benefit?.state, 'ELIGIBLE');
+  assert.deepEqual((await redeem(lateInside, lateReissued.token, '2026-10-09T20:00:00')).benefit, { state: 'ELIGIBLE' });
+
+  // 유효 시간 안(16:50에 만들고 17:04:59.999까지)이면 만든 시각이 기준이다. 정확히 만든 시각 + 15분부터는 확정 시각이 기준이다.
+  const edgeIn = await issue('2026-10-05T16:50:00');
+  const edgeInReissued = await reissue(edgeIn, '2026-10-05T16:55:00');
+  assert.equal(edgeInReissued.windowStatus, 'IN_WINDOW');
+  assert.equal((await redeem(edgeIn, edgeInReissued.token, '2026-10-05T17:04:59.999')).benefit?.state, 'ELIGIBLE');
+  const edgeOut = await issue('2026-10-05T16:50:00');
+  const edgeOutReissued = await reissue(edgeOut, '2026-10-05T16:55:00');
+  assert.equal((await redeem(edgeOut, edgeOutReissued.token, '2026-10-05T17:05:00.000')).benefit?.state, 'OUTSIDE_WINDOW');
+  // 재발급 요청 자체도 같은 경계를 쓴다: 만든 시각 + 15분 정각의 재발급은 요청 시각(창 밖)이 기준이다.
+  const edgeReissue = await issue('2026-10-05T16:50:00');
+  assert.equal((await reissue(edgeReissue, '2026-10-05T17:04:59.999')).windowStatus, 'IN_WINDOW');
+  assert.equal((await reissue(edgeReissue, '2026-10-05T17:05:00.000', 2)).windowStatus, 'OUTSIDE_WINDOW');
+});
+
+test('a visit that does not count toward progress never carries a benefit: staff self-claim and a second visit on the same day', { skip }, async (t) => {
+  const pool = await setup(t);
+  const world = await makeWorld(pool, { purpose: 'OFF_PEAK', time_windows: weekdayAfternoon });
+  const { service, visit } = claimService(pool);
+
+  // 같은 한국 날짜의 두 번째 방문은 창 안이어도 진행에 세지 않으므로 혜택도 없다. 재생도 같다.
+  const first = await visit(world, kst('2026-10-05T15:00:00'), kst('2026-10-05T15:01:00'));
+  assert.equal(first.redeemed.visit.progressCounted, true);
+  assert.deepEqual(first.redeemed.benefit, { state: 'ELIGIBLE' });
+  const second = await visit(world, kst('2026-10-05T15:30:00'), kst('2026-10-05T15:31:00'), first.customer);
+  assert.equal(second.issued.windowStatus, 'IN_WINDOW');
+  assert.equal(second.redeemed.visit.progressCounted, false);
+  assert.equal(second.redeemed.visit.progressExcludedReason, undefined);
+  assert.deepEqual(second.redeemed.benefit, { state: 'NONE' });
+  assert.deepEqual((await service.redeem({ accountId: first.customer, token: second.issued.token })).benefit, { state: 'NONE' });
+  // 다음 날 첫 방문은 다시 세어지고 혜택 대상이다.
+  const nextDay = await visit(world, kst('2026-10-06T15:00:00'), kst('2026-10-06T15:01:00'), first.customer);
+  assert.deepEqual(nextDay.redeemed.benefit, { state: 'ELIGIBLE' });
+
+  // 실제 점포에서 직원이 자기 계정으로 받은 방문은 기록만 하고 세지 않으며, 창 안이어도 혜택은 없다. 재생도 같다.
+  await pool.query(`UPDATE merchants SET is_demo = false WHERE id = $1`, [world.merchantId]);
+  const self = await visit(world, kst('2026-10-07T15:00:00'), kst('2026-10-07T15:01:00'), world.staffId);
+  assert.equal(self.issued.windowStatus, 'IN_WINDOW');
+  assert.equal(self.redeemed.visit.progressCounted, false);
+  assert.equal(self.redeemed.visit.progressExcludedReason, 'STAFF_SELF');
+  assert.deepEqual(self.redeemed.benefit, { state: 'NONE' });
+  const selfReplay = await service.redeem({ accountId: world.staffId, token: self.issued.token });
+  assert.equal(selfReplay.replayed, true);
+  assert.deepEqual(selfReplay.benefit, { state: 'NONE' });
+  // 직원이 아닌 고객은 같은 점포·같은 시각에 혜택 대상이다.
+  assert.deepEqual((await visit(world, kst('2026-10-07T15:00:00'), kst('2026-10-07T15:01:00'))).redeemed.benefit, { state: 'ELIGIBLE' });
 });

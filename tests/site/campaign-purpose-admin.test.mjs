@@ -203,6 +203,17 @@ test('choosing a purpose shows only its own fields, and saving sends it and rese
   assert.deepEqual(visible(), [false, false, false]);
 });
 
+test('binding the admin page shows the fields of a purpose the browser already restored in the form', async () => {
+  const page = adminPage();
+  page.form.elements.purpose.value = 'REVISIT';
+  await bindAdmin(page.fetcher, page.doc);
+  assert.deepEqual(page.purposeNodes.map(node => !node.hidden), [true, true, false]);
+  // 아무것도 고르지 않은 채 열면 모두 숨겨져 있다.
+  const empty = adminPage();
+  await bindAdmin(empty.fetcher, empty.doc);
+  assert.deepEqual(empty.purposeNodes.map(node => !node.hidden), [false, false, false]);
+});
+
 test('a purpose mistake is shown as a Korean message and nothing is posted', async () => {
   const page = adminPage();
   await bindAdmin(page.fetcher, page.doc);
@@ -232,11 +243,13 @@ test('drafts and published campaigns show their purpose in the admin lists', asy
   assert.match(page.nodes['admin-campaigns'].children[0].textContent, /보이는 참여자 1\/5명 · 목적: 다시 방문하게 하기 · 1일 뒤부터 14일 안/);
 });
 
-test('the merchant web staff screen explains a code made outside the benefit window and says the visit still counts', () => {
+test('the merchant web staff screen explains a code made outside the campaign window and says the visit still counts', () => {
   const source = readFileSync(new URL('../../apps/production-web/assets/merchant.mjs', import.meta.url), 'utf8');
-  assert.match(source, /const outsideWindowStaffNote = '지금은 혜택 시간대가 아니에요\(방문은 인정돼요\)';/);
+  assert.match(source, /const outsideWindowStaffNote = '이 코드를 만든 시각은 캠페인 시간대 밖이에요\(방문은 인정돼요\)';/);
+  // 혜택은 뒤 PR에서 생기므로 점원 안내도 혜택을 말하지 않는다.
+  assert.doesNotMatch(/const outsideWindowStaffNote = '[^']*'/.exec(source)[0], /혜택/);
   assert.match(source, /issued\.windowStatus === 'OUTSIDE_WINDOW' \? ` · \$\{outsideWindowStaffNote\}` : ''/);
   const mobile = readFileSync(new URL('../../apps/mobile/src/commerce/benefit-window.ts', import.meta.url), 'utf8');
   // 웹과 모바일 점원 화면의 안내 문구는 같은 문장이다.
-  assert.ok(mobile.includes("'지금은 혜택 시간대가 아니에요(방문은 인정돼요)'"));
+  assert.ok(mobile.includes("'이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)'"));
 });

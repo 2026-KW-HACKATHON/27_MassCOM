@@ -86,6 +86,10 @@ BEGIN
     IF campaign_status IS NULL OR campaign_status = 'DRAFT' THEN RETURN NEW; END IF;
     RAISE EXCEPTION 'campaign purpose can only be set while the campaign is a draft' USING ERRCODE = '23514';
   END IF;
+  -- 목적 행을 다른 캠페인으로 옮기는 것은 막는다. 초안 행을 공개된 캠페인에 붙이면 공개 뒤 조건을 사후에 심는 길이 된다.
+  IF TG_OP = 'UPDATE' AND NEW.campaign_id IS DISTINCT FROM OLD.campaign_id THEN
+    RAISE EXCEPTION 'campaign purpose cannot be moved to another campaign' USING ERRCODE = '23514';
+  END IF;
   SELECT status INTO campaign_status FROM campaigns WHERE id = OLD.campaign_id FOR SHARE;
   IF TG_OP = 'DELETE' THEN
     -- 캠페인 삭제로 이어진 연쇄 삭제에서는 캠페인 행이 이미 보이지 않는다.

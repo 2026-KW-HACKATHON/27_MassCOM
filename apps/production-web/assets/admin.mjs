@@ -1506,6 +1506,8 @@ export function bindAdmin(fetcher, doc) {
   draftForm?.addEventListener('change', event => {
     if (event.target?.name === 'purpose') syncPurposeFields(draftForm);
   });
+  // 브라우저가 복원한 양식 값(뒤로 가기·새로고침)에 맞춰 목적 칸을 한 번 맞춘다.
+  syncPurposeFields(draftForm);
   draftForm?.addEventListener('submit', async event => {
     event.preventDefault();
     if (draftSaving) return;

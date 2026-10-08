@@ -1110,7 +1110,7 @@ test('점포 웹은 고객 QR 확인 후 명시적 사용 동의로만 방문 �
   assert.equal(nodes['merchant-claim-issued-qr'].src, '');
 });
 
-test('점포 웹은 혜택 시간대 밖에서 만든 방문 코드에만 안내를 붙이고 방문 인정은 그대로라고 말한다(#412)', async () => {
+test('점포 웹은 캠페인 시간대 밖에서 만든 방문 코드에만 안내를 붙이고 방문 인정은 그대로라고 말한다(#412)', async () => {
   const issueWith = async extra => {
     const { nodes, doc } = merchantDocument();
     const fetcher = async path => {
@@ -1129,14 +1129,14 @@ test('점포 웹은 혜택 시간대 밖에서 만든 방문 코드에만 안내
     await nodes['merchant-claim-form'].submit();
     return nodes['merchant-claim-result'].textContent;
   };
-  const note = '지금은 혜택 시간대가 아니에요(방문은 인정돼요)';
+  const note = '이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)';
   const outside = await issueWith({ windowStatus: 'OUTSIDE_WINDOW' });
   assert.match(outside, /방문 코드: window-claim-token/);
   assert.ok(outside.endsWith(` · ${note}`), outside);
   for (const extra of [{ windowStatus: 'IN_WINDOW' }, { windowStatus: 'NONE' }, {}, { windowStatus: 'LATER_VALUE' }]) {
     const text = await issueWith(extra);
     assert.match(text, /방문 코드: window-claim-token/);
-    assert.doesNotMatch(text, /혜택 시간대/, JSON.stringify(extra));
+    assert.doesNotMatch(text, /캠페인 시간대/, JSON.stringify(extra));
   }
 });
 
