@@ -64,6 +64,8 @@ export class EthersMintChainGateway implements MintChainGateway {
   private readonly contractInterface = new Interface(abi);
   private readonly minMinterBalanceWei: bigint;
   private readonly maxTransactionFeeWei: bigint;
+  // 기록된 커서에서 다시 계산한 이벤트 조회 시작 블록. 상시 실행 Worker는 반복마다 갱신해 조회 범위가 시작 시점부터 계속 늘지 않게 한다.
+  private scanFromBlock: number;
 
   constructor(private readonly options: GatewayOptions) {
     // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, and
@@ -90,6 +92,7 @@ export class EthersMintChainGateway implements MintChainGateway {
       throw new Error('fallbackFromBlock must be between zero and fromBlock');
     }
     // 0.01 ETH per mint: far above a Base Sepolia mint, far below a drained wallet.
+    this.scanFromBlock = options.fromBlock;
     this.maxTransactionFeeWei = options.maxTransactionFeeWei ?? 10_000_000_000_000_000n;
     if (this.maxTransactionFeeWei <= 0n) {
       throw new Error('maxTransactionFeeWei must be positive');
@@ -99,6 +102,21 @@ export class EthersMintChainGateway implements MintChainGateway {
       throw new Error('minMinterBalanceWei must not be negative');
     }
     this.minMinterBalanceWei = minMinterBalanceWei;
+  }
+
+  /**
+   * 기록된 커서에서 다시 계산한 이벤트 조회 시작 블록으로 바꾼다. 상시 실행 Worker가 반복마다 부르며,
+   * 생성자와 같은 범위 규칙(0 이상의 안전한 정수, 조회 하한 이상)을 지킨다.
+   */
+  setScanFromBlock(fromBlock: number): void {
+    if (!Number.isSafeInteger(fromBlock) || fromBlock < 0) {
+      throw new Error('fromBlock must be a non-negative safe integer');
+    }
+    const fallbackFromBlock = this.options.fallbackFromBlock ?? fromBlock;
+    if (fallbackFromBlock > fromBlock) {
+      throw new Error('fallbackFromBlock must be between zero and fromBlock');
+    }
+    this.scanFromBlock = fromBlock;
   }
 
   async validate(item: MintWorkItem): Promise<void> {
@@ -180,16 +198,16 @@ export class EthersMintChainGateway implements MintChainGateway {
     let event = await this.findLatestMintEvent(
       item,
       eventFragment.topicHash,
-      this.options.fromBlock,
+      this.scanFromBlock,
       latestBlock,
     );
-    const fallbackFromBlock = this.options.fallbackFromBlock ?? this.options.fromBlock;
-    if (!event && fallbackFromBlock < this.options.fromBlock) {
+    const fallbackFromBlock = this.options.fallbackFromBlock ?? this.scanFromBlock;
+    if (!event && fallbackFromBlock < this.scanFromBlock) {
       event = await this.findLatestMintEvent(
         item,
         eventFragment.topicHash,
         fallbackFromBlock,
-        Math.min(latestBlock, this.options.fromBlock - 1),
+        Math.min(latestBlock, this.scanFromBlock - 1),
       );
     }
     if (!event) throw new MintEventMismatchError('MINT_EVENT_NOT_FOUND');

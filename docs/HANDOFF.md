@@ -40,6 +40,8 @@
 
 - [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 신규 사용자의 첫 코인 흐름과 첫 화면 즉시 반응이다(소유자 2026-10-08 방향). 앱 코드만 바뀌었고 API·DB는 그대로다. (1) 웹 대기 안내 `apps/mobile/public/index.html`과 웹 번들의 지갑 SDK 제외(진입 번들 6,375,429B → 4,119,372B), 지연 소리 생성. (2) 동의 화면의 늘 보이는 정확한 요약·접힌 전체 안내·"전체 동의". (3) 홈의 요청별 표시와 "처음이라면 이 가게부터", 가게 카드·상세의 사실 표시 원칙, 첫 코인 "내 공간에 놓기" 제안. (4) 웹 마스코트·랜드마크 접근성. 배포·게시는 하지 않았다(소유자 결정 A).
 
+- NFT 발행 Worker 상시 실행([D-080](DECISIONS.md))은 브랜치 `feat/worker-continuous-loop`(기준 main `e06c97cd`)의 **커밋 전 작업 트리**에 있다. 푸시·PR 없음. Worker는 설정·키·DB·게이트웨이를 한 번만 만들고 반복하며(`npm start`/`start:prod`), 반복마다 이벤트 조회 시작 블록을 커서에서 다시 계산한다. 운영 compose의 `mint-worker`는 프로파일 `nft-live`로만 켜지고 평소 배포·배포 스크립트에는 나타나지 않으며, 운영 API의 `NFT_MINTING_MODE: PREPARING`은 그대로다. 일회용 DB·임의 키로 한 컨테이너 리허설과 Linux 시험은 PASS(결과는 [TEST_STATUS](TEST_STATUS.md)), 로컬(WSL) 상시 Worker의 Base Sepolia 테스트넷 실발행 1건(디버깅용 임시 계약, 2026-10-08)은 PASS, 서버 배포·운영 활성화·메인넷·독립 보안 리뷰는 `NOT_RUN`이다. Windows에서는 키 파일 권한 시험 5개와 Lightsail README 시험이 CRLF·NTFS 때문에 실패하므로 Linux(WSL/CI)에서 확인한다.
+
 ## 5. 시연 배포 순서
 
 - 시연 전용 DB 복원 리허설 PASS(107개 테이블 행 수·migration 목록 일치), 배포 전 백업, 25개 migration 적용으로 원장 68건을 기록했다. API·`/play/` 공개 전환과 Preview 20 게시도 완료했다.
@@ -103,6 +105,7 @@
 5. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 확인하고, 필요하면 위 남은 🟡 중 (3)(4)(6)의 처리 여부를 정한다.
 6. 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설은 소유자 판단·수동 항목이다.
 7. 대회 최종 제출과 Google Play는 소유자 승인이 필요한 별도 경계다. 승인 전에는 제출 버전을 고정하지 않는다.
+8. NFT 발행 Worker 상시 실행(D-080)은 브랜치 `feat/worker-continuous-loop`에서 `git status`로 변경을 확인한 뒤 독립 코드·보안 리뷰를 받고 PR로 통합한다. 켜기 전 조건은 [B-027](BLOCKERS.md)과 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker"다. 운영 민터 키 생성·메인넷·`LIVE` 전환은 소유자 승인 사항이다.
 
 PR 제목·본문 검사:
 

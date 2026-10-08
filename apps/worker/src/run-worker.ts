@@ -8,7 +8,16 @@ import { resolveMinterSigner } from './minter-signer-config.js';
 import { parseNftMetadataOrigin } from './nft-metadata.js';
 import { PostgresMintRepository } from './postgres-mint-repository.js';
 
-export async function runConfiguredWorker(environment = process.env): Promise<boolean> {
+/**
+ * 설정 검증·키 복호화·DB 풀·체인 게이트웨이를 한 번만 만들고, 이후 `runOnce`를 여러 번 부를 수 있게 한다.
+ * 상시 실행 루프가 이 객체를 재사용해 반복마다 keystore를 다시 복호화하지 않는다.
+ */
+export type ConfiguredWorker = {
+  runOnce(): Promise<boolean>;
+  close(): Promise<void>;
+};
+
+export async function createConfiguredWorker(environment = process.env): Promise<ConfiguredWorker> {
   const databaseUrl = required(environment.DATABASE_URL, 'DATABASE_URL');
   const rpcUrl = required(environment.CHAIN_RPC_URL, 'CHAIN_RPC_URL');
   const chainId = requiredInteger(environment.CHAIN_ID, 'CHAIN_ID');
@@ -77,9 +86,32 @@ export async function runConfiguredWorker(environment = process.env): Promise<bo
       maxTransactionFeeWei: minterMaxTransactionFeeWei,
       ...(signerResolution.mode === 'service' ? { signer: signerResolution.signer } : {}),
     });
-    return await new MintWorker(repository, gateway).runOnce(workerId);
-  } finally {
+    const worker = new MintWorker(repository, gateway);
+    let firstRun = true;
+    return {
+      async runOnce() {
+        // 처음 한 번은 위에서 방금 계산한 값을 쓴다. 이후에는 반복마다 기록된 커서에서 다시 계산해, 오래 떠 있는
+        // 프로세스의 이벤트 조회 범위가 시작 시점부터 계속 늘어나지 않게 한다.
+        if (!firstRun) {
+          gateway.setScanFromBlock(await repository.getEventScanStart(chainId, contractAddress));
+        }
+        firstRun = false;
+        return worker.runOnce(workerId);
+      },
+      close: () => pool.end(),
+    };
+  } catch (error) {
     await pool.end();
+    throw error;
+  }
+}
+
+export async function runConfiguredWorker(environment = process.env): Promise<boolean> {
+  const worker = await createConfiguredWorker(environment);
+  try {
+    return await worker.runOnce();
+  } finally {
+    await worker.close();
   }
 }
 

@@ -226,3 +226,42 @@ test('rebroadcast refuses a stored transaction whose mint intent differs from th
       error.code === 'MINT_SIGNED_TRANSACTION_MISMATCH',
   );
 });
+
+test('상시 실행: 조회 시작 블록을 갱신하면 이후 이벤트 조회가 그 블록부터 시작한다', async () => {
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1', chainId: item.chainId, contractAddress: item.contractAddress,
+    minterAddress: '0x5000000000000000000000000000000000000005', confirmations: 1,
+    fromBlock: 100, fallbackFromBlock: 50,
+  });
+  const internals = gateway as unknown as {
+    contract: { getFunction(name: string): { staticCall(...args: unknown[]): Promise<unknown> } };
+    provider: {
+      send(method: string, params: unknown[]): Promise<unknown>;
+      getLogs(filter: { fromBlock: number; toBlock: number }): Promise<unknown[]>;
+    };
+  };
+  internals.contract.getFunction = () => ({ staticCall: async () => 5n });
+  internals.provider.send = async () => '0x3e8';
+  const ranges: number[][] = [];
+  internals.provider.getLogs = async (filter) => {
+    ranges.push([filter.fromBlock, filter.toBlock]);
+    return [];
+  };
+  const notFound = (error: unknown) => (error as { code?: string }).code === 'MINT_EVENT_NOT_FOUND';
+
+  await assert.rejects(gateway.findMintByRewardKey(item), notFound);
+  assert.deepEqual(ranges, [[100, 1000], [50, 99]]);
+
+  gateway.setScanFromBlock(700);
+  ranges.length = 0;
+  await assert.rejects(gateway.findMintByRewardKey(item), notFound);
+  assert.deepEqual(ranges, [[700, 1000], [50, 699]]);
+
+  // 조회 하한(fallback) 아래이거나 정수가 아닌 값은 거절하고 기존 값을 유지한다.
+  for (const invalid of [-1, 49, 1.5, Number.NaN]) {
+    assert.throws(() => gateway.setScanFromBlock(invalid), invalid.toString());
+  }
+  ranges.length = 0;
+  await assert.rejects(gateway.findMintByRewardKey(item), notFound);
+  assert.deepEqual(ranges, [[700, 1000], [50, 699]]);
+});

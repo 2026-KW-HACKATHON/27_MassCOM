@@ -98,7 +98,7 @@ jobs:
           bash tests/ops/deploy_lightsail_web_test.sh
           bash tests/ops/host_retention_job_test.sh
           bash tests/ops/db_restore_drill_backup_file_test.sh
-          node --test tests/ops/compose_log_rotation_test.mjs tests/ops/compose_push_token_test.mjs tests/ops/lightsail_readme_current_test.mjs
+          node --test tests/ops/compose_log_rotation_test.mjs tests/ops/compose_worker_profile_test.mjs tests/ops/compose_push_token_test.mjs tests/ops/lightsail_readme_current_test.mjs
           node --test tests/ops/audit_ci_test.mjs
       - name: 시연 웹 라이트·다크 실제 브라우저 검사
         run: |
