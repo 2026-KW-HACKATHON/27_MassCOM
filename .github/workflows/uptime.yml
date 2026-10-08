@@ -1,0 +1,43 @@
+name: Uptime
+
+# 15분마다 운영·시연의 핵심 기능이 실제로 읽히는지 본다(Issue #412). 판정·이슈 상태는 scripts/uptime-probe.sh가 맡고, 시험은 tests/ops/uptime_probe_test.sh다.
+# 서드파티 액션을 쓰지 않는다. 체크아웃은 ci.yml과 같은 SHA 고정 버전이고, 나머지는 러너에 있는 curl·jq·openssl·gh다.
+# GitHub cron은 최선 노력이라 몇 분씩 밀리거나 건너뛸 수 있고, 예약 실행은 기본 브랜치의 이 파일로만 돈다. 저장소에 60일 동안 활동이 없으면 GitHub가 예약 실행을 끄므로 가끔 수동 실행이나 커밋으로 살아 있는지 본다.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      write_probe:
+        description: '시연 게스트 체험 한 바퀴(시작·동의 조회·수집 조회·로그아웃)도 실행한다. 한 번에 체험 자리를 전역 300 중 1, 같은 IP당 30 중 1 잡아 24시간 뒤 만료까지 놓지 않고(로그아웃은 세션만 폐기), 체험 계정·가게·캠페인 사본이 남는다. 예약하지 않고 수동으로만 켠다.'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: 핵심 기능 점검
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          WRITE_PROBE: ${{ inputs.write_probe }}
+        run: |
+          if [ "$WRITE_PROBE" = true ]; then
+            bash scripts/uptime-probe.sh --write-probe
+          else
+            bash scripts/uptime-probe.sh
+          fi

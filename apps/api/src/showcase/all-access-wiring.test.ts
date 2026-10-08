@@ -8,6 +8,9 @@ import { fileURLToPath } from 'node:url';
 // 옵션은 showcaseDeployment로만 계산한 allAccess 객체를 통해서만, 방문·캐릭터·가게 코인·등급 통합 서비스에 펼쳐진다.
 const source = readFileSync(fileURLToPath(new URL('../server.ts', import.meta.url)), 'utf8');
 const code = source.split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n');
+// 테스트 방문 경로는 routes/showcase.ts로 옮겼으므로 4번 시험만 그 파일을 읽는다.
+const showcaseSource = readFileSync(fileURLToPath(new URL('../routes/showcase.ts', import.meta.url)), 'utf8');
+const showcaseCode = showcaseSource.split('\n').map((line) => line.replace(/\/\/.*$/, '')).join('\n');
 
 function count(text: string, pattern: RegExp): number {
   return [...text.matchAll(new RegExp(pattern.source, pattern.flags.includes('g') ? pattern.flags : `${pattern.flags}g`))].length;
@@ -72,7 +75,7 @@ test('시연 방문 옵션은 방문 서비스만, 마일리지 옵션은 네 �
 });
 
 test('시연 테스트 방문 경로는 시연 배치 신호(accessRequests)가 없으면 서비스를 부르기 전에 404다', () => {
-  const route = code.slice(code.indexOf("request.url === '/showcase/test-visits'"));
+  const route = showcaseCode.slice(showcaseCode.indexOf("request.url === '/showcase/test-visits'"));
   assert.ok(route.length > 0);
   const gate = route.indexOf("if (!accessRequests) throw new RequestError(404, 'NOT_FOUND');");
   assert.notEqual(gate, -1);

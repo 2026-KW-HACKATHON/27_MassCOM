@@ -5,7 +5,7 @@ import { Pool } from 'pg';
 
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { runMigrations } from './postgres/migrate.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 test('Q05 allows only active members of the requested merchant and applies revocation immediately', async (t) => {

@@ -7,6 +7,8 @@
 # 출력은 개수와 고정 결과 문구뿐이다(시드 단계의 컨테이너 출력·환경값·파일 이름·계정 식별자를 출력하지 않는다).
 #
 # 지우는 백업은 백업 폴더 바로 아래의 일반 파일 중 이름이 `*.dump` 또는 `*.dump.*`인 것뿐이다. 하위 폴더·심볼릭 링크는 건드리지 않는다.
+# 단, 일일 백업(masscom-backup)의 가장 최근 3개(`daily-*.dump`)와 그 sha256 파일은 나이와 상관없이 남긴다: 백업이 한동안 실패해도 마지막 좋은 백업이 30일 정리에 지워지지 않게 하는 하한이다.
+# 파일을 지우는 단계는 백업 작업과 나누는 잠금을 잡고 한다: 백업 폴더 자체를 읽기로 열어 그 위에 flock을 건다(백업 작업도 같은 폴더에 건다).
 # 환경 백업(runtime-before-*.env.*)·Caddyfile 백업(caddyfile-before-*·caddy-rollback-*)은 지우지 않는다: 이름이 `*.dump`·`*.dump.*`가 아니고,
 # 롤백 뒤 실행 중인 Caddy가 그 파일을 마운트로 물고 있을 수 있어 지우면 다음 배포의 사전 검사가 깨진다.
 #
@@ -17,6 +19,8 @@ set -uo pipefail
 project='masscom-showcase'
 service='showcase-api'
 backup_dir='/opt/masscom-showcase/backups'
+lock_wait_seconds=600
+keep_newest_daily=3
 retention_days=30
 docker_bin=docker
 if [[ "${MASSCOM_RETENTION_TEST:-}" == 1 ]]; then
@@ -24,6 +28,7 @@ if [[ "${MASSCOM_RETENTION_TEST:-}" == 1 ]]; then
   service="${MASSCOM_API_SERVICE:-$service}"
   backup_dir="${MASSCOM_BACKUP_DIR:-$backup_dir}"
   retention_days="${MASSCOM_BACKUP_RETENTION_DAYS:-$retention_days}"
+  lock_wait_seconds="${MASSCOM_LOCK_WAIT:-$lock_wait_seconds}"
   docker_bin="${MASSCOM_DOCKER:-$docker_bin}"
 fi
 
@@ -59,14 +64,32 @@ fi
 
 # 3) 30일 지난 DB 백업 삭제 -------------------------------------------------------------------------------------------
 if [[ -d "$backup_dir" && ! -L "$backup_dir" ]]; then
-  # 찾는 것과 지우는 것을 한 명령으로 한다(find가 고른 이름을 나중에 rm에 넘기지 않아 그 사이 바뀐 경로를 지울 수 없다).
-  # 지운 파일마다 NUL 하나만 세어 개수만 얻고, pipefail이라 find가 실패하면 실패로 남는다.
-  if deleted="$(find "$backup_dir" -maxdepth 1 -type f \( -name '*.dump' -o -name '*.dump.*' \) \
-      -mmin "+$((retention_days * 1440))" -delete -print0 2>/dev/null | tr -cd '\0' | wc -c)"; then
-    echo "BACKUPS_DELETED	$((deleted))"
-  else
-    echo 'RETENTION_BACKUP_DELETE_FAILED' >&2
+  # 백업 작업이 파일을 쓰는 동안에는 기다린다(잠금은 이 스크립트가 끝날 때 풀린다).
+  if ! exec 9<"$backup_dir" || ! flock -w "$lock_wait_seconds" 9; then
+    echo 'RETENTION_LOCK_TIMEOUT' >&2
     status=1
+  else
+    # 남길 파일: 이름(=시각)순으로 가장 최근 일일 백업 3개와 그 sha256. 이름은 `daily-<시각>.dump`라 글롭 순서가 곧 시간 순서다.
+    daily=()
+    for candidate in "$backup_dir"/daily-*.dump; do
+      if [[ -f "$candidate" && ! -L "$candidate" ]]; then daily+=("${candidate##*/}"); fi
+    done
+    keep_args=()
+    index=$((${#daily[@]} - keep_newest_daily))
+    if (( index < 0 )); then index=0; fi
+    while (( index < ${#daily[@]} )); do
+      keep_args+=(! -name "${daily[index]}" ! -name "${daily[index]}.sha256")
+      index=$((index + 1))
+    done
+    # 찾는 것과 지우는 것을 한 명령으로 한다(find가 고른 이름을 나중에 rm에 넘기지 않아 그 사이 바뀐 경로를 지울 수 없다).
+    # 지운 파일마다 NUL 하나만 세어 개수만 얻고, pipefail이라 find가 실패하면 실패로 남는다.
+    if deleted="$(find "$backup_dir" -maxdepth 1 -type f \( -name '*.dump' -o -name '*.dump.*' \) ${keep_args[@]+"${keep_args[@]}"} \
+        -mmin "+$((retention_days * 1440))" -delete -print0 2>/dev/null | tr -cd '\0' | wc -c)"; then
+      echo "BACKUPS_DELETED	$((deleted))"
+    else
+      echo 'RETENTION_BACKUP_DELETE_FAILED' >&2
+      status=1
+    fi
   fi
 else
   echo 'RETENTION_BACKUP_DIR_MISSING' >&2

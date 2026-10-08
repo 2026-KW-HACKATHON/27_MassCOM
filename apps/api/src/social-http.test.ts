@@ -4,7 +4,7 @@ import { test, type TestContext } from 'node:test';
 import type { Pool } from 'pg';
 
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { SocialError, type MailDetail, type MailList, type SocialService, type SocialSnapshot } from './social.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';

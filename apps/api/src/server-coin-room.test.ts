@@ -8,7 +8,7 @@ import { CoinEconomyError, type CoinEconomyService } from './coin-economy.js';
 import { RoomCommunityError, type RoomCommunityService } from './room-community.js';
 import { GradeDrawError, type GradeDrawService } from './grade-draw.js';
 import { FriendError, type FriendService } from './friends.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 async function request(server: Server, method: string, url: string, accountId?: string, body?: unknown, headers: Record<string, string> = {}) {

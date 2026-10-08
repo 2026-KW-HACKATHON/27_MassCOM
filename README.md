@@ -75,6 +75,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 - 시연: [5분 시연·질의 대비](docs/DEMO_RUNBOOK.md) · [대체 시연 영상(웹 체험 4분 8초, 390×844, 이전 `/play/` 번들)](docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm) · [공개 체험 재측정](docs/evidence/submission-2026-10-08-recheck/README.md)
 - 배포: 운영 API·웹은 main `687427c2`, 시연 API는 `2d483ed`, `/play/` 번들은 소스 `5ca98955`입니다(migration 68건). `687427c2` 재배포의 별도 증거 JSON은 아직 없습니다. 원장을 올린 [`09dfceb0` 운영 배포](docs/evidence/production-deployment-09dfceb-2026-10-08.json)와 [시연 배포](docs/evidence/showcase-deployment-2d483ed-2026-10-08.json)를 함께 봅니다.
 - 복원: 운영 DB 복제본으로 한 [실제 복원 리허설](docs/evidence/production-restore-rehearsal-2026-10-08.json)은 PASS입니다.
+- 용량·현재 배포: [Android 설치본 용량 분석](docs/APK_SIZE_ANALYSIS.md)(원인은 단정하지 않음) · 현재 배포 상태를 손으로 고치는 기준 파일 [CURRENT_RELEASE.json](docs/CURRENT_RELEASE.json)(`/open` 생성 블록과 일치 검사 범위, 고정 문자열 세 군데는 [운영 절차](docs/OPERATIONS_RUNBOOK.md))
 - 비교·제출: [경쟁 비교](docs/DIFFERENTIATION.md) · [제출 체크리스트](docs/SUBMISSION_CHECKLIST.md) · [AI 사용 기록](docs/AI_USAGE.md) · [참여도 근거](docs/CONTRIBUTIONS.md)
 - 옛 상태 문단과 Issue별 변경 이력: [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)의 맨 위 절에 옮겼습니다.
 
@@ -102,7 +103,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-08 KST, Issue #412 브랜치 `feat/first-use-v2` 기준): API 단위 567/567 · 모바일 1992/1992. API 수치는 Issue #401 브랜치에서 측정했고 그 뒤 `apps/api`는 바뀌지 않았습니다. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-08 KST, Issue #412 T1 브랜치 `refactor/api-deps-routes`를 #415·#421 반영 main 위로 옮긴 기준): API 단위 597/597 · 모바일 1992/1992. API 수치는 이 브랜치에서 측정했고(구조 정리로 시험 30건 증가), 모바일 수치는 Issue #412 `feat/first-use-v2`(#415) 기준 그대로입니다. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
 

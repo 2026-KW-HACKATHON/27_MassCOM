@@ -5,15 +5,16 @@
 ## 1. 기준 커밋과 작업 위치
 
 - 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
-- PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
+- PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
 - 병합 순서: PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결, `a742e32d`) → #406(재측정·대체 시연 영상·제출 후보 기록, `6ce8ad03`) → #408(Issue #407의 낮은 화면 결함 4건 수정과 #402를 다음 설치본·웹 체험에 반영, `687427c2`). Issue #401은 #403 병합으로 닫혔다.
 - 운영·시연 서버 배포와 수정본 `/play/` 재측정은 끝났다. Issue #407의 코드(`5ca98955`)로 운영 test.13·시연 Preview 22를 게시했고 시연 `/play/`를 같은 소스로 전환했다. #402의 변경도 이 설치본과 `/play/`에 들어 있다. 라이브 `/open`은 test.13·Preview 22를 가리킨다(2026-10-08 확인).
-
-- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)(첫 사용 경험)의 T2 작업은 브랜치 `feat/first-use-v2`에 있고 아직 main에 없다. PR #413·#414가 병합된 main `108f6b38` 위로 리베이스했다. 위 기준 SHA와 별개의 줄이다. 결정은 [D-083~D-087](DECISIONS.md)이다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 T1(API 서버 구조 정리)은 `apps/api`만 바꾼 작업이다. 브랜치 `refactor/api-deps-routes`를 main `b707ed09`(PR #413·#414·#415·#421 병합) 위로 옮겼고 요청·응답 동작은 바꾸지 않았다. 구조 규칙은 [D-088](DECISIONS.md)이다. 이 작업은 PR #422로 main `cd01c0d6`에 병합됐다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)(첫 사용 경험)의 T2 작업(브랜치 `feat/first-use-v2`)은 PR #415로 병합돼 main `e06c97cd`에 있고 배포하지 않았다. 결정은 [D-083~D-087](DECISIONS.md)이다. 같은 이슈의 T5(운영 품질) 작업(브랜치 `chore/ops-quality-t5`)은 PR #421로 병합돼 main `b707ed09`에 있고 배포하지 않았다.
 
 ## 2. 현재 통합 상태
 
-- PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414는 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
+- PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414·#415·#421·#422는 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
+- NFT 발행 Worker 상시 실행([D-089](DECISIONS.md))의 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)은 검토 중이며 CI 통과 뒤 병합한다.
 - PR #396은 닫혔으나 main에 병합되지 않았다. 미병합 초안을 공개본 기능으로 계산하지 않는다.
 - 재개 시 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 다시 대조한다.
 
@@ -27,6 +28,7 @@
 - 시연·운영 서버 안 실제 DB 복원 리허설이 각각 PASS다. 운영은 첫 실제 복원 증거(P03)이며 복제본 migration 43→68건·`account_consents` 5=5 보존 후 복제본·임시 dump를 삭제했다([운영 리허설](evidence/production-restore-rehearsal-2026-10-08.json)).
 - 알려진 라이브 결함(배포 동결로 미수정): `www.masscom.kr/api/web/v1/*`가 404다. `infra/lightsail/Caddyfile`의 `@webSession`에 이 경로가 없어 API로 가지 않았다(가게 실세계 프로필 편집기의 영업시간·사진·위치 저장이 막힘). 설정·시험은 `fix/caddy-web-v1-routes`에서 고쳐 PR #413으로 main에 병합했고 웹/Caddy 배포 전까지 라이브는 그대로 404다.
 - 배포 동결(소유자 결정 A): Issue #409·#410의 코드는 게시·배포하지 않았다. 위 공개 상태(운영 `687427c2`, test.13, Preview 22, `/play/` `5ca98955`)가 그대로다. 이 코드는 다음 빌드부터 사용자에게 닿는다.
+- Issue #412 T1의 API 코드도 배포하지 않았다(소유자 결정 A). 서버에 올라간 API는 위 운영 `687427c2`·시연 `2d483ed` 그대로다.
 
 ## 4. 이번 작업의 범위
 
@@ -36,11 +38,12 @@
 - Issue #409·#410은 전면 평가 후속이다. 앱 코드: 웹 history 패치가 popstate 때 인덱스를 다시 맞추고(`a3033a80`의 해시 진입·헛누름 수정 위), 꾸미기 칩 접근성 이름에서 ✓ 글리프를 빼고, 6개 화면의 라디오·체크박스 역할 16개에 `aria-checked`와 웹 Space 키 토글을 붙였다(`apps/mobile/src/ui/space-toggles.ts`, `tests/mobile/check_accessibility_semantics_test.sh`에 가드). CI: 미연결 시험 6개(`account-deletion-flow`, `admin-funnel`, `merchant-actions-overview`, `check_pr_korean_test.sh`, `dump_aab_manifest_test.sh`, `db_restore_drill_test.sh`)를 연결하고 `production-recovery` 이중 실행을 없앴다. 새 가드 `tests/ci/ci_wiring_test.sh`는 연결 안 된 시험이 있으면 실패한다. `.gitignore`는 `dist-*-qa/`를 무시한다. 문서: README 재구성, 모순 정리, 폰 2대 실제 QR 시연 절([DEMO_RUNBOOK](DEMO_RUNBOOK.md)).
 - Issue #412의 놀이 변경(`feat/play-store-memory`, PR #414로 병합)은 클라이언트만 바꿨다. 짝 찾기 여섯 장은 방문한 가게들의 코인이고(7곳 이상이면 KST 하루 단위로 시작 가게를 돌린다, 6곳 미만은 연습 그림), 결과판에 가게 이름·다음 수집품 안내·도감 이동을 보인다. 주문·배달은 준비·진행·결과에 고정 문구 "가게 메뉴 정보로 만든 가상 놀이예요. 실제 주문·결제·매출은 없어요."를 붙이고 가격을 보이지 않으며 결과에 가게 상세 링크를 한 줄 둔다. 방문 버튼은 붙이지 않았고 놀이는 발견 이벤트를 기록하지 않는다. API·migration·`play-rules.ts`는 그대로다. 결정은 D-082다. 배포하지 않았다(소유자 결정 A).
 - 저장소 정리: worktree 82→12개, 로컬 브랜치 207→30개(main에 병합된 것만 삭제), 원격(origin) 브랜치 162→22개(main에 완전히 포함된 140개 삭제, 미병합과 `sync/*` 유지)다.
+- Issue #412 T1(API 서버 구조 정리, `refactor/api-deps-routes`, PR #422로 병합): `server.ts`를 `routes/*`(경로 처리기 17개, 고정 순서)·`http/*`(요청·응답 도우미)·`api-deps.ts`(이름 붙은 `ApiDeps`)·`api-runtime.ts`(서버 인스턴스별 제한기·확인)로 나눴다. 마무리에서 교차 리뷰의 🟡를 반영했다: deps를 복사해 한 번만 얼림, 기본값 세 가지(`trustProxyClientIp`·`webWwwEnabled`·`experienceServices`)를 한곳에서 정함, 웹 로그인 콜백 쿠키와 삭제 접수 서비스 두 개의 배선을 시험으로 고정, `experienceServices`를 `Required<ExperienceServices>`로 검사. 요청·응답 동작은 `89d7a5e4`와 같다(인라인 비교 1797/1797줄, 차이는 로그아웃 블록 위치뿐).
 - 운영 웹 Caddy 라우트 수정(PR #413으로 병합): `@webSession`·`@privateSurface`에 `/api/web/v1/*`를 더하고 실제 Caddy 컨테이너 시험(`verify_web_session_proxy_test.mjs`)·배포 검증기·웹 smoke·웹 배포 probe에 이 경로를 고정했다. 시연 호스트는 같은 Caddyfile을 써서 별도 수정이 없다. 후속으로 `apps/api/src/real-world-http.ts` 쓰기의 계정별 제한을 트랙 T6, [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)로 넘겼다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 신규 사용자의 첫 코인 흐름과 첫 화면 즉시 반응이다(소유자 2026-10-08 방향, PR #415로 병합). 앱 코드만 바뀌었고 API·DB는 그대로다. (1) 웹 대기 안내 `apps/mobile/public/index.html`과 웹 번들의 지갑 SDK 제외(진입 번들 6,375,429B → 4,119,372B), 지연 소리 생성. (2) 동의 화면의 늘 보이는 정확한 요약·접힌 전체 안내·"전체 동의". (3) 홈의 요청별 표시와 "처음이라면 이 가게부터", 가게 카드·상세의 사실 표시 원칙, 첫 코인 "내 공간에 놓기" 제안. (4) 웹 마스코트·랜드마크 접근성. 배포·게시는 하지 않았다(소유자 결정 A).
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 기능 수준 감시와 운영 품질 작업이다. PR #421(브랜치 `chore/ops-quality-t5`, 병합 커밋 `b707ed09`)로 main에 15분 가동 점검(`.github/workflows/uptime.yml`, 실패는 `uptime` 라벨 이슈, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(`masscom-backup`, 호스트에 설치하지 않음), `scripts/db-restore-drill.sh --restore-only`, 큰 파일 가드(`scripts/check-large-files.sh`와 예외 목록), 현재 배포 상태를 손으로 고치는 기준 파일 `docs/CURRENT_RELEASE.json`과 생성·검사 스크립트(검사 범위는 `open.html` 블록 밖·README "바로 체험"·DEMO_RUNBOOK·SUBMISSION_CHECKLIST이고, 날짜별 이력 표인 `docs/ANDROID_DOWNLOADS.md`는 밖이다), CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용)을 더했다. 설치본 용량은 [분석 문서](APK_SIZE_ANALYSIS.md)에 측정값과 가설만 적었다. 배포하지 않았고(소유자 결정 A) 공개 상태는 3절 그대로다. 절차는 [운영 절차](OPERATIONS_RUNBOOK.md)의 Issue #412 절에 있다.
 
-- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 신규 사용자의 첫 코인 흐름과 첫 화면 즉시 반응이다(소유자 2026-10-08 방향). 앱 코드만 바뀌었고 API·DB는 그대로다. (1) 웹 대기 안내 `apps/mobile/public/index.html`과 웹 번들의 지갑 SDK 제외(진입 번들 6,375,429B → 4,119,372B), 지연 소리 생성. (2) 동의 화면의 늘 보이는 정확한 요약·접힌 전체 안내·"전체 동의". (3) 홈의 요청별 표시와 "처음이라면 이 가게부터", 가게 카드·상세의 사실 표시 원칙, 첫 코인 "내 공간에 놓기" 제안. (4) 웹 마스코트·랜드마크 접근성. 배포·게시는 하지 않았다(소유자 결정 A).
-
-- NFT 발행 Worker 상시 실행([D-089](DECISIONS.md))은 브랜치 `feat/worker-continuous-loop`(기준 main `e06c97cd`)의 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이다(처음 D-080으로 적었으나 main의 D-080과 겹쳐 D-089로 바꿨다). Worker는 설정·키·DB·게이트웨이를 한 번만 만들고 반복하며(`npm start`/`start:prod`), 반복마다 이벤트 조회 시작 블록을 커서에서 다시 계산한다. 운영 compose의 `mint-worker`는 프로파일 `nft-live`로만 켜지고 평소 배포·배포 스크립트에는 나타나지 않으며, 운영 API의 `NFT_MINTING_MODE: PREPARING`은 그대로다. 일회용 DB·임의 키로 한 컨테이너 리허설과 Linux 시험은 PASS(결과는 [TEST_STATUS](TEST_STATUS.md)), 로컬(WSL) 상시 Worker의 Base Sepolia 테스트넷 실발행 1건(디버깅용 임시 계약, 2026-10-08)은 PASS, 독립 리뷰(Claude Sonnet + Opus, 🔴 없음·변경 요청)의 지적은 고쳤다(RPC 주소 로그 노출·프로세스 종료를 막은 영수증 대기 교체, 잡히지 않은 오류 종료 처리, DB 풀 오류 리스너, 번호 변경 등). `tools/gate.sh`는 PASS다. 서버 배포·운영 활성화·메인넷은 `NOT_RUN`이다. 켜기 전에 배포 절차(migrate 전 `mint-worker` 중지, 이미지 재빌드)를 보강해야 한다([Lightsail 문서](../infra/lightsail/README.md)). Windows에서는 키 파일 권한 시험 5개와 Lightsail README 시험이 CRLF·NTFS 때문에 실패하므로 Linux(WSL/CI)에서 확인한다.
+- NFT 발행 Worker 상시 실행([D-089](DECISIONS.md))은 브랜치 `feat/worker-continuous-loop`(기준 main `e06c97cd`, 이후 main `cd01c0d6`을 병합해 갱신)의 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이며 검토 중이고 CI 통과 뒤 병합한다(처음 D-080으로 적었으나 main의 D-080과 겹쳐 D-089로 바꿨다). Worker는 설정·키·DB·게이트웨이를 한 번만 만들고 반복하며(`npm start`/`start:prod`), 반복마다 이벤트 조회 시작 블록을 커서에서 다시 계산한다. 운영 compose의 `mint-worker`는 프로파일 `nft-live`로만 켜지고 평소 배포·배포 스크립트에는 나타나지 않으며, 운영 API의 `NFT_MINTING_MODE: PREPARING`은 그대로다. 일회용 DB·임의 키로 한 컨테이너 리허설과 Linux 시험은 PASS(결과는 [TEST_STATUS](TEST_STATUS.md)), 로컬(WSL) 상시 Worker의 Base Sepolia 테스트넷 실발행 1건(디버깅용 임시 계약, 2026-10-08)은 PASS, 독립 리뷰(Claude Sonnet + Opus, 🔴 없음·변경 요청)의 지적은 고쳤다(RPC 주소 로그 노출·프로세스 종료를 막은 영수증 대기 교체, 잡히지 않은 오류 종료 처리, DB 풀 오류 리스너, 번호 변경 등). `tools/gate.sh`는 PASS다. 서버 배포·운영 활성화·메인넷은 `NOT_RUN`이다. 켜기 전에 배포 절차(migrate 전 `mint-worker` 중지, 이미지 재빌드)를 보강해야 한다([Lightsail 문서](../infra/lightsail/README.md)). Windows에서는 키 파일 권한 시험 5개와 Lightsail README 시험이 CRLF·NTFS 때문에 실패하므로 Linux(WSL/CI)에서 확인한다.
 
 ## 5. 시연 배포 순서
 
@@ -73,16 +76,20 @@
 - Issue #409·#410 브랜치(전달받은 기록이며 이번 문서 작업에서 다시 실행하지 않음): 모바일 `npm test` 1901/1901, typecheck·lint PASS, 접근성 의미 검사·지갑 표면 검사 PASS, 시연 웹 export PASS(번들에 새 코드 포함), gate PASS. API 시험은 567/567 그대로이고 API 코드는 바뀌지 않았다. 코드·CI 교차 리뷰(Claude Sonnet·Claude Opus) 반드시 고칠 것 0건, 후속 반영. 문서 리뷰(Claude Sonnet) 지적 반영. 자세한 기록은 PR 본문에 둔다. 리뷰 후속으로 꾸미기 칩 묶음(코인·테마·배치·강조색)에 `aria-pressed`를 붙였고, `spaceToggles`가 수정자 키와 자식에서 올라온 키 이벤트를 무시하게 했으며, 꾸미기 저장 중복 방지 가드를 누르기와 Space가 함께 쓰게 했다(시험 2건 추가). 이 문서 갱신의 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 - Issue #412 놀이 변경(PR #414): 모바일 `npm test` 1919/1919, typecheck·lint·접근성 의미 검사·지갑 표면 검사·CI 연결 검사·gate PASS. 독립 리뷰(Claude Sonnet 5.5) 승인 후 후속 6건 반영. 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 - PR #402는 모바일 1,878/1,878·gate 통과, 독립 리뷰 승인 뒤 병합했다. 앞 문장의 Issue #401 결과와 PR #404 문서 worktree 검사는 당시 기록이며, 현재 문서 브랜치의 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 별도로 기록한다.
+- Issue #412 T1(PR #422로 병합, 브랜치 `refactor/api-deps-routes`): API 단위 597/597(이 작업 전 591, 새 시험 6건)·typecheck·build, PostgreSQL 전체 524 pass / 0 fail / 3 skip(3건은 전용 55435 hosted seed 컨테이너 조건), 변이 점검 6건 모두 시험 실패, `dist/server.js` 부팅 뒤 `/health` 200, 사이트 시험·개인정보 검사·gate PASS. 교차 리뷰(Claude Sonnet·Claude Opus) 승인, 🔴 0·🟠 0. 자세한 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 - Caddy `/api/web/v1/*` 수정(`fix/caddy-web-v1-routes`, PR #413): `verify_web_session_proxy_test.mjs` 2/2(옛 Caddyfile은 2건 FAIL), `verify_lightsail_deployment_test.sh`·`run_aws_web_smoke.sh`·`deploy_lightsail_web_test.sh`·`ci_wiring_test.sh`·gate PASS, 관련 `node --test` 31/31. 라이브 재측정은 NOT_RUN이다. 자세한 결과는 [TEST_STATUS](TEST_STATUS.md)에 둔다.
-- Issue #412 브랜치 `feat/first-use-v2`: 모바일 `npm test` 1992/1992(PR #414 위로 리베이스한 뒤의 합계, 리베이스 전 이 브랜치 단독 1974), typecheck·lint PASS, 접근성 의미 검사·지갑 표면 검사·CI 연결 PASS, 시연 웹 export PASS(번들에 지갑 SDK 문자열 0건, `class="boot"` 대기 안내 포함). 사이트 시험 `verify_production_web_test.mjs`·`legal-pages.test.mjs` 147/147. API 시험은 567/567 그대로이고 API 코드는 바뀌지 않았다. 코드 교차 리뷰(Claude Sonnet·Claude Opus) 두 차례 뒤 지적 반영. 명령별 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
+- Issue #412 첫 사용 경험(PR #415, 브랜치 `feat/first-use-v2`): 모바일 `npm test` 1992/1992(PR #414 위로 리베이스한 뒤의 합계, 리베이스 전 이 브랜치 단독 1974), typecheck·lint PASS, 접근성 의미 검사·지갑 표면 검사·CI 연결 PASS, 시연 웹 export PASS(번들에 지갑 SDK 문자열 0건, `class="boot"` 대기 안내 포함). 사이트 시험 `verify_production_web_test.mjs`·`legal-pages.test.mjs` 147/147. API 시험은 567/567 그대로이고 API 코드는 바뀌지 않았다. 코드 교차 리뷰(Claude Sonnet·Claude Opus) 두 차례 뒤 지적 반영. 명령별 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 - 기본 재현: `bash tools/gate.sh`, `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tests/ops/showcase_host_readiness_test.sh`.
+- Issue #412 T5(PR #421로 병합, 병합 전 브랜치에서 직접 실행, main `e06c97cd` 위로 리베이스한 뒤 사이트·운영·CI 연결·큰 파일 시험과 `bash tools/gate.sh`를 다시 실행해 통과, API 커버리지와 실제 컨테이너 행은 리베이스 전 측정): 가동 점검·매일 백업·정리 작업·복원 드릴(가짜 도구와 일회용 로컬 Postgres 16.10)·큰 파일 가드 시험, `current_release_test.mjs` 포함 사이트 시험 26/26, `render-current-release.mjs --check`, `ci_wiring_test.sh`(시험 파일 90개 모두 연결), API 단위 567/567(커버리지 포함), `bash tools/gate.sh` PASS. 독립 리뷰 2건의 변경 요청(🔴 없음)은 후속 커밋에서 반영했고 반영분의 재검토와 GitHub Actions 전체 CI는 `NOT_RUN`이다. 결과표는 [TEST_STATUS](TEST_STATUS.md) 맨 위 절.
 
 ## 10. 수동 수용과 미실행 항목
 
 - 실제 Preview 22/test.13 설치·개인정보 재동의·점주 역할·NFT 발행은 이 문서 갱신으로 `PASS`가 되지 않는다. 두 APK의 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산)다. 운영 DB 복원 리허설과 운영 배포는 각각 별도 증거로 PASS이고, 수정된 `/play/` 번들의 공개 재측정도 [재측정 기록](evidence/submission-2026-10-08-recheck/README.md)으로 PASS다.
 - 사용자 판정 필요: Issue #409의 웹 history 수정(`history.get(nextIndex)`) 뒤로는, 깊은 흐름을 지난 뒤 홈 탭을 누르면 브라우저 기록이 가장 앞선 홈 항목까지 되감긴다. 그 뒤 브라우저 뒤로 가기를 한 번 더 누르면 `/play/`를 벗어난다. 수정 전에는 뒤로 가기가 직전 화면으로 돌아갔다. 새 동작은 네이티브/React Navigation과 같지만 사용자가 알아챌 수 있다. 배포하지 않았으므로(결정 A) 다음 빌드 전에 소유자가 유지할지 정한다.
+- Issue #412 T1은 사용자 판정이 필요한 항목이 없다(화면·동작 변경 없음). 운영·시연 서버에서의 실제 부팅은 하지 않았고(배포 동결) DB·비밀값 없이 빌드한 서버를 띄워 `/health`만 확인했다.
 - 사용자 판정 필요(Issue #412): 짝 찾기 결과판의 코인 줄(가게 이름·다음 수집품 안내·도감에서 보기) 배치와 글자 크기는 실제 화면에서 확인하지 않았다(`NOT_RUN`). 배포하지 않았으므로(결정 A) 다음 빌드 전에 확인한다.
 - 사용자 판정 필요(Issue #412): 동의 화면의 요약 문구와 "전체 동의"(법률 검토 별개), 첫 코인 제안 화면, 가게 카드·상세의 새 표시는 실제 기기 렌더링을 보지 못했다(소스 시험과 웹 export 열람까지). 첫 화면의 실제 네트워크 바이트·시간 측정과 설치본·이미지·음원 용량 분석은 `NOT_RUN`이다.
+- Issue #412에서 소유자 몫으로 남은 항목: ① 매일 백업 타이머 설치 승인(운영 `sudo bash infra/lightsail/host-jobs/install.sh masscom-backup`, 시연 `sudo bash infra/showcase-host/host-jobs/install.sh masscom-showcase-backup`), ② 가동 점검의 쓰기 점검 예약 여부(체험 자리를 쓰며 지금은 수동 전용, 실제 시연 서버에 대해 `NOT_RUN`), ③ 서버 밖 백업 보관 위치·비용, ④ `deploy-lightsail.sh` 배포 후 관문에 백업 첫 실행 성공을 넣는 후속(시험이 무거워 따로 한다), ⑤ 서버 백업으로 잰 복원 시간(RTO)은 없음(`NOT_RUN`).
 - `NOT_RUN` 또는 소유자 몫으로 남은 항목: 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설(사람), 대회 최종 제출(소유자 승인 필요).
 - 로컬 자동 시험, 서명된 빌드, 서버 배포, 다운로드, 실기 수용, 최종 제출은 각각 다른 증거로 기록한다.
 
@@ -92,20 +99,21 @@
 - PR 상태는 `gh pr list --state all` 및 개별 `gh pr view <번호> --json state,mergedAt,headRefOid`로 확인한다.
 - [PR #402](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/402)(팀원 PragmoB, 뽑기 `CONSENT_REQUIRED`를 "동의 확인하기"로 연결)는 `a742e32d`로 병합됐다. 최신 main과 문서 충돌을 풀고 `INTERNAL_ERROR` 문구를 일반 재시도 안내로 바꾸고 동의 문구 연결을 시험으로 고정했으며 모바일 1,878/1,878·gate 통과, 독립 리뷰 승인이다. test.13·Preview 22와 `/play/`(`5ca98955`)에 포함됐다. 남은 🟡: 개발용 DEMO 계정의 동의 화면 "로그아웃"이 DEMO 상태를 벗어나지 못함, 동의·미설정 거절 뒤 뽑기 대기 기록 유지(같은 요청 ID 복구).
 - 재측정이 새로 본 낮은 결함 4건은 `5ca98955`에서 고쳤다(위 4절, 결함 [근거](evidence/submission-2026-10-08-recheck/README.md)). 이 수정의 남은 🟡는 여섯 가지다. (1) 패치 조건이 해시(`#`)로 진입한 세션에서 기록이 늘 수 있다(앱은 해시를 만들지 않음). (2) expo-router 원본의 음수 인덱스 비교 결함으로 하위 화면→홈 탭 등에서 뒤로 가기 1회 헛누름이 가능하다(이탈은 아님). (3) 새 시험이 소스 문자열 위주다. (4) 탭 바 없는 하위 화면으로 push할 때 전환 중 탭 바가 먼저 사라진다(Android 외관). (5) 라이트 모드 비선택 칩 테두리 대비가 낮다(1.14:1). (6) 웹 export 전에 `npm ci --prefix apps/mobile`(patch-package)이 필요하다. 이 가운데 (1)(2)(5)는 Issue #409의 `a3033a80`에서 고쳤다.
-
+- Issue #412 T1의 남은 정리: 위치 인자 `createApiServer`를 흉내 내는 시험 전용 덮개(`apps/api/src/server-test-support.ts`, `http-test-support.ts`의 `positionalArgs`)는 쓰는 시험이 없어지면 지운다. `postgres/`·`showcase/`의 `BEGIN`/`COMMIT` 묶음을 `withTransaction` 도우미로 모으는 일은 미뤘다([D-088](DECISIONS.md)).
 - Issue #412의 남은 주의점: 첫 코인 제안은 공개 범위를 재조회한 뒤 저장하기까지의 왕복 한 번 사이에 다른 기기에서 공개 범위를 바꾸면 방금 놓은 코인이 바뀐 범위에 보일 수 있다(서버 `saveStudio`가 공개 범위를 조건으로 받지 않음, D-086). 시연 두 가지 모드(서버 변경 필요), 점주 시연 "1인 2역" 안내, 글자·터치 최소 크기 정리는 이번 변경에 없다.
 
 ## 12. 다음 실행 명령
 
 1. 완료: PR #408 병합과 운영 웹 재배포로 라이브 `/open`이 test.13·Preview 22를 가리킨다.
-1. 완료: PR #408 병합과 운영 웹 재배포로 라이브 `/open`이 test.13·Preview 22를 가리킨다.
-2. Issue #409·#410 코드와 PR #413(Caddy)·#414(놀이)는 main에 있고, Issue #412 T2(첫 사용 경험) 코드는 브랜치 `feat/first-use-v2`에 있다(#414 병합 뒤의 main `108f6b38` 위로 리베이스). 모두 배포하지 않았다(소유자 결정 A). PR 상태는 `gh pr list --state all`로 확인한다. 새 Preview·test 번호와 게시 시점은 소유자가 정한다. 다음 빌드 전에 10절의 사용자 판정 항목(홈 탭 뒤로 가기)도 소유자가 정한다.
+2. Issue #409·#410 코드와 PR #413(Caddy)·#414(놀이)·#415(첫 사용 경험)·#421(T5 운영 품질)·#422(T1 API 구조 정리)는 main에 있고 모두 배포하지 않았다(소유자 결정 A). PR 상태는 `gh pr list --state all`로 확인한다. 새 Preview·test 번호와 게시 시점은 소유자가 정한다. 다음 빌드 전에 10절의 사용자 판정 항목(홈 탭 뒤로 가기)도 소유자가 정한다.
 3. 웹/Caddy 배포 때 `scripts/deploy-lightsail-web.sh` probe가 `/api/web/v1/merchant/merchants/x/real-world-profile`의 JSON 401을 확인한다. 배포 뒤 `curl -si https://www.masscom.kr/api/web/v1/merchant/merchants/x/real-world-profile`이 404가 아니라 JSON 401(`cache-control: no-store`)인지 본다. 배포 시점은 소유자가 정한다(결정 A).
-4. Issue #412 T2 브랜치 `feat/first-use-v2`는 푸시·PR·병합 여부를 `git`/`gh`로 확인한 뒤 진행한다. 다음 빌드 전에 놀이 화면(짝 찾기 결과판, 주문·배달 안내)과 T2 화면(동의 요약·첫 코인 제안·가게 카드)을 실제 휴대전화나 시연 웹에서 확인한다.
-5. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 확인하고, 필요하면 위 남은 🟡 중 (3)(4)(6)의 처리 여부를 정한다.
-6. 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설은 소유자 판단·수동 항목이다.
-7. 대회 최종 제출과 Google Play는 소유자 승인이 필요한 별도 경계다. 승인 전에는 제출 버전을 고정하지 않는다.
-8. NFT 발행 Worker 상시 실행(D-089)은 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이다. 독립 리뷰(Sonnet + Opus)의 지적은 반영했다. 병합 조건은 `gh pr view 420`으로 상태를 확인하는 것과 **최신 head 커밋에서 CI가 통과**(`gh pr checks 420`)한 것이다. 둘 다 확인한 뒤 병합한다. 켜기 전 조건은 [B-027](BLOCKERS.md)과 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker"다. 운영 민터 키 생성·메인넷·`LIVE` 전환은 소유자 승인 사항이다.
+4. 다음 빌드 전에 놀이 화면(짝 찾기 결과판, 주문·배달 안내)과 첫 사용 화면(동의 요약·첫 코인 제안·가게 카드)을 실제 휴대전화나 시연 웹에서 확인한다.
+5. Issue #412 T1(API 서버 구조 정리, `refactor/api-deps-routes`)은 PR #422로 main에 병합됐고 API 코드는 배포하지 않았다(소유자 결정 A). 요청·응답 동작은 바뀌지 않았고 서버에는 다음 정식 배포 때 닿는다. 배포 시점은 소유자가 정한다.
+6. Issue #412 T5(`chore/ops-quality-t5`)는 PR #421로 main에 병합됐고 배포·호스트 설치는 하지 않았다(소유자 결정 A). 설치본·`/open`을 바꾸는 다음 배포부터는 `docs/CURRENT_RELEASE.json`을 고치고 `node scripts/render-current-release.mjs` → `--check` 순서로 한 뒤, `scripts/verify-project-site.sh`·`tests/site/public-entry.test.mjs`·`tests/site/verify_project_site_test.sh`에 박힌 태그 문자열을 직접 새 태그로 고친다(절차는 [운영 절차](OPERATIONS_RUNBOOK.md)).
+7. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 확인하고, 필요하면 위 남은 🟡 중 (3)(4)(6)의 처리 여부를 정한다.
+8. 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설은 소유자 판단·수동 항목이다.
+9. 대회 최종 제출과 Google Play는 소유자 승인이 필요한 별도 경계다. 승인 전에는 제출 버전을 고정하지 않는다.
+10. NFT 발행 Worker 상시 실행(D-089)은 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이고 검토 중이며 CI 통과 뒤 병합한다. 독립 리뷰(Sonnet + Opus)의 지적은 반영했다. 병합 조건은 `gh pr view 420`으로 상태를 확인하는 것과 **최신 head 커밋에서 CI가 통과**(`gh pr checks 420`)한 것이다. 둘 다 확인한 뒤 병합한다. 켜기 전 조건은 [B-027](BLOCKERS.md)과 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker"다. 운영 민터 키 생성·메인넷·`LIVE` 전환은 소유자 승인 사항이다.
 
 PR 제목·본문 검사:
 

@@ -249,9 +249,21 @@ Source 알림은 방문 취소·쿠폰 사용/연장·캠페인 연장/중지·�
 
 표시는 세 층이다. 핵심(이름·층·거리)을 먼저 보이고, 방문 결정에 중요한 영업 상태·마지막 주문(또는 임시 안내)·보상·최소 이용은 알 수 없어도 항상 보이되(경고 톤) "정보 없음"으로 숨기지 않는다. 그 밖의 부족한 정보(위치·입구·층·사진·요일별 시간)는 목록에서는 "일부 가게는 위치·입구 정보가 아직 없어요" 한 줄로, 상세에서는 "정보가 더 필요한 항목" 한 블록으로 모은다. 시연 점포의 자리 표시 주소는 줄에서 뺀다("시연 데이터" 표시는 유지). 사진이 없으면 가게 문장(crest)을 쓴다. 접근성 이름에는 전체 내용을 유지한다.
 
+## D-088 API 서버 구조 규칙: routes·http·이름 붙은 deps (Issue #412 트랙 T1, 2026-10-08)
+
+약 2,600줄이던 `apps/api/src/server.ts`를 동작 변경 없이 나눴고 그 구조를 규칙으로 정한다(`PROPOSED`, 에이전트 구현 선택). 소유자 결정 A에 따라 배포하지 않았다.
+
+규칙: (1) 경로는 `src/routes/<영역>.ts`의 `handleXxx(ctx): Promise<boolean>`로 쓴다. `true`는 응답을 냈다는 뜻, `false`는 다음 처리기로 넘긴다는 뜻이며, `server.ts`가 고정된 순서로 부르므로 이 순서가 곧 경로 우선순위다. 경로 모듈은 `server.ts`를 가져오지 않는다. (2) 요청·응답 도우미(본문 읽기, 헤더·쿠키, 오류 응답, 제한기, QR)는 `src/http/*`에 둔다. (3) `createApiServer`는 위치 인자 대신 이름 붙은 `ApiDeps`(`src/api-deps.ts`) 하나를 받는다. 시작 코드의 `Required<ApiDeps>`와 `Required<ExperienceServices>`가 키 누락을 컴파일에서 잡는다(`exactOptionalPropertyTypes`라 값은 `undefined`여도 키는 반드시 적는다). 기본값(`trustProxyClientIp`, `webWwwEnabled`, `experienceServices`)은 `createApiServer`가 받은 deps를 복사해 `Object.freeze`하면서 한 번만 정하고, 런타임과 경로 처리기는 그 객체를 `??` 없이 읽는다. (4) 제한기·계정 해석 래퍼·동의/스캔 확인은 `createApiRuntime(deps)`가 서버 인스턴스마다 만든다. 모듈 전역 상태는 두지 않는다.
+
+시험 도우미: 위치 인자로 서비스 몇 개만 채워 서버를 만들던 옛 모양은 시험 전용 덮개(`src/server-test-support.ts`, `http-test-support.ts`의 `positionalArgs`)로만 남겼고 운영 코드는 가져오지 않는다. 그것을 쓰는 시험이 없어지면 덮개를 지운다.
+
+미룬 것: `postgres/`·`showcase/` 서비스 39개 파일에 되풀이되는 `BEGIN`/`COMMIT`/`ROLLBACK` 묶음을 `withTransaction` 도우미 하나로 모으는 일은 하지 않았다. 서비스 39개 파일을 건드리는 큰 변경이라 동작을 바꾸지 않는 이번 구조 정리와 따로 하고, 거래 경계가 같은지 서비스별로 확인하면서 옮긴다.
+
+근거: 인라인 동등성 비교(`89d7a5e4` 대비 1797/1797줄, 차이는 로그아웃 블록 위치뿐), API 단위 597/597, PostgreSQL 524 pass / 0 fail / 3 skip, 교차 리뷰(Claude Sonnet·Claude Opus) 승인([TEST_STATUS](TEST_STATUS.md)).
+
 ## D-089 NFT 발행 Worker 상시 실행 (PR #420, 2026-10-08)
 
-처음에는 D-080으로 적었으나 main의 D-080(실사용 전환 범위)과 번호가 겹쳐 D-089로 바꿨다(D-088은 다른 열린 PR의 몫이다). 이미 푸시된 커밋 메시지의 "D-080"은 이력이라 고치지 않는다.
+처음에는 D-080으로 적었으나 main의 D-080(실사용 전환 범위)과 번호가 겹쳐 D-089로 바꿨다(D-088은 main의 API 서버 구조 규칙으로 PR #422에서 병합됐다). 이미 푸시된 커밋 메시지의 "D-080"은 이력이라 고치지 않는다.
 
 | ID | 항목 | 결정·구현 기본값 | 현재 상태 | 근거·영향 |
 | --- | --- | --- | --- | --- |

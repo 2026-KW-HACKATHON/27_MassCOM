@@ -6,7 +6,21 @@
 # as mode 0600 to a temporary file in the same directory and renamed into place only when pg_dump succeeded,
 # so a failed dump never truncates an earlier backup at that path.
 #
-# Usage: DRILL_DATABASE_URL=postgresql://user@host:5432/masscom scripts/db-restore-drill.sh [backup-file]
+# Usage: DRILL_DATABASE_URL=postgresql://user@host:5432/masscom scripts/db-restore-drill.sh [--overwrite] [backup-file]
+#        DRILL_DATABASE_URL=...                                  scripts/db-restore-drill.sh --restore-only <backup-file>
+#   Options go first and are matched exactly (`--restore-only=FILE`, an unknown `-x`, or anything after the single file argument is refused).
+#   A dump never replaces an existing path, and never lands in a /opt/masscom*/backups folder as *.dump, unless --overwrite is given: a forgotten
+#   --restore-only must not overwrite a real backup with a fresh dump. An existing file inside such a backups folder is never replaced, not even
+#   with --overwrite (dump to another path).
+#   --restore-only  restores an existing backup (e.g. a daily-*.dump from masscom-backup) into a scratch database, without dumping the source or
+#                   writing anything to the file: pg_restore must exit 0, schema_migrations must not be empty, and the set of tables must equal the live
+#                   database's. It prints the elapsed seconds (the restore time to expect in a real recovery). Row counts are not compared, since a
+#                   backup is older than the live data; a deploy that adds a table makes the previous backup fail the table-set check until the next backup.
+#                   Before the scratch database is created it requires free space of at least 3x the backup file size on the filesystem that holds the
+#                   server's data directory (the server reports it via SHOW data_directory; df runs where the PostgreSQL tools run: inside the container
+#                   with PG_EXEC, otherwise on this machine when the URL points at it; a container behind a published local port needs PG_EXEC, or df
+#                   measures this machine's path of the same name). When that cannot be measured (remote server without PG_EXEC, SHOW or df not
+#                   permitted) the check is skipped with a note on stderr instead of guessed.
 #   PGPASSWORD   pass the password this way, not inside the URL (URLs show up in `ps`).
 #   PG_EXEC      prefix for the PostgreSQL client tools when they are not on PATH, e.g.
 #                PG_EXEC='docker exec -i -e PGPASSWORD masscom-postgres-test'
@@ -20,12 +34,32 @@ set -euo pipefail
 umask 077
 
 url="${DRILL_DATABASE_URL:?DRILL_DATABASE_URL is required}"
+restore_only=""
+overwrite=""
+usage_error() { echo "$1" >&2; echo "usage: db-restore-drill.sh [--overwrite] [backup-file] | --restore-only <backup-file>" >&2; exit 2; }
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --restore-only) restore_only=1 ;;
+    --overwrite) overwrite=1 ;;
+    -*) usage_error "unknown option: $1" ;;
+    *) break ;;
+  esac
+  shift
+done
+[[ $# -le 1 ]] || usage_error "too many arguments: options go first, then at most one backup file"
+[[ -z "$restore_only$overwrite" || "$restore_only" != "$overwrite" ]] || usage_error "--restore-only never writes the file, so it cannot be combined with --overwrite"
 own_backup=""
-if [[ -n "${1:-}" ]]; then backup="$1"; else backup="$(mktemp -t masscom-backup.XXXXXX)"; own_backup=1; fi
-# `mv` would move the dump *into* a directory and the cleanup could not find it again, so a directory is refused before anything is written.
-if [[ -d "$backup" ]]; then echo "backup path is a directory: $backup" >&2; exit 1; fi
-# mv would replace a symlink instead of writing through it, so a linked path is refused too.
-if [[ -L "$backup" ]]; then echo "backup path is a symlink: $backup" >&2; exit 1; fi
+if [[ -n "$restore_only" ]]; then
+  # The file is only read: it must exist before any database is touched, and nothing below may remove or replace it.
+  backup="${1:-}"
+  [[ -n "$backup" && -f "$backup" && -r "$backup" ]] || { echo "--restore-only needs the path of an existing backup file" >&2; exit 1; }
+else
+  if [[ -n "${1:-}" ]]; then backup="$1"; else backup="$(mktemp -t masscom-backup.XXXXXX)"; own_backup=1; fi
+  # `mv` would move the dump *into* a directory and the cleanup could not find it again, so a directory is refused before anything is written.
+  if [[ -d "$backup" ]]; then echo "backup path is a directory: $backup" >&2; exit 1; fi
+  # mv would replace a symlink instead of writing through it, so a linked path is refused too.
+  if [[ -L "$backup" ]]; then echo "backup path is a symlink: $backup" >&2; exit 1; fi
+fi
 created_scratch=""
 backup_part=""
 drop_scratch() {
@@ -34,8 +68,11 @@ drop_scratch() {
   if [[ -n "$backup_part" ]]; then rm -f "$backup_part"; fi
   if [[ -n "$own_backup" ]]; then rm -f "$backup"; fi
   [[ -n "$created_scratch" ]] || return 0
-  # Variables used below are set before created_scratch, so this only runs once they exist.
+  # Variables used below are set before created_scratch, so this only runs once they exist. Only this drill's own scratch database is touched:
+  # its leftover connections are ended first (same psql run, so one admin connection), then it is dropped. A database that already existed under
+  # that name was never created here, created_scratch stays empty and neither statement is sent.
   pg psql "$admin_url" --no-psqlrc --quiet --set ON_ERROR_STOP=1 \
+    --command "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$scratch_db' AND pid <> pg_backend_pid()" \
     --command "DROP DATABASE IF EXISTS \"$scratch_db\"" >/dev/null
 }
 # A scratch database that cannot be dropped still holds a copy of the data, so that is a failure
@@ -88,19 +125,88 @@ snapshot() {
     --command "$counts_sql" --command 'SELECT filename FROM schema_migrations ORDER BY filename'
 }
 
-# Dump beside the target (same filesystem, so the rename is atomic) and move it into place only on success.
-backup_part="$(mktemp "$backup.part.XXXXXX")"
-pg pg_dump --format=custom --no-owner "$url" >"$backup_part"
-mv -f "$backup_part" "$backup"
-backup_part=""
-echo "backup: $backup ($(wc -c <"$backup" | tr -d ' ') bytes)"
-echo "sha256: $(shasum -a 256 "$backup" | cut -d' ' -f1)"
-echo "server: $(pg psql "$url" --no-psqlrc --tuples-only --no-align --command 'SHOW server_version')"
+if [[ -z "$restore_only" && -z "$own_backup" ]]; then
+  # Before any database is touched. A path that already exists is only replaced with --overwrite, and an existing file inside a production backup
+  # folder is never replaced (--overwrite does not lift that); a new *.dump there is only written with --overwrite. The leading * accepts any prefix before
+  # /opt, so the match also holds for the resolved path of a symlinked parent.
+  [[ -n "$overwrite" || ! -e "$backup" ]] || { echo "refusing to overwrite existing path: $backup (did you forget --restore-only? pass --overwrite to replace it)" >&2; exit 1; }
+  backup_dir_real="$(cd "$(dirname "$backup")" 2>/dev/null && pwd -P || true)"
+  for backup_candidate in "$backup" "${backup_dir_real:+$backup_dir_real/${backup##*/}}"; do
+    case "$backup_candidate" in
+      */opt/masscom*/backups/*)
+        [[ ! -e "$backup" ]] || { echo "refusing to replace an existing file in a backup folder: $backup_candidate (--overwrite does not apply there; dump to another path)" >&2; exit 1; }
+        case "${backup_candidate##*/}" in
+          *.dump|*.dump.*)
+            [[ -n "$overwrite" ]] || { echo "refusing to write a dump into a backup folder: $backup_candidate (pass --overwrite if this is intended)" >&2; exit 1; } ;;
+        esac ;;
+    esac
+  done
+fi
+if [[ -z "$restore_only" ]]; then
+  # Dump beside the target (same filesystem, so the rename is atomic) and move it into place only on success.
+  backup_part="$(mktemp "$backup.part.XXXXXX")"
+  pg pg_dump --format=custom --no-owner "$url" >"$backup_part"
+  mv -f "$backup_part" "$backup"
+  backup_part=""
+  echo "backup: $backup ($(wc -c <"$backup" | tr -d ' ') bytes)"
+  echo "sha256: $(shasum -a 256 "$backup" | cut -d' ' -f1)"
+  echo "server: $(pg psql "$url" --no-psqlrc --tuples-only --no-align --command 'SHOW server_version')"
+else
+  echo "backup: $backup ($(wc -c <"$backup" | tr -d ' ') bytes, restore only)"
+fi
 
+if [[ -n "$restore_only" ]]; then
+  # Free space (see the header): the restore writes a full copy of the dump's contents plus indexes and WAL, so 3x the file size must be free where the server keeps its data.
+  hostport="${server#*://}"; hostport="${hostport##*@}"
+  if [[ "$hostport" == \[* ]]; then host="${hostport#\[}"; host="${host%%\]*}"; else host="${hostport%%:*}"; fi
+  measurable=""
+  if [[ -n "${PG_EXEC:-}" ]]; then measurable=1; else case "$host" in ''|localhost|127.0.0.1|::1) measurable=1 ;; esac; fi
+  free_kb=""
+  if [[ -n "$measurable" ]] \
+      && datadir="$(pg psql "$admin_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 --command 'SHOW data_directory' 2>/dev/null)" \
+      && [[ "$datadir" == /* ]]; then
+    free_kb="$(pg df -Pk "$datadir" 2>/dev/null | awk 'NR == 2 { print $4 }')" || free_kb=""
+  fi
+  need_bytes=$(( $(wc -c <"$backup" | tr -d ' ') * 3 ))
+  if [[ "$free_kb" =~ ^[0-9]+$ ]]; then
+    if (( free_kb * 1024 < need_bytes )); then
+      echo "restore drill FAILED: not enough free space for --restore-only: $((free_kb * 1024)) bytes free where the server keeps its data, need at least 3x the backup size ($need_bytes bytes)" >&2
+      exit 1
+    fi
+  else
+    echo "free-space check skipped: the server's data directory cannot be measured from here (remote server without PG_EXEC, or SHOW data_directory / df not permitted)" >&2
+  fi
+fi
+
+restore_started=$SECONDS
 pg psql "$admin_url" --no-psqlrc --quiet --set ON_ERROR_STOP=1 \
   --command "CREATE DATABASE \"$scratch_db\"" >/dev/null
 created_scratch=1
 pg pg_restore --no-owner --exit-on-error --dbname "$scratch_url" <"$backup"
+
+if [[ -n "$restore_only" ]]; then
+  # pg_restore exited 0 (set -e). A restore that left no migration history, or a different set of tables than the live database, is not a usable backup.
+  scalar() { pg psql "$1" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 --command "$2"; }
+  tables_sql="SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' ORDER BY table_name"
+  if ! migrations="$(scalar "$scratch_url" 'SELECT count(*) FROM schema_migrations')" || ! [[ "$migrations" =~ ^[0-9]+$ ]] || [[ "$migrations" -eq 0 ]]; then
+    echo "restore drill FAILED: schema_migrations is missing or empty after the restore" >&2
+    exit 1
+  fi
+  if ! live_tables="$(scalar "$url" "$tables_sql")" || [[ -z "${live_tables//[[:space:]]/}" ]]; then
+    echo "restore drill FAILED: live table list query failed or is empty" >&2
+    exit 1
+  fi
+  if ! scratch_tables="$(scalar "$scratch_url" "$tables_sql")" || [[ -z "${scratch_tables//[[:space:]]/}" ]]; then
+    echo "restore drill FAILED: restored table list query failed or is empty" >&2
+    exit 1
+  fi
+  if ! diff <(printf '%s\n' "$live_tables") <(printf '%s\n' "$scratch_tables"); then
+    echo "restore drill FAILED: restored tables differ from the live database (< live only, > backup only)" >&2
+    exit 1
+  fi
+  echo "restore-only drill passed: $(printf '%s\n' "$scratch_tables" | wc -l | tr -d ' ') tables match the live database, $migrations migrations, restored in $((SECONDS - restore_started)) seconds"
+  exit 0  # the EXIT trap drops the scratch database; the backup file is untouched
+fi
 
 # Process substitution does not propagate snapshot failures to diff; check each query first.
 if ! source_snapshot="$(snapshot "$url")"; then

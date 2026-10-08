@@ -29,6 +29,8 @@
     "verify:tmap": "tsx src/tmap-smoke-command.ts",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "test:postgres": "tsx --test --test-concurrency=1 \"src/**/*.postgres.integration.ts\"",
+    "test:cov": "mkdir -p coverage && tsx --enable-source-maps --test --experimental-test-coverage --test-coverage-include=\"src/**/*.ts\" --test-coverage-exclude=\"src/**/*.test.ts\" --test-coverage-exclude=\"src/**/*.integration.ts\" --test-coverage-exclude=\"src/**/*-test-support.ts\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/unit.lcov \"src/**/*.test.ts\"",
+    "test:postgres:cov": "mkdir -p coverage && tsx --enable-source-maps --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include=\"src/**/*.ts\" --test-coverage-exclude=\"src/**/*.test.ts\" --test-coverage-exclude=\"src/**/*.integration.ts\" --test-coverage-exclude=\"src/**/*-test-support.ts\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=coverage/postgres.lcov \"src/**/*.postgres.integration.ts\"",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

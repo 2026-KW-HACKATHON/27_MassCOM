@@ -1,11 +1,66 @@
 # 테스트 상태
 
-## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) (D-089)
+## 2026-10-08 API 서버 구조 정리 마무리: deps 고정·기본값 한곳·콜백 쿠키와 삭제 접수 배선 고정 (Issue #412 트랙 T1, 배포 동결)
 
-기준 main `e06c97cd` 위의 작업 브랜치 `feat/worker-continuous-loop`([PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420), 처음 커밋 `418f8c57`). 앱·API·DB 스키마는 바뀌지 않았고 Worker 코드, Worker 이미지, 운영 compose의 프로파일 서비스, 문서가 바뀌었다. 이 서비스는 어디에도 배포·활성화하지 않았다. 번호는 처음 D-080이었으나 main의 D-080과 겹쳐 D-089로 바꿨다. 독립 리뷰(Claude Sonnet + Opus)의 지적을 고친 뒤의 결과를 아래 표 앞부분("리뷰 반영" 행)에 적었고, 나머지 행은 리뷰 전 구현 커밋(`418f8c57`~`bddbb333`) 기준의 결과다.
+기준 main `b572184e`에서 시작한 작업 브랜치 `refactor/api-deps-routes`를 main `b707ed09`(PR #413·#414·#415·#421 병합) 위로 옮겼다. 그 네 PR은 `apps/api/src`를 건드리지 않아(#421은 `apps/api/package.json`에 `test:cov`·`test:postgres:cov` 스크립트만 더했다) API 시험 수는 그대로다. 코드는 `apps/api`만 바뀌었고 요청·응답 동작은 바뀌지 않았다. 교차 리뷰(Claude Sonnet·Claude Opus)가 승인(🔴 0·🟠 0)하며 남긴 🟡 5건을 반영했다. (1) `createApiServer`가 deps를 복사해 한 번만 얼린다. (2) `trustProxyClientIp`·`webWwwEnabled`·`experienceServices`의 기본값을 한곳에서 정하고 경로 처리기 13곳의 `??`를 지웠다. (3) 웹 로그인 콜백의 쿠키 응답을 시험으로 고정했다. (4) 계정 삭제 접수 서비스 두 개의 배선을 소스 시험으로 고정했다. (5) `experienceServices`를 `Required<ExperienceServices>`로 만들어 안쪽 키 누락도 컴파일에서 잡는다. 배포·게시는 하지 않았다(소유자 결정 A).
 
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |
+| API 단위 시험·typecheck | PASS | `npm run typecheck --prefix apps/api && npm test --prefix apps/api` 597/597. 이 작업 전 591/591에서 새 시험 6건이 늘었다: 콜백 쿠키 3건(`server-web-auth-callback.test.ts`), 만든 뒤 deps 객체를 바꿔도 서버에 반영되지 않음 1건(`server-deps.test.ts`), 삭제 접수 배선 2건(`server-deletion-intake-wiring.test.ts`) |
+| PostgreSQL 통합 시험 | PASS | 새 DB `masscom_t1final_test`(컨테이너 `masscom-pg-test` 55432)에 migration을 한 번 적용하고 `npm run test:postgres`(전체 59개 파일, `--test-concurrency=1`)를 돌렸다: 527건 중 524 pass / 0 fail / 3 skip. skip 3건은 전용 55435 hosted seed 컨테이너가 필요한 시험이다(이전 기록과 같다). 서비스 배선과 맞닿은 12개 파일(auth-session, claim-slot, merchant-catalog, customer-identity, merchant-art, nft-metadata, merchant-access, visitor-feedback, guest-trials, play, test-visit, access-requests)만 따로 새 DB에서 다시 돌려 142/142 pass. 시험 뒤 DB를 지웠다 |
+| 인라인 동등성 | PASS | `server.ts`의 요청 처리 본문과 17개 `routes/*.ts` 처리기 본문을 원래 자리로 다시 펼쳐 `89d7a5e4`의 같은 구간과 공백을 정규화한 줄 단위로 비교했다: 1797/1797줄. 차이는 로그아웃(`/api/web/logout`) 블록의 위치뿐이다(옛 코드는 뒤쪽, 지금은 웹 로그인 처리기 안의 콜백 바로 뒤). 이 경로는 다른 처리기의 접두어·정규식과 겹치지 않아 순서가 응답을 바꾸지 않는다 |
+| 변이 점검 | PASS | 시험이 정말 잡는지 코드를 일부러 깨 봤고 모두 실패를 확인한 뒤 원래대로 되돌렸다. 콜백 앞쪽의 state 쿠키 지우기 줄(`routes/web-auth.ts`) 삭제 → 콜백 검증 실패 시험 2건 실패(성공 경로 시험은 통과: 성공 응답은 뒤쪽 배열이 덮는다). 성공 쿠키 순서 뒤집기 → 순서 시험 실패. `deletionIntake:`의 `!showcaseInvites` 삭제 → 배선 시험 실패. `showcaseDeletionIntake:`의 `{ source: 'SHOWCASE_APP' }` 삭제 → 배선 시험 실패. deps 복사 대신 호출자 객체에 직접 기본값을 덮어쓰기 → 복사 시험 실패. `experienceServicesDeps`에서 `tmap` 키 삭제 → typecheck `TS2741` 실패 |
+| 빌드·부팅 | PASS | `npm run build --prefix apps/api` 성공. `PORT=39217 node dist/server.js`로 띄워 `GET /health`가 200 `{"status":"ok"}`, 없는 경로가 404 `NOT_FOUND`였다. 데이터베이스·비밀값 없는 부팅이다 |
+| 사이트 시험·개인정보 검사 | PASS | `node --test tests/site/collectible-errors.test.mjs tests/site/legal-pages.test.mjs` 14/14, `bash scripts/check-privacy.sh` PASS |
+| 실제 서버 영향 | 없음 | 운영·시연 서버와 설치본은 바뀌지 않았다. 배포하지 않았다(소유자 결정 A) |
+
+### Issue #412 T1 마무리의 로컬 검사
+
+환경: macOS, `.worktrees/api-split` worktree, 2026-10-08 KST. 다음은 이 세션에서 직접 실행한 검사이고, main `e06c97cd` 위에서 한 번, `b707ed09`(PR #421 병합) 위로 다시 옮긴 뒤 한 번 실행해 결과가 같았다(API 시험 597/597, 나머지 PASS). 두 번째 실행에서는 #421이 더한 `npm run test:cov --prefix apps/api`도 597/597로 통과했다(`all files` 줄 커버리지 58.79%).
+
+| 명령 | 결과 |
+| --- | --- |
+| `npm run typecheck --prefix apps/api && npm test --prefix apps/api` | PASS (597/597) |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0) |
+| `bash tests/ci/ci_wiring_test.sh` | PASS (exit 0) |
+
+## 2026-10-08 기능 수준 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 단일 원본 (Issue #412, 배포 동결)
+
+작업 브랜치 `chore/ops-quality-t5`이며 PR #421로 main `b707ed09`에 병합됐다. 처음 기준은 main `b572184e`(PR #411 병합)였고 PR #413·#414·#415가 병합된 main `e06c97cd` 위로 리베이스했다. 아래 로컬 행은 이 세션에서 직접 실행한 결과다. 리베이스 뒤에는 사이트·운영·CI 연결·큰 파일 시험과 `bash tools/gate.sh`를 다시 실행해 모두 통과했다. API 단위 커버리지와 실제 컨테이너 백업·복원 행은 리베이스 전 측정이며 다시 돌리지 않았다(main이 `apps/api`·`scripts/db-restore-drill.sh`·`infra/*/host-jobs`를 바꾸지 않았다). 배포·호스트 설치·게시는 하지 않았다(소유자 결정 A). 공개 서버·설치본은 그대로다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 가동 점검 시험 | PASS | `bash tests/ops/uptime_probe_test.sh`: 가짜 curl·gh·openssl로 전부 통과, 하나 실패해 한국어 제목 이슈 열기, 이미 열려 있으면 중복 없음, 복구하면 댓글과 함께 닫기, 경고만이면 이슈 없음, 시연 점포 2곳·`demo:false`·JS content-type 오류, 쓰기 점검이 수동 인자일 때만 돌고 로그아웃까지 감(게스트 체험 시작은 `--retry 0`이라 자동 재시도로 자리를 두 번 잡지 않음), 워크플로 권한·cron·동시 실행·서드파티 액션 없음. 리뷰 후속: 1단계 실패 항목을 30초 뒤 한 번 더 확인하고(일시적인 끊김은 이슈도 오류 주석도 남기지 않음, 계속되는 실패만 셈), 시간 예산이 끝나면 요청과 TLS 점검을 하지 않고, `gh`는 `timeout 30` 감싼 함수로만 부르고, 쓰기 점검이 실패한 실행은 "모두 통과"로 열린 이슈를 닫지 않음 |
+| 가동 점검 실제 읽기 | PASS | 이 PC에서 `scripts/uptime-probe.sh` 1단계를 운영·시연 공개 주소에 실제로 한 번 실행(읽기 전용 요청만, `gh`는 빈 목록을 주는 가짜). 실패·경고 0건, 종료 0 |
+| 가동 점검 GitHub Actions 실행 | NOT_RUN | `uptime.yml`은 기본 브랜치에 올라간 뒤에야 예약 실행이 시작된다. 쓰기 점검은 실제 시연 서버에 대해 한 번도 실행하지 않았다(가짜 curl 시험만 통과) |
+| 매일 백업 시험 | PASS | `bash tests/ops/host_backup_job_test.sh`: 운영·시연 두 벌의 컨테이너 레이블 선택, `pg_isready` 대기·재시도(끝내 준비 안 되면 덤프 없이 실패), 직전 백업 크기 2배 디스크 확인(경계값 포함, 첫 실행은 건너뜀), 정리 작업과 나누는 `flock`(못 잡으면 docker도 부르지 않음), `pg_dump` 명령, `pg_restore -f /dev/null` 전체 읽기 검증, `noclobber`, 파일 0600·sha256 일치, 실패 시 절반짜리 파일 없음, 정리 작업이 덤프·sha256·`.part`를 함께 지움, 유닛 보안 설정·`StartLimit`·타이머(18:50·19:05 UTC), `install.sh`의 인자는 이름·동작을 순서와 상관없이 받고 모르는 인자·중복은 종료 2이며 `--uninstall masscom-backup`이 정리 작업을 지우지 않음(반대도 같음). 운영 호스트의 실제 백업 폴더가 있으면 실행 전에 거절 |
+| 정리 작업 시험 | PASS | `bash tests/ops/host_retention_job_test.sh`: `install.sh`를 일반화한 뒤에도 정리 작업 동작이 같고, 가장 최근 `daily-*.dump` 3개와 sha256은 나이와 상관없이 남으며(이름순, 3개 미만이면 전부 남음), 파일을 지우는 단계는 백업과 나누는 `flock`을 잡고 못 잡으면 아무것도 지우지 않되 DB 정리는 한다 |
+| 매일 백업 실제 컨테이너 | PASS | 일회용 로컬 Postgres 16.10 컨테이너(compose 레이블 부착)에 실제 docker·`pg_isready`·`pg_dump`·`pg_restore -f /dev/null`로 두 번 실행(이 Mac에는 `flock`이 없어 아무것도 안 하는 가짜로 대체, `df`·`shasum`은 실제): 파일 모드 600, `shasum -c` OK. 같은 덤프를 20,000바이트로 자르면 `pg_restore --list`는 종료 0으로 통과하지만 `-f /dev/null`은 종료 1로 실패한다. 컨테이너는 지웠다. 실제 `flock`과 서버 호스트(systemd)에서는 실행하지 않았다(NOT_RUN) |
+| 복원 전용 드릴 | PASS | `bash tests/ops/db_restore_drill_backup_file_test.sh`에 `--restore-only` 10개 실패 사례와 성공 사례를 더했고(백업 파일·원본 불변, scratch DB 삭제), `bash tests/ops/db_restore_drill_test.sh`에 실제 Postgres 시험(성공, 덤프 아닌 파일, 빈 `schema_migrations`, 원본에만 있는 테이블)을 더했다. 후자는 이 PC의 일회용 Postgres 16.10 컨테이너에서 PASS이고 CI의 같은 단계에서는 아직 실행하지 않았다. 리뷰 후속: 인자 안전장치 9개 거절 사례(순서 틀림, 파일 뒤 추가 인자, `--restore-only=FILE`, 모르는 `-` 옵션, `--overwrite` 조합, `--overwrite` 없는 기존 경로·운영 백업 폴더 `*.dump` 덮어쓰기)는 DB에 접속하기 전에 거절하고 기존 파일이 그대로이며, scratch DB 이름이 이미 쓰여 `CREATE DATABASE`가 실패하면 `DROP`을 한 번도 보내지 않고 종료 코드가 0이 아니고 파일이 그대로이고, 정상 종료 때는 그 scratch DB의 연결만 끊고 지운다. 실제 Postgres 시험도 같은 규칙(두 번째 dump는 `--overwrite` 없이 거절)으로 PASS. 서버 백업으로 잰 RTO는 없다(NOT_RUN) |
+| 백업·복원 드릴 안전장치 후속 | PASS(로컬) | `bash tests/ops/db_restore_drill_backup_file_test.sh`: `--overwrite`를 줘도 `/opt/masscom*/backups` 안의 이미 있는 파일(`.dump`·`.sha256`·그 밖의 이름, 상대 경로·심볼릭 링크 상위 폴더 포함)은 거절하고 DB에 닿지 않으며, 새 `*.dump`는 `--overwrite`로만 쓴다. `--restore-only`는 scratch DB를 만들기 전에 서버 데이터 디렉터리의 여유 공간이 백업 크기 3배 이상인지 본다(경계값 포함, `PG_EXEC` 경유, 원격·권한 없음·`df` 실패는 알리고 건너뜀). `host_backup_job_test.sh`: 새 백업이 직전의 50% 미만이면 파일 둘 다 두고 `BACKUP_SIZE_DROP`·종료 코드 3(정확히 50%는 통과, 유닛은 `RestartPreventExitStatus=3`), 잠금 대기 1200초(유닛 30분보다 짧음), 잠금은 백업 폴더 자체에 건다(`/run/lock` 제거, 두 호스트·두 작업 모두). 백업과 정리의 상호 배제를 진짜 `flock`으로 확인하는 단계는 이 Mac에 `flock`이 없어 의미가 같은 파이썬 대체물로만 돌렸다. 진짜 `flock`으로는 CI(ubuntu)에서 처음 돈다(NOT_RUN). 일회용 Postgres 16.10 컨테이너에서 `PG_EXEC`로 `db_restore_drill_test.sh`와 `--restore-only`(컨테이너 안 `df -Pk`, 건너뛰지 않고 측정)도 통과했다. 한계: 크기 급감 뒤 다음 실행은 그 작은 파일과 비교한다 |
+| 큰 파일 가드 | PASS | `bash tests/bootstrap/check_large_files_test.sh`: 3 MiB·1 MiB 경계, 증거 바이너리와 증거 텍스트의 구분, 수정으로 커진 파일, 이름 바꾼 파일, 공백·한글 경로, 예외 목록 형식 오류, 예외 목록의 세 번째 칸(최대 바이트: 같은 크기까지 통과·1바이트 넘으면 실패·잘못된 값은 종료 2, 저장소 예외 두 개는 지금 크기 + 10%), 잘못된 기준. `tools/gate.sh`와 CI 연결 |
+| 현재 배포 기준 파일 | PASS | `node --test tests/site/public-entry.test.mjs tests/site/legal-pages.test.mjs tests/site/current_release_test.mjs` 26/26(검사 범위에 `docs/SUBMISSION_CHECKLIST.md` 추가, `이전`·`옛` 바로 뒤의 토큰만 면제하고 `당시`와 같은 문장의 다른 낡은 토큰은 잡음, 체크리스트의 정당한 옛 언급 두 개만 정확히 허용, JSON에서 검사하지 않던 migrations 제거), `node scripts/render-current-release.mjs --check`, `bash tests/site/verify_project_site_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tests/bootstrap/verify_operations_docs_test.sh` |
+| CI 연결 | PASS | `bash tests/ci/ci_wiring_test.sh`: 시험 파일 90개 모두 실행된다. `ci.yml`에 큰 파일 검사, 새 시험 3개, 현재 배포 일치 검사, API 단위 커버리지 요약 단계를 더했다 |
+| API 단위 커버리지 | PASS(보고용) | `npm run test:cov --prefix apps/api`: 567/567 통과, 줄 약 58.5%·분기 88.4%·함수 60.1%(실행마다 줄 비율이 0.1%p 안팎). 기준선 없음. CI는 단위 시험만 재고 실행 요약에 올린다 |
+| API PostgreSQL 커버리지 | 측정 1회 | 로컬에서 한 번 쟀다: 줄 91.3%·분기 81.9%·함수 86.6%, 약 24분. CI 제한 25분에 맞지 않아 CI에는 넣지 않았다 |
+| 배포 스크립트 시험 | PASS | `bash tests/ops/deploy_lightsail_test.sh`와 `deploy_lightsail_rollback_test.sh`는 바꾸지 않았고 그대로 통과한다. 배포 후 관문에 백업 작업을 넣는 일은 후속이다 |
+| 로컬 빠른 검사 | PASS | `bash tools/gate.sh` |
+| GitHub Actions 전체 CI | NOT_RUN | 아직 push하지 않았다 |
+| 독립 리뷰 | 승인(🟡 후속 반영분은 재검토 NOT_RUN) | 1차 리뷰 2건의 변경 요청(🟠 2건)을 반영한 뒤 Opus 재검토가 🔴·🟠 없이 승인했다. 🟡 7건(데이터 안전 후속, 아래 행)은 이 커밋이 반영했고 그 반영분의 재검토는 아직 받지 않았다 |
+| 설치본 용량 분석 | 문서 | [APK_SIZE_ANALYSIS](APK_SIZE_ANALYSIS.md): 이 PC에 있는 산출물의 측정값과 가설만 적었고 원인은 단정하지 않았다. 공개 test.13·Preview 22 APK는 이 PC에 없어 열어 보지 않았다 |
+| 호스트 설치 | NOT_RUN | `masscom-backup`·`masscom-showcase-backup` 타이머는 호스트에 설치하지 않았다. 설치 명령은 [운영 절차](OPERATIONS_RUNBOOK.md)에 있고 소유자 승인이 필요하다 |
+
+필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. 자동 시험 합계는 main 값(API 단위 567, 모바일 1992)을 따르며 이 브랜치는 둘 다 바꾸지 않는다. 아래 절은 당시 이력이다.
+
+## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) (D-089)
+
+기준 main `e06c97cd` 위의 작업 브랜치 `feat/worker-continuous-loop`([PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420), 검토 중이며 CI 통과 뒤 병합한다, 처음 커밋 `418f8c57`). 이후 main `cd01c0d6`(PR #421·#422 병합)을 병합했고 그 뒤 검사는 아래 표 맨 앞 행에 적었다. 앱·API·DB 스키마는 바뀌지 않았고 Worker 코드, Worker 이미지, 운영 compose의 프로파일 서비스, 문서가 바뀌었다. 이 서비스는 어디에도 배포·활성화하지 않았다. 번호는 처음 D-080이었으나 main의 D-080과 겹쳐 D-089로 바꿨다. 독립 리뷰(Claude Sonnet + Opus)의 지적을 고친 뒤의 결과를 아래 표 앞부분("리뷰 반영" 행)에 적었고, 나머지 행은 리뷰 전 구현 커밋(`418f8c57`~`bddbb333`) 기준의 결과다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| main `cd01c0d6`(PR #421·#422 병합) 병합 뒤 검사(macOS, Node 25.9.0, 2026-10-08 KST) | PASS | 충돌은 문서 다섯 곳뿐이었고 `apps/api`·`ci.yml`·compose·`runtime.env.example`·Lightsail README는 자동으로 합쳐졌다. `cd apps/worker && npm ci && npm test && npm run typecheck` 82/82·typecheck PASS, `node --test tests/ops/compose_worker_profile_test.mjs tests/ops/compose_log_rotation_test.mjs` 18/18, `bash tests/ops/deploy_lightsail_test.sh`·`verify_lightsail_deployment_test.sh`·`bash tests/ci/ci_wiring_test.sh`(시험 파일 91개 모두 실행)·`bash tests/bootstrap/verify_operations_docs_test.sh`·`bash tests/site/verify_evidence_consistency_test.sh`·`node scripts/render-current-release.mjs --check`·`bash tools/gate.sh` PASS, `ci.yml` YAML 파싱 PASS. 자동 시험 합계 줄은 main 값(API 597/597·모바일 1992/1992)이고 Worker 시험은 그 줄에 넣지 않았다. Anvil·PostgreSQL 통합 시험과 GitHub Actions 전체 CI는 이 환경에서 `NOT_RUN`이다 |
 | 리뷰 반영: Worker 단위 시험(macOS, Node 25.9.0) | PASS | 82/82(리뷰 전 67 + 신규 12 + 재리뷰 🟡 반영 3: 아래 별도 행). `cd apps/worker && npm ci && npm test`, `npm run typecheck`, `npm run build` 모두 PASS. 신규: 영수증 대기(RPC 주소가 든 오류를 던져도 콘솔 로그 0건·코드만 있는 `RECEIPT_LOOKUP_FAILED`·`getBlockNumber`만 실패해도 처리되지 않은 거절 0건·기한까지 반복 조회·기한 뒤 조회와 타이머가 남지 않음·확인 깊이·`close()`의 공급자 정리), `MINT_WORKER_CRASHED`(두 이벤트 모두 한 줄·주소 없음·종료 코드 1), DB 풀 오류 리스너, 반복마다 조회 시작 블록 갱신(`setScanFromBlock`), 임대 소유자의 호스트·pid 접미사, 빈 `CHAIN_FROM_BLOCK` 거절 |
 | 재리뷰 🟡 반영(Opus 재리뷰가 `e3c156fc`를 🔴 0·🟠 0으로 승인한 뒤의 커밋) | PASS | Worker 82/82, typecheck·build PASS, `compose_worker_profile`·`compose_log_rotation` 18/18, `deploy_lightsail_test.sh`·`ci_wiring_test.sh`·`verify_operations_docs_test.sh`·`verify_evidence_consistency_test.sh`·`tools/gate.sh` PASS. 신규 시험 3개: RPC 요청 시간 상한 10초(`_getConnection().timeout`, ethers 기본 300초) 고정, 영수증 대기의 마지막 조회에 따라 `RECEIPT_LOOKUP_FAILED`/`RECEIPT_NOT_READY` 구분(기존 두 시험의 기대 코드는 `RECEIPT_NOT_READY`로 바뀜), 빌려 간 DB 연결의 오류 리스너(로그 한 줄·중복 없음). 변이 시험: 요청 상한을 300초로 되돌리거나 연결 'connect' 리스너를 지우면 해당 시험이, 배포 스크립트 가드의 금지 단어나 stop/build 조건을 지우면 시료 시험이 실패함을 확인한 뒤 복구했다. 재시도 동작은 그대로다(`mint-worker.test.ts`의 `RECEIPT_NOT_READY` 재시도 시험 통과). 통합 시험(Anvil·PostgreSQL)은 이 환경에 없어 NOT_RUN이고 CI 결과로 확인한다 |
 | 리뷰 반영: 변이 시험 | PASS | 영수증 대기를 옛 `waitForTransaction`으로 되돌리면 새 시험 3개(주소 로그·처리되지 않은 거절·기한)가 실패하고, 풀 리스너를 지우거나 `setScanFromBlock` 호출을 지우면 해당 시험이 실패함을 확인한 뒤 원본으로 복구했다 |

@@ -46,6 +46,18 @@ jobs:
         run: |
           bash scripts/check-secrets.sh
           bash tests/bootstrap/check_secrets_test.sh
+      - name: 큰 파일 검사
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          base="${PR_BASE_SHA:-$PUSH_BEFORE_SHA}"
+          # 첫 push(모두 0인 sha)나 이력에서 사라진 sha(force push)면 직전 커밋과, 그것도 없으면 빈 트리와 비교한다.
+          if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+            base="$(git rev-parse --verify --quiet HEAD^ || git hash-object -t tree /dev/null)"
+          fi
+          bash scripts/check-large-files.sh "$base"
+          bash tests/bootstrap/check_large_files_test.sh
       - name: 시험 파일의 CI 연결 누락 검사
         run: bash tests/ci/ci_wiring_test.sh
       - name: PR 한국어 작성 확인
@@ -72,6 +84,8 @@ jobs:
         run: bash tests/site/check_site_accessibility_test.sh
       - name: Verify project portal structure
         run: bash tests/site/verify_project_site_test.sh
+      - name: 현재 배포 상태 일치 검사
+        run: node --test tests/site/current_release_test.mjs
       - name: 이용약관·처리방침 페이지 검사
         run: node --test tests/site/legal-pages.test.mjs
       - name: 시연 웹 사실성·읽기 전용 검사
@@ -97,6 +111,8 @@ jobs:
           bash tests/ops/deploy_lightsail_test.sh
           bash tests/ops/deploy_lightsail_web_test.sh
           bash tests/ops/host_retention_job_test.sh
+          bash tests/ops/host_backup_job_test.sh
+          bash tests/ops/uptime_probe_test.sh
           bash tests/ops/db_restore_drill_backup_file_test.sh
           node --test tests/ops/compose_log_rotation_test.mjs tests/ops/compose_worker_profile_test.mjs tests/ops/compose_push_token_test.mjs tests/ops/lightsail_readme_current_test.mjs
           node --test tests/ops/audit_ci_test.mjs
@@ -172,7 +188,9 @@ jobs:
           PGPASSWORD: postgres
         run: |
           npm run db:migrate --prefix apps/api
-          npm test --prefix apps/api
+          # 단위 시험만 커버리지를 잰다(보고용). PostgreSQL 통합 시험은 커버리지를 켜면 로컬에서 약 24분이 걸려 25분 제한에 맞지 않으므로 그대로 둔다.
+          # pipefail은 tee 앞의 npm 실패를 놓치지 않으려는 것이라 이 한 줄에만 적용한다.
+          (set -o pipefail; npm run test:cov --prefix apps/api | tee "$RUNNER_TEMP/api-unit-cov.txt")
           npm run test:postgres --prefix apps/api
           node --test tests/ops/verify_web_auth_rollback_test.mjs
           npm run typecheck --prefix apps/api
@@ -183,6 +201,20 @@ jobs:
           npm run typecheck --prefix apps/worker
           npm run build --prefix apps/worker
           npm run audit:ci --prefix apps/worker
+      - name: API 단위 시험 커버리지 요약
+        if: always()
+        run: |
+          {
+            echo '### API 단위 시험 커버리지 (보고용, 기준선 없음)'
+            echo 'PostgreSQL 통합 시험은 포함하지 않는다.'
+            echo '```'
+            if [ -f "$RUNNER_TEMP/api-unit-cov.txt" ]; then
+              grep -E '(^|[[:space:]])(file|all files)[[:space:]]+\|' "$RUNNER_TEMP/api-unit-cov.txt" || echo '커버리지 줄을 찾지 못했습니다'
+            else
+              echo '커버리지 출력이 없습니다(앞 단계가 시험 전에 멈췄습니다)'
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: DB 백업·복원 드릴 시험
         env:
           DRILL_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test

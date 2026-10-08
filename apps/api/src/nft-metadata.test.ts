@@ -5,7 +5,7 @@ import { test, type TestContext } from 'node:test';
 
 import { DEFAULT_STAMP_V1_PNG, DEFAULT_STAMP_V1_SHA256 } from './nft-default-stamp.js';
 import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const metadata = '{"name":"월계 김밥 방문 도장","description":"월계동 월계 김밥 첫 방문 도장입니다.","image":"https://masscom.kr/assets/mascot-stamp.png","attributes":[]}';
