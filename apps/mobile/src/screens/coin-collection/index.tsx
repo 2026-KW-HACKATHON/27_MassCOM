@@ -1,14 +1,14 @@
 import * as Crypto from 'expo-crypto';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
-import { coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, sameRerollOption, type CoinCollection, type CoinRerollOption, type CoinSource, type CoinSeries, type OwnedCoin, type SeriesTier } from '@/shop/coin-api';
+import { coinEntryLabel, coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, sameRerollOption, sortCoinEntries, type CoinCollection, type CoinRerollOption, type CoinSource, type CoinSeries, type OwnedCoin, type SeriesTier } from '@/shop/coin-api';
 import { clearCoinRerollPending, coinRerollPendingKey, readCoinRerollPending, startOrResumeCoinReroll, type CoinRerollPending } from '@/shop/coin-reroll-pending';
 import { pendingFocusSnapshot } from '@/shop/pending-focus';
 import { getAppPackageId } from '@/config/app-identity';
@@ -60,6 +60,11 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
   const inFlight = useRef(false);
   const focusEpoch = useRef(0);
   const loadGeneration = useRef(0);
+  const scrollView = useRef<ScrollView>(null);
+  const headerHeight = useRef(0);
+  const scrollToPanel = (y: number) => requestAnimationFrame(() => scrollView.current?.scrollTo({
+    y: Math.max(0, headerHeight.current + y - insets.top - 8), animated: true,
+  }));
 
   const load = useCallback(async () => {
     const generation = ++loadGeneration.current;
@@ -165,7 +170,8 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
 
   const displayState = coinCollectionDisplayState(collection?.coins ?? [], collection?.reroll.sources ?? []);
 
-  return <SkyBackdrop><SkyScrollView header={<BackHeader title="내 코인·시리즈" />}
+  return <SkyBackdrop><SkyScrollView ref={scrollView} header={<BackHeader title="내 코인·시리즈" />}
+    onHeaderLayout={(height) => { headerHeight.current = height; }}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} progressViewOffset={insets.top} onRefresh={() => { setRefreshing(true); void load(); }} />}>
     <Text style={[styles.intro, { color: palette.secondaryLabel }]}>방문으로 얻은 코인과 뽑기로 얻은 코인을 함께 모아요. 쿠폰을 받아도 코인은 사라지지 않아요.</Text>
     {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.label, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
@@ -281,22 +287,22 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
             onPress={() => { setSelectedOption(option); setConfirmReroll(false); }} style={[styles.sourceRow,
               { backgroundColor: sameRerollOption(selectedOption, option) ? palette.primaryContainer : palette.surface }]}>
             <Text style={{ color: palette.label }}>{rerollGradeName[option.grade]} 리롤권 · {option.eventName}</Text>
-            <Text style={{ color: palette.secondaryLabel }}>{option.entries.length ? option.entries.map((entry) => `${entry.name} ${(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%`).join(' · ')
+            <Text style={{ color: palette.secondaryLabel }}>{option.entries.length ? sortCoinEntries(option.entries).map((entry) => `${coinEntryLabel(entry)} ${(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%`).join(' · ')
               : '현재 확률은 해당 가게의 유효한 미사용 뽑기권 보유자에게만 공개돼요.'}</Text>
           </Pressable>)}
         {selectedOption && !confirmReroll ? <Pressable accessibilityRole="button" onPress={() => setConfirmReroll(true)} style={[styles.button, { backgroundColor: palette.primary }]}>
           <Text style={[styles.buttonText, { color: palette.onPrimary }]}>리롤 조건 확인</Text>
         </Pressable> : null}
-        {selectedOption && confirmReroll ? <FloatingCard style={styles.card}>
+        {selectedOption && confirmReroll ? <View onLayout={(event) => { scrollToPanel(event.nativeEvent.layout.y); }}><FloatingCard style={styles.card}>
           <Text accessibilityRole="header" style={[styles.name, { color: palette.label }]}>회수하고 다시 뽑을까요?</Text>
           <Text style={{ color: palette.secondaryLabel }}>선택한 코인 1개를 회수하고 {rerollGradeName[selectedOption.grade]} 리롤권 1장을 사용해요. 결과는 같거나 낮은 등급일 수 있어요.</Text>
           <Pressable accessibilityRole="button" disabled={Boolean(busyId) || Boolean(rerollPending)} onPress={() => void performReroll()} style={[styles.button, { backgroundColor: palette.primary }]}>
             <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{busyId ? '처리 중…' : rerollPending ? '이전 결과를 먼저 확인해 주세요' : '회수하고 다시 뽑기'}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => setConfirmReroll(false)} style={styles.link}><Text style={{ color: palette.primary }}>취소</Text></Pressable>
-        </FloatingCard> : null}
+        </FloatingCard></View> : null}
       </> : null}
-      {rerollResult ? <FloatingCard style={styles.card}>
+      {rerollResult ? <View onLayout={(event) => { scrollToPanel(event.nativeEvent.layout.y); }}><FloatingCard style={styles.card}>
         <Text accessibilityRole="header" style={[styles.name, { color: palette.label }]}>새 코인을 획득했어요</Text>
         <View style={styles.gradeRow}>
           <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
@@ -323,7 +329,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
         <Pressable accessibilityRole="button" onPress={() => { setRerollResult(undefined);
           router.push(rerollResultId ? { pathname: '/studio', params: { sourceKind: 'REROLL', sourceId: rerollResultId } } : '/studio');
         }} style={styles.link}><Text style={{ color: palette.primary }}>마이룸 전시하기 ›</Text></Pressable>
-      </FloatingCard> : null}
+      </FloatingCard></View> : null}
       {experience.error ? <Text style={{ color: palette.error }}>{experience.error}</Text> : null}
       {displayState.showCollectionLink ? <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/collection')} style={styles.link}>
         <Text style={{ color: palette.primary }}>방문 수집품 NFT 발급·상태 확인 ›</Text>

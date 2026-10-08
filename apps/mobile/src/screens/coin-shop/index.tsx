@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, type ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -10,7 +10,7 @@ import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
 import { getAppPackageId } from '@/config/app-identity';
 import { useExperience } from '@/experience/use-experience';
-import { CoinApiError, createCoinApiClient, coinErrorMessage, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
+import { CoinApiError, coinEntryLabel, createCoinApiClient, coinErrorMessage, sortCoinEntries, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
 import { clearCoinPending, coinPendingKey, readCoinPending, writeCoinPending, type CoinPending } from '@/shop/coin-pending';
 import { pendingFocusSnapshot } from '@/shop/pending-focus';
 import { colorsForScheme } from '@/theme/palette';
@@ -53,6 +53,13 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const inFlight = useRef(false);
   const focusEpoch = useRef(0);
   const loadGeneration = useRef(0);
+  const scrollView = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (!confirmTicket && !result) return;
+    const frame = requestAnimationFrame(() => scrollView.current?.scrollTo({ y: 0, animated: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [confirmTicket, result]);
 
   useEffect(() => {
     const nextExpiry = shop?.tickets.filter((ticket) => ticket.status === 'UNUSED' && Date.parse(ticket.expiresAt) > now)
@@ -170,7 +177,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
     finally { inFlight.current = false; if (current.current) setBusy(false); }
   }
 
-  return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 코인 뽑기권" />}
+  return <SkyBackdrop><SkyScrollView ref={scrollView} header={<BackHeader title="가게 코인 뽑기권" />}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} progressViewOffset={insets.top} onRefresh={() => {
       setRefreshing(true); void load().then(() => recover()).finally(() => { if (current.current) setRefreshing(false); });
     }} />}>
@@ -233,10 +240,10 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
               <Text style={{ color: palette.secondaryLabel }}>이 권리는 {merchantName}의 {gradeName[ticket.grade]} 풀에서 코인 한 개를 뽑아요.</Text>
               {pool?.remaining !== undefined ? <Text style={{ color: palette.secondaryLabel }}>현재 가게 공동 재고 {pool.remaining}개 · {pool.cycle}번째 회차</Text> : null}
               {pool ? <>
-                {pool.entries.map((entry) => <View key={`${entry.publicationId}:${entry.gradeId}`} style={styles.entryRow}>
+                {sortCoinEntries(pool.entries).map((entry) => <View key={`${entry.publicationId}:${entry.gradeId}`} style={styles.entryRow}>
                   {parseCollectibleArtwork(entry.summary) ? <Image source={{ uri: parseCollectibleArtwork(entry.summary)!.thumbnailDataUrl }}
                     accessibilityLabel={`${entry.name} 코인 그림`} style={styles.entryImage} resizeMode="contain" /> : null}
-                  <Text style={{ color: palette.label, flex: 1 }}>{entry.name} · {(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%{entry.remaining !== undefined ? ` · 남은 ${entry.remaining}개` : ''}</Text>
+                  <Text style={{ color: palette.label, flex: 1 }}>{coinEntryLabel(entry)} · {(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%{entry.remaining !== undefined ? ` · 남은 ${entry.remaining}개` : ''}</Text>
                 </View>)}
                 {pool.entries.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>현재 확률을 확인하지 못했어요. 새로고침 후 사용해 주세요.</Text> : null}
               </> : <Text style={{ color: palette.error }}>이 티켓의 가게 정보를 확인하지 못했어요. 새로고침 후 사용해 주세요.</Text>}

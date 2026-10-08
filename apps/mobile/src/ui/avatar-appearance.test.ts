@@ -8,7 +8,7 @@ const read = (name: string) => readFileSync(fileURLToPath(new URL(`./${name}`, i
 test('AppHeader passes shop clothing metadata to the profile strip avatar', () => {
   const header = read('app-header.tsx');
   assert.match(header, /avatarClothing\?: EquippedClothingArt \| null/);
-  assert.match(header, /<ProfileStrip avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} avatarContent=\{avatarContent\} \/>/);
+  assert.match(header, /<ProfileStrip avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} avatarContent=\{avatarContent\} mileageBalance=\{mileageBalance\} \/>/);
   const strip = read('profile-strip.tsx');
   assert.match(strip, /<AvatarWardrobe clothing=\{clothing\} size=\{28\} \/>/);
   assert.match(strip, /<Link href="\/profile" asChild><Pressable accessibilityRole="button" accessibilityLabel="내 프로필과 한 줄 소개 편집"/);

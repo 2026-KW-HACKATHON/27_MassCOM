@@ -3,6 +3,8 @@
 export const COLLECTIBLE_ERROR_MESSAGES = {
   AI_ART_NOT_CONFIGURED: '현재 AI 그림 생성이 준비되지 않았어요. 미리 준비한 이미지로 스튜디오를 시작해 주세요.',
   AI_ART_DAILY_LIMIT: '오늘 만들 수 있는 AI 초안을 모두 사용했어요. 기존 초안이나 준비한 이미지로 계속해 주세요.',
+  AI_ART_ACCOUNT_DAILY_LIMIT: '이 계정의 AI 그림 생성 횟수가 오늘 한도에 도달했어요. 초안·완성은 모든 가게에서 각각 3회까지예요.',
+  AI_ART_COOLDOWN: '계정당 AI 그림 생성은 최소 60초 간격이에요.',
   AI_ART_BUDGET_EXHAUSTED: 'AI 그림 생성 한도에 도달했어요. 기존 초안이나 준비한 이미지로 계속해 주세요.',
   AI_ART_TRIAL_DISABLED: '이 체험 점포에서는 AI 생성이 꺼져 있어요. 준비한 이미지로 스튜디오를 시작해 주세요.',
   AI_ART_ROUND_IN_PROGRESS: '이미 생성 중인 AI 초안이 있어요. 생성 상태를 다시 확인해 주세요.',

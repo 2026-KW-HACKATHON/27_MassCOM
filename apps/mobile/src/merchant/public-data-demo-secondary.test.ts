@@ -106,7 +106,8 @@ test('secondary cards announce the disclosure in explicit accessible names', () 
     ['../screens/collection/collectible-browser.tsx', 'group.merchantId, group.merchantName', { group: { merchantId: id, merchantName: name, artwork: { name: '수집품', gradeName: '금' }, count: 1 } }],
     ['../studio/studio-scene.tsx', 'item.merchantId, item.merchantName', { item: { merchantId: id, merchantName: name, displayName: '수집품' } }],
     ['../screens/shop/grade-draw-machine.tsx', 'reward.merchantId, reward.merchantName', {
-      reward: { kind: 'COIN', merchantId: id, merchantName: name, name: '수집품' }, tone: { name: '금' }, kindName: { COIN: '코인' }, result: { duplicate: false },
+      reward: { kind: 'COIN', merchantId: id, merchantName: name, name: '수집품' }, tone: { name: '금' },
+      kindName: { COIN: '코인' }, rarityName: { GOLD: '골드' }, result: { rarity: 'GOLD', duplicate: false },
     }],
     ['../screens/collection/envelope/envelope-reveal.tsx', 'current.collectible.name', {
       merchantName: disclosed, current: { collectible: { name: '수집품', gradeName: '금' }, isNew: true }, cardStep: { index: 0 }, cards: [1],

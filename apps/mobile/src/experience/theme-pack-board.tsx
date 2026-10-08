@@ -13,7 +13,7 @@ export function ThemePackBoard({ snapshot }: { snapshot: ExperienceSnapshot }) {
   const styles = makeStyles(colorsForScheme(scheme), worldForScheme(scheme));
   return <View style={styles.section}>
     <Text accessibilityRole="header" style={styles.heading}>테마 꾸미기</Text>
-    <Text style={styles.intro}>등급별 전체 랜덤 뽑기에서 코인·테마 꾸미기·캐릭터 중 하나가 나와요. 꾸미기도 중복될 수 있으며, 모은 꾸미기는 내 공간에서 장착해요.</Text>
+    <Text style={styles.intro}>등급별 전체 랜덤 뽑기에서 마일리지·테마 꾸미기·리롤권 중 하나를 받아요. 브론즈에는 가구도 있어요. 꾸미기도 중복될 수 있으며, 모은 꾸미기는 내 공간에서 장착해요.</Text>
     {snapshot.catalog.packs.map((pack) => {
       const progress = snapshot.progress.packs.find((item) => item.id === pack.id);
 

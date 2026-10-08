@@ -33,6 +33,17 @@ export type CoinShop = { mileage: { earned: number; spent: number; balance: numb
 export type CoinCollection = { coins: OwnedCoin[]; series: CoinSeries[]; catalog: CoinCatalog;
   reroll: { tickets: CoinRerollTicket[]; sources: CoinSource[]; options: CoinRerollOption[] } };
 
+const coinGradeLabels: Record<string, string> = { bronze: '브론즈', silver: '실버', gold: '골드', prism: '프리즘', platinum: '프리즘' };
+const coinGradeOrder: Record<string, number> = { bronze: 0, silver: 1, gold: 2, prism: 3, platinum: 3 };
+export function coinEntryLabel(entry: { name: string; gradeId: string; summary?: Record<string, unknown> }): string {
+  const published = entry.summary?.gradeName;
+  const grade = typeof published === 'string' && published.trim() ? published.trim() : coinGradeLabels[entry.gradeId.toLowerCase()];
+  return grade ? `${entry.name} · ${grade}` : entry.name;
+}
+export function sortCoinEntries<T extends { gradeId: string }>(entries: readonly T[]): T[] {
+  return [...entries].sort((a, b) => (coinGradeOrder[a.gradeId.toLowerCase()] ?? 4) - (coinGradeOrder[b.gradeId.toLowerCase()] ?? 4));
+}
+
 export function maskRerollOdds(options: CoinRerollOption[], now: number, clearAll = false): CoinRerollOption[] {
   return options.map((option) => clearAll || !option.oddsExpiresAt || Date.parse(option.oddsExpiresAt) <= now
     ? { ...option, entries: [] } : option);

@@ -147,7 +147,6 @@ export class PostgresMerchantArtService implements MerchantArtService {
     )).rows[0];
     if (!merchant) throw new MerchantArtError('AI_ART_ROUND_NOT_FOUND');
     const subject: ArtSubject = { merchantName: merchant.name, menuNames: menuNamesFrom(merchant.menu_items) };
-    const now = this.now();
     const roundId = this.nextRoundId();
 
     const spendIds = await this.transaction(async (client) => {
@@ -157,7 +156,7 @@ export class PostgresMerchantArtService implements MerchantArtService {
       await this.interruptStale(client, input.merchantId);
       // 오래된 미적용 라운드 정리(이미지는 CASCADE). 적용된 라운드 행은 지우지 않는다(다시 눌렀을 때 같은 결과를 주는 멱등 기록).
       // 다만 적용된 지 30일이 지난 라운드의 이미지는 지운다: 그림 자체는 merchant_art에 있고 이 이미지는 다시 쓰이지 않는다.
-      const cutoff = new Date(now.getTime() - unappliedRoundRetentionMs);
+      const cutoff = new Date(this.now().getTime() - unappliedRoundRetentionMs);
       await client.query(
         `DELETE FROM merchant_art_rounds
          WHERE merchant_id = $1 AND status <> 'APPLIED' AND created_at < $2`,
@@ -176,6 +175,8 @@ export class PostgresMerchantArtService implements MerchantArtService {
         [input.merchantId],
       );
       if (busy.rowCount) throw new MerchantArtError('AI_ART_ROUND_IN_PROGRESS');
+      await this.lockBudget(client);
+      const now = this.now();
       if (await this.draftRoundsToday(client, input.merchantId, now) >= this.config.dailyDraftRounds) {
         throw new MerchantArtError('AI_ART_DAILY_LIMIT', secondsUntilNextKstMidnight(now));
       }
@@ -221,8 +222,6 @@ export class PostgresMerchantArtService implements MerchantArtService {
       throw new RangeError('draft index out of range');
     }
     if (!uuidPattern.test(input.roundId)) throw new MerchantArtError('AI_ART_ROUND_NOT_FOUND');
-    const now = this.now();
-
     const spendId = await this.transaction(async (client) => {
       await this.requireManageArt(client, input.merchantId, input.accountId);
       await this.lockAccountGeneration(client, input.accountId);
@@ -239,6 +238,8 @@ export class PostgresMerchantArtService implements MerchantArtService {
       if (drafts.rowCount !== draftCount || !drafts.rows.some((draft) => draft.idx === input.index)) {
         throw new MerchantArtError('AI_ART_ROUND_STATE');
       }
+      await this.lockBudget(client);
+      const now = this.now();
       if (await this.finalsToday(client, input.merchantId, now) >= this.config.dailyFinals) {
         throw new MerchantArtError('AI_ART_DAILY_LIMIT', secondsUntilNextKstMidnight(now));
       }
@@ -528,10 +529,13 @@ export class PostgresMerchantArtService implements MerchantArtService {
     return { drafts: usage.rows[0]!.drafts, finals: usage.rows[0]!.finals, cooldownUntil };
   }
 
-  // 환경(이 DB) 전체 advisory lock으로 직렬화해 이번 달(한국) 합계에 예상 비용을 더한 값이 상한을 넘는지 본다.
-  // 잠금은 거래가 끝날 때(예상 비용 기록 뒤) 풀리므로 동시에 들어온 요청이 같은 잔액을 두 번 쓰지 못한다.
-  private async assertBudget(client: PoolClient, now: Date, estimateMicroUsd: number): Promise<void> {
+  // 한도와 비용을 같은 예약 시각으로 검사하려고 전역 예산 잠금을 먼저 잡는다.
+  private async lockBudget(client: PoolClient): Promise<void> {
     await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('ai-art-budget', 0))`);
+  }
+
+  // 호출자는 같은 거래에서 lockBudget을 잡고, 그 뒤 시각을 확정한다.
+  private async assertBudget(client: PoolClient, now: Date, estimateMicroUsd: number): Promise<void> {
     const month = kstMonthRange(now);
     const spent = await client.query<{ total: string }>(
       `SELECT coalesce(sum(micro_usd), 0)::bigint AS total FROM ai_art_spend

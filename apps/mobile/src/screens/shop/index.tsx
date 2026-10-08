@@ -261,6 +261,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         if (!isCurrent()) return;
         await clearPendingGradeDraw(pendingScope).catch(() => undefined);
         if (!isCurrent()) return;
+        shopRef.current.applyBalance(result.balance);
+        setStoredDrawShop((previous) => previous?.key === drawScopeKey
+          ? { ...previous, value: { ...previous.value, balance: result.balance } } : previous);
         setDrawPending(undefined); setGradeResult(result); setHistoryRefreshToken((value) => value + 1);
         void refreshDrawShop(); void shopRef.current.refreshQuietly(); void refreshExperience();
       } catch (error) {
@@ -275,7 +278,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     }).catch((error) => { if (isCurrent()) setNotice({ tone: 'error', text: error instanceof Error ? error.message : shopErrorMessage(error) }); })
       .finally(() => { leaveShopPurchaseScope(lease); });
     return () => { mounted = false; recoveryGeneration.current += 1; };
-  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience, refreshDrawShop, setDrawPending, setGradeResult]);
+  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience, refreshDrawShop, setDrawPending, setGradeResult, drawScopeKey]);
 
 
   async function refresh() {
@@ -368,6 +371,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       if (!isCurrent()) return false;
       await clearPendingGradeDraw(pendingScope).catch(() => undefined);
       if (!isCurrent()) return false;
+      shop.applyBalance(result.balance);
+      setStoredDrawShop((previous) => previous?.key === drawScopeKey
+        ? { ...previous, value: { ...previous.value, balance: result.balance } } : previous);
       setDrawPending(undefined); setGradeResult(result); setHistoryRefreshToken((value) => value + 1);
       void refreshDrawShop(); void shop.refreshQuietly(); void refreshExperience();
       return true;
@@ -426,7 +432,8 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     ]);
   }
 
-  const header = <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE} compact />;
+  const header = <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE}
+    mileageBalance={drawShop?.balance ?? shop.snapshot?.mileage.balance} compact />;
   // extra는 뽑기 연출 모달 자리다. retryScroll은 로딩/오류 화면에서만 ref와 content-size 보정을 연결한다.
   const sky = (body: ReactNode, extra?: ReactNode, retryScroll?: boolean) => (
     <SkyBackdrop>

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { CoinApiError, coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, parseCoinCollection, parseCoinShop, sameRerollOption } from './coin-api';
+import { CoinApiError, coinEntryLabel, coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, parseCoinCollection, parseCoinShop, sameRerollOption, sortCoinEntries } from './coin-api';
 
 const ticket = { id: 'ticket-1', poolId: 'pool-1', merchantId: 'merchant-1', eventName: '여름 축제',
   grade: 'SILVER', acquiredAt: '2026-07-01T00:00:00Z', expiresAt: '2026-07-31T00:00:00Z', status: 'UNUSED' };
@@ -11,6 +11,16 @@ const pool = { id: 'pool-1', merchantId: 'merchant-1', merchantName: '참여 가
   grade: 'SILVER', price: 200, purchaseStartsAt: '2026-07-01T00:00:00Z', purchaseEndsAt: '2026-07-20T00:00:00Z',
   useExpiresAt: ticket.expiresAt, perAccountLimit: 2, issuanceCap: 10, issuedCount: 1, status: 'ACTIVE',
   entries: [{ publicationId: coin.publicationId, gradeId: coin.gradeId, name: coin.name, weight: 1, probability: 1, summary: {} }] };
+
+test('odds rows identify the published grade and order canonical grades without moving legacy peers', () => {
+  assert.equal(coinEntryLabel({ name: 'QA 도장', gradeId: 'silver', summary: { gradeName: '은빛' } }), 'QA 도장 · 은빛');
+  assert.equal(coinEntryLabel({ name: 'QA 도장', gradeId: 'prism' }), 'QA 도장 · 프리즘');
+  assert.equal(coinEntryLabel({ name: '옛 코인', gradeId: 'custom' }), '옛 코인');
+  const entries = ['bronze', 'gold', 'prism', 'silver', 'legacy-a', 'legacy-b'].map((gradeId) => ({ gradeId }));
+  assert.deepEqual(sortCoinEntries(entries).map((entry) => entry.gradeId),
+    ['bronze', 'silver', 'gold', 'prism', 'legacy-a', 'legacy-b']);
+  assert.equal(entries[1]?.gradeId, 'gold', 'sorting does not mutate the API response');
+});
 
 test('shop and collection show server pool odds, ticket rights and duplicate quantities', () => {
   assert.equal(parseCoinShop({ mileage: { earned: 500, spent: 0, balance: 500 }, pools: [pool], tickets: [ticket] }).pools[0]!.entries[0]!.probability, 1);

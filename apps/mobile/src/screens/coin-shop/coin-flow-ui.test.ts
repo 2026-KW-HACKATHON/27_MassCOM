@@ -44,7 +44,8 @@ test('사용 전 시작한 조회는 뽑기권 사용 성공 후 화면 상태�
 
 test('a received ticket discloses live odds while a shop listing does not expose them', () => {
   assert.match(shop, /shop\.pools\.find\(\(candidate\) => candidate\.id === ticket\.poolId\)/);
-  assert.match(shop, /pool\.entries\.map/);
+  assert.match(shop, /sortCoinEntries\(pool\.entries\)\.map/);
+  assert.match(shop, /coinEntryLabel\(entry\)/);
   assert.equal((shop.match(/entry\.probability \* 100/g) ?? []).length, 1);
   assert.match(shop, /pool\.id === used\.ticket\.poolId \? \{ \.\.\.pool, entries: \[\] \}/);
   assert.match(shop, /disabled=\{busy \|\| result !== undefined \|\| Boolean\(pendingTicketId\) \|\| !canUse\}/);
@@ -65,9 +66,10 @@ test('switching accounts remounts the shop so a prior account’s odds cannot li
 });
 
 test('masked reroll odds do not prevent using an owned coin and reroll ticket', () => {
-  assert.match(collection, /option\.entries\.length \? option\.entries\.map/);
+  assert.match(collection, /option\.entries\.length \? sortCoinEntries\(option\.entries\)\.map/);
+  assert.match(collection, /coinEntryLabel\(entry\)/);
   assert.match(collection, /현재 확률은 해당 가게의 유효한 미사용 뽑기권 보유자에게만 공개돼요/);
-  assert.match(collection, /selectedOption && confirmReroll \? <FloatingCard/);
+  assert.match(collection, /selectedOption && confirmReroll \? <View onLayout=.*?><FloatingCard/);
   assert.doesNotMatch(collection, /disabled=\{[^}]*option\.entries\.length/);
   assert.match(collection, /options: maskRerollOdds\(old\.reroll\.options, Date\.now\(\), true\)/);
   assert.match(collection, /setTimeout\(\(\) => \{[\s\S]*?options: maskRerollOdds\(old\.reroll\.options, Date\.now\(\)\)/);
@@ -77,6 +79,19 @@ test('masked reroll odds do not prevent using an owned coin and reroll ticket', 
 test('reroll rows use pool and grade together for React identity and selection', () => {
   assert.match(collection, /key=\{`\$\{option\.poolId\}:\$\{option\.grade\}`\}/);
   assert.equal((collection.match(/sameRerollOption\(selectedOption, option\)/g) ?? []).length, 2);
+});
+
+test('ticket confirmation and result are scrolled into view after a lower ticket is tapped', () => {
+  assert.match(shop, /if \(!confirmTicket && !result\) return;/);
+  assert.match(shop, /requestAnimationFrame\(\(\) => scrollView\.current\?\.scrollTo\(\{ y: 0, animated: true \}\)\)/);
+  assert.match(shop, /<SkyScrollView ref=\{scrollView\}/);
+});
+
+test('reroll confirmation and acquired result scroll to their measured panel instead of the page end', () => {
+  assert.match(collection, /<SkyScrollView ref=\{scrollView\}/);
+  assert.match(collection, /onHeaderLayout=\{\(height\) => \{ headerHeight\.current = height; \}\}/);
+  assert.equal((collection.match(/onLayout=\{\(event\) => \{ scrollToPanel\(event\.nativeEvent\.layout\.y\); \}\}/g) ?? []).length, 2);
+  assert.match(collection, /headerHeight\.current \+ y - insets\.top - 8/);
 });
 
 test('a base series coupon requires an explicit choice after the one-claim consequence is shown', () => {

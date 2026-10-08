@@ -592,6 +592,73 @@ test('simultaneous draft requests for two merchants consume only one account gen
   assert.equal(db.fake.calls.length, 4);
 });
 
+test('a draft waiting on the budget lock uses the new KST day and elapsed cooldown at reservation', async (t) => {
+  const db = await setup(t, { minGenerationIntervalMs: 60_000 });
+  await db.pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)
+    VALUES ('art-a', 'multi', 'STAFF', 'ACTIVE'), ('art-b', 'multi', 'STAFF', 'ACTIVE')`);
+  db.state.now = new Date('2026-09-29T14:59:30.000Z');
+  await readyRound(db, 'art-a', 'multi');
+  db.state.now = new Date('2026-09-29T14:59:59.000Z');
+
+  const holder = await db.pool.connect();
+  let pending: Promise<ArtRoundView | unknown> | undefined;
+  try {
+    await holder.query('BEGIN');
+    await holder.query("SELECT pg_advisory_xact_lock(hashtextextended('ai-art-budget', 0))");
+    pending = db.art.createRound({ merchantId: 'art-b', accountId: 'multi' }).then(value => value, error => error);
+    await waitFor(async () => (await lockWaits(db.pool)) === 1, 'draft to wait on the budget lock');
+    db.state.now = new Date('2026-09-29T15:00:30.000Z');
+    await holder.query('COMMIT');
+  } finally {
+    await holder.query('ROLLBACK').catch(() => undefined);
+    holder.release();
+  }
+  const result = await pending;
+  assert.ok(result && !(result instanceof Error));
+  await db.art.drain();
+  const round = result as ArtRoundView;
+  const reservation = (await db.pool.query<{ business_date: string; created_at: Date }>(
+    `SELECT business_date::text, created_at FROM merchant_art_rounds WHERE id = $1`, [round.id],
+  )).rows[0]!;
+  assert.equal(reservation.business_date, '2026-09-30');
+  assert.equal(reservation.created_at.toISOString(), '2026-09-29T15:00:30.000Z');
+  assert.deepEqual((await db.art.getState('art-b', 'multi')).quota.account, {
+    draftRoundsLeft: 2, finalsLeft: 3, resetsAt: '2026-09-30T15:00:00.000Z',
+    cooldownUntil: '2026-09-29T15:01:30.000Z',
+  });
+});
+
+test('a final waiting on the budget lock records the post-wait day and spend time', async (t) => {
+  const db = await setup(t, { minGenerationIntervalMs: 60_000 });
+  db.state.now = new Date('2026-09-29T14:59:59.000Z');
+  const round = await readyRound(db, 'art-a', 'staff-a');
+  const holder = await db.pool.connect();
+  let pending: Promise<ArtRoundView | unknown> | undefined;
+  try {
+    await holder.query('BEGIN');
+    await holder.query("SELECT pg_advisory_xact_lock(hashtextextended('ai-art-budget', 0))");
+    pending = db.art.chooseDraft({ merchantId: 'art-a', roundId: round.id, index: 0, accountId: 'owner-a' })
+      .then(value => value, error => error);
+    await waitFor(async () => (await lockWaits(db.pool)) === 1, 'final to wait on the budget lock');
+    db.state.now = new Date('2026-09-29T15:00:01.000Z');
+    await holder.query('COMMIT');
+  } finally {
+    await holder.query('ROLLBACK').catch(() => undefined);
+    holder.release();
+  }
+  const result = await pending;
+  assert.ok(result && !(result instanceof Error));
+  await db.art.drain();
+  const reservation = (await db.pool.query<{ created_at: Date }>(
+    `SELECT created_at FROM ai_art_spend WHERE round_id = $1 AND kind = 'FINAL'`, [round.id],
+  )).rows[0]!;
+  assert.equal(reservation.created_at.toISOString(), '2026-09-29T15:00:01.000Z');
+  assert.deepEqual((await db.art.getState('art-a', 'owner-a')).quota.account, {
+    draftRoundsLeft: 3, finalsLeft: 2, resetsAt: '2026-09-30T15:00:00.000Z',
+    cooldownUntil: '2026-09-29T15:01:01.000Z',
+  });
+});
+
 test('final generation is limited by the choosing account across merchants', async (t) => {
   const db = await setup(t, { minGenerationIntervalMs: 60_000 });
   await db.pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)

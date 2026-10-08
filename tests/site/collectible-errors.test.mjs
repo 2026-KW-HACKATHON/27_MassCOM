@@ -48,6 +48,12 @@ test('429는 Retry-After 초를 알려 주고, 413·401·서버 오류·오프�
   assert.equal(collectibleErrorMessage({ status: 409, code: 'COLLECTIBLE_DEFAULT_GRADE_MISSING' }), '편집기를 새로고침한 뒤 다시 게시해 주세요');
   assert.match(collectibleErrorMessage({ status: 413, code: 'COLLECTIBLE_PUBLICATION_SIZE_LIMIT' }), /음성·이야기 장면·추가 등급을 줄인 뒤/);
   assert.match(collectibleErrorMessage({ status: 429, code: 'COLLECTIBLE_RATE_LIMITED', retryAfterSeconds: 42 }), /42초 뒤/);
+  const accountLimited = collectibleErrorMessage({ status: 429, code: 'AI_ART_ACCOUNT_DAILY_LIMIT', retryAfterSeconds: 120 });
+  assert.match(accountLimited, /모든 가게에서 각각 3회.*120초 뒤/);
+  assert.doesNotMatch(accountLimited, /저장·게시/);
+  const coolingDown = collectibleErrorMessage({ status: 429, code: 'AI_ART_COOLDOWN', retryAfterSeconds: 60 });
+  assert.match(coolingDown, /최소 60초 간격.*60초 뒤/);
+  assert.doesNotMatch(coolingDown, /저장·게시/);
   assert.match(collectibleErrorMessage({ status: 429 }), /잠시 뒤/);
   const viewLimited = collectibleErrorMessage({ status: 429, code: 'VIEW_RATE_LIMITED', retryAfterSeconds: 42 });
   assert.match(viewLimited, /열람.*42초 뒤/);

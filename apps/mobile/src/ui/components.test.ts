@@ -64,7 +64,7 @@ test('screen copy fits its space and does not repeat the heading below it', () =
 test('the profile strip keeps identity, mileage, mail and settings one tap away', () => {
   const header = read('app-header.tsx');
   const strip = read('profile-strip.tsx');
-  assert.match(header, /<ProfileStrip avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} avatarContent=\{avatarContent\} \/>/);
+  assert.match(header, /<ProfileStrip avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} avatarContent=\{avatarContent\} mileageBalance=\{mileageBalance\} \/>/);
   for (const route of ['/profile', '/shop', '/mail', '/settings']) assert.ok(strip.includes(`href="${route}"`), route);
   // The three reads (friends, shop, social) moved into the discovery provider, one set per focus for the whole app.
   assert.doesNotMatch(strip, /getFriends\(\)|getShop\(\)|getSocial\(\)|createFriendsApiClient|createSocialApiClient/);
