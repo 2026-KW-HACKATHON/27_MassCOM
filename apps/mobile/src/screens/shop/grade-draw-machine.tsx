@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cancelAnimation, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { consentRecheckLabel, consentRequiredMessage } from '@/privacy/consent-flow';
+import { RegistrationAlbum, type RegistrationItem } from '@/acquisition/registration-album';
 import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { ConfettiBurst } from '@/gamification/confetti';
@@ -12,12 +13,14 @@ import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound, useDrawMusic } from '@/sound/ui-sounds';
 import { CharacterArt } from '@/illustration/character-art';
 import { CosmeticArt, PackArt } from '@/illustration/artwork';
+import { classifyGradeDrawCoinAcquisition } from '@/shop/coin-acquisition';
 import type { GradeDrawPool, GradeDrawResult, GradeReward } from '@/shop/grade-draw-api';
 import { BurstRays, Control, Machine, gradeStyle, styles } from './gacha-machine';
 
 type Props = { pool: GradeDrawPool; balance: number; result?: GradeDrawResult; busy: boolean; error?: string;
   refreshing?: boolean; equipmentBusy?: boolean; equipmentError?: string; avatarId?: string | null; equippedThemeId?: string | null;
-  onDraw: () => Promise<boolean>; onRecover?: () => void; onRecheckConsent?: () => void; onEquip?: () => void; onOpenCollection: () => void;
+  onDraw: () => Promise<boolean>; onRecover?: () => void; onRecheckConsent?: () => void; onEquip?: () => void;
+  onOpenCollection: (focus?: { publicationId: string; gradeId: string; receiptId: string }) => void;
   onClose: () => void; onRefresh: () => void };
 
 const kindName: Record<GradeReward['kind'], string> = { COIN: '가게 코인', THEME: '테마 꾸미기', CHARACTER: '캐릭터' };
@@ -27,8 +30,9 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
-  const [phase, setPhase] = useState<'detail' | 'pending' | 'opening' | 'result'>('detail');
+  const [phase, setPhase] = useState<'detail' | 'pending' | 'opening' | 'result' | 'album-registration'>('detail');
   const [closeNotice, setCloseNotice] = useState(false);
+  const [registeredDrawId, setRegisteredDrawId] = useState<string>();
   const seen = useRef<GradeDrawResult | undefined>(undefined);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const jiggle = useSharedValue(0);
@@ -41,7 +45,7 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   useEffect(() => {
     if (!result) return;
     if (seen.current === result) {
-      const resume = setTimeout(() => setPhase('result'), 0);
+      const resume = setTimeout(() => setPhase((current) => current === 'album-registration' ? current : 'result'), 0);
       return () => clearTimeout(resume);
     }
     seen.current = result;
@@ -74,6 +78,8 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   const displayedBalance = result?.balance ?? balance;
   const reward = result?.reward;
   const showResult = phase === 'result' && !!reward;
+  const registrationItem = result && reward ? gradeRegistrationItem(result, registeredDrawId === result.drawId) : undefined;
+  const alreadyRegistered = !!result && registeredDrawId === result.drawId;
   return <FullScreenModal visible animationType="fade" onRequestClose={close}>
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.topBar}>
@@ -99,20 +105,30 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
           <Machine tone={tone} machineStyle={machineStyle} crankStyle={crankStyle} jiggle={jiggle} />
           {phase === 'pending' ? <Text accessibilityLiveRegion="polite" style={styles.description}>요청을 확인하고 있어요.</Text> : null}
           {closeNotice ? <Text style={styles.error}>구매 확인이 끝나면 닫을 수 있어요.</Text> : null}
+        </> : phase === 'album-registration' && result && reward && registrationItem ? <>
+          <RegistrationAlbum
+            receiptId={result.drawId}
+            sourceLabel={`${tone.name} 전체 랜덤`}
+            items={[registrationItem]}
+            onDone={() => { setRegisteredDrawId(result.drawId); setPhase('result'); }}
+            onOpenCollection={reward.kind === 'COIN' ? () => onOpenCollection({ publicationId: reward.publicationId, gradeId: reward.gradeId, receiptId: result.drawId }) : undefined}
+            collectionLabel={reward.kind === 'COIN' ? '코인 도감에서 보기' : undefined}
+          />
         </> : showResult ? <>
           <Text accessibilityRole="header" style={styles.heading}>이번 뽑기 결과</Text>
-          {motionAllowed && !result.replayed ? <BurstRays color={tone.color} /> : null}
-          {motionAllowed && !result.replayed ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={140} originY={130} width={280} height={250} count={pool.grade === 'GOLD' ? 32 : 18} /> : null}
+          {motionAllowed && !result.replayed && !alreadyRegistered ? <BurstRays color={tone.color} /> : null}
+          {motionAllowed && !result.replayed && !alreadyRegistered ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={140} originY={130} width={280} height={250} count={pool.grade === 'GOLD' ? 32 : 18} /> : null}
           <View accessible accessibilityLabel={`${tone.name} ${kindName[reward.kind]} ${reward.name}${reward.kind === 'COIN' ? `, ${publicDataDemoStoreName(reward.merchantId, reward.merchantName)}` : ''}${result.duplicate ? ' 중복' : ''}`} style={[styles.resultCard, { borderColor: tone.color }]}>
             <Text style={[styles.gradePill, { backgroundColor: tone.color }]}>{tone.name} · {kindName[reward.kind]}</Text>
             <RewardArt reward={reward} size={170} />
             <Text style={styles.characterName}>{reward.name}</Text>
             {reward.kind === 'COIN' ? <Text style={styles.description}>{publicDataDemoStoreName(reward.merchantId, reward.merchantName)} · 보유 {result.quantity}개</Text> : null}
-            <Text style={styles.description}>{result.duplicate ? '이미 가진 보상이 다시 나왔어요.' : '새 보상을 받았어요.'}</Text>
+            <Text style={styles.description}>{result.replayed ? '이전 뽑기 결과를 다시 확인했어요.' : result.duplicate ? '이미 가진 보상이 다시 나왔어요.' : '새 보상을 받았어요.'}</Text>
             <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>
           </View>
           {equipmentError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{equipmentError}</Text> : null}
-          {reward.kind === 'COIN' ? <Control label="코인 도감 보기" primary onPress={onOpenCollection} /> : null}
+          <Control label={alreadyRegistered ? '등록 결과 다시 보기' : '도감 등록 확인'} primary disabled={equipmentBusy} onPress={() => setPhase('album-registration')} />
+          {reward.kind === 'COIN' ? <Control label="코인 도감 보기" onPress={() => onOpenCollection({ publicationId: reward.publicationId, gradeId: reward.gradeId, receiptId: result.drawId })} /> : null}
           {reward.kind === 'CHARACTER' && onEquip ? <Control label={avatarId === reward.id ? '동행 설정 완료' : equipmentBusy ? '설정 중…' : '동행으로 설정'} primary disabled={equipmentBusy || avatarId === reward.id} onPress={onEquip} /> : null}
           {reward.kind === 'THEME' && onEquip ? <Control label={equippedThemeId === reward.id ? '꾸미기 장착 완료' : equipmentBusy ? '설정 중…' : '지금 꾸미기 장착'} primary disabled={equipmentBusy || equippedThemeId === reward.id} onPress={onEquip} /> : null}
           <Control label="다른 등급 보기" disabled={equipmentBusy} onPress={() => { seen.current = undefined; setPhase('detail'); onClose(); }} />
@@ -126,6 +142,22 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
       </ScrollView>
     </View>
   </FullScreenModal>;
+}
+
+function gradeRegistrationItem(result: GradeDrawResult, alreadyRegistered: boolean): RegistrationItem {
+  const reward = result.reward;
+  const status: RegistrationItem['status'] = alreadyRegistered ? 'owned' : classifyGradeDrawCoinAcquisition(result);
+  const detail = reward.kind === 'COIN'
+    ? `${publicDataDemoStoreName(reward.merchantId, reward.merchantName)} · 보유 ${result.quantity}개`
+    : status === 'new' ? undefined : alreadyRegistered ? '이번 결과에서 등록 확인을 마쳤어요' : '이미 가지고 있어요';
+  return {
+    id: `${reward.kind}:${reward.id}`,
+    name: reward.name,
+    kindLabel: kindName[reward.kind],
+    status,
+    detail,
+    artwork: <RewardArt reward={reward} size={92} />,
+  };
 }
 
 function RewardArt({ reward, size }: { reward: GradeReward; size: number }) {

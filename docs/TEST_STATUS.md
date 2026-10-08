@@ -1,5 +1,24 @@
 # 테스트 상태
 
+## 2026-10-09 PR #435 도감 등록 리뷰 4건 수정 (파일 수정만·미커밋·미배포)
+
+환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/album`, 브랜치 `fix/album-registration-followups`, HEAD `5e4e648e99a7c028e117c0b219e5b11507ed9221` 위 미커밋 수정. 기준 통합에는 PR #434·#435·#437이 포함된다. 공통 고객 코드에 적용되므로 운영·시연 variant 모두 같은 수정이 적용되지만 각 설치본 수용은 별도다.
+
+수정: (1) 옷 신규/중복은 지급 뒤 보유 목록 대신 서버 `clothing.duplicate`로 판정하고 불필요한 snapshot 인수를 제거했다. (2) 등록 단계는 개봉 연출의 헤더 건너뛰기에서 제외했다. (3) `FullScreenModal`이 `none`을 전달하며 코인권·코인 재뽑기 등록 모달은 실시간 움직임 감소 설정에서 slide를 사용하지 않는다. (4) 등급 뽑기의 이미 본 결과를 정착시키는 예약 상태 갱신은 현재 등록 단계를 보존한다. 서버 보상·확률·지급량·의존성은 변경하지 않았다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 모바일 npm 진입점 | `BLOCKED` | `npm test --prefix apps/mobile`, tsx Unix IPC `listen EPERM`으로 시험 시작 전 exit 1. `/tmp/album-npm-test.log`. |
+| 모바일 전체 단위 대체 실행 | **2203/2203 `PASS`** | `cd apps/mobile && node --import tsx --test 'src/**/*.test.ts'`, fail 0·skip 0·exit 0. 통합 기준 2191건에서 회귀 12건 추가. `/tmp/album-mobile-tests.log`. |
+| 등록·기존 연결·UI 안전성 대상 | **60/60 `PASS`** | `node --import tsx --test src/screens/shop/gacha-registration.test.ts src/screens/shop/gacha-source.test.ts src/screens/shop/grade-draw-registration.test.ts src/gamification/registration-modal-motion.test.ts src/ui/components.test.ts`. 신규 옷·중복·복구·확인 완료 재진입·옷 없음, 실제 `Control`→`Pressable` 헤더 처리기, 모달 전달·양쪽 motion 선택, 실제 등급 effect/timeout과 interrupted opening을 검사했다. Reanimated worklet-safety 기존 assertion을 보존했다. `/tmp/album-targeted.log`. |
+| 모바일 타입·린트 | `PASS` | `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`, exit 0. 기존 `collectible-aura.test.ts:4` 미사용 import 경고 1개·오류 0개. `/tmp/album-{typecheck,lint}.log`. |
+| 접근성 의미 | `PASS` | `bash tests/mobile/check_accessibility_semantics_test.sh`, exit 0. `/tmp/album-accessibility.log`. |
+| CI 연결 | `PASS` | `bash tests/ci/ci_wiring_test.sh`, 시험 파일 103개 모두 연결·exit 0. `/tmp/album-ci-wiring.log`. 원격 CI 결과를 뜻하지 않는다. |
+| 문서·변경 범위·독립 리뷰 | `PASS` | `node scripts/verify-operations-docs.mjs`·`git diff --check`, exit 0. README·PROJECT_STATE 현재 합계 각각 1줄·동일 문장 확인. 독립 읽기 전용 code-reviewer의 추가 대상 시험12/12·actionable 지적0. 기존 시험 파일과 worklet 안전성 assertion 변경 없음. `/tmp/album-operations-docs.log`. |
+| API·빌드·실기·배포 | `NOT_RUN` | API 674/674는 통합 시 기존 측정값이며 이번 재실행이 아니다. APK/웹 빌드, 실제 브라우저·운영/시연 Android 각 설치본·TalkBack·OS 설정 조작·음향/진동, 배포·원격 PR/CI는 실행하지 않았다. VM 시험은 로직·버튼 연결을 검증하며 네이티브 animation 실측은 아니다. |
+
+회귀 검증은 수정 전에 실패를 확인했다(새 옷 duplicate, 실제 헤더 버튼의 reward-mileage 재시작, motion 등록 모달의 slide, 이미 본 등급 결과의 등록 이탈). 기존 시험의 삭제·skip·assertion 약화 없이 수정 후 통과했다. README·PROJECT_STATE 현재 합계는 동일 문장으로 갱신했다. Git add·commit·stash·merge·rebase·push는 수행하지 않았으며 index는 비어 있다.
+
 ## 2026-10-09 배경음 수정 브랜치에 PR #433 반영 main 병합 문서 충돌 해결 (파일 수정만·미배포)
 
 환경: macOS 제한 sandbox, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `6af6ab47450930ec8bafb405469fd7cdd64be206`, MERGE_HEAD `c7632b35b189744dcd0213d6497fad2bac87266a`. 사용자 지정 병합 대상 main은 T9(D-101)·PR #429(D-102)을 포함하며, 이번 작업은 앱 전역 BGM(D-103) 기록과 함께 문서 충돌만 해결했다. BGM 이력은 T9보다 위에 보존했고 아래 수치는 각각 이전 작업의 실측이다.
@@ -148,6 +167,28 @@ Git add·commit·stash·merge·rebase·push는 실행하지 않았다. 파일의
 | `apps/mobile/src/screens/home/showcase-visibility.test.ts` | exact 은퇴3ID만 showcase Home에서 숨김; 실제Wolgye/비슷한이름ID 유지; production/development 배열 원본참조·내용불변; `displayStudioItems`의 구coin/수집품 history 조회는 그대로이며 Home 전달값만 필터링 |
 
 필수 36개 시험 ID 상태는 31 PASS / 2 BLOCKED / 3 NOT_RUN으로 유지한다. 당시 README·PROJECT_STATE의 “현재 자동 시험 합계” 줄은 같은 측정값으로 함께 갱신했다.
+## 2026-10-09 보상 결과 후 도감 등록 확인 (Issue #432)
+
+환경: Windows PowerShell, `feat/reward-album-confirmation`, 기준 main `8aa8b724` 위 작업 트리. 운영·시연 공통 고객 코드 변경이며 API·DB·확률은 수정하지 않는다. Windows 체크아웃의 CRLF가 기존 소스 추출 시험 9건을 실패시켜, 검증용 작업 트리 텍스트를 LF로 정규화한 뒤 아래 결과를 얻었다. 기존 시험의 단언을 완화하지 않았으며 줄바꿈만 다른 파일은 최종 diff에 포함하지 않는다.
+
+| 검사 | 최종 결과 | 근거와 경계 |
+| --- | --- | --- |
+| `npm test --prefix apps/mobile` | **2171/2171 PASS** | fail 0, skip 0. 신규/중복/복구 판정, 티켓 지연 응답, 등록 단계, 모달 재확인 포함 |
+| `npm run typecheck --prefix apps/mobile` | PASS | exit 0 |
+| `npm run lint --prefix apps/mobile` | PASS | 오류 0, 기존 `collectible-aura.test.ts` 미사용 import 경고 1개 |
+| `node scripts/check-accessibility-semantics.mjs apps/mobile/src` | PASS | 기존 접근성 계약 검사 |
+| `git diff --check` | PASS | 공백 오류 없음 |
+| 운영·시연 `expo export --platform android` | 모두 PASS | 최종 수정 소스의 Hermes 번들 생성. sandbox 임시 경로 권한 실패 후 정상 권한으로 재실행 |
+| `bash tools/gate.sh` | PASS | 비밀·충돌 표시·bootstrap·운영 문서·증거 일관성·현재 배포 원장 검사 |
+| 실제 컴포넌트 브라우저 검증 | **9/9 PASS**, console error 0 | [보고서](evidence/reward-album-2026-10-09/browser-qa-report.json). 로컬 합성 보상, 실제 RNW/Reanimated/Worklets/SVG. [경계·재현](evidence/reward-album-2026-10-09/README.md) |
+
+공통 등록 컴포넌트의 StrictMode 시험은 실제 TSX의 효과를 setup → cleanup → setup 순서로 실행한다. 애니메이션이 아직 완료되지 않아 opacity 0인 상태에서 cleanup을 재현하고, 두 번째 setup이 전부 표시 상태로 복구되는지 검사한다. 이전 early-return 분기로 바꾼 임시 소스 문자열은 같은 검사에서 숨은 상태를 유지하는 것도 확인했다.
+
+독립 검토가 찾은 collection/ticket 지연 응답의 focus 전환, 중첩 도감 칸의 스크롤 좌표, 재뽑기 후 새로고침 실패 시 등록 버튼 복구를 수정했다. 자동 스크롤도 움직임 감소 설정을 따른다. 결과 확인은 새 지급 API를 부르지 않는다.
+
+추가 검토에서 focus 변경 뒤 성공 응답이 오면 복구 기록을 지우던 문제를 재현했다(수정 전 2 FAIL → 수정 후 6/6 PASS). 현재 화면이 결과를 받은 뒤 기록을 지우고, 오래된 응답은 기록과 재시도 가능 상태를 보존한다. 화면 검토에서 발견한 320px의 고정 카드 높이도 자동 높이로 고쳤다. 브라우저는 320px·200% 글씨의 겹침/가로 넘침 0을 검사하며, 등록 전환 116프레임에서 scale 0.64 → 최대 1.12 → 정착 및 opacity 0 → 1을 확인했다. [최종 시각 판정](evidence/reward-album-2026-10-09/visual-verdict.json)은 PASS다.
+
+시연 export에는 빌드 검사 전용 공개 OAuth 형식 식별자 `1234567890-rewardalbumqa.apps.googleusercontent.com`을 썼고 `.env` 로딩을 껐다. 빌드 source 값은 기준 main SHA이며 작업 트리 변경을 포함한 로컬 컴파일 증거다. 실제 Google 로그인·APK 서명·설치·실제 API 연동·Android 진동/소리/TalkBack/센서·운영 배포는 `NOT_RUN`이다. 연결된 ADB 기기는 없었다. API 전체 시험과 기존 필수 시험 36개 상태도 이번 UI 작업으로 재검증했다고 주장하지 않는다.
 
 ## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
 

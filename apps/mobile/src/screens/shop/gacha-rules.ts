@@ -22,7 +22,7 @@ export function isNewDraw(item: { id: string }, ownedBefore: readonly string[]):
 
 export type GachaStage = 'crank' | 'shake' | 'drop' | 'wobble' | 'split' | 'burst' | 'pop';
 export type GachaRewardPhase = 'reward-mileage' | 'reward-clothing' | 'reward-character';
-export type GachaPhase = 'detail' | 'pending' | GachaStage | GachaRewardPhase | 'result';
+export type GachaPhase = 'detail' | 'pending' | GachaStage | GachaRewardPhase | 'result' | 'album-registration';
 type GachaEvent = { type: 'draw-started' } | { type: 'purchase-failed' } | { type: 'skip'; busy: boolean };
 
 const rewardPhases: readonly GachaRewardPhase[] = ['reward-mileage', 'reward-clothing', 'reward-character'];
@@ -35,6 +35,7 @@ export function gachaPhaseAfter(phase: GachaPhase, event: GachaEvent): GachaPhas
   if (phase === 'pending') return event.busy ? 'pending' : 'detail';
   if (phase === 'detail') return 'detail';
   if (phase === 'result') return 'result';
+  if (phase === 'album-registration') return 'album-registration';
   if (rewardPhases.includes(phase as GachaRewardPhase)) return gachaNextRewardPhase(phase as GachaRewardPhase);
   return 'reward-mileage';
 }
