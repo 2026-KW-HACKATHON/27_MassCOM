@@ -6,6 +6,7 @@ import {
   type RecommendationCandidate,
   type RecommendationSource,
 } from './recommendation-service.js';
+import type { CourseHint } from './course-rules.js';
 
 const candidate = (
   id: string,
@@ -30,6 +31,53 @@ const candidate = (
 function source(items: readonly RecommendationCandidate[]): RecommendationSource {
   return { listCandidates: async () => items };
 }
+
+const hint = (done: number, total: number): CourseHint => ({
+  courseId: 'course-1', title: '식사와 커피', situation: 'AFTER_MEAL', done, total,
+});
+
+test('course next step precedes existing tiers and keeps installed reason codes', async () => {
+  const result = await new RecommendationService(source([
+    candidate('new', 0), candidate('complete', 5), candidate('near-reward', 2),
+    { ...candidate('course', 1), courseHint: hint(2, 3) },
+  ])).listRecommendations('customer');
+  assert.deepEqual(result.map(item => item.merchantId), ['course', 'new', 'near-reward', 'complete']);
+  assert.equal(result[0]?.reasonCode, 'NEXT_REWARD');
+  assert.equal(result[0]?.reasonText, "'식사 후 들르기 좋은 곳' 코스 2/3 · 다음은 이 가게예요.");
+  assert.deepEqual(result[0]?.course, hint(2, 3));
+  assert.equal('courseHint' in result[0]!, false);
+  assert.equal('rank' in result[0]!, false);
+});
+
+test('numeric course ranks prefer fewer remaining steps then earlier start', async () => {
+  const result = await new RecommendationService(source([
+    { ...candidate('later', 0), courseHint: hint(2, 3), courseStartsAt: '2026-10-02T00:00:00Z' },
+    { ...candidate('more-left', 0), courseHint: hint(1, 3), courseStartsAt: '2026-09-01T00:00:00Z' },
+    { ...candidate('earlier', 0), courseHint: hint(2, 3), courseStartsAt: '2026-10-01T00:00:00Z' },
+  ])).listRecommendations('customer');
+  assert.deepEqual(result.map(item => item.merchantId), ['earlier', 'later', 'more-left']);
+});
+
+test('equal course ranks rotate daily and full next stores stay excluded', async () => {
+  const candidates = ['a', 'b', 'c'].map(id => ({ ...candidate(id, 0), courseHint: hint(1, 2) }));
+  candidates.push({ ...candidate('full', 0, 'FULL'), courseHint: hint(1, 2) });
+  const first = new RecommendationService(source(candidates), () => new Date('2026-10-08T01:00:00Z'));
+  const next = new RecommendationService(source(candidates), () => new Date('2026-10-09T01:00:00Z'));
+  const result = await first.listRecommendations('customer');
+  assert.deepEqual(await first.listRecommendations('customer'), result);
+  assert.notEqual((await next.listRecommendations('customer'))[0]?.merchantId, result[0]?.merchantId);
+  assert.equal(result.some(item => item.merchantId === 'full'), false);
+});
+
+test('not-started and complete courses do not replace existing explanations', async () => {
+  const result = await new RecommendationService(source([
+    { ...candidate('a', 0), courseHint: hint(0, 2) },
+    { ...candidate('b', 5), courseHint: hint(2, 2) },
+  ])).listRecommendations('customer');
+  assert.equal(result[0]?.course, undefined);
+  assert.equal(result[1]?.course, undefined);
+  assert.equal(result[1]?.reasonCode, 'COLLECTION_COMPLETE');
+});
 
 test('prioritizes unvisited open merchants and excludes full campaigns', async () => {
   const service = new RecommendationService(source([

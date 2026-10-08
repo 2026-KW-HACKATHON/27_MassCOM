@@ -184,6 +184,25 @@
           <button id="admin-benefit-pause" type="button" hidden>새 쿠폰 발급 중지</button>
         </section>
       </section>
+      <section class="admin-panel" aria-labelledby="courses-heading">
+        <h3 id="courses-heading">가게 사이 수집 코스</h3>
+        <p>운영팀이 점주 참여 의사를 확인한 실제 점포 2~4곳을 묶습니다. 점검 결과는 그때의 스냅샷이며, 직선거리는 도보 경로나 실시간 영업을 보증하지 않습니다. 코스를 완성해도 마일리지나 쿠폰은 지급되지 않습니다.</p>
+        <form id="admin-course-create" hidden>
+          <label>코스 이름 <input name="title" required maxlength="40"></label>
+          <label>방문 상황 <select name="situation" required><option value="AFTER_MEAL">식사 후 들르기 좋은 곳</option><option value="TAKEOUT">포장해서 가져가기 좋은 곳</option><option value="OTHER">함께 들러볼 만한 곳</option></select></label>
+          <label>장면 키 <input name="sceneKey" required maxlength="40" pattern="[a-z0-9-]{1,40}" placeholder="picnic-scene"></label>
+          <label>단계 수 <select name="stepCount"><option value="2">2곳</option><option value="3">3곳</option><option value="4">4곳</option></select></label>
+          <div id="admin-course-steps"></div>
+          <label>시작 시각 (선택) <input name="startsAt" type="datetime-local"></label>
+          <label>종료 시각 (선택) <input name="endsAt" type="datetime-local"></label>
+          <label>방문 인정 시작 (선택) <input name="countsFrom" type="datetime-local"></label>
+          <p>방문 인정 시작을 비우면 코스 공개 전의 유효한 방문 보상도 셉니다. 각 단계의 점주 참여 동의 참조 번호를 준비한 뒤 초안을 저장해 주세요. 참조 번호에는 이름·전화번호·사업자등록번호를 적지 않습니다.</p>
+          <button type="submit">비공개 코스 저장</button>
+        </form>
+        <label>권하는 방문 시각 (선택, 한국 시간) <input id="admin-course-hour" type="number" min="0" max="23" step="1" placeholder="예: 14"></label>
+        <p id="admin-course-status" role="status" aria-live="polite"></p>
+        <div id="admin-courses"></div>
+      </section>
       <section class="admin-panel" aria-labelledby="deletion-heading">
         <h3 id="deletion-heading">계정 삭제 요청</h3>
         <p>웹 Google 로그인으로 접수된 요청입니다. 접수 뒤 24시간 취소 기간이 지나야 처리할 수 있고 처리 기한은 접수 뒤 7일입니다. 계정은 마스킹한 표지만 보이며 이메일은 표시하지 않습니다. 본인 요청은 처리할 수 없습니다. 접수번호가 없는 옛 접수는 처리할 수 없으므로 접수한 사람이 다시 접수하거나 사유를 적어 거절해야 합니다. 거절 사유는 요청자가 접수번호로 그대로 봅니다.</p>

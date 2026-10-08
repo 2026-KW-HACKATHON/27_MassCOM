@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
+import { createCourseApiClient } from '@/courses/course-api';
+import { merchantCourseChip } from '@/courses/course-copy';
 import { BadgeApiError, createBadgeApiClient, type CampaignBenefit } from '@/gamification/badge-api';
 import { couponStatusLabel } from '@/gamification/badge-rules';
 import { recommendMerchant } from '@/friends/recommend-share';
@@ -49,6 +51,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const [benefit,setBenefit]=useState<CampaignBenefit|null>(null);
   const [benefitError,setBenefitError]=useState<string|null>(null);
   const [benefitBusy,setBenefitBusy]=useState(false);
+  const [courseChip,setCourseChip]=useState<string>();
   const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
   const foreground=useAppForeground();
@@ -75,6 +78,15 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
     finally {if(current===generation.current){setLoading(false);setRefreshing(false);}}
   },[api,benefitApi,apiUrl,merchantId,from]);
   useFocusEffect(useCallback(()=>{if(!foreground)return;void refresh();return()=>{generation.current++;goalGeneration.current++;setGoalBusy(false);setBenefitBusy(false);};},[refresh,foreground]));
+  useFocusEffect(useCallback(()=>{
+    setCourseChip(undefined);
+    if(!foreground||!credential)return;
+    const controller=new AbortController();
+    void createCourseApiClient({apiUrl,credential,onSessionInvalid}).list(controller.signal)
+      .then(courses=>{if(!controller.signal.aborted)setCourseChip(merchantCourseChip(courses,merchantId));})
+      .catch(()=>undefined);
+    return()=>controller.abort();
+  },[apiUrl,credential,foreground,merchantId,onSessionInvalid]));
   if(loading&&!merchant)return <Frame><StateScene kind="loading" title="실제 가게 정보 확인 중"/></Frame>;
   if(error&&!merchant)return <Frame><StateScene kind="error" title="가게 정보를 표시할 수 없습니다" body={error} action={{label:'다시 확인',onPress:()=>{void refresh();}}}/></Frame>;
   if(!merchant)return <Frame><StateScene kind="empty" title="가게 정보 없음"/></Frame>;
@@ -131,6 +143,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 상세"/>} contentContainerStyle={{paddingBottom:48+insets.bottom}} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void refresh(true);}} progressViewOffset={insets.top}/>}>
     <View style={{padding:16,gap:14}}>
       <FloatingCard>{leadPhoto?<View style={{gap:4,marginBottom:12}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,leadPhoto.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(leadPhoto.kind)}{leadPhoto.caption?` · ${leadPhoto.caption}`:''}</Text></View>:null}<Text accessibilityRole="header" style={ds.heading}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text selectable style={ds.body}>{merchant.story}</Text><Text style={ds.muted}>{merchant.category??'업종 정보 없음'}</Text>
+        {courseChip?<Text style={ds.courseChip}>{courseChip}</Text>:null}
         <Pressable accessibilityRole="button" onPress={()=>{void recommendMerchant({id:merchant.id,name:merchant.name,demo:merchant.demo});}} style={ds.action}><Text style={ds.actionText}>친구에게 추천</Text></Pressable></FloatingCard>
       {error?<Text accessibilityRole="alert" style={ds.muted}>{error} 화면을 아래로 당겨 다시 확인하세요.</Text>:null}
       {photos.some(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url))?<FloatingCard><Text accessibilityRole="header" style={ds.section}>가게 사진 더 보기</Text><View style={{gap:10}}>{photos.filter(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View></FloatingCard>:null}
@@ -190,6 +203,7 @@ function useRealDetailStyles() {
     section:{fontSize:18,fontWeight:'800' as const,color:world.cardInk},
     body:{fontSize:15,lineHeight:23,color:world.cardInk},
     muted:{fontSize:13,lineHeight:20,color:world.cardMuted},
+    courseChip:{fontSize:13,lineHeight:20,color:palette.onPrimaryContainer,alignSelf:'flex-start' as const,backgroundColor:palette.primaryContainer,borderRadius:10,paddingHorizontal:10,paddingVertical:4},
     action:{minHeight:48,marginTop:8,borderRadius:12,backgroundColor:palette.primaryContainer,justifyContent:'center' as const,paddingHorizontal:14},
     actionText:{fontSize:15,fontWeight:'700' as const,color:palette.onPrimaryContainer},
     photoFrame:{height:170,backgroundColor:world.paper,borderRadius:12,overflow:'hidden' as const},

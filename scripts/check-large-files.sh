@@ -84,8 +84,8 @@ while IFS= read -r -d '' record; do
 done < <(git diff --numstat --no-renames --diff-filter=AM -z "${range[@]}")
 
 if (( failures > 0 )); then
-  echo "큰 파일 $failures개. 증거 영상·원본 이미지는 GitHub Release(evidence-YYYY-MM-DD-<주제>)에 올리고 저장소에는 줄인 사본이나 JSON 기록만 둡니다." >&2
+  echo "큰 파일 ${failures}개. 증거 영상·원본 이미지는 GitHub Release(evidence-YYYY-MM-DD-<주제>)에 올리고 저장소에는 줄인 사본이나 JSON 기록만 둡니다." >&2
   echo '정말 저장소에 둬야 하면 scripts/large-files-allowlist.txt에 `경로<TAB>이유<TAB>최대 바이트`를 추가하세요.' >&2
   exit 1
 fi
-echo "큰 파일 검사 통과: 추가·수정 파일 $checked개 (docs/evidence 바이너리 1 MiB, 그 밖 3 MiB 이하)"
+echo "큰 파일 검사 통과: 추가·수정 파일 ${checked}개 (docs/evidence 바이너리 1 MiB, 그 밖 3 MiB 이하)"

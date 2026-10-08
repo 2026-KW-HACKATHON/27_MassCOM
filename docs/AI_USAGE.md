@@ -1,11 +1,5 @@
 # AI 사용 기록
 
-## 2026-10-09 PR #424 검토 지적 수정
-
-- 사용자의 이번 Codex 작업 지시에 따라 코드·시험·문서 지적 8개를 고쳤다. 메인 세션은 Worker 오류 분류·회귀 시험·검증·PR 본문 갱신을, executor 서브에이전트는 문서와 Foundry 시험을 각각 맡았다. code-reviewer는 구현과 다른 세션에서 Worker·계약 시험 변경을 읽고 차단 결함을 찾지 않았다. 현재 세션은 2026-10-08의 일반 Codex 중지 기록을 상시 정책 변경으로 해석하지 않는다.
-- 검증: API 615/615, Worker 85/85(새 3개)·대상 41/41, API·Worker·모바일 typecheck PASS, `bash scripts/forge.sh test` 10/10(fuzz 128회), 운영 제출 준비·운영 문서·bootstrap·CI 연결 PASS, gate는 기본 locale에서 기존 Bash 변수 파싱 오류 뒤 `LC_ALL=C`로 PASS. 새 시험은 수정 전 2개 실패하고 수정 뒤 통과했다. PostgreSQL·Anvil 통합과 실제 배포·설치본 검증은 NOT_RUN(오케스트레이터 범위).
-- 사용자가 금지한 staging·commit·stash·rebase·push는 실행하지 않았다. 수량 상한 재도입·새 통제·새 의존성·운영 키·운영 DB 변경은 없다.
-
 ## 한눈에 보기 (2026-10-08 기준)
 
 - 도구: Codex(GPT‑6 계열, 예: `gpt-6.1-sol`)와 Claude Code(Opus 5.5, Sonnet 5.5)입니다. Codex는 구현과 독립 리뷰에 써 왔고, 2026-10-08 소유자 지시 뒤로는 이미지 생성에만 씁니다(임시). [모델 사용 기준](AI_MODEL_ROUTING.md)
@@ -17,6 +11,20 @@
 - PR 본문의 "독립 리뷰"는 AI 세션의 판정입니다. 사람이 코드를 따로 리뷰하는 일은 남아 있습니다.
 - 사람 검토가 남은 항목: 팀 전원의 핵심 흐름·AI 사용·한계 설명 확인, 사람의 발표 리허설, 최신 APK 실기·TalkBack(`NOT_RUN`), 현장 자료(`NOT_RUN`), 이용약관·개인정보처리방침 법률 검토, 대회 최종 제출 승인입니다.
 
+## 2026-10-09 T3 혜택·T4 코스 통합 (Issue #412)
+
+이번 사용자의 명시적인 Codex 요청으로 `integ/t3b-t4-t8`에서 Codex와 네이티브 서브에이전트가 파일별 충돌 해결을 나눠 맡았다. API 관리자 라우트·운영 웹 관리자·모바일 가게 상세와 회귀 시험에서 혜택·코스를 함께 보존하고, migration 0072와 감사 시험을 23개 action 합집합으로 고쳤다. README·PROJECT_STATE·DECISIONS·HANDOFF·TEST_STATUS·AI_USAGE·OPERATIONS_RUNBOOK의 문서 합집합과 운영 제출 준비 검사를 정리했다. 기존 브랜치의 검증 숫자를 이번 통합의 통과 결과로 쓰지 않고 실제 판정을 아래에 기록했다.
+
+현재 확인된 검사는 API typecheck, 모바일 typecheck·lint·대체 단위 2115/2115, 격리 관리자 웹 22/22, CI 연결 95개 파일, 운영 제출 준비 72건, 0072 감사 action 23개 정적 확인이 `PASS`다. API 전체 대체 실행은 662건 중 174건이 socket `listen EPERM`으로 실패했고 원래 `npm test`도 tsx IPC `EPERM`으로 막혔다. `verify_production_web_test.mjs`는 서버 listen 훅에서 멈춰 제한 시간 안에 실행하지 못했다. 실제 PostgreSQL 적용·기기·배포는 `NOT_RUN`이다. 자세한 명령과 판정은 [TEST_STATUS](TEST_STATUS.md)의 통합 항목을 따른다.
+
+사용자가 금지한 add·commit·stash·rebase·push·merge는 실행하지 않는다. 운영 배포·실기 수용은 이번 작업에 포함되지 않는다.
+
+## 2026-10-09 PR #424 검토 지적 수정
+
+- 사용자의 이번 Codex 작업 지시에 따라 코드·시험·문서 지적 8개를 고쳤다. 메인 세션은 Worker 오류 분류·회귀 시험·검증·PR 본문 갱신을, executor 서브에이전트는 문서와 Foundry 시험을 각각 맡았다. code-reviewer는 구현과 다른 세션에서 Worker·계약 시험 변경을 읽고 차단 결함을 찾지 않았다. 현재 세션은 2026-10-08의 일반 Codex 중지 기록을 상시 정책 변경으로 해석하지 않는다.
+- 검증: API 615/615, Worker 85/85(새 3개)·대상 41/41, API·Worker·모바일 typecheck PASS, `bash scripts/forge.sh test` 10/10(fuzz 128회), 운영 제출 준비·운영 문서·bootstrap·CI 연결 PASS, gate는 기본 locale에서 기존 Bash 변수 파싱 오류 뒤 `LC_ALL=C`로 PASS. 새 시험은 수정 전 2개 실패하고 수정 뒤 통과했다. PostgreSQL·Anvil 통합과 실제 배포·설치본 검증은 NOT_RUN(오케스트레이터 범위).
+- 사용자가 금지한 staging·commit·stash·rebase·push는 실행하지 않았다. 수량 상한 재도입·새 통제·새 의존성·운영 키·운영 DB 변경은 없다.
+
 ## 2026-10-09 캠페인 혜택·추가 원가 상한 (Issue #412 T3 PR 2)
 
 이번 요청에서 소유자가 Codex에 구현을 직접 지시한 범위의 예외로 Codex와 네이티브 서브에이전트를 사용했다. 저장소의 2026-10-08 임시 모델 정책 자체를 바꾸지 않았다. Codex가 라우트·의존성 배선·문서를, executor 세션들이 DB·서비스·쿠폰 수명주기·웹·모바일을 나누어 구현했고 다른 code-reviewer 세션이 읽기 전용 검토를 했다. Claude가 구현·리뷰했다고 기록하지 않는다. AI 공동 작성자 trailer는 넣지 않는다.
@@ -25,6 +33,18 @@
 
 실행한 명령과 숫자는 [TEST_STATUS](TEST_STATUS.md) 맨 위가 정본이다. 실제 관리자 브라우저·설치본·휴대전화·두 variant 종단 수용은 NOT_RUN, Chrome 시연 테마 시험은 로컬 SIGABRT로 BLOCKED다. 코드·시험 통과는 사람의 발표·현장 판정·리뷰를 대신하지 않는다.
 
+## 2026-10-09 코스 리뷰 지적 수정 (Issue #412 T4 A)
+
+이번 사용자의 명시적인 Codex 수정 요청으로 브랜치 `feat/cross-store-courses`, HEAD `29644366`에서 권한 재검사·보존 복구·조회 배치·추천 호환·DB 가드·모바일 캐시와 코스 안내를 수정했다. 기본 세션이 통합·문서를 담당하고 executor 세션이 백엔드, migration/보존·시험, 모바일의 범위를 나눠 맡았다. 검증은 [TEST_STATUS](TEST_STATUS.md)와 [코스 증거](evidence/t4-courses-2026-10-08.md)에 실제 실행 결과를 기록한다. Git 쓰기·운영 데이터·배포는 실행하지 않고 후속 커밋은 오케스트레이터가 담당한다.
+
+## 2026-10-08 — NFT 시리즈 발행 수량 상한 해제 (D-095)
+
+- Claude Sonnet 5.5가 컨트랙트 `createSeries`의 상한 인자·오류 제거, API 발행 신청의 수량 검사·`CAPACITY_UNAVAILABLE` 제거, migration 0075, 관련 시험(Foundry·API·Worker)과 문서 수정을 구현했다. 소유자가 오프라인 회의의 합의와 "상한을 보존하지 않고 코드를 고친다"는 결정을 지시했다.
+- 검증: `forge test` 8개, API PostgreSQL 통합 524 통과·0 실패·3 건너뜀(건너뛴 3개는 `_merchant_test` DB 전용이라 따로 돌려 4개 통과), Worker Anvil 12/12, Worker PostgreSQL 30/30. 변경 전 커밋 `8841efea`에서도 같은 모바일 15개·Worker 5개·API 단위 1개가 실패한다(Windows 줄바꿈 CRLF·미적용 패치·권한 시험). 독립 코드 검토는 하지 않았다.
+
+## 2026-10-08 가게 사이를 잇는 코스 (Issue #412 T4 A)
+
+이 세션의 명시적인 Codex 구현 지시에 따라 Codex가 T4 A 구현·시험·문서를 맡았다. 기존 "Codex 이미지 생성만" 운용 기록을 전체적으로 변경한 것이 아니라 이번 요청 범위의 실행 기록이다. 기본 세션은 API 경로·deps·추천·문서를 통합했고, 별도 executor 세션은 코스 DB/서비스, 관리자 웹, 모바일을 각각 맡았다. 구현 세션과 다른 code-reviewer 세션이 데이터·동의·중복·시연 경계를 검토했다. 리뷰 지적은 반복 seed, 과거 획득 그림 보존, 실제 직원 수령·취소 시험, 동의 갱신과 조회 재시도에 반영했다. 실제 검사 결과와 미실행 항목은 [TEST_STATUS](TEST_STATUS.md)를 따른다. 운영 데이터·키·배포·push는 하지 않았다.
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1)
 
 Claude Opus 5.5가 범위 설계와 지휘를 맡았고 Claude Sonnet 5.5 서브에이전트가 구현했다(migration 0068, 순수 규칙, 방문 확정 경로의 시간대 판정, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 표기 정정, 시험과 문서). Codex는 쓰지 않았다(2026-10-08부터 소유자 지시로 이미지 생성 외에는 쓰지 않는다). 방문 확정 경로(`claim-slot-service.ts`)는 민감 경로라 구현과 다른 세션의 교차 리뷰 2건이 필요하며, 구현 세션은 자기 코드를 리뷰하지 않았다.
@@ -407,8 +427,3 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 - Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
 - 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.
-
-## 2026-10-08 — NFT 시리즈 발행 수량 상한 해제 (D-095)
-
-- Claude Sonnet 5.5가 컨트랙트 `createSeries`의 상한 인자·오류 제거, API 발행 신청의 수량 검사·`CAPACITY_UNAVAILABLE` 제거, migration 0075, 관련 시험(Foundry·API·Worker)과 문서 수정을 구현했다. 소유자가 오프라인 회의의 합의와 "상한을 보존하지 않고 코드를 고친다"는 결정을 지시했다.
-- 검증: `forge test` 8개, API PostgreSQL 통합 524 통과·0 실패·3 건너뜀(건너뛴 3개는 `_merchant_test` DB 전용이라 따로 돌려 4개 통과), Worker Anvil 12/12, Worker PostgreSQL 30/30. 변경 전 커밋 `8841efea`에서도 같은 모바일 15개·Worker 5개·API 단위 1개가 실패한다(Windows 줄바꿈 CRLF·미적용 패치·권한 시험). 독립 코드 검토는 하지 않았다.

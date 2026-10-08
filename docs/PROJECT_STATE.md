@@ -1,10 +1,14 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 T3 PR 2 `feat/campaign-benefits`, 기준 main `055d0523`): API 단위 625/625 · PostgreSQL 557건 중 554 pass / 0 fail / 3 skip · 모바일 2098/2098 · 사이트 584/584와 Chrome 1건 BLOCKED. 이 worktree에서 측정한 결과이며 필수 36개 ID의 기존 판정 31 PASS / 2 BLOCKED / 3 NOT_RUN을 바꾸지 않습니다.
+현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #424·#426 반영 main `0801c1ce`를 병합한 기준): API 단위 662/662 · 모바일 2115/2115. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
 
 README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 
 NFT 시리즈 발행 상한 해제는 [D-095](DECISIONS.md)·[PR #424](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/424)의 미배포 변경이다. 기존 Base Sepolia 상한 1 시리즈는 실증 전용이며 운영 발행에는 쓰지 않는다. 기존 계약에 운영용 새 시리즈를 만들 때는 `createSeries(bytes32,string,uint64)`의 세 번째 인자에 `18446744073709551615`를 넣고, 새 계약에서는 `createSeries(bytes32,string)`을 쓴다. DB migration 0075의 NULL 상한 행은 새 API가 모든 인스턴스에 배포된 뒤에만 넣는다.
+## 2026-10-09 T3 혜택·T4 코스 통합 (Issue #412, 배포하지 않음)
+
+`integ/t3b-t4-t8`의 HEAD `8c0bad5e`에서 PR #424·#426 반영 main `0801c1ce`와 이미 병합한 T3 혜택 위로 T4 코스를 병합 중이다. migration 적용 순서는 0068 → 0069 → 0072 → 0075이며, 0072 감사 CHECK는 T3 혜택 action을 유지해야 한다. 현재 충돌 해결은 파일 수정만 진행 중이고 검증 합계는 위의 자리표시자를 오케스트레이터가 채운다. 운영·시연 배포와 실제 설치본 수용은 이 통합으로 확인되지 않았다.
+
 ## 2026-10-09 캠페인 혜택과 추가 원가 상한 (Issue #412 T3 PR 2, 배포 동결)
 
 기준 main `055d0523`(T3 PR 1, PR #425 병합) 위의 `feat/campaign-benefits` 작업이다. 예약 번호 migration `0069_campaign_benefits.sql`과 [D-094](DECISIONS.md)를 사용했다. D-093·다른 브랜치의 0068·0072는 손대지 않았다.
@@ -14,6 +18,11 @@ NFT 시리즈 발행 상한 해제는 [D-095](DECISIONS.md)·[PR #424](https://g
 - 단순화: 기존 동의 정규화·쿠폰 UI·직원 조회·계정 수명주기/권한 검사를 재사용하고, 새 의존성과 방문 거래의 보상 발급을 추가하지 않았다. API unit 625/625, PostgreSQL 557건 중 554 pass / 0 fail / 3 skip, 모바일 2098/2098, 사이트 584/584(Chrome 1건 BLOCKED)다. typecheck·API build·모바일 lint와 자세한 gate 결과는 [TEST_STATUS](TEST_STATUS.md) 맨 위가 정본이다.
 
 운영 API·DB·웹·Android와 시연 API·DB·웹·Android는 배포/설치하지 않았다(소유자 결정 A). 공통 고객 코드가 두 variant에 적용되지만 실제 둘의 기기 수용은 각각 NOT_RUN이다. 결과 카드·설문·파일럿 설정/안내물은 T3 후속 PR 범위이며, 지정 스키마에 되돌리기 재생 원장이 없어 두 번째 undo는 COUPON_NOT_REDEEMED다.
+## Issue #412 T4 A — 가게 사이를 잇는 코스 (2026-10-08, 배포하지 않음)
+
+브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 2–4개 점포 코스의 관리자 초안·점검 스냅샷·게시·중지, 보상권 기반 고객 진행·장면 열기, 추천 우선순위, 관리자 웹과 최소 모바일 목록·상세·장면을 구현했다. migration `0072_courses.sql`은 추가 전용이며 D-093을 따른다. 코스 완성은 재화·쿠폰을 지급하지 않는다. 시연 코스는 시연 DB seed에만 있고 운영 fixture는 없다. 수령·방문 보상·취소·0034 트리거를 바꾸지 않았다. 검증 결과는 [TEST_STATUS](TEST_STATUS.md)의 최상단 항목이다. Studio 배치·실제 브라우저/기기·배포는 `NOT_RUN`이다.
+
+2026-10-09 리뷰 수정: 검토 시작 HEAD `29644366`에서 관리자 4개 쓰기의 트랜잭션 안 권한 재검사, 삭제 큐레이터 ID의 제한된 복구, 고객 코스 최대 50개 배치 조회와 그림 없는 추천 힌트, 이용 불가 단계·중지/종료 장면 접근 규칙, DB 고유키·가드·감사 action, 앱 캐시 해제·구 API 호환·가게 상세 코스 칩을 보강했다. API 634/634, PG 553건 중 550 PASS·0 FAIL·기존 3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139다. 후속 커밋은 오케스트레이터가 담당한다.
 
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
@@ -662,3 +671,6 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 - Base Sepolia Worker proof와 upload-key AAB·16KB runtime·App Links는 PASS. Play는 별도 `NOT_RUN`
 
 상세 실행 근거는 [TEST_STATUS.md](TEST_STATUS.md), Phase 3 증거는 [phase3-worker-anvil-android.json](evidence/phase3-worker-anvil-android.json), 차단 사유는 [BLOCKERS.md](BLOCKERS.md), 다음 세션 상태는 [HANDOFF.md](HANDOFF.md)를 기준으로 합니다.
+
+[current-test-status]: TEST_STATUS.md
+[current-handoff-history]: HANDOFF_HISTORY.md

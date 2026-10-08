@@ -288,6 +288,7 @@ async function pseudonymizeAccount(
   await client.query('DELETE FROM play_runs WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM play_records WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM studios WHERE account_id = $1', [accountId]);
+  await client.query('DELETE FROM course_unlocks WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM furniture_purchases WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM furniture_inventory WHERE account_id = $1', [accountId]);
   await client.query('DELETE FROM collection_experience_profiles WHERE account_id = $1', [accountId]);
@@ -348,6 +349,8 @@ async function pseudonymizeAccount(
     'UPDATE platform_admin_audit SET actor_account_id = $1 WHERE actor_account_id = $2',
     [deletedAlias, accountId],
   );
+  await client.query('UPDATE courses SET curated_by_account_id = $1 WHERE curated_by_account_id = $2',
+    [deletedAlias, accountId]);
   // 점주 올리기·내리기 감사의 대상 계정(#246). JSON 상태에는 계정 식별자를 넣지 않으므로 이 열만 바꾸면 된다.
   await client.query(
     'UPDATE platform_admin_audit SET target_account_id = $1 WHERE target_account_id = $2',

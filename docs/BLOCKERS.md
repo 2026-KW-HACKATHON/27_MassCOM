@@ -55,3 +55,6 @@ B-028이 지적한 "시연 직원 부여는 감사 행이 없다"(`grant-staff.t
 ## 2026-10-09 Issue #412 T3 PR 2 로컬 Chrome 테마 시험
 
 `BLOCKED`: 변경하지 않은 `node --test tests/site/verify_showcase_theme_test.mjs`가 전체 사이트 실행과 단독 재현에서 두 번 `Chrome DevTools 시작 실패: exit=null signal=SIGABRT`로 끝났다. 이 환경의 Chrome 실행 단계 실패이고 CSS 단언까지 도달하지 못했으므로 테마 회귀 통과를 주장하지 않는다. 원인은 SIGABRT 이외에는 확인하지 않았다. 전체 로그 `/private/tmp/t3b-site-all.log`, 최소 재현 로그 `/private/tmp/t3b-site-theme.log`. Chrome 실행이 가능한 환경에서 같은 명령으로 재검증한다. 쿠폰 관련 가짜 DOM·정적 모듈·API·PostgreSQL 검사는 따로 실행한다.
+## Issue #412 T4 A 사이트 브라우저 검사 환경 (2026-10-08)
+
+`BLOCKED`: Codex App의 이 worktree sandbox에서 `node --test tests/site/verify_showcase_theme_test.mjs`가 Chrome 시작 직후 `exit=null signal=SIGABRT`로 두 번 실패했다. 제품 assertion에 이르기 전 `DevToolsActivePort` 생성 실패다. 최소 재현은 위 한 파일 실행이다. 전체 사이트 566건 중 565 PASS/1 FAIL이며 관련 관리자 168/168은 PASS다. 로그는 `/private/tmp/t4-courses-site.log`, `/private/tmp/t4-courses-theme-retry.log`다(비밀값 없음). Chrome이 시작되는 CI/호스트에서 해당 시험을 실행하면 해소 여부를 판정할 수 있다. 제품 기대값과 브라우저 검사 자체는 바꾸지 않았다.

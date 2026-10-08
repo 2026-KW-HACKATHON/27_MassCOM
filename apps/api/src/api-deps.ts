@@ -13,6 +13,7 @@ import type { CoinEconomyService } from './coin-economy.js';
 import type { CollectibleProjectService } from './collectible-project.js';
 import type { CollectionExperienceService } from './collection-experience.js';
 import type { CollectionReader } from './collection.js';
+import type { CourseService } from './course-rules.js';
 import type { CustomerIdentityService } from './customer-identity.js';
 import type { FriendService } from './friends.js';
 import type { FurnitureService } from './furniture.js';
@@ -86,6 +87,7 @@ export type ApiDeps = {
   claimSlots?: ClaimSlotService | undefined;
   collection?: CollectionReader | undefined;
   recommendations?: RecommendationReader | undefined;
+  courses?: CourseService | undefined;
   mintRequests?: MintRequestService | undefined;
   accountDeletions?: AccountDeletionService | undefined;
   requireReauthentication?: ReauthenticationGuard | undefined;
