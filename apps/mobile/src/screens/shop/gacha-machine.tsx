@@ -102,7 +102,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   } }) : currentClothing;
   const currentReceiptId = receiptId ?? (result ? `${selectedGrade}:${result.item.id}` : selectedGrade);
   const alreadyRegistered = !!result && registeredReceiptId === currentReceiptId;
-  const registrationItems = useMemo(() => result ? legacyRegistrationItems(result, ownedBefore, snapshot.clothing.items, alreadyRegistered) : [], [result, ownedBefore, snapshot.clothing.items, alreadyRegistered]);
+  const registrationItems = useMemo(() => result ? legacyRegistrationItems(result, ownedBefore, alreadyRegistered) : [], [result, ownedBefore, alreadyRegistered]);
 
   const startRewardReveal = useCallback((next: GachaRewardPhase | 'result' = 'reward-mileage') => {
     activeResult.current = undefined;
@@ -210,7 +210,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   const displayPhase = phase;
   const rewardPhase = displayPhase === 'reward-mileage' || displayPhase === 'reward-clothing' || displayPhase === 'reward-character' ? displayPhase : undefined;
   const showResult = !!rewardPhase || displayPhase === 'result' || displayPhase === 'pop';
-  const animating = result && displayPhase !== 'detail' && displayPhase !== 'pending' && !rewardPhase && displayPhase !== 'result';
+  const animating = result && displayPhase !== 'detail' && displayPhase !== 'pending' && !rewardPhase && displayPhase !== 'result' && displayPhase !== 'album-registration';
   const requestClose = () => {
     if (displayPhase === 'pending') {
       setPendingCloseMessage('구매 확인 중이에요. 결과를 받으면 닫을 수 있어요.');
@@ -329,12 +329,12 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   );
 }
 
-function legacyRegistrationItems(result: ShopRerollResult, ownedBefore: readonly string[], clothingBefore: readonly { id: string; owned: boolean }[], alreadyRegistered: boolean): RegistrationItem[] {
+function legacyRegistrationItems(result: ShopRerollResult, ownedBefore: readonly string[], alreadyRegistered: boolean): RegistrationItem[] {
   const clothing = result.rewards.clothing.item ? [{
     id: `clothing:${result.rewards.clothing.item.id}`,
     name: result.rewards.clothing.item.name,
     kindLabel: '아바타 옷',
-    status: registrationStatus(result.replayed || alreadyRegistered, result.rewards.clothing.duplicate || clothingBefore.some((item) => item.id === result.rewards.clothing.item?.id && item.owned)),
+    status: registrationStatus(result.replayed || alreadyRegistered, result.rewards.clothing.duplicate),
     detail: alreadyRegistered ? '이번 결과에서 등록 확인을 마쳤어요' : result.rewards.clothing.duplicate ? '이미 가지고 있어요' : undefined,
     artwork: <CosmeticArt id={result.rewards.clothing.item.id} size={86} />,
   } satisfies RegistrationItem] : [];

@@ -1,5 +1,14 @@
 # HANDOFF
 
+## 최신 인수인계 — 2026-10-09 PR #435 리뷰 후속
+
+- 현재 위치: `.worktrees/album`, 브랜치 `fix/album-registration-followups`, HEAD `5e4e648e99a7c028e117c0b219e5b11507ed9221`. PR #434·#435·#437을 포함한 통합 기준 위 파일만 수정했다. 아래 BGM·T9·이전 획득 구현 기록은 이전 작업의 상태다.
+- 옷 신규 판정·등록 헤더·코인 모달 움직임 감소·등급 등록 단계 보존 4건을 수정하고 회귀 12건을 추가했다. 기존 시험 약화 없이 모바일2203/2203·대상60/60·typecheck·lint·접근성·CI 연결103개 파일 PASS. npm test는 tsx IPC EPERM으로 BLOCKED이며 같은 glob Node loader로 검증했다. 기존 lint 경고1개. 상세 명령·로그·검증 경계는 [TEST_STATUS](TEST_STATUS.md) 최상단이다.
+- README·PROJECT_STATE 현재 합계는 동일하다. API674/674는 기존 통합 측정값이며 이번 API 재실행·빌드·배포·각 Android 설치본 수용은 NOT_RUN이다. 보상 정책·운영 데이터·의존성 변경은 없다.
+- Git add·commit·stash·merge·rebase·push를 수행하지 않았고 index는 비어 있다. 다음 검토 명령: `git diff --check`, `git diff`, `git status --short`. 커밋·통합은 이 세션의 요청 범위 밖이다.
+
+아래는 이전 인수인계 기록이다.
+
 기준 시각: 2026-10-09 KST. 배경음 수정 브랜치 `fix/bgm-start`에 PR #433 반영 main `c7632b35`를 병합 중인 작업 트리의 현재 상태를 기록한다. 날짜별 이전 기록은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
 ## 1. 기준 커밋과 작업 위치

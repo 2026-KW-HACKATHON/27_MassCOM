@@ -45,7 +45,7 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   useEffect(() => {
     if (!result) return;
     if (seen.current === result) {
-      const resume = setTimeout(() => setPhase('result'), 0);
+      const resume = setTimeout(() => setPhase((current) => current === 'album-registration' ? current : 'result'), 0);
       return () => clearTimeout(resume);
     }
     seen.current = result;

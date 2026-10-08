@@ -12,6 +12,7 @@ import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
 import { getAppPackageId } from '@/config/app-identity';
 import { useExperience } from '@/experience/use-experience';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
+import { useMotionEnabled } from '@/motion/use-motion';
 import { classifyTicketCoinAcquisition, type CoinAcquisitionStatus } from '@/shop/coin-acquisition';
 import { CoinApiError, coinProbabilityText, createCoinApiClient, coinErrorMessage, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
 import { clearCoinPending, coinPendingKey, readCoinPending, writeCoinPending, type CoinPending } from '@/shop/coin-pending';
@@ -37,6 +38,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const palette = colorsForScheme(useColorScheme());
+  const motionEnabled = useMotionEnabled();
   const api = useMemo(() => createCoinApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const pendingKey = useMemo(() => coinPendingKey(accountId, apiUrl, getAppPackageId() ?? 'app'), [accountId, apiUrl]);
@@ -298,7 +300,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       <Text style={{ color: palette.primary }}>내 코인과 시리즈 보기 ›</Text>
     </Pressable>
   </SkyScrollView>
-    {result ? <FullScreenModal visible={registrationOpen} animationType="slide" onRequestClose={() => { if (resultReceiptId) setSettledRegistrationReceiptId(resultReceiptId); setRegistrationOpen(false); }}>
+    {result ? <FullScreenModal visible={registrationOpen} animationType={motionEnabled ? 'slide' : 'none'} onRequestClose={() => { if (resultReceiptId) setSettledRegistrationReceiptId(resultReceiptId); setRegistrationOpen(false); }}>
       <View style={[styles.modalRoot, { backgroundColor: palette.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
         <ScrollView contentContainerStyle={styles.modalContent}>
           <RegistrationAlbum

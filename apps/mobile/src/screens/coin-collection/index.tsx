@@ -369,7 +369,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
       </Pressable> : null}
     </> : null}
   </SkyScrollView>
-    {rerollResult ? <FullScreenModal visible={registrationOpen} animationType="slide" onRequestClose={() => { if (rerollReceiptId) setSettledRegistrationReceiptId(rerollReceiptId); setRegistrationOpen(false); }}>
+    {rerollResult ? <FullScreenModal visible={registrationOpen} animationType={motionEnabled ? 'slide' : 'none'} onRequestClose={() => { if (rerollReceiptId) setSettledRegistrationReceiptId(rerollReceiptId); setRegistrationOpen(false); }}>
       <View style={[styles.modalRoot, { backgroundColor: palette.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
         <ScrollView contentContainerStyle={styles.modalContent}>
           <RegistrationAlbum
