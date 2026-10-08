@@ -1,5 +1,8 @@
 # AI 사용 기록
 
+## 2026-10-09 CI 병렬 작업 분리 (소유자 직접 요청, 미커밋)
+
+Codex가 `ci/parallel-jobs`에서 기존 15분 직렬 CI를 API·PostgreSQL 2샤드·모바일·웹/운영/문서·계약/worker로 나누고 `bootstrap-contract` 필수 상태를 최종 집계로 유지했다. 읽기 전용 explore가 기존 YAML 파서와 의존성 경계를 확인했고 독립 code-reviewer가 검사 보존·DB 격리·집계를 검토해 구체적인 결함을 찾지 않았다. 새 샤드/집계 회귀 2/2, CI 연결 104개, 기존 CI YAML 참조 시험·PyYAML 파싱·명령 보존·문법 검증은 [TEST_STATUS](TEST_STATUS.md)에 기록했다. actionlint 미설치·실제 GitHub CI 시간은 `NOT_RUN`; Git add·commit·stash·merge·rebase·push는 수행하지 않았다.
 ## 2026-10-09 PR #439 통합 충돌·점주 결과 리뷰 수정 (직접 요청, 미커밋)
 
 사용자의 직접 요청으로 Codex와 파일별 native 하위 에이전트가 `integ/pr439`에서 main `b37063c0`의 T9·BGM·#435 후속·공공자료 고지와 PR #439의 다음 행동·코인 보기·점주 결과 이동을 함께 보존한다. 점주 결과 바로가기의 같은 가게 쿠폰 사용 직후 stale 조회를 수정하고, 홈 다음 행동에서 은퇴 점포 코인권을 기존 가시성 필터로 제외하는 회귀 시험을 추가한다. Git add·commit·stash·merge·rebase·push, 배포·실기 수용은 하지 않으며 현재 검증 결과는 [TEST_STATUS](TEST_STATUS.md) 최상단을 따른다.

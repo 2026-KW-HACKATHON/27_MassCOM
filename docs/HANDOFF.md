@@ -1,5 +1,10 @@
 # HANDOFF
 
+**2026-10-09 CI 병렬 작업 분리 (PR #443)**
+
+작업 위치 `.worktrees/ci`, 브랜치 `ci/parallel-jobs`, 기준 HEAD `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`. 기존 검사를 API·PG 2샤드·모바일·웹/운영/문서·계약/worker로 분리하고 필수 `bootstrap-contract` 집계를 유지했다. 변경 파일은 `.github/workflows/ci.yml`, 새 `tests/ci/parallel_jobs.test.mjs`, TEST_STATUS·AI_USAGE·이 인수인계 항목이다. 로컬 CI 연결·기존 YAML 참조 회귀·샤드/집계 2/2·YAML/문법/명령 보존 PASS; 실제 GitHub 약 5~6분 예상은 미측정, actionlint 미설치. 다음 로컬 확인은 `bash tests/ci/ci_wiring_test.sh`와 `node --test tests/ci/parallel_jobs.test.mjs`; 상세는 [TEST_STATUS](TEST_STATUS.md) 최상단. 사용자 지시로 Git add·commit·stash·merge·rebase·push와 원격 CI 실행은 하지 않았다.
+
+## 최신 인수인계 — 2026-10-09 PR #435 리뷰 후속
 ## 2026-10-09 PR #439 통합 중 (미커밋·미배포)
 
 기준 시각: 2026-10-09 KST. 현재 브랜치 `integ/pr439`에서 main과 PR #439의 파일 내용을 통합 중이다.
