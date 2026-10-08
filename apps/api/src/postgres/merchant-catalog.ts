@@ -34,6 +34,7 @@ type MerchantCatalogRow = {
 // 공개 목록과 상세 미리보기·열람 집계가 같은 점포만 다루도록 조건을 공유한다.
 export function publicCampaignPredicate(nowParameter: number): string {
   return `m.status = 'ACTIVE'
+         AND m.id <> 'trial-showcase-practice'
          AND c.status = 'ACTIVE'
          AND c.is_public = true
          AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial WHERE trial.merchant_id = m.id)

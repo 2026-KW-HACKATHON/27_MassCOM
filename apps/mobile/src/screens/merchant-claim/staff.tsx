@@ -523,7 +523,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
         {merchantDemoSteps.map((label, index) => <Text key={label} accessibilityLabel={`${label}${cardStep === index + 1 ? ', 현재 단계' : ''}`} style={[styles.help, { color: cardStep === index + 1 ? palette.primary : palette.secondaryLabel, fontWeight: cardStep === index + 1 ? '900' : '700' }]}>{label}</Text>)}
       </View>
       <Text ref={heading} accessible accessibilityRole="header" style={styles.cardLabel}>{step === 1 ? '고객 QR 찍기' : step === 2 ? '고객 확인' : '방문 코드'}</Text>
-      <Text style={styles.help}>가상 점포의 체험용 방문 확인입니다. 실제 주문·방문 혜택이 아니며 서버가 점포 권한을 확인합니다.</Text>
+      <Text style={styles.help}>체험 가게의 가상 방문 확인입니다. 실제 주문·방문 혜택이 아니며 서버가 점포 권한을 확인합니다.</Text>
       {step === 1 ? <View style={styles.formCard}>
         {canUseCamera ? <>
           {scanning && active ? <View style={{ height: 260, overflow: 'hidden', borderRadius: 14 }}>

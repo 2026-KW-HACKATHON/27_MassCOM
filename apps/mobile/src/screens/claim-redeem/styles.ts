@@ -43,7 +43,7 @@ export function makeClaimRedeemStyles(palette: AppColors, world: WorldTheme, hai
   textLink: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 4 },
   textLinkText: { color: palette.primary, fontSize: 14, fontWeight: '700' },
   linkSeparator: { color: palette.secondaryLabel, fontSize: 14 },
-  // #295 "테스트 방문 만들기": 시연·로컬 개발 빌드에만 보이는 가상 점포 선택 알약.
+  // #295 "테스트 방문 만들기": 시연·로컬 개발 빌드에만 보이는 체험 가게 선택 알약.
   testVisitChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   testVisitChip: { minHeight: uiMetrics.minTouch, justifyContent: 'center', paddingHorizontal: 14, borderRadius: 999, borderWidth: 1.5, borderColor: world.cardMuted, backgroundColor: palette.background },
   testVisitChipSelected: { borderColor: palette.primary, backgroundColor: palette.primaryContainer },

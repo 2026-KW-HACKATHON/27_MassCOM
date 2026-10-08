@@ -9,12 +9,15 @@ import { PostgresCampaignEnrollmentService } from '../postgres/campaign-enrollme
 import { PostgresMerchantCatalog } from '../postgres/merchant-catalog.js';
 import { PostgresRealWorldService } from '../postgres/real-world.js';
 import { runMigrations } from '../postgres/migrate.js';
-import { WOLGYE_STORES, WOLGYE_STORE_DISCLOSURE } from './wolgye-seed.js';
+import { WOLGYE_COURSE_STORES, WOLGYE_PRISM_STORE, WOLGYE_STORES, WOLGYE_STORE_DISCLOSURE } from './wolgye-seed.js';
 import {
   seedLocalShowcase,
+  SHOWCASE_COURSE_ID,
   SHOWCASE_CAMPAIGN_ID,
   SHOWCASE_CUSTOMER_ACCOUNT_ID,
   SHOWCASE_MERCHANT_ID,
+  SHOWCASE_PRACTICE_CAMPAIGN_ID,
+  SHOWCASE_PRACTICE_MERCHANT_ID,
   SHOWCASE_STAFF_ACCOUNT_ID,
 } from './local-seed.js';
 
@@ -72,24 +75,38 @@ async function withFreshShowcaseDatabase(run: (pool: Pool) => Promise<void>): Pr
   }
 }
 
-test('local showcase seed is repeatable with 33 visible demo merchants', async () => {
+test('local showcase seed is repeatable with 30 public-data stores and one hidden practice store', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const first = await seedLocalShowcase(pool);
     const second = await seedLocalShowcase(pool);
     assert.deepEqual(second, first);
     assert.deepEqual(first, {
-      merchantId: SHOWCASE_MERCHANT_ID,
-      campaignId: SHOWCASE_CAMPAIGN_ID,
+      merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
+      campaignId: SHOWCASE_PRACTICE_CAMPAIGN_ID,
     });
 
     const rows = await snapshot(pool);
     assert.equal(WOLGYE_STORES.length, 30);
-    assert.equal(rows.merchants.length, 33);
-    assert.equal(rows.campaigns.length, 33);
-    assert.equal(rows.goals.length, 99);
-    assert.equal(rows.members.length, 3);
+    assert.equal(rows.merchants.length, 31);
+    assert.equal(rows.campaigns.length, 31);
+    assert.equal(rows.goals.length, 93);
+    assert.equal(rows.members.length, 1);
+    const course = await pool.query<{ merchant_id: string }>(
+      'SELECT merchant_id FROM course_steps WHERE course_id = $1 ORDER BY position', [SHOWCASE_COURSE_ID]);
+    assert.deepEqual(course.rows.map((row) => row.merchant_id), WOLGYE_COURSE_STORES.map((store) => store.id));
+    const prism = await pool.query<{ reward_grades: Record<string, string> }>(
+      'SELECT reward_grades FROM collectible_publications WHERE campaign_id = $1 ORDER BY published_at DESC LIMIT 1',
+      [`${WOLGYE_PRISM_STORE.id}-campaign`]);
+    assert.deepEqual(prism.rows[0]?.reward_grades, { 1: 'bronze', 3: 'silver', 5: 'prism' });
+    const grades = await pool.query<{ top_grade: string; total: number }>(
+      `SELECT reward_grades ->> '5' AS top_grade, count(*)::int AS total
+       FROM collectible_publications WHERE campaign_id LIKE 'showcase-wolgye-%-campaign'
+       GROUP BY reward_grades ->> '5' ORDER BY top_grade`);
+    assert.deepEqual(grades.rows, [
+      { top_grade: 'gold', total: 29 }, { top_grade: 'prism', total: 1 },
+    ]);
 
-    // 보상 상자 체험 혜택은 가상 점포 A·B·C에 milestone별 하나씩, 재실행해도 늘거나 초기화되지 않는다.
+    // 연습 점포의 가상 혜택은 재실행해도 늘거나 초기화되지 않는다.
     await pool.query(`UPDATE badge_reward_offers SET issued_count = 3 WHERE milestone = 2`);
     await seedLocalShowcase(pool);
     const offers = await pool.query<{
@@ -99,51 +116,51 @@ test('local showcase seed is repeatable with 33 visible demo merchants', async (
     assert.deepEqual(
       offers.rows.map((offer) => [offer.milestone, offer.merchant_id, offer.title, offer.valid_days, offer.status]),
       [
-        [1, SHOWCASE_MERCHANT_ID, '체험 음료 1잔', 30, 'ACTIVE'],
-        [2, 'showcase-local-merchant-b', '체험 디저트 한 접시', 30, 'ACTIVE'],
-        [3, 'showcase-local-merchant-c', '체험 세트 20% 할인', 30, 'ACTIVE'],
+        [1, SHOWCASE_PRACTICE_MERCHANT_ID, '체험 음료 1잔', 30, 'ACTIVE'],
+        [2, SHOWCASE_PRACTICE_MERCHANT_ID, '체험 디저트 한 접시', 30, 'ACTIVE'],
+        [3, SHOWCASE_PRACTICE_MERCHANT_ID, '체험 세트 20% 할인', 30, 'ACTIVE'],
       ],
     );
     assert.deepEqual(offers.rows.map((offer) => offer.issued_count), [0, 3, 0]);
     assert.ok(offers.rows.every((offer) => offer.issuance_cap === null
-      && offer.consent_note === '시연 가상 점포 체험 혜택 — 실제 매장 혜택 아님'
+      && offer.consent_note === '시연 가상 방문 체험 혜택 — 실제 매장 혜택 아님'
       && offer.detail.includes('실제 매장에서는 사용할 수 없습니다')));
 
-    await pool.query('UPDATE campaigns SET enrolled_count = 2 WHERE id = $1', [SHOWCASE_CAMPAIGN_ID]);
+    await pool.query('UPDATE campaigns SET enrolled_count = 2 WHERE id = $1', [SHOWCASE_PRACTICE_CAMPAIGN_ID]);
     await seedLocalShowcase(pool);
     const progress = await pool.query<{ enrolled_count: number }>(
-      'SELECT enrolled_count FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID],
+      'SELECT enrolled_count FROM campaigns WHERE id = $1', [SHOWCASE_PRACTICE_CAMPAIGN_ID],
     );
     assert.equal(progress.rows[0]?.enrolled_count, 2);
 
     const catalog = new PostgresMerchantCatalog(pool);
     const listed = await catalog.listPublicMerchants();
-    assert.equal(listed.length, 33);
-    assert.deepEqual(listed.filter((merchant) => merchant.id.startsWith('showcase-local-')).map((merchant) => merchant.name), [
-      '가상 점포 A', '가상 점포 B', '가상 점포 C',
-    ]);
+    assert.equal(listed.length, 30);
+    assert.ok(listed.every((merchant) => merchant.id.startsWith('showcase-wolgye-')));
     assert.ok(listed.every((merchant) => merchant.demo));
     const demoDetails = new PostgresRealWorldService(pool, { includeDemo: true });
-    const detail = await demoDetails.merchant(SHOWCASE_MERCHANT_ID);
+    const detail = await demoDetails.merchant(WOLGYE_STORES[0]!.id);
     assert.equal(detail.demo, true);
-    assert.equal(detail.position, null, 'virtual stores must not invent real map coordinates');
-    assert.equal(detail.name, '가상 점포 A');
-    await assert.rejects(new PostgresRealWorldService(pool).merchant(SHOWCASE_MERCHANT_ID),
+    assert.deepEqual(detail.position, { latitude: WOLGYE_STORES[0]!.lat, longitude: WOLGYE_STORES[0]!.lng });
+    assert.equal(detail.name, WOLGYE_STORES[0]!.name);
+    await assert.rejects(demoDetails.merchant(SHOWCASE_PRACTICE_MERCHANT_ID),
       (error: unknown) => error instanceof Error && error.message === 'MERCHANT_NOT_FOUND');
-    const publication = await pool.query('SELECT published_at FROM merchants WHERE id = $1', [SHOWCASE_MERCHANT_ID]);
+    await assert.rejects(new PostgresRealWorldService(pool).merchant(WOLGYE_STORES[0]!.id),
+      (error: unknown) => error instanceof Error && error.message === 'MERCHANT_NOT_FOUND');
+    const publication = await pool.query('SELECT published_at FROM merchants WHERE id = $1', [WOLGYE_STORES[0]!.id]);
     await seedLocalShowcase(pool);
-    assert.deepEqual((await pool.query('SELECT published_at FROM merchants WHERE id = $1', [SHOWCASE_MERCHANT_ID])).rows, publication.rows);
+    assert.deepEqual((await pool.query('SELECT published_at FROM merchants WHERE id = $1', [WOLGYE_STORES[0]!.id])).rows, publication.rows);
 
     const access = new PostgresMerchantAccessControl(pool);
     const staff = await access.requirePermission({
       accountId: SHOWCASE_STAFF_ACCOUNT_ID,
-      merchantId: SHOWCASE_MERCHANT_ID,
+      merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
       permission: 'CONFIRM_VISIT',
     });
     assert.equal(staff.role, 'STAFF');
     await assert.rejects(access.requirePermission({
       accountId: SHOWCASE_CUSTOMER_ACCOUNT_ID,
-      merchantId: SHOWCASE_MERCHANT_ID,
+      merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
       permission: 'CONFIRM_VISIT',
     }), /MERCHANT_ACCESS_DENIED/);
   });
@@ -183,7 +200,7 @@ test('Wolgye demo stores appear in showcase discovery with station distances and
       campaignOnly: true,
     };
     const page = await showcase.search(query);
-    assert.equal(page.merchants.length, 33);
+    assert.equal(page.merchants.length, 30);
     assert.equal(page.nextCursor, null);
     assert.equal(page.merchants.filter((merchant) => merchant.id.startsWith('showcase-wolgye-')).length, 30);
     const nearest = WOLGYE_STORES[0]!;
@@ -221,7 +238,7 @@ test('a Wolgye public-data campaign accepts customer enrollment', async () => {
   });
 });
 
-test('existing one-store showcase data grows to three stores without changing visit progress', async () => {
+test('existing A showcase data becomes hidden without changing visit progress', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     await pool.query(
       `INSERT INTO merchants
@@ -259,19 +276,17 @@ test('existing one-store showcase data grows to three stores without changing vi
     const rows = await snapshot(pool);
     assert.deepEqual(
       [rows.merchants.length, rows.campaigns.length, rows.goals.length, rows.members.length],
-      [33, 33, 99, 3],
+      [32, 32, 96, 2],
     );
-    // #254: 0036 전에 seed된 A도 동네·업종을 받고, 이미 값이 있는 점포는 다시 seed해도 바뀌지 않는다.
-    const profiles = async () => (await pool.query<{ id: string; neighborhood: string; category: string }>(
-      "SELECT id, neighborhood, category FROM merchants WHERE id LIKE 'showcase-local-%' ORDER BY id")).rows;
-    assert.deepEqual(await profiles(), [
-      { id: SHOWCASE_MERCHANT_ID, neighborhood: '월계동', category: '카페' },
-      { id: 'showcase-local-merchant-b', neighborhood: '월계동', category: '분식' },
-      { id: 'showcase-local-merchant-c', neighborhood: '월계동', category: '한식' },
-    ]);
-    await pool.query(`UPDATE merchants SET category = '기타' WHERE id = $1`, [SHOWCASE_MERCHANT_ID]);
+    const retired = await pool.query<{ status: string; published_at: Date | null }>(
+      'SELECT status, published_at FROM merchants WHERE id = $1', [SHOWCASE_MERCHANT_ID]);
+    assert.deepEqual(retired.rows, [{ status: 'PAUSED', published_at: null }]);
+    const campaign = await pool.query<{ status: string; is_public: boolean }>(
+      'SELECT status, is_public FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID]);
+    assert.deepEqual(campaign.rows, [{ status: 'ENDED', is_public: false }]);
+    assert.ok((await new PostgresMerchantCatalog(pool).listPublicMerchants())
+      .every((merchant) => merchant.id !== SHOWCASE_MERCHANT_ID));
     await seedLocalShowcase(pool);
-    assert.equal((await profiles())[0]?.category, '기타');
     const progress = await pool.query<{ enrolled_count: number }>(
       'SELECT enrolled_count FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID],
     );
@@ -279,34 +294,35 @@ test('existing one-store showcase data grows to three stores without changing vi
   });
 });
 
-test('damaged existing fixture is refused without changing any of its four tables', async () => {
+test('damaged practice fixture is refused without changing its seeded rows', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     await seedLocalShowcase(pool);
     for (const [query, values] of [
-      ['UPDATE merchants SET is_demo = false WHERE id = $1', [SHOWCASE_MERCHANT_ID]],
-      ['UPDATE merchants SET is_demo = false WHERE id = $1', ['showcase-local-merchant-b']],
-      ['UPDATE campaigns SET is_public = false WHERE id = $1', [SHOWCASE_CAMPAIGN_ID]],
-      ['UPDATE campaigns SET ends_at = now() - interval \'1 day\' WHERE id = $1', [SHOWCASE_CAMPAIGN_ID]],
-      ['UPDATE campaign_goals SET display_name = \'wrong\' WHERE campaign_id = $1 AND target_visit_count = 3', [SHOWCASE_CAMPAIGN_ID]],
-      ['DELETE FROM campaign_goals WHERE campaign_id = $1 AND target_visit_count = 5', [SHOWCASE_CAMPAIGN_ID]],
-      ['UPDATE merchant_members SET role = \'OWNER\' WHERE merchant_id = $1', [SHOWCASE_MERCHANT_ID]],
-      ['UPDATE badge_reward_offers SET title = \'wrong\' WHERE milestone = 2 AND $1::text IS NOT NULL', [SHOWCASE_MERCHANT_ID]],
-      ['UPDATE badge_reward_offers SET merchant_id = \'showcase-local-merchant\' WHERE milestone = 3 AND $1::text IS NOT NULL', [SHOWCASE_MERCHANT_ID]],
+      ['UPDATE merchants SET is_demo = false WHERE id = $1', [SHOWCASE_PRACTICE_MERCHANT_ID]],
+      ['UPDATE merchants SET status = \'PAUSED\' WHERE id = $1', [SHOWCASE_PRACTICE_MERCHANT_ID]],
+      ['UPDATE merchants SET published_at = now() WHERE id = $1', [SHOWCASE_PRACTICE_MERCHANT_ID]],
+      ['UPDATE campaigns SET is_public = false WHERE id = $1', [SHOWCASE_PRACTICE_CAMPAIGN_ID]],
+      ['UPDATE campaigns SET ends_at = now() - interval \'1 day\' WHERE id = $1', [SHOWCASE_PRACTICE_CAMPAIGN_ID]],
+      ['UPDATE campaign_goals SET display_name = \'wrong\' WHERE campaign_id = $1 AND target_visit_count = 3', [SHOWCASE_PRACTICE_CAMPAIGN_ID]],
+      ['DELETE FROM campaign_goals WHERE campaign_id = $1 AND target_visit_count = 5', [SHOWCASE_PRACTICE_CAMPAIGN_ID]],
+      ['UPDATE merchant_members SET role = \'OWNER\' WHERE merchant_id = $1', [SHOWCASE_PRACTICE_MERCHANT_ID]],
+      ['UPDATE badge_reward_offers SET title = \'wrong\' WHERE milestone = 2 AND $1::text IS NOT NULL', [SHOWCASE_PRACTICE_MERCHANT_ID]],
+      ['UPDATE badge_reward_offers SET merchant_id = $1 WHERE milestone = 3', [WOLGYE_STORES[0]!.id]],
     ] as const) {
       const before = await snapshot(pool);
       await pool.query(query, [...values]);
       const damaged = await snapshot(pool);
-      await assert.rejects(seedLocalShowcase(pool), /SHOWCASE_FIXTURE_COLLISION/);
+      await assert.rejects(seedLocalShowcase(pool), /SHOWCASE_FIXTURE_COLLISION/, query);
       assert.deepEqual(await snapshot(pool), damaged);
       // Restore only this disposable test database for the next independent corruption case.
-      await pool.query('TRUNCATE merchant_members, campaign_goals, campaigns, merchants CASCADE');
+      await pool.query('TRUNCATE courses, merchant_members, campaign_goals, campaigns, merchants CASCADE');
       await seedLocalShowcase(pool);
-      assert.equal(before.merchants.length, 33);
+      assert.equal(before.merchants.length, 31);
     }
   });
 });
 
-test('existing active public campaign with another id stays unchanged', async () => {
+test('existing A with another public campaign is fully hidden without row deletion', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     await pool.query(
       `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
@@ -320,9 +336,12 @@ test('existing active public campaign with another id stays unchanged', async ()
                now() + interval '30 days', 'ACTIVE', true, 20)`,
       [SHOWCASE_MERCHANT_ID],
     );
-    const before = await snapshot(pool);
-    await assert.rejects(seedLocalShowcase(pool));
-    assert.deepEqual(await snapshot(pool), before);
+    await seedLocalShowcase(pool);
+    const campaign = await pool.query<{ status: string; is_public: boolean }>(
+      "SELECT status, is_public FROM campaigns WHERE id = 'other-campaign'");
+    assert.deepEqual(campaign.rows, [{ status: 'ENDED', is_public: false }]);
+    assert.ok((await new PostgresMerchantCatalog(pool).listPublicMerchants())
+      .every((merchant) => merchant.id !== SHOWCASE_MERCHANT_ID));
   });
 });
 
@@ -344,14 +363,14 @@ test('concurrent first seeds converge on one complete fixture', async () => {
     const results = await Promise.all(Array.from({ length: 8 }, () => seedLocalShowcase(pool)));
     for (const result of results) {
       assert.deepEqual(result, {
-        merchantId: SHOWCASE_MERCHANT_ID,
-        campaignId: SHOWCASE_CAMPAIGN_ID,
+        merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
+        campaignId: SHOWCASE_PRACTICE_CAMPAIGN_ID,
       });
     }
     const rows = await snapshot(pool);
     assert.deepEqual(
       [rows.merchants.length, rows.campaigns.length, rows.goals.length, rows.members.length],
-      [33, 33, 99, 3],
+      [31, 31, 93, 1],
     );
   });
 });
@@ -360,7 +379,7 @@ test('a failure after merchant insertion rolls back every fixture table', async 
   await withFreshShowcaseDatabase(async (pool) => {
     await pool.query(
       `ALTER TABLE campaigns ADD CONSTRAINT showcase_test_reject_insert
-       CHECK (id <> 'showcase-local-campaign')`,
+       CHECK (id <> 'trial-showcase-practice-campaign')`,
     );
     const before = await snapshot(pool);
     await assert.rejects(seedLocalShowcase(pool));

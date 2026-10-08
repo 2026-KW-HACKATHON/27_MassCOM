@@ -22,13 +22,13 @@ export const TOWN_MAP_ANCHORS: readonly Anchor[] = [
 export const ANCHOR_COUNT = TOWN_MAP_ANCHORS.length;
 
 /**
- * The demo app's virtual shops A, B and C (local and hosted seeds share these ids) always take the same, far apart buildings:
+ * The demo app's three nearby public-data shops always take the same, far apart buildings:
  * bakery (top left), purple shop (right, middle) and pink shop (lower left), so the demo screen never changes.
  */
 export const SHOWCASE_ANCHORS: Readonly<Record<string, number>> = {
-  'showcase-local-merchant': 0,
-  'showcase-local-merchant-b': 4,
-  'showcase-local-merchant-c': 6,
+  'showcase-wolgye-MA010120220813334279': 0,
+  'showcase-wolgye-MA010120220809686086': 4,
+  'showcase-wolgye-MA010120220812445724': 6,
 };
 // A Map, so an id such as "constructor" is never mistaken for an inherited key.
 const fixedAnchors = new Map(Object.entries(SHOWCASE_ANCHORS));
@@ -49,11 +49,11 @@ export function preferredAnchor(merchantId: string): number {
 }
 
 /**
- * Gives every shop a building. Demo shops take their fixed ones first; the rest take their hashed one, or the next free one
+ * Gives every shop a building. The selected public-data shops take their fixed ones first; the rest take their hashed one, or the next free one
  * after it. Shops are placed in id order (code unit order), so the API's list order never moves a pin. Shops beyond the
  * eighth are returned in `overflow`, in the same id order.
  *
- * Only the showcase ids are truly fixed. Every other shop keeps its spot while the set of shops stays the same, but the
+ * Only the three nearby public-data ids are truly fixed. Every other shop keeps its spot while the set of shops stays the same, but the
  * probing depends on who else is in the list: a shop that hashes onto a taken spot moves on to the next free one, so adding a
  * colliding shop that sorts earlier (or removing one) can shift a later shop by a spot, and such a shift can chain on to a
  * shop whose own spot was free before.

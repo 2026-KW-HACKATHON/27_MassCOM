@@ -40,6 +40,12 @@ test('showcaseAllAccessOptions는 server.ts에서 showcaseDeployment로만, 정�
   assert.equal(count(code, /const allAccess = showcaseAllAccessOptions\(Boolean\(showcaseDeployment\)\);/), 1);
 });
 
+test('showcase approvers never receive the full web admin service', () => {
+  assert.equal(count(code,
+    /const adminService = pool && accountDeletionHmacSecret && webAuthConfig && !showcaseDeployment/), 1);
+  assert.equal(count(code, /admin: adminService/), 1);
+});
+
 test('옵션 이름과 시연 상수는 server.ts에 직접 나오지 않고 allAccess 객체로만 서비스에 닿는다', () => {
   for (const forbidden of [
     /showcaseBonusMileage/, /showcaseTestVisitBackdating/, /SHOWCASE_BONUS_MILEAGE/, /SHOWCASE_REROLL_RATE_LIMIT/, /rerollRateLimit/,

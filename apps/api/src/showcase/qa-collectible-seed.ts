@@ -7,7 +7,7 @@ import { Pool } from 'pg';
 
 import { photoProject } from '../collectible-project-test-support.js';
 import { PostgresCollectibleProjectService } from '../postgres/collectible-project.js';
-import { assertLocalShowcaseDatabaseUrl, assertShowcaseDatabaseTarget, SHOWCASE_CAMPAIGN_ID, SHOWCASE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID } from './local-seed.js';
+import { assertLocalShowcaseDatabaseUrl, assertShowcaseDatabaseTarget, SHOWCASE_PRACTICE_CAMPAIGN_ID, SHOWCASE_PRACTICE_MERCHANT_ID, SHOWCASE_STAFF_ACCOUNT_ID } from './local-seed.js';
 
 export async function seedQaCollectible(
   databaseUrl: string | undefined,
@@ -18,10 +18,10 @@ export async function seedQaCollectible(
   try {
     await assertShowcaseDatabaseTarget(pool, 'masscom_showcase_test');
     const service = new PostgresCollectibleProjectService(pool, { staffMayManageArt: true });
-    const input = { merchantId: SHOWCASE_MERCHANT_ID, accountId: SHOWCASE_STAFF_ACCOUNT_ID };
+    const input = { merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, accountId: SHOWCASE_STAFF_ACCOUNT_ID };
     const created = await service.create({ ...input, project: photoProject('QA 도장') });
     const published = await service.publish({
-      ...input, projectId: created.id, expectedVersion: created.version, campaignId: SHOWCASE_CAMPAIGN_ID,
+      ...input, projectId: created.id, expectedVersion: created.version, campaignId: SHOWCASE_PRACTICE_CAMPAIGN_ID,
     });
     return { projectId: published.project.id, publicationId: published.publicationId };
   } finally {

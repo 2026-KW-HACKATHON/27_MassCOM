@@ -3,14 +3,16 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 
 import { SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS } from './all-access.js';
-import { seedStoreCollectibles } from './store-collectibles.js';
-import { seedWolgyeStores, WOLGYE_STORES } from './wolgye-seed.js';
+import { seedWolgyeStores, WOLGYE_COURSE_STORES, WOLGYE_STORES } from './wolgye-seed.js';
 
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
 export const SHOWCASE_CAMPAIGN_ID = 'showcase-local-campaign';
+export const SHOWCASE_PRACTICE_MERCHANT_ID = 'trial-showcase-practice';
+export const SHOWCASE_PRACTICE_CAMPAIGN_ID = 'trial-showcase-practice-campaign';
 export const SHOWCASE_STAFF_ACCOUNT_ID = 'showcase-local-staff';
 export const SHOWCASE_CUSTOMER_ACCOUNT_ID = 'showcase-local-customer';
-export const SHOWCASE_COURSE_ID = '4b66a421-522a-4966-98cb-e359413cf412';
+const legacyCourseId = '4b66a421-522a-4966-98cb-e359413cf412';
+export const SHOWCASE_COURSE_ID = 'f81f04e0-bca8-4e36-a4e6-a812de5a7b80';
 
 const localDatabaseError = 'SHOWCASE_LOCAL_DATABASE_REQUIRED';
 const fixtureError = 'SHOWCASE_FIXTURE_COLLISION';
@@ -19,7 +21,7 @@ const merchantAddress = '시연용 가상 위치 · 실제 방문 불가';
 // 시연 NFT 메타데이터의 동네·업종(Issue #254). 가상 점포라 동네는 서비스 무대인 월계동으로 둔다. 운영 DB에는 넣지 않는다.
 const merchantNeighborhood = '월계동';
 const campaignTitle = '체험 방문 도감';
-const merchants = [
+const legacyMerchants = [
   {
     merchantId: SHOWCASE_MERCHANT_ID,
     campaignId: SHOWCASE_CAMPAIGN_ID,
@@ -46,7 +48,14 @@ const merchants = [
     category: '한식',
   },
 ] as const;
-type ShowcaseMerchant = (typeof merchants)[number];
+type ShowcaseMerchant = (typeof legacyMerchants)[number] | typeof practiceMerchant;
+const practiceMerchant = {
+  merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
+  campaignId: SHOWCASE_PRACTICE_CAMPAIGN_ID,
+  name: '체험 점주 가게',
+  story: '점주 기능을 연습하는 비공개 체험 가게입니다. 실제 매장이 아닙니다.',
+  category: '카페',
+} as const;
 const goals = [
   [1, '가상 첫 방문 수집품'],
   [3, '가상 세 번째 방문 수집품'],
@@ -54,13 +63,13 @@ const goals = [
 ] as const;
 
 // 시연 DB 전용 체험 혜택. 운영 DB에는 점주 동의 뒤 수동 등록 전까지 넣지 않는다(D-043).
-const offerDetail = '시연용 가상 점포 체험 혜택입니다. 실제 매장에서는 사용할 수 없습니다.';
-const offerConsentNote = '시연 가상 점포 체험 혜택 — 실제 매장 혜택 아님';
+const offerDetail = '시연용 가상 방문 체험 혜택입니다. 실제 매장에서는 사용할 수 없습니다.';
+const offerConsentNote = '시연 가상 방문 체험 혜택 — 실제 매장 혜택 아님';
 const offerValidDays = 30;
 const rewardOffers = [
-  { milestone: 1, merchantId: SHOWCASE_MERCHANT_ID, title: '체험 음료 1잔' },
-  { milestone: 2, merchantId: 'showcase-local-merchant-b', title: '체험 디저트 한 접시' },
-  { milestone: 3, merchantId: 'showcase-local-merchant-c', title: '체험 세트 20% 할인' },
+  { milestone: 1, merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, title: '체험 음료 1잔' },
+  { milestone: 2, merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, title: '체험 디저트 한 접시' },
+  { milestone: 3, merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, title: '체험 세트 20% 할인' },
 ] as const;
 
 // 시연 전부 체험(#333): 테스트 방문을 서로 다른 날로 옮겨 세려면 캠페인이 충분히 일찍 시작해 있어야 한다(오늘 포함 30일).
@@ -108,6 +117,7 @@ type MerchantRow = {
   minimum_spend_won: number;
   status: string;
   is_demo: boolean;
+  published_at: Date | null;
 };
 
 type CampaignRow = {
@@ -131,7 +141,7 @@ async function readFixture(client: PoolClient, entry: ShowcaseMerchant, staffAcc
   member?: MemberRow;
 }> {
   const merchant = await client.query<MerchantRow>(
-    `SELECT name, story, road_address, minimum_spend_won, status, is_demo
+    `SELECT name, story, road_address, minimum_spend_won, status, is_demo, published_at
      FROM merchants WHERE id = $1`,
     [entry.merchantId],
   );
@@ -169,7 +179,7 @@ function assertFixtureMatches(
   if (
     !merchant || merchant.name !== entry.name || merchant.story !== entry.story ||
     merchant.road_address !== merchantAddress || merchant.minimum_spend_won !== 0 ||
-    merchant.status !== 'ACTIVE' || merchant.is_demo !== true ||
+    merchant.status !== 'ACTIVE' || merchant.is_demo !== true || merchant.published_at !== null ||
     !campaign || campaign.merchant_id !== entry.merchantId ||
     campaign.title !== campaignTitle || campaign.status !== 'ACTIVE' ||
     campaign.is_public !== true || campaign.enrollment_capacity !== 20 ||
@@ -217,112 +227,98 @@ export async function seedShowcaseFixtureData(
     transactionStarted = true;
     await client.query('SELECT pg_advisory_xact_lock($1::bigint)', [showcaseSeedLockId]);
     // 게시·미디어 제거와 같은 순서: 원본 잠금 → 모든 점포 갱신 → 캠페인 갱신.
-    for (const entry of merchants) {
+    for (const entry of legacyMerchants) {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${entry.merchantId}`]);
     }
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${practiceMerchant.merchantId}`]);
     for (const store of WOLGYE_STORES) {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${store.id}`]);
     }
-    const existingEntries = new Set<ShowcaseMerchant>();
-    for (const entry of merchants) {
-      const existing = await readFixture(client, entry, staffAccountId);
-      const hasExisting = Boolean(
-        existing.merchant || existing.campaign || existing.member || existing.goals.length,
-      );
-      if (hasExisting) {
-        assertFixtureMatches(existing, entry, now, Boolean(staffAccountId));
-        existingEntries.add(entry);
-        // 0036 전에 seed된 시연 점포는 동네·업종이 둘 다 비어 있을 때만 채운다(다른 값은 건드리지 않는다).
-        await client.query(
-          `UPDATE merchants SET neighborhood = $2, category = $3
-           WHERE id = $1 AND is_demo AND neighborhood IS NULL AND category IS NULL`,
-          [entry.merchantId, merchantNeighborhood, entry.category],
-        );
-        // Canonical virtual stores were already visible in the legacy catalog. Mark their
-        // publication for the new detail reader after the fixture identity/status checks.
-        await client.query(
-          `UPDATE merchants SET published_at = COALESCE(published_at, $2)
-           WHERE id = $1 AND is_demo AND status = 'ACTIVE'`,
-          [entry.merchantId, now],
-        );
-        continue;
+    // Retire only recognizable legacy fixtures. Their visit, coin, and coupon foreign keys stay intact.
+    for (const entry of legacyMerchants) {
+      const old = await readFixture(client, entry);
+      if (!old.merchant && !old.campaign && !old.goals.length) continue;
+      if (!old.merchant || !old.merchant.is_demo ||
+          (old.campaign && old.campaign.merchant_id !== entry.merchantId)) {
+        throw new Error(fixtureError);
       }
+      await client.query("UPDATE merchants SET status = 'PAUSED', published_at = NULL WHERE id = $1 AND is_demo", [entry.merchantId]);
+      await client.query("UPDATE campaigns SET status = 'ENDED', is_public = false WHERE merchant_id = $1 AND (status <> 'ENDED' OR is_public)", [entry.merchantId]);
+      await client.query("UPDATE merchant_members SET status = 'REVOKED', revoked_at = COALESCE(revoked_at, $2) WHERE merchant_id = $1 AND status = 'ACTIVE'", [entry.merchantId, now]);
+      await client.query("UPDATE badge_reward_offers SET status = 'PAUSED' WHERE merchant_id = $1 AND status = 'ACTIVE'", [entry.merchantId]);
+    }
+    await client.query("UPDATE courses SET status = 'ENDED' WHERE id = $1 AND status IN ('ACTIVE', 'PAUSED')", [legacyCourseId]);
+    const entry = practiceMerchant;
+    const existingPractice = await readFixture(client, entry, staffAccountId);
+    const practiceExists = Boolean(existingPractice.merchant || existingPractice.campaign ||
+      existingPractice.goals.length || existingPractice.member);
+    if (practiceExists) assertFixtureMatches(existingPractice, entry, now, Boolean(staffAccountId));
+    if (!practiceExists) {
       await client.query(
         `INSERT INTO merchants
-         (id, name, story, road_address, minimum_spend_won, status, is_demo, neighborhood, category, published_at)
-         VALUES ($1, $2, $3, $4, 0, 'ACTIVE', true, $5, $6, $7)
-         ON CONFLICT (id) DO NOTHING`,
-        [entry.merchantId, entry.name, entry.story, merchantAddress, merchantNeighborhood, entry.category, now],
+         (id, name, story, road_address, minimum_spend_won, status, is_demo, neighborhood, category)
+         VALUES ($1, $2, $3, $4, 0, 'ACTIVE', true, $5, $6) ON CONFLICT (id) DO NOTHING`,
+        [entry.merchantId, entry.name, entry.story, merchantAddress, merchantNeighborhood, entry.category],
       );
       if (staffAccountId) {
         await client.query(
           `INSERT INTO merchant_members (merchant_id, account_id, role, status)
-           VALUES ($1, $2, 'STAFF', 'ACTIVE')
-           ON CONFLICT (merchant_id, account_id) DO NOTHING`,
+           VALUES ($1, $2, 'STAFF', 'ACTIVE') ON CONFLICT (merchant_id, account_id) DO NOTHING`,
           [entry.merchantId, staffAccountId],
         );
       }
-    }
-    for (const entry of merchants) {
-      if (existingEntries.has(entry)) {
-        // 기간은 넓히기만 한다. 종료된 캠페인은 앞의 fixture 검사에서 거절한다.
-        await client.query(
-          `UPDATE campaigns SET starts_at = LEAST(starts_at, $2), ends_at = GREATEST(ends_at, $3)
-           WHERE id = $1 AND (starts_at > $2 OR ends_at < $3)`,
-          [entry.campaignId, campaignStartsAt(now), campaignEndsAt(now)],
-        );
-        continue;
-      }
       await client.query(
         `INSERT INTO campaigns
-         (id, merchant_id, title, starts_at, ends_at, status, is_public,
-          enrollment_capacity, enrolled_count)
-         VALUES ($1, $2, $3, $4, $5, 'ACTIVE', true, 20, 0)
-         ON CONFLICT (id) DO NOTHING`,
+         (id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity, enrolled_count)
+         VALUES ($1, $2, $3, $4, $5, 'ACTIVE', true, 20, 0) ON CONFLICT (id) DO NOTHING`,
         [entry.campaignId, entry.merchantId, campaignTitle, campaignStartsAt(now), campaignEndsAt(now)],
       );
       for (const [count, name] of goals) {
         await client.query(
           `INSERT INTO campaign_goals (campaign_id, target_visit_count, display_name)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (campaign_id, target_visit_count) DO NOTHING`,
+           VALUES ($1, $2, $3) ON CONFLICT (campaign_id, target_visit_count) DO NOTHING`,
           [entry.campaignId, count, name],
         );
       }
-      assertFixtureMatches(
-        await readFixture(client, entry, staffAccountId), entry, now, Boolean(staffAccountId),
-      );
     }
+    assertFixtureMatches(await readFixture(client, entry, staffAccountId), entry, now, Boolean(staffAccountId));
+    await client.query(
+      `UPDATE campaigns SET starts_at = LEAST(starts_at, $2), ends_at = GREATEST(ends_at, $3)
+       WHERE id = $1 AND (starts_at > $2 OR ends_at < $3)`,
+      [entry.campaignId, campaignStartsAt(now), campaignEndsAt(now)],
+    );
     await seedRewardOffers(client);
     await seedWolgyeStores(client, now);
-    // #322: 호스트 시연 DB에서만 가상 점포 수집품 게시물을 붙인다(로컬 QA는 qa-collectible-seed가 따로 게시한다).
-    if (mode === 'hosted') {
-      await seedStoreCollectibles(client, merchants.map((entry) => ({
-        merchantId: entry.merchantId, campaignId: entry.campaignId, storeName: entry.name, art: entry.art,
-        ...('topGrade' in entry ? { topGrade: entry.topGrade } : {}),
-      })), now);
-    }
-    // 가상 점포만 묶은 시연 전용 코스. opt-in 참조는 실제 점주 동의가 아닌 시연 fixture 식별자다.
+    // Published steps are immutable, so T9 ends the old course and uses a fresh ID.
     await client.query(
       `INSERT INTO courses(id, title, situation, scene_key, status, curated_by_account_id, checked_at,
-        check_summary) VALUES ($1, '가상 점포 산책', 'AFTER_MEAL', 'showcase-picnic', 'DRAFT',
+        check_summary) VALUES ($1, '월계역 산책', 'AFTER_MEAL', 'showcase-picnic', 'DRAFT',
         'showcase-fixture', $2, $3) ON CONFLICT (id) DO NOTHING`,
-      [SHOWCASE_COURSE_ID, now, JSON.stringify({ schemaVersion: 1, snapshot: true, label: '시연 가상 점포 코스' })],
+      [SHOWCASE_COURSE_ID, now, JSON.stringify({ schemaVersion: 1, snapshot: true, label: '월계역 인근 시연 코스' })],
     );
-    for (const [index, entry] of merchants.slice(0, 3).entries()) {
+    for (const [index, store] of WOLGYE_COURSE_STORES.entries()) {
       await client.query(
         `INSERT INTO course_steps(course_id, position, merchant_id, target_visit_count, piece_key,
           piece_label, owner_optin_ref, owner_optin_at)
           SELECT $1,$2,$3,1,$4,$5,'SHOWCASE-DEMO-ONLY',$6
           WHERE EXISTS (SELECT 1 FROM courses WHERE id = $1 AND status = 'DRAFT')
           ON CONFLICT (course_id, position) DO NOTHING`,
-        [SHOWCASE_COURSE_ID, index + 1, entry.merchantId, `piece-${index + 1}`, ['그릇', '컵', '봉투'][index], now],
+        [SHOWCASE_COURSE_ID, index + 1, store.id, `piece-${index + 1}`, ['그릇', '컵', '봉투'][index], now],
       );
     }
     await client.query("UPDATE courses SET status = 'ACTIVE' WHERE id = $1 AND status = 'DRAFT'", [SHOWCASE_COURSE_ID]);
+    const course = await client.query<{ title: string; status: string; merchant_ids: string[] }>(
+      `SELECT course.title, course.status,
+         array_agg(step.merchant_id ORDER BY step.position) AS merchant_ids
+       FROM courses course JOIN course_steps step ON step.course_id = course.id
+       WHERE course.id = $1 GROUP BY course.id`, [SHOWCASE_COURSE_ID]);
+    if (course.rows[0]?.title !== '월계역 산책' || course.rows[0]?.status !== 'ACTIVE' ||
+        JSON.stringify(course.rows[0].merchant_ids) !== JSON.stringify(WOLGYE_COURSE_STORES.map((store) => store.id))) {
+      throw new Error(fixtureError);
+    }
     await client.query('COMMIT');
     transactionStarted = false;
-    return { merchantId: SHOWCASE_MERCHANT_ID, campaignId: SHOWCASE_CAMPAIGN_ID };
+    return { merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, campaignId: SHOWCASE_PRACTICE_CAMPAIGN_ID };
   } catch (error) {
     if (transactionStarted) await client.query('ROLLBACK');
     throw error;

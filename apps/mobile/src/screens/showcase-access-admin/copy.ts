@@ -13,7 +13,7 @@ function kstClockLabel(iso: string): string {
 }
 
 export const ADMIN_CONFIRM_TITLE = '권한 요청 수락';
-export const ADMIN_CONFIRM_TEXT = '이 계정에 가상 점포 A 직원 권한을 줍니다. 수락할까요?';
+export const ADMIN_CONFIRM_TEXT = '이 계정에 비공개 체험 점주 가게 직원 권한을 줍니다. 수락할까요?';
 
 export function pendingRowText(request: PendingShowcaseAccessRequest): string {
   return `${formatAccessCode(request.code)} · ${kstClockLabel(request.createdAt)}`;

@@ -7,6 +7,8 @@ import data from './wolgye-stores.json' with { type: 'json' };
 
 export const WOLGYE_STORES = data.stores;
 export const WOLGYE_STORE_DISCLOSURE = '실제 가게 정보(소상공인시장진흥공단 상가정보, 2026-06-30 기준)로 만든 시연 점포예요. 이 가게는 MassCOM에 참여하지 않았어요.';
+export const WOLGYE_PRISM_STORE = WOLGYE_STORES[0]!;
+export const WOLGYE_COURSE_STORES = WOLGYE_STORES.slice(0, 3);
 
 const artByCategory: Record<string, StoreCollectibleTarget['art']> = {
   카페: 'a', 베이커리: 'a', 분식: 'b', 기타: 'b',
@@ -73,7 +75,11 @@ export async function seedWolgyeStores(client: PoolClient, now: Date): Promise<v
     await client.query(
       `UPDATE campaigns SET starts_at = LEAST(starts_at, $2), ends_at = GREATEST(ends_at, $3)
        WHERE id = $1 AND (starts_at > $2 OR ends_at < $3)`, [campaignId, startsAt, endsAt]);
-    targets.push({ merchantId: store.id, campaignId, storeName: store.name, art: artByCategory[store.category] ?? 'b' });
+    targets.push({
+      merchantId: store.id, campaignId, storeName: store.name,
+      art: artByCategory[store.category] ?? 'b',
+      ...(store.id === WOLGYE_PRISM_STORE.id ? { topGrade: 'prism' as const } : {}),
+    });
   }
   await seedStoreCollectibles(client, targets, now);
 }

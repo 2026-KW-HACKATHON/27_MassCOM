@@ -6,7 +6,7 @@ import { AuthSessionError, type IssuedSession } from '../auth-session.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
 import { tokenHash } from '../postgres/auth-session.js';
 import { isShowcaseDatabaseName } from './access-requests.js';
-import { SHOWCASE_MERCHANT_ID } from './local-seed.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
 
 export class GuestTrialError extends Error {
   constructor(
@@ -30,7 +30,7 @@ const trialMerchantName = '나의 체험 가게';
 
 /**
  * 로그인 없는 시연 웹 체험(#309). 시작 한 번이 한 트랜잭션에서 만료 체험자 정리 → 동시 체험자 상한 확인 → Google 신원 없는
- * 계정 → 가상 점포 A를 복사한 개인 체험 가게(목록·추천에서는 빠진다) → 그 가게 STAFF → 24시간 세션 → 체험 행을 만든다.
+ * 계정 → 비공개 체험 점포를 복사한 개인 체험 가게(목록·추천에서는 빠진다) → 그 가게 STAFF → 24시간 세션 → 체험 행을 만든다.
  * 모든 트랜잭션이 시작할 때 현재 DB 이름을 다시 확인한다(access-requests.ts와 같은 규칙).
  */
 export class ShowcaseGuestTrialService {
@@ -100,10 +100,11 @@ export class ShowcaseGuestTrialService {
       const source = await client.query<{ id: string }>(
         `SELECT campaign.id FROM campaigns campaign
          JOIN merchants merchant ON merchant.id = campaign.merchant_id
-         WHERE campaign.merchant_id = $1 AND merchant.is_demo AND campaign.status = 'ACTIVE' AND campaign.is_public
+         WHERE campaign.merchant_id = $1 AND merchant.is_demo AND merchant.status = 'ACTIVE'
+           AND merchant.published_at IS NULL AND campaign.status = 'ACTIVE'
            AND campaign.starts_at <= $2 AND campaign.ends_at > $2
          ORDER BY campaign.id LIMIT 1`,
-        [SHOWCASE_MERCHANT_ID, now],
+        [SHOWCASE_PRACTICE_MERCHANT_ID, now],
       );
       const sourceCampaignId = source.rows[0]?.id;
       if (!sourceCampaignId) throw new GuestTrialError('GUEST_TRIAL_UNAVAILABLE');
@@ -118,9 +119,9 @@ export class ShowcaseGuestTrialService {
          SELECT $1, $2, story, road_address, minimum_spend_won, menu_items, business_hours,
            neighborhood, category, 'ACTIVE', true
          FROM merchants WHERE id = $3`,
-        [merchantId, trialMerchantName, SHOWCASE_MERCHANT_ID],
+        [merchantId, trialMerchantName, SHOWCASE_PRACTICE_MERCHANT_ID],
       );
-      // 방문 확인·수집품 게시가 공개 캠페인만 받으므로 is_public은 A와 같다. 대신 공개 목록·추천 쿼리가 체험 가게를 뺀다(D-064).
+      // 방문 확인·수집품 게시가 공개 캠페인만 받으므로 체험 가게 캠페인은 공개한다. 공개 목록·추천 쿼리는 체험 가게를 뺀다(D-064).
       await client.query(
         `INSERT INTO campaigns (id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
          SELECT $1, $2, title, starts_at, ends_at, 'ACTIVE', true, enrollment_capacity FROM campaigns WHERE id = $3`,

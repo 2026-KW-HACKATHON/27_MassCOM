@@ -29,13 +29,13 @@ echo "$method $url" >> "$FAKE_CURL_LOG"
 echo "$*" >> "$FAKE_CURL_LOG.args"
 status=200 ctype='application/json; charset=utf-8' time=0.120
 body='{}'
-showcase='{"merchants":[{"id":"showcase-local-merchant","demo":true},{"id":"showcase-local-merchant-b","demo":true},{"id":"showcase-local-merchant-c","demo":true}]}'
+showcase="$FAKE_REAL_SHOWCASE_MERCHANTS"
 case "$method $url" in
   "GET https://api.masscom.kr/health"|"GET https://demo-api.masscom.kr/health") body='{"status":"ok"}' ;;
   "GET https://api.masscom.kr/merchants") body='{"merchants":[]}' ;;
   "GET https://demo-api.masscom.kr/merchants") body="${FAKE_SHOWCASE_MERCHANTS:-$showcase}" ;;
-  "GET https://demo-api.masscom.kr/v1/discovery/merchants/showcase-local-merchant") body='{"merchant":{"id":"showcase-local-merchant","demo":true}}' ;;
-  "GET https://demo-api.masscom.kr/merchants/showcase-local-merchant/collectible-preview") body='{"merchantId":"showcase-local-merchant","goals":[]}' ;;
+  "GET https://demo-api.masscom.kr/v1/discovery/merchants/showcase-wolgye-MA010120220813334279") body='{"merchant":{"id":"showcase-wolgye-MA010120220813334279","demo":true}}' ;;
+  "GET https://demo-api.masscom.kr/merchants/showcase-wolgye-MA010120220813334279/collectible-preview") body='{"merchantId":"showcase-wolgye-MA010120220813334279","goals":[]}' ;;
   "GET https://demo-api.masscom.kr/play/")
     ctype='text/html; charset=utf-8'
     body='<html><head><title>x</title></head><body><script src="/play/_expo/static/js/web/__common-aaa.js" defer></script><script src="/play/_expo/static/js/web/entry-bbb.js" defer></script></body></html>' ;;
@@ -93,6 +93,8 @@ case "$1" in
 esac
 SSL
 chmod +x "$scratch/bin/curl" "$scratch/bin/gh" "$scratch/bin/openssl"
+export FAKE_REAL_SHOWCASE_MERCHANTS
+FAKE_REAL_SHOWCASE_MERCHANTS="$(node -e 'const data = require(process.argv[1]); process.stdout.write(JSON.stringify({merchants:data.stores.map(({id})=>({id,demo:true}))}))' "$repo_root/apps/api/src/showcase/wolgye-stores.json")"
 
 # run [환경 NAME=값...] -- [probe 인자...]: 결과는 $scratch/out(표준 출력+오류), 종료 코드는 code.
 run() {
@@ -116,7 +118,7 @@ no_issue
 run FAKE_X=1 --
 [[ "$code" == 0 ]] || { cat "$scratch/out" >&2; fail "all-pass exited $code"; }
 for url in https://api.masscom.kr/health https://api.masscom.kr/merchants https://demo-api.masscom.kr/health https://demo-api.masscom.kr/merchants \
-    https://demo-api.masscom.kr/v1/discovery/merchants/showcase-local-merchant https://demo-api.masscom.kr/merchants/showcase-local-merchant/collectible-preview \
+    https://demo-api.masscom.kr/v1/discovery/merchants/showcase-wolgye-MA010120220813334279 https://demo-api.masscom.kr/merchants/showcase-wolgye-MA010120220813334279/collectible-preview \
     https://demo-api.masscom.kr/play/ https://demo-api.masscom.kr/play/_expo/static/js/web/entry-bbb.js https://masscom.kr/app/ https://masscom.kr/merchant/; do
   grep -qxF "GET $url" "$scratch/curl.log" || fail "all-pass did not request $url"
 done
@@ -163,14 +165,27 @@ grep -q '::warning::prod_merchants' "$scratch/out" || fail 'slow response did no
 grep -q '::warning::tls_api.masscom.kr' "$scratch/out" || fail 'expiring certificate did not warn'
 [[ "$(calls 'issue create')" == 0 ]] || fail 'warnings opened an issue'
 
-# 6. 판정 기준: 시연 점포가 2곳이거나 demo:false가 섞이면 실패, 내려오지 않는 JS content-type도 실패.
+# 6. 판정 기준: 30곳보다 적거나 가상/운영 점포가 섞이면 실패, 내려오지 않는 JS content-type도 실패.
 no_issue
 run 'FAKE_SHOWCASE_MERCHANTS={"merchants":[{"id":"a","demo":true},{"id":"b","demo":true}]}' --
 [[ "$code" == 1 ]] && grep -q 'showcase_merchants' "$scratch/gh/title" || fail 'two showcase merchants were accepted'
 grep -q 'showcase_discovery_detail' "$scratch/gh/body" && fail 'dependent checks ran without a merchant id'
 no_issue
-run 'FAKE_SHOWCASE_MERCHANTS={"merchants":[{"id":"a","demo":true},{"id":"b","demo":true},{"id":"c","demo":false}]}' --
+wrong_demo="$(printf '%s' "$FAKE_REAL_SHOWCASE_MERCHANTS" | jq '.merchants[0].demo = false')"
+run "FAKE_SHOWCASE_MERCHANTS=$wrong_demo" --
 [[ "$code" == 1 ]] || fail 'a non-demo showcase merchant was accepted'
+no_issue
+legacy_mixed="$(printf '%s' "$FAKE_REAL_SHOWCASE_MERCHANTS" | jq '.merchants[0].id = "showcase-local-merchant"')"
+run "FAKE_SHOWCASE_MERCHANTS=$legacy_mixed" --
+[[ "$code" == 1 ]] || fail 'a retired virtual merchant mixed into thirty stores was accepted'
+no_issue
+too_many="$(printf '%s' "$FAKE_REAL_SHOWCASE_MERCHANTS" | jq '.merchants += [.merchants[0]]')"
+run "FAKE_SHOWCASE_MERCHANTS=$too_many" --
+[[ "$code" == 1 ]] || fail 'more than thirty public showcase stores were accepted'
+no_issue
+duplicate="$(printf '%s' "$FAKE_REAL_SHOWCASE_MERCHANTS" | jq '.merchants[1] = .merchants[0]')"
+run "FAKE_SHOWCASE_MERCHANTS=$duplicate" --
+[[ "$code" == 1 ]] || fail 'duplicate real store IDs were accepted'
 no_issue
 run 'FAKE_JS_CTYPE=text/html; charset=utf-8' --
 [[ "$code" == 1 ]] && grep -q 'showcase_play_js' "$scratch/gh/body" || fail 'a non-JavaScript entry content-type was accepted'

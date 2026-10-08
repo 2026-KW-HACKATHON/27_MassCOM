@@ -338,6 +338,8 @@ export class PostgresCourseService implements CourseService {
     const result = await this.pool.query<CourseRow>(
       `SELECT * FROM courses WHERE status = 'ACTIVE' AND (starts_at IS NULL OR starts_at <= $1)
        AND (ends_at IS NULL OR ends_at > $1)
+       AND NOT EXISTS (SELECT 1 FROM course_steps step WHERE step.course_id = courses.id
+         AND step.merchant_id = 'trial-showcase-practice')
        AND ($2::boolean OR NOT EXISTS (SELECT 1 FROM course_steps step
          JOIN merchants merchant ON merchant.id = step.merchant_id
          WHERE step.course_id = courses.id AND merchant.is_demo))
@@ -369,8 +371,9 @@ export class PostgresCourseService implements CourseService {
   async get(accountId: string, id: string): Promise<CourseView> {
     const row = await this.course(this.pool, id);
     if (!this.visible(row, this.now())) throw new CourseError('COURSE_NOT_FOUND');
-    const demo = await this.pool.query<{ is_demo: boolean }>(
-      'SELECT merchant.is_demo FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+    const demo = await this.pool.query<{ is_demo: boolean; merchant_id: string }>(
+      'SELECT merchant.is_demo, merchant.id AS merchant_id FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+    if (demo.rows.some(step => step.merchant_id === 'trial-showcase-practice')) throw new CourseError('COURSE_NOT_FOUND');
     if (!this.includeDemo && demo.rows.some(step => step.is_demo)) throw new CourseError('COURSE_NOT_FOUND');
     return this.customerView(this.pool, accountId, row);
   }
@@ -385,8 +388,9 @@ export class PostgresCourseService implements CourseService {
       await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`course:${accountId}:${id}`]);
       const row = await this.course(db, id, 'SHARE');
       if (!this.visible(row, this.now())) throw new CourseError('COURSE_UNAVAILABLE');
-      const demo = await db.query<{ is_demo: boolean }>(
-        'SELECT merchant.is_demo FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+      const demo = await db.query<{ is_demo: boolean; merchant_id: string }>(
+        'SELECT merchant.is_demo, merchant.id AS merchant_id FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
+      if (demo.rows.some(step => step.merchant_id === 'trial-showcase-practice')) throw new CourseError('COURSE_UNAVAILABLE');
       if (!this.includeDemo && demo.rows.some(step => step.is_demo)) throw new CourseError('COURSE_UNAVAILABLE');
       const course = await this.customerView(db, accountId, row, true);
       if (course.steps.some(step => step.state === 'UNAVAILABLE')) {

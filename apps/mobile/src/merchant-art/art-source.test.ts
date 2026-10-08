@@ -69,7 +69,7 @@ test('a bundled source of 0 is still a source', () => {
 
 test('the picture note says whose picture it is', () => {
   assert.equal(merchantArtNote(true), '사장님이 고른 AI 그림');
-  assert.equal(merchantArtNote(false), '가상 점포 시연 그림');
+  assert.equal(merchantArtNote(false), '체험용 예시 그림');
   assert.equal(AI_ART_NOTE, merchantArtNote(true));
   assert.equal(SHOWCASE_ART_NOTE, merchantArtNote(false));
 });
@@ -77,7 +77,7 @@ test('the picture note says whose picture it is', () => {
 test('the collection card note for an AI picture is only who chose it; the showcase picture keeps its not-an-NFT line', () => {
   assert.equal(collectibleArtNote(true), '사장님이 고른 AI 그림');
   assert.equal(collectibleArtNote(true).includes('NFT'), false);
-  assert.equal(collectibleArtNote(false), '가상 점포 시연 그림 · 실제 NFT 발행 증거 아님');
+  assert.equal(collectibleArtNote(false), '체험용 예시 그림 · 실제 NFT 발행 증거 아님');
 });
 
 test('only a picture with an address can fail to load; a bundled picture has none', () => {

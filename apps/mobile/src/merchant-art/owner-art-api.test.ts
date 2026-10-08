@@ -55,8 +55,8 @@ const failure = (status: number, code: string, headers: Record<string, string> =
 
 test('reads the current art, the quota and the latest round from GET /merchant/merchants/:id/art', async () => {
   const { api, calls } = client(() => Response.json(art({ current: { artUrl }, round: round() })));
-  const result = await api.getArt('showcase-local-merchant');
-  assert.equal(calls[0]?.url, 'https://api.example.test/merchant/merchants/showcase-local-merchant/art');
+  const result = await api.getArt('trial-showcase-practice');
+  assert.equal(calls[0]?.url, 'https://api.example.test/merchant/merchants/trial-showcase-practice/art');
   assert.equal(calls[0]?.method, 'GET');
   assert.equal(calls[0]?.headers.get('authorization'), 'Bearer token-1');
   assert.equal(calls[0]?.headers.get('accept'), 'application/json');

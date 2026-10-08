@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# #295 로컬 QA 한 번에 띄우기: 임시 PostgreSQL + 시연 seed(가상 점포·사진 수집품) + API(DEMO 헤더 허용) + Metro(dev-client)를
+# #295 로컬 QA 한 번에 띄우기: 임시 PostgreSQL + 시연 seed(공공자료 점포·비공개 연습 가게) + API(DEMO 헤더 허용) + Metro(dev-client)를
 # 한 명령으로 띄우고, 다시 한 명령으로 정리한다. 운영 DB·운영 서버에는 절대 연결하지 않는다(모두 127.0.0.1 전용).
 #
 # Usage: scripts/qa-local.sh [up|down]   (기본은 up)
@@ -168,7 +168,7 @@ cat >"$mobile_env" <<ENVEOF
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
 EXPO_PUBLIC_DEMO_ACCOUNT_ID=showcase-local-customer
 EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID=showcase-local-staff
-EXPO_PUBLIC_DEMO_MERCHANT_ID=showcase-local-merchant
+EXPO_PUBLIC_DEMO_MERCHANT_ID=trial-showcase-practice
 EXPO_PUBLIC_ALLOW_INSECURE_DEMO_REAUTHENTICATION=true
 ENVEOF
 

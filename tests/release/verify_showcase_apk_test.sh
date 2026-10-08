@@ -57,6 +57,34 @@ expect_build_rejected() {
 
 [[ -f "$builder" ]] || { echo 'showcase APK builder is missing' >&2; exit 1; }
 
+# 실제 네트워크·서명 없이 빌드의 API 준비 검사를 실행한다.
+node --input-type=module - "$builder" "$repo_root/apps/api/src/showcase/wolgye-stores.json" <<'NODE'
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
+const source = readFileSync(process.argv[2], 'utf8');
+const data = JSON.parse(readFileSync(process.argv[3], 'utf8'));
+const block = source.split('node - "$repo_root/apps/api/src/showcase/wolgye-stores.json" <<\'NODE\'\n')[1]?.split('\nNODE')[0];
+assert.ok(block, 'API preflight block exists');
+const real = data.stores.map(({ id }) => ({ id, demo: true }));
+for (const [merchants, expected] of [
+  [real, undefined],
+  [real.slice(0, 29), 1],
+  [[...real, real[0]], 1],
+  [[{ ...real[0], id: 'showcase-local-merchant' }, ...real.slice(1)], 1],
+  [[{ ...real[0], demo: false }, ...real.slice(1)], 1],
+  [[real[1], ...real.slice(1)], 1],
+]) {
+  const fakeProcess = { argv: ['node', '-', 'stores.json'] };
+  await runInNewContext(block, {
+    require: () => data, process: fakeProcess, Set, AbortSignal,
+    console: { error() {} },
+    fetch: async (url) => ({ ok: true, json: async () => url.endsWith('/health') ? { status: 'ok' } : { merchants } }),
+  });
+  assert.equal(fakeProcess.exitCode, expected);
+}
+NODE
+
 result="$(env -u EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID -u EXPO_PUBLIC_REOWN_PROJECT_ID \
   "${common[@]}" bash "$builder" --check)"
 [[ "$result" == *'local showcase APK preflight PASS'* &&
