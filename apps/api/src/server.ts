@@ -20,7 +20,6 @@ import { MapProvider } from './map-provider.js';
 import { RealWorldError } from './real-world-contract.js';
 import { handleRealWorldHttp } from './real-world-http.js';
 import { ExpoPushGateway } from './expo-push-gateway.js';
-import type { Studio } from './play.js';
 import { ExperienceError, type Equipment } from './collection-experience.js';
 import { NotificationError, type NotificationPreferences } from './notifications.js';
 import { PostgresCollectionExperienceService } from './postgres/collection-experience.js';
@@ -45,7 +44,6 @@ import { MerchantProfileError } from './merchant-profile.js';
 import { isDetailViewSource } from './merchant-discovery.js';
 import { mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing } from './mint-request-service.js';
 import type { PublishCoinPoolInput, PublishCoinSeriesInput } from './coin-economy.js';
-import { isMileageGrade } from './mileage-rules.js';
 import { RecommendationService } from './recommendation-service.js';
 import { safeErrorMetadata } from './security-log.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
@@ -111,8 +109,11 @@ import { respondWithError } from './http/error-response.js';
 import { sendJson, setCommonHeaders } from './http/response.js';
 import type { RouteContext } from './routes/context.js';
 import { handleAccount } from './routes/account.js';
+import { handleCoinsRooms } from './routes/coins-rooms.js';
 import { handleCustomer } from './routes/customer.js';
 import { handleMerchantApp } from './routes/merchant-app.js';
+import { handlePlay } from './routes/play.js';
+import { handlePlayStudio } from './routes/play-studio.js';
 import { handlePublicAssets } from './routes/public-assets.js';
 import { handleShowcase } from './routes/showcase.js';
 import { handleWalletClaims } from './routes/wallet-claims.js';
@@ -157,7 +158,7 @@ export function createApiServer(deps: ApiDeps) {
   const {
     merchantCatalog, merchantAccess, claimSlots, collection,
     authSessions, authLoginLimiter,
-    webAuth, customerIdentities, admin, deletionIntake, staffRegistration, badges, friends,
+    webAuth, customerIdentities, admin, deletionIntake, staffRegistration, badges,
     showcaseDeletionIntake, deletionProcessing, reversals, consent, collectibleProjects,
     guestTrials, merchantOverview, visitorFeedback, collectiblePreview, merchantDetailViews,
     adminFunnel, play, merchantProfile, social,
@@ -165,12 +166,12 @@ export function createApiServer(deps: ApiDeps) {
   const trustProxyClientIp = deps.trustProxyClientIp ?? false;
   const webWwwEnabled = deps.webWwwEnabled ?? false;
   const experienceServices = deps.experienceServices ?? {};
-  const { collectionExperience, merchantOperations, notifications, realWorld, tmap, mapProvider, coinEconomy, roomCommunity, gradeDraw, furniture } = experienceServices;
+  const { collectionExperience, merchantOperations, notifications, realWorld, tmap, mapProvider, coinEconomy, roomCommunity } = experienceServices;
   const runtime = createApiRuntime(deps);
   const {
     resolveAccountId, requireCustomerScan, requireCurrentPlayConsent, consumeDeletionStatus, guestTrialLimiter,
-    merchantProfileWriteLimiter, playFlowWriteLimiter, experienceWriteLimiter, merchantOperationLimiter,
-    playFinishLimiter, socialWriteLimiter, coinWriteLimiter, roomWriteLimiter, discoveryEventLimiter,
+    merchantProfileWriteLimiter, experienceWriteLimiter, merchantOperationLimiter,
+    socialWriteLimiter, coinWriteLimiter, roomWriteLimiter, discoveryEventLimiter,
     discoveryMapLimiter, merchantDetailViewLimiter, collectibleWriteLimiter,
   } = runtime;
   return createServer(async (request, response) => {
@@ -1136,250 +1137,9 @@ export function createApiServer(deps: ApiDeps) {
         } else throw new RequestError(404, 'NOT_FOUND');
         return;
       }
-      if (request.method === 'GET' && request.url === '/me/play') {
-        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        sendJson(response, 200, await play.getPlay(accountId));
-        return;
-      }
-      if (request.method === 'POST' && request.url === '/me/play/runs') {
-        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        const body = await readJson(request);
-        if (Object.keys(body).some(key => key !== 'kind' && key !== 'rulesVersion') || !isGameKind(body.kind) ||
-            (body.rulesVersion !== undefined && body.rulesVersion !== 1 && body.rulesVersion !== 2)) {
-          throw new RequestError(400, 'PLAY_KIND_INVALID');
-        }
-        sendJson(response, 201, await play.start({ accountId, kind: body.kind, rulesVersion: body.rulesVersion ?? 1 }));
-        return;
-      }
-      const finishPlayMatch = request.url?.match(/^\/me\/play\/runs\/([^/]+)\/finish$/);
-      if (request.method === 'POST' && finishPlayMatch) {
-        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        const decision = playFinishLimiter.consume(accountId);
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          throw new RequestError(429, 'PLAY_FLOW_RATE_LIMITED');
-        }
-        await requireCurrentPlayConsent(accountId);
-        const body = await readJson(request);
-        if (Object.keys(body).join(',') !== 'actions' || !Array.isArray(body.actions) ||
-            body.actions.some((action) => !action || typeof action !== 'object' || Array.isArray(action) ||
-              Object.keys(action).sort().join(',') !== 'at,choice')) {
-          throw new RequestError(400, 'PLAY_ACTIONS_INVALID');
-        }
-        sendJson(response, 200, await play.finish({ accountId,
-          runId: decodePathParameter(finishPlayMatch[1]!), actions: body.actions as GameAction[] }));
-        return;
-      }
-      if (request.method === 'POST' && request.url === '/me/play/events') {
-        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        const decision = playFlowWriteLimiter.consume(accountId);
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          throw new RequestError(429, 'PLAY_FLOW_RATE_LIMITED');
-        }
-        const body = await readJson(request);
-        if (Object.keys(body).join(',') !== 'event' ||
-            (body.event !== 'share-open' && body.event !== 'image-created')) {
-          throw new RequestError(400, 'PLAY_EVENT_INVALID');
-        }
-        await play.recordEvent({ accountId, event: body.event });
-        response.writeHead(204).end();
-        return;
-      }
-      if (request.method === 'GET' && request.url === '/me/studio') {
-        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        sendJson(response, 200, await play.getStudio(accountId));
-        return;
-      }
-      if (path === '/me/furniture' || path === '/me/furniture/purchases') {
-        if (!furniture) throw new RequestError(503, 'FURNITURE_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        if (request.method === 'GET' && path === '/me/furniture') {
-          sendJson(response, 200, await furniture.get(accountId)); return;
-        }
-        if (request.method !== 'POST' || path !== '/me/furniture/purchases') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-        const decision = coinWriteLimiter.consume(accountId);
-        if (!decision.allowed) throw new RequestError(429, 'FURNITURE_RATE_LIMITED');
-        const body = await readJson(request);
-        requireOnlyKeys(body, ['itemId', 'requestId']);
-        const result = await furniture.purchase({ accountId, itemId: requireString(body, 'itemId'),
-          requestId: requireString(body, 'requestId') });
-        sendJson(response, result.replayed ? 200 : 201, result); return;
-      }
-      if (path === '/shop/draw-pools' || path === '/shop/draws') {
-        if (!gradeDraw) throw new RequestError(503, 'GRADE_DRAW_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        if (request.method === 'GET' && path === '/shop/draw-pools') {
-          sendJson(response, 200, await gradeDraw.getShop(accountId)); return;
-        }
-        if (request.method !== 'POST' || path !== '/shop/draws') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-        const decision = coinWriteLimiter.consume(accountId);
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          throw new RequestError(429, 'DRAW_RATE_LIMITED');
-        }
-        const body = await readJson(request);
-        requireOnlyKeys(body, ['grade', 'requestId', 'expectedPoolVersion']);
-        const grade = requireString(body, 'grade');
-        if (!isMileageGrade(grade)) throw new RequestError(400, 'INVALID_REQUEST');
-        const result = await gradeDraw.draw({ accountId, grade, requestId: requireString(body, 'requestId'),
-          expectedPoolVersion: requireString(body, 'expectedPoolVersion') });
-        sendJson(response, result.replayed ? 200 : 201, result); return;
-      }
-      if (path === '/coin-shop' || path === '/coin-shop/purchases' || path === '/me/coins' ||
-          /^\/(coin-tickets\/[^/]+\/use|coin-series\/[^/]+\/claim|coin-reroll-tickets\/[^/]+\/use)$/.test(path)) {
-        if (!coinEconomy) throw new RequestError(503, 'COIN_ECONOMY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        if (request.method === 'GET' && path === '/coin-shop') {
-          sendJson(response, 200, await coinEconomy.getShop(accountId)); return;
-        }
-        if (request.method === 'GET' && path === '/me/coins') {
-          sendJson(response, 200, await coinEconomy.getCollection(accountId)); return;
-        }
-        if (request.method !== 'POST' || path === '/coin-shop' || path === '/me/coins') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-        const decision = coinWriteLimiter.consume(accountId);
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          throw new RequestError(429, 'COIN_WRITE_RATE_LIMITED');
-        }
-        const body = await readJson(request);
-        if (path === '/coin-shop/purchases') {
-          requireOnlyKeys(body, ['poolId', 'requestId']);
-          const requestId = requireString(body, 'requestId');
-          if (requestId.length > 100) throw new RequestError(400, 'INVALID_REQUEST');
-          const result = await coinEconomy.purchase({ accountId, poolId: requireString(body, 'poolId'), requestId });
-          sendJson(response, result.replayed ? 200 : 201, result); return;
-        }
-        const reroll = path.match(/^\/coin-reroll-tickets\/([^/]+)\/use$/);
-        if (reroll) {
-          requireOnlyKeys(body, ['poolId', 'sourceKind', 'sourceId', 'requestId']);
-          const result = await coinEconomy.useRerollTicket({ accountId, ticketId: decodePathParameter(reroll[1]!),
-            poolId: requireString(body, 'poolId'), sourceKind: requireString(body, 'sourceKind') as 'VISIT' | 'STORE_DRAW' | 'GRADE_DRAW' | 'REROLL',
-            sourceId: requireString(body, 'sourceId'), requestId: requireString(body, 'requestId') });
-          sendJson(response, result.replayed ? 200 : 201, result); return;
-        }
-        requireEmptyBody(body);
-        const use = path.match(/^\/coin-tickets\/([^/]+)\/use$/);
-        if (use) {
-          const result = await coinEconomy.useTicket({ accountId, ticketId: decodePathParameter(use[1]!) });
-          sendJson(response, 200, result); return;
-        }
-        const claim = path.match(/^\/coin-series\/([^/]+)\/claim$/)!;
-        const result = await coinEconomy.claimSeries({ accountId, seriesId: decodePathParameter(claim[1]!) });
-        sendJson(response, result.replayed ? 200 : 201, result); return;
-      }
-      if (path === '/me/room-publication' || path === '/me/room-visitors' || path.startsWith('/rooms/') || path.startsWith('/room-stamps/')) {
-        if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        const publicationBody = request.method === 'PUT' && path === '/me/room-publication' ? await readJson(request) : undefined;
-        if (publicationBody) {
-          requireOnlyKeys(publicationBody, ['visible', 'visibility']);
-          if (publicationBody.visible !== undefined && typeof publicationBody.visible !== 'boolean') throw new RequestError(400, 'INVALID_REQUEST');
-          if (publicationBody.visibility !== undefined && !['PRIVATE','FRIENDS','NEIGHBORS'].includes(String(publicationBody.visibility)))
-            throw new RequestError(400, 'INVALID_REQUEST');
-        }
-        // 공개 철회는 새 동의를 수락하기 전에도 가능해야 한다.
-        if (publicationBody?.visible !== false && publicationBody?.visibility !== 'PRIVATE') await requireCurrentPlayConsent(accountId);
-        if (request.method === 'GET' && path === '/me/room-publication') {
-          sendJson(response, 200, await roomCommunity.getSettings(accountId)); return;
-        }
-        if (request.method === 'GET' && path === '/me/room-visitors') {
-          sendJson(response, 200, { visitors: await roomCommunity.visitors(accountId) }); return;
-        }
-        if (request.method === 'GET' && path === '/rooms/random') {
-          const query = new URL(request.url!, 'http://localhost').searchParams;
-          if ([...query.keys()].some(key => key !== 'excludeRoomId') || query.getAll('excludeRoomId').length > 1) throw new RequestError(400, 'INVALID_REQUEST');
-          const excludeRoomId = query.get('excludeRoomId');
-          sendJson(response, 200, await roomCommunity.randomRoom({ accountId, ...(excludeRoomId !== null ? { excludeRoomId } : {}) })); return;
-        }
-        if (request.method === 'GET' && path === '/rooms/neighbors') {
-          sendJson(response, 200, { rooms: await roomCommunity.neighbors(accountId) }); return;
-        }
-        const neighborFriend = path.match(/^\/rooms\/([^/]+)\/friendship$/);
-        if (request.method === 'POST' && neighborFriend) {
-          if (!friends?.addNeighbor) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
-          const decision = roomWriteLimiter.consume(accountId);
-          if (!decision.allowed) throw new RequestError(429, 'ROOM_RATE_LIMITED');
-          requireEmptyBody(await readJson(request, true));
-          const added = await friends.addNeighbor({ accountId, roomId: decodePathParameter(neighborFriend[1]!) });
-          sendJson(response, added.created ? 201 : 200, added); return;
-        }
-        const roomMatch = path.match(/^\/rooms\/([^/]+)(?:\/(visits|stamps|block))?$/);
-        if (request.method === 'GET' && roomMatch && !roomMatch[2]) {
-          sendJson(response, 200, await roomCommunity.getRoom({ accountId, roomId: decodePathParameter(roomMatch[1]!) })); return;
-        }
-        const decision = roomWriteLimiter.consume(accountId);
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          throw new RequestError(429, 'ROOM_RATE_LIMITED');
-        }
-        const body = publicationBody ?? await readJson(request);
-        if (request.method === 'PUT' && path === '/me/room-publication') {
-          requireOnlyKeys(body, ['visible', 'visibility']);
-          sendJson(response, 200, await roomCommunity.setVisibility({ accountId,
-            ...(typeof body.visible === 'boolean' ? { visible: body.visible } : {}),
-            ...(typeof body.visibility === 'string' ? { visibility: body.visibility as 'PRIVATE' | 'FRIENDS' | 'NEIGHBORS' } : {}) })); return;
-        }
-        if (request.method === 'POST' && roomMatch) {
-          const roomId = decodePathParameter(roomMatch[1]!);
-          if (roomMatch[2] === 'stamps') {
-            requireOnlyKeys(body, ['kind', 'message']);
-            if (body.kind !== 'COZY' && body.kind !== 'COOL' && body.kind !== 'RETURN') throw new RequestError(400, 'INVALID_REQUEST');
-            sendJson(response, 201, await roomCommunity.stamp({ accountId, roomId, kind: body.kind,
-              ...(body.message !== undefined ? { message: body.message as string } : {}) })); return;
-          }
-          requireEmptyBody(body);
-          if (roomMatch[2] === 'visits') { sendJson(response, 200, await roomCommunity.visit({ accountId, roomId })); return; }
-          if (roomMatch[2] === 'block') { await roomCommunity.blockRoom({ accountId, roomId }); response.writeHead(204).end(); return; }
-        }
-        const stampMatch = path.match(/^\/room-stamps\/([^/]+)(?:\/(reports))?$/);
-        if (stampMatch && ((request.method === 'DELETE' && !stampMatch[2]) || (request.method === 'POST' && stampMatch[2]))) {
-          requireEmptyBody(body);
-          const input = { accountId, stampId: decodePathParameter(stampMatch[1]!) };
-          if (request.method === 'DELETE') await roomCommunity.removeStamp(input);
-          else await roomCommunity.reportStamp(input);
-          response.writeHead(204).end(); return;
-        }
-        throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-      }
-      if (request.method === 'PUT' && request.url === '/me/studio') {
-        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        const decision = playFlowWriteLimiter.consume(accountId);
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          throw new RequestError(429, 'PLAY_FLOW_RATE_LIMITED');
-        }
-        const body = await readJson(request);
-        requireOnlyKeys(body, ['studio', 'expectedRevision']);
-        if (!body.studio || (body.expectedRevision !== undefined &&
-          (!Number.isInteger(body.expectedRevision) || (body.expectedRevision as number) < 0))) throw new RequestError(400, 'STUDIO_INVALID');
-        sendJson(response, 200, await play.saveStudio({ accountId, studio: body.studio as Studio,
-          ...(body.expectedRevision !== undefined ? { expectedRevision: body.expectedRevision as number } : {}) }));
-        return;
-      }
-      const friendStudioMatch = request.url?.match(/^\/friends\/([^/]+)\/studio$/);
-      if (request.method === 'GET' && friendStudioMatch) {
-        if (!play) throw new RequestError(503, 'PLAY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        await requireCurrentPlayConsent(accountId);
-        sendJson(response, 200, await play.getFriendStudio({ accountId,
-          friendshipId: decodePathParameter(friendStudioMatch[1]!) }));
-        return;
-      }
+      if (await handlePlay(routeContext)) return;
+      if (await handleCoinsRooms(routeContext)) return;
+      if (await handlePlayStudio(routeContext)) return;
 
       if (await handleAccount(routeContext)) return;
 
