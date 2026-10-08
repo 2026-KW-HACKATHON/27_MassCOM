@@ -196,7 +196,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    # SIGTERM을 받으면 처리 중인 한 건을 끝내고 멈춘다. 60초는 보통의 한 건(영수증 대기 최대 30초 포함)에는 충분하지만
+    # SIGTERM을 받으면 처리 중인 한 건을 끝내고 멈춘다. 60초는 보통의 한 건(영수증 대기 기한 30초, 마지막 RPC 요청이 걸려도 약 50초 포함)에는 충분하지만
     # 끝난다는 보장은 아니다. 못 끝내고 SIGKILL되면 임대 만료(30초)와 기록된 서명 거래 재전송으로 복구된다.
     stop_grace_period: 60s
     read_only: true

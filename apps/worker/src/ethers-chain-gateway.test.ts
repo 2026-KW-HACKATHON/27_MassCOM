@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { FeeData, Transaction, Wallet, makeError, type JsonRpcApiProvider, type Log } from 'ethers';
+import {
+  FeeData,
+  Transaction,
+  Wallet,
+  makeError,
+  type JsonRpcApiProvider,
+  type JsonRpcProvider,
+  type Log,
+} from 'ethers';
 
 import { EthersMintChainGateway, contractCallError } from './ethers-chain-gateway.js';
 import {
@@ -335,14 +343,14 @@ test('getBlockNumber만 실패해도 처리되지 않은 거절 없이 재시도
   gateway.close();
 });
 
-test('영수증이 아직 없으면 기한까지 여러 번 다시 조회한 뒤 재시도 오류가 된다', async () => {
+test('영수증이 아직 없으면 기한까지 여러 번 다시 조회한 뒤 RECEIPT_NOT_READY 재시도 오류가 된다', async () => {
   let calls = 0;
   const { gateway } = receiptGateway({ getTransactionReceipt: async () => { calls += 1; return null; } });
   const startedAt = Date.now();
 
   await assert.rejects(
     gateway.confirmMint(item, hash),
-    (caught: unknown) => caught instanceof RetryableChainError && caught.code === 'RECEIPT_LOOKUP_FAILED',
+    (caught: unknown) => caught instanceof RetryableChainError && caught.code === 'RECEIPT_NOT_READY',
   );
 
   assert.ok(Date.now() - startedAt >= 55, '기한(60ms)보다 일찍 포기하면 안 된다');
@@ -381,7 +389,7 @@ test('확인 깊이가 찰 때까지 기다린 뒤 영수증을 돌려준다', a
   gateway.close();
 });
 
-test('깊이가 영영 차지 않으면 되돌려진 거래로 단정하지 않고 재시도 오류가 된다', async () => {
+test('깊이가 영영 차지 않으면 되돌려진 거래로 단정하지 않고 RECEIPT_NOT_READY 재시도 오류가 된다', async () => {
   const { gateway } = receiptGateway({
     getTransactionReceipt: async () => ({ status: 0, blockNumber: 10, logs: [] }),
     getBlockNumber: async () => 10,
@@ -389,8 +397,40 @@ test('깊이가 영영 차지 않으면 되돌려진 거래로 단정하지 않�
 
   await assert.rejects(
     gateway.confirmMint(item, hash),
-    (caught: unknown) => caught instanceof RetryableChainError && caught.code === 'RECEIPT_LOOKUP_FAILED',
+    (caught: unknown) => caught instanceof RetryableChainError && caught.code === 'RECEIPT_NOT_READY',
   );
+  gateway.close();
+});
+
+// 기한에 마지막으로 한 조회가 코드를 정한다: 앞서 실패했어도 마지막 조회가 깨끗하면 NOT_READY, 앞서 깨끗했어도 마지막이 실패하면 LOOKUP_FAILED.
+// 두 코드 모두 같은 RetryableChainError라 mint-worker는 같은 방식으로 재시도 대기로 돌린다(코드는 기록만 된다).
+test('영수증 대기의 마지막 조회가 실패했는지에 따라 RECEIPT_LOOKUP_FAILED와 RECEIPT_NOT_READY가 갈린다', async () => {
+  const outcome = async (polls: Array<'fail' | 'empty'>) => {
+    let index = 0;
+    const { gateway } = receiptGateway({
+      getTransactionReceipt: async () => {
+        const poll = polls[Math.min(index, polls.length - 1)];
+        index += 1;
+        if (poll === 'fail') throw new Error(`connect failed ${rpcSecret}`);
+        return null;
+      },
+    });
+    const error = await gateway.confirmMint(item, hash).catch((caught: unknown) => caught);
+    gateway.close();
+    assert.ok(error instanceof RetryableChainError);
+    return error.code;
+  };
+
+  assert.equal(await outcome(['empty', 'fail']), 'RECEIPT_LOOKUP_FAILED');
+  assert.equal(await outcome(['fail', 'empty']), 'RECEIPT_NOT_READY');
+});
+
+test('RPC 요청 하나는 10초를 넘기지 않는다(ethers 기본값은 300초)', () => {
+  const { gateway } = receiptGateway({});
+  const connection = (gateway as unknown as { provider: JsonRpcProvider }).provider._getConnection();
+
+  assert.equal(connection.timeout, 10_000);
+  assert.equal(connection.url, rpcSecret);
   gateway.close();
 });
 

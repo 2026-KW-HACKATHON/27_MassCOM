@@ -15,7 +15,7 @@
 
 - Claude Sonnet 5.5가 소유자 지시("B안대로 구현")에 따라 Worker 반복 루프(`worker-loop.ts`·`run-worker-loop.ts`), 실행기 분리(`createConfiguredWorker`), 게이트웨이 조회 시작 블록 갱신(`setScanFromBlock`), `worker.Dockerfile`, 운영 compose의 `nft-live` 프로파일 서비스, 시험, 문서를 작성했다. 설계 추천과 구현이 같은 세션이었으므로 구현 세션 밖에서 독립 리뷰를 받았다(아래).
 - 검증은 [TEST_STATUS](TEST_STATUS.md)의 같은 날짜 항목을 따른다. 브랜치 `feat/worker-continuous-loop`는 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이다. 일회용 컨테이너 리허설에 쓴 keystore는 그 실행에서만 만든 임의 키이며 저장하지 않았다. 사용자·운영 키와 DB는 쓰지 않았다.
-- **독립 리뷰(2026-10-08):** 구현과 다른 컨텍스트의 Claude Sonnet 리뷰와 Claude Opus 리뷰가 각각 PR #420을 검토했다. 둘 다 🔴는 없고 변경을 요청했으며, 지적은 같은 날 Claude Sonnet 5.5가 고쳤다: ethers `waitForTransaction`의 RPC 주소 로그 노출·프로세스 종료·타이머 누수(직접 만든 유한 조회로 대체), 잡히지 않은 오류 처리(`MINT_WORKER_CRASHED`), DB 풀 'error' 리스너, 결정 번호 충돌(D-080 → D-089), `CHAIN_FROM_BLOCK` 기본값, 임대 소유자 중복, 하트비트 서술, 배포 절차 문서와 시험 보강. 수정 뒤 재리뷰는 하지 않았고 자동 시험과 `tools/gate.sh`로 확인했다. 이 리뷰도 AI 세션의 판정이며 사람의 코드 리뷰는 남아 있다.
+- **독립 리뷰(2026-10-08):** 구현과 다른 컨텍스트의 Claude Sonnet 리뷰와 Claude Opus 리뷰가 각각 PR #420을 검토했다. 둘 다 🔴는 없고 변경을 요청했으며, 지적은 같은 날 Claude Sonnet 5.5가 고쳤다: ethers `waitForTransaction`의 RPC 주소 로그 노출·프로세스 종료·타이머 누수(직접 만든 유한 조회로 대체), 잡히지 않은 오류 처리(`MINT_WORKER_CRASHED`), DB 풀 'error' 리스너, 결정 번호 충돌(D-080 → D-089), `CHAIN_FROM_BLOCK` 기본값, 임대 소유자 중복, 하트비트 서술, 배포 절차 문서와 시험 보강. Opus 재리뷰가 `e3c156fc`를 🔴 0·🟠 0으로 승인했고 그 🟡 지적은 이어진 커밋에서 같은 모델이 고쳤으며(재리뷰 없음) 자동 시험과 `tools/gate.sh`로 확인했다. 이 리뷰도 AI 세션의 판정이며 사람의 코드 리뷰는 남아 있다.
 
 ## 2026-10-08 첫 사용 경험 (Issue #412)
 

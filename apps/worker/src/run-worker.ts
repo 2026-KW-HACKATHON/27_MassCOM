@@ -33,14 +33,23 @@ export function safeErrorFields(error: unknown): { name: string; code?: string; 
 }
 
 /**
- * 유휴 연결의 오류(DB 재시작, `pg_terminate_backend` 등)는 풀이 'error'로 내보내는데 리스너가 없으면 프로세스가
- * 죽는다. 한 줄만 남기고 넘기면 다음 반복의 질의가 정상 경로로 실패해 백오프한다. 연결 문자열은 남기지 않는다.
+ * DB 연결의 오류(DB 재시작, `pg_terminate_backend` 등)는 리스너가 없으면 프로세스를 죽인다. 유휴 연결의 오류는 풀이
+ * 'error'로 내보내고, 빌려 간(checked-out) 연결의 오류는 풀이 리스너를 떼므로 연결마다 직접 달아야 한다. 한 줄만 남기고 넘기면
+ * 다음 질의가 정상 경로로 실패해 백오프한다(망가진 연결은 반납될 때 풀이 버린다). 같은 오류가 두 경로로 들어와도 한 줄만 남기고,
+ * 연결 문자열은 남기지 않는다.
  */
 export function createWorkerPool(connectionString: string, max: number): Pool {
   const pool = new Pool({ connectionString, max });
-  pool.on('error', (error) => {
+  const reported = new WeakSet<object>();
+  const report = (error: unknown): void => {
+    if (typeof error === 'object' && error !== null) {
+      if (reported.has(error)) return;
+      reported.add(error);
+    }
     console.error(JSON.stringify({ event: 'MINT_WORKER_DB_POOL_ERROR', ...safeErrorFields(error) }));
-  });
+  };
+  pool.on('error', report);
+  pool.on('connect', (client) => client.on('error', report));
   return pool;
 }
 

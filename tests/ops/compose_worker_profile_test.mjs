@@ -39,21 +39,73 @@ test('평소 배포(프로파일 없음)에는 Worker가 없고, 필수 키 폴�
   }
 });
 
-// 배포 스크립트가 Worker를 켜는 길만 막는다: `up` 대상으로 지정, `--profile nft-live`, COMPOSE_PROFILES.
-// 이름이 나오는 것 자체는 막지 않는다(go-live 전에 migrate 앞에서 `stop mint-worker`, 배포 때 `build mint-worker`를 넣을 예정).
-test('배포 스크립트는 Worker를 올리지도(up), 프로파일을 켜지도 않는다', () => {
-  for (const file of ['scripts/deploy-lightsail.sh', 'scripts/deploy-lightsail-web.sh', 'scripts/lightsail-web-rollback.sh']) {
-    const commands = readFileSync(resolve(repoRoot, file), 'utf8')
-      .replace(/\r\n/g, '\n')
-      .replace(/\\\n/g, ' ')
-      .split('\n')
-      .filter((line) => !/^\s*#/.test(line));
-    for (const command of commands) {
-      assert.doesNotMatch(command, /--profile[ =]+["']?nft-live|COMPOSE_PROFILES/, `${file}: ${command.trim()}`);
-      if (/\bmint-worker\b/.test(command)) {
-        assert.doesNotMatch(command, /\bup\b/, `${file}: ${command.trim()}`);
-      }
-    }
+// 배포 스크립트가 Worker를 켜는 길을 막는다. 허용 목록 방식이다: `mint-worker`가 나오는 줄(주석 제외)은 `stop`이나 `build`여야 하고
+// `up`·`run`·`start`·`restart`·`create`가 함께 있으면 안 된다(go-live 전에 migrate 앞에서 `stop mint-worker`, 배포 때 `build mint-worker`를
+// 넣을 예정). 배열·변수에 이름을 담아 우회하는 것도 같은 규칙으로 걸린다: 그 줄에 stop/build가 없기 때문이다.
+// `nft-live`·`COMPOSE_PROFILES`는 배포 스크립트 어디에도 나오면 안 된다.
+const deployScripts = ['scripts/deploy-lightsail.sh', 'scripts/deploy-lightsail-web.sh', 'scripts/lightsail-web-rollback.sh'];
+
+function deployScriptViolations(source) {
+  const violations = [];
+  const commands = source
+    .replace(/\r\n/g, '\n')
+    .replace(/\\\n/g, ' ')
+    .split('\n')
+    .filter((line) => !/^\s*#/.test(line))
+    .map((line) => line.replace(/\s#.*$/, ''));
+  for (const command of commands) {
+    const shown = command.trim();
+    if (/nft-live|COMPOSE_PROFILES/.test(command)) violations.push(`프로파일을 켜는 표현: ${shown}`);
+    if (!/\bmint-worker\b/.test(command)) continue;
+    if (!/\b(stop|build)\b/.test(command)) violations.push(`mint-worker가 stop/build가 아닌 줄에 나온다: ${shown}`);
+    if (/\b(up|run|start|restart|create)\b/.test(command)) violations.push(`mint-worker를 켜는 명령: ${shown}`);
+  }
+  return violations;
+}
+
+test('배포 스크립트는 Worker를 stop·build 말고는 건드리지 않고, 프로파일을 켜지도 않는다', () => {
+  for (const file of deployScripts) {
+    assert.deepEqual(deployScriptViolations(readFileSync(resolve(repoRoot, file), 'utf8')), [], file);
+  }
+});
+
+test('배포 스크립트 가드는 임시 시료 문자열의 금지된 형태를 모두 거절하고 허용된 형태는 통과시킨다', () => {
+  // 금지 목록 단어마다, stop/build가 함께 있어도 그 단어 하나만으로 거절되는지 본다.
+  const withVerb = Object.fromEntries(
+    ['up', 'run', 'start', 'restart', 'create'].map((verb) => [
+      `${verb}(stop/build와 한 줄)`,
+      `docker compose build mint-worker && docker compose ${verb} -d mint-worker`,
+    ]),
+  );
+  const forbidden = {
+    ...withVerb,
+    up: 'docker compose -f "$COMPOSE_FILE" up -d mint-worker',
+    'up(서비스 이름만 지정)': 'docker compose up -d --build api mint-worker',
+    run: 'docker compose run --rm mint-worker',
+    '--profile nft-live': 'docker compose --profile nft-live stop mint-worker',
+    '--profile=nft-live': 'docker compose --profile=nft-live build api',
+    'nft-live 이름만': 'echo nft-live',
+    COMPOSE_PROFILES: 'COMPOSE_PROFILES=nft-live docker compose build api',
+    'COMPOSE_PROFILES 내보내기': 'export COMPOSE_PROFILES=nft-live',
+    '변수에 담기': 'WORKER=mint-worker',
+    '배열에 담기': 'SERVICES=(api mint-worker)',
+    '여러 줄 배열': 'SERVICES=(\n  api\n  mint-worker\n)',
+    '변수에 담은 뒤 켜기': 'WORKER=mint-worker\ndocker compose up -d "$WORKER"',
+    '줄 끝 주석의 stop은 세지 않는다': 'SERVICES=(api mint-worker) # stop',
+  };
+  for (const [name, source] of Object.entries(forbidden)) {
+    assert.notDeepEqual(deployScriptViolations(source), [], `${name}: 거절해야 한다: ${source}`);
+  }
+
+  const allowed = {
+    stop: 'docker compose -f "$COMPOSE_FILE" stop mint-worker',
+    build: 'docker compose -f "$COMPOSE_FILE" build mint-worker',
+    '줄 이어쓰기 build': 'docker compose build \\\n  api mint-worker',
+    '주석 줄의 이름': '# mint-worker는 nft-live 프로파일로만 켠다',
+    '이름이 없는 명령': 'docker compose up -d api production-web',
+  };
+  for (const [name, source] of Object.entries(allowed)) {
+    assert.deepEqual(deployScriptViolations(source), [], `${name}: 통과해야 한다: ${source}`);
   }
 });
 

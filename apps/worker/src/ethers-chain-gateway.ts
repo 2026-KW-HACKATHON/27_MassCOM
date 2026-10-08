@@ -1,5 +1,6 @@
 import {
   Contract,
+  FetchRequest,
   Interface,
   JsonRpcProvider,
   Transaction,
@@ -24,6 +25,9 @@ import {
   type RecordedSubmission,
   type UnconfirmedSignedTransaction,
 } from './mint-worker.js';
+
+/** 한 번의 RPC 요청(재시도 포함)을 기다리는 상한(ms). ethers의 기본값은 300초다. */
+const RPC_REQUEST_TIMEOUT_MS = 10_000;
 
 const abi = [
   'function MINTER_ROLE() view returns (bytes32)',
@@ -73,9 +77,13 @@ export class EthersMintChainGateway implements MintChainGateway {
   private scanFromBlock: number;
 
   constructor(private readonly options: GatewayOptions) {
+    // ethers' FetchRequest allows 300s per request, so one hung RPC call would hold confirmMint for
+    // ~10 minutes (getTransactionReceipt + getBlockNumber). The cap covers throttle retries too.
+    const request = new FetchRequest(options.rpcUrl);
+    request.timeout = RPC_REQUEST_TIMEOUT_MS;
     // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, which
     // would make the confirmation-depth check in waitForReceipt see a head older than the receipt.
-    this.provider = new JsonRpcProvider(options.rpcUrl, options.chainId, {
+    this.provider = new JsonRpcProvider(request, options.chainId, {
       staticNetwork: true,
       cacheTimeout: -1,
     });
@@ -492,6 +500,7 @@ export class EthersMintChainGateway implements MintChainGateway {
     const pollMs = this.options.receiptPollMs ?? 2_000;
     const deadline = Date.now() + waitMs;
     for (;;) {
+      let lastPollFailed = false;
       try {
         const receipt = await this.provider.getTransactionReceipt(transactionHash);
         if (receipt) {
@@ -500,10 +509,14 @@ export class EthersMintChainGateway implements MintChainGateway {
         }
       } catch {
         // Retry until the deadline; see the method comment for why the error is dropped.
+        lastPollFailed = true;
       }
       const remaining = deadline - Date.now();
-      // Same code the old waitForTransaction timeout (and any lookup failure) produced.
-      if (remaining <= 0) throw new RetryableChainError('RECEIPT_LOOKUP_FAILED');
+      // The last poll decides the code: a failed lookup is an RPC problem, a clean poll without a
+      // receipt (or without enough confirmations) just means the chain has not got there yet.
+      if (remaining <= 0) {
+        throw new RetryableChainError(lastPollFailed ? 'RECEIPT_LOOKUP_FAILED' : 'RECEIPT_NOT_READY');
+      }
       await new Promise<void>((resolve) => setTimeout(resolve, Math.min(pollMs, remaining)));
     }
   }

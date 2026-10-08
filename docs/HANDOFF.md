@@ -105,7 +105,7 @@
 5. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 확인하고, 필요하면 위 남은 🟡 중 (3)(4)(6)의 처리 여부를 정한다.
 6. 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설은 소유자 판단·수동 항목이다.
 7. 대회 최종 제출과 Google Play는 소유자 승인이 필요한 별도 경계다. 승인 전에는 제출 버전을 고정하지 않는다.
-8. NFT 발행 Worker 상시 실행(D-089)은 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이다. 독립 리뷰(Sonnet + Opus)의 지적은 반영했으므로 `gh pr view 420`으로 상태를 확인한 뒤 병합한다. 켜기 전 조건은 [B-027](BLOCKERS.md)과 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker"다. 운영 민터 키 생성·메인넷·`LIVE` 전환은 소유자 승인 사항이다.
+8. NFT 발행 Worker 상시 실행(D-089)은 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이다. 독립 리뷰(Sonnet + Opus)의 지적은 반영했다. 병합 조건은 `gh pr view 420`으로 상태를 확인하는 것과 **최신 head 커밋에서 CI가 통과**(`gh pr checks 420`)한 것이다. 둘 다 확인한 뒤 병합한다. 켜기 전 조건은 [B-027](BLOCKERS.md)과 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker"다. 운영 민터 키 생성·메인넷·`LIVE` 전환은 소유자 승인 사항이다.
 
 PR 제목·본문 검사:
 

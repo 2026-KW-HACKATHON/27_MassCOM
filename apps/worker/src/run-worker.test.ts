@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { hostname } from 'node:os';
 import test from 'node:test';
 
@@ -56,6 +57,31 @@ test('DB 풀의 유휴 연결 오류는 프로세스를 죽이지 않고 연결 
   assert.equal(lines.length, 1);
   assert.deepEqual(JSON.parse(lines[0]!), { event: 'MINT_WORKER_DB_POOL_ERROR', name: 'Error', code: '57P01' });
   assert.doesNotMatch(lines[0]!, /db\.internal\.example/);
+});
+
+test('빌려 간 연결의 오류도 프로세스를 죽이지 않고 한 줄만 남기며, 유휴 연결 오류가 두 경로로 와도 한 줄이다', async (t) => {
+  const lines: string[] = [];
+  t.mock.method(console, 'error', (line: unknown) => { lines.push(String(line)); });
+  const pool = runWorker.createWorkerPool('postgresql://127.0.0.1:1/masscom', 4);
+  t.after(() => pool.end());
+  // pg-pool은 빌려 줄 때 유휴 리스너를 떼므로, 'connect'로 받은 연결에 직접 단 리스너가 없으면 EventEmitter가 던져 프로세스가 죽는다.
+  const client = new EventEmitter();
+  pool.emit('connect', client);
+  const terminated = (host: string) => Object.assign(
+    new Error(`terminating connection to ${host}:5432 as user masscom`),
+    { code: '57P01' },
+  );
+
+  assert.doesNotThrow(() => client.emit('error', terminated('checked-out.internal.example')));
+  assert.equal(lines.length, 1);
+  assert.deepEqual(JSON.parse(lines[0]!), { event: 'MINT_WORKER_DB_POOL_ERROR', name: 'Error', code: '57P01' });
+  assert.doesNotMatch(lines[0]!, /checked-out\.internal\.example/);
+
+  // 유휴 연결의 같은 오류는 연결 리스너와 풀 'error' 양쪽으로 들어오지만 한 줄만 남는다.
+  const idle = terminated('idle.internal.example');
+  assert.doesNotThrow(() => { client.emit('error', idle); pool.emit('error', idle, client); });
+  assert.equal(lines.length, 2);
+  assert.doesNotMatch(lines[1]!, /idle\.internal\.example/);
 });
 
 test('반복마다 기록된 커서에서 조회 시작 블록을 다시 계산해 처리 전에 게이트웨이에 넘긴다', async () => {
