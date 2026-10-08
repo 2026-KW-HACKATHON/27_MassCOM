@@ -2,6 +2,12 @@
 
 기준 시각: 2026-10-08 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
+## 점주 웹 두 경로 전달 — PR #418 (2026-10-08)
+
+[PR #418](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/418)은 main `e06c97cd`에서 분기한 AI 초안·준비 이미지 스튜디오 진입, 웹 업로드 정규화, 최신 사진 정렬과 세션 AI API 변경이다. API 569/569·typecheck·build, 사이트 384/384, PostgreSQL 최신 사진 통합 1/1이 통과했다. Docker 없는 Windows의 Caddy 컨테이너 두 시험은 실행하지 못했다. [화면 증거·재현·배포 조건](evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)을 먼저 읽는다.
+
+고객 앱 개발 웹에서 로컬 DB의 `QA 가상 월계 달빛빵집` 이름·주소·최신 이미지·1/3/5 코인 캠페인 노출을 확인했다. 운영 계정은 점포 승인 부재로 저장·게시 종단 QA가 막혔다. 공개 서비스 배포, 실제 AI 생성, 계정 권한 부여는 하지 않았다. 배포 담당자는 PR #413의 `/api/web/v1/*` Caddy 수정과 이 PR의 API·웹을 함께 반영하고 승인된 점포 및 AI 예산으로 종단 검증해야 한다. 가상 가게는 시연 DB에만 넣는다. 신규 migration은 없다.
+
 ## 1. 기준 커밋과 작업 위치
 
 - 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.

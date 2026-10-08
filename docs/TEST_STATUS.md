@@ -8,11 +8,14 @@
 | --- | --- | --- |
 | 인터넷·최신 원격 확인 | PASS | 2026-10-08 KST 재확인: `api.masscom.kr/health` 200, `demo-api.masscom.kr/health` 200, `www.masscom.kr/merchant/` 200, GitHub 원격 `origin/main` = `e06c97cd`. 비로그인 GitHub REST 404는 private 저장소 특성이고 인증된 `gh repo view`는 `2026-KW-HACKATHON/27_MassCOM main` PASS |
 | 점주 실계정 웹 | BLOCKED | `msocs1324@gmail.com` Google 로그인은 성공했지만 승인된 점포가 없다는 운영 화면이 표시되어 실제 계정의 제작·저장·게시 종단 검증은 하지 못했다. 권한을 임의 부여하지 않았다 |
-| 웹 제작기 단위·회귀 | PASS | `node --test tests/site/collectible-dual-studio.test.mjs tests/site/collectible-merchant-starter.test.mjs tests/site/collectible-editor-flow.test.mjs tests/site/collectible-studio-layout.test.mjs tests/site/collectible-errors.test.mjs` → 142/142 PASS |
+| 웹 제작기 단위·회귀 | PASS | `node --test tests/site/collectible-editor-flow.test.mjs tests/site/collectible-studio-layout.test.mjs tests/site/collectible-dual-studio.test.mjs` → 136/136 PASS. 현재 단계 하나·입력 보존·마지막 이전·스크롤 초기화·처리 중 사진의 닫기 확인 회귀 포함. 최종 layout 44/44 PASS에는 휴대폰 native dialog의 운영 화면 복귀 버튼을 잠그지 않는 회귀를 추가 |
 | API 단위·타입 | PASS | `npm --prefix apps/api run typecheck` PASS, `npx --prefix apps/api tsx --test apps/api/src/server.test.ts` → 123/123 PASS |
 | 실제 PostgreSQL 통합 | PASS | 임시 `_test` DB에서 `TEST_DATABASE_URL=… tsx --test apps/api/src/real-world.postgres.integration.ts` → 1/1 PASS. 최신 사진 정렬 fixture는 profile 좌표와 DB check constraint를 맞춰 고쳤다 |
 | 로컬 가상 점포 QA | PASS | `.\apps\api\node_modules\.bin\tsx.cmd tests/qa/merchant-dual-studio-qa.mts` → `QA_PASS … qa-wolgye-dalbit-bakery-20261008`. `/merchants`, `/v1/discovery/search`, 상세, game-content, 사진 URL을 확인했다. 증거는 `docs/evidence/merchant-dual-studio-2026-10-08/` |
 | 브라우저 UI QA | PASS(합성 fixture) | `COLLECTIBLE_QA_AI=1 tests/fixtures/collectible-qa-server.mjs` 기반 Codex in-app Chromium에서 두 진입 카드, 합성 AI 초안 선택 후 저장, 준비 이미지 선택 후 저장, 데스크톱·모바일 가로 넘침 없음 확인. 실제 AI 생성·실제 점포 권한·배포는 `NOT_RUN/BLOCKED` |
+| 전체 API·사이트 회귀 | PASS | API 569/569·typecheck·build, 사이트 `tests/site/*.test.mjs` 384/384. Windows CRLF를 Git의 LF 내용으로 정규화한 체크아웃에서 사이트 시험을 실행했다. shell/Caddy 내용 변경은 없다 |
+| 실제 고객 앱의 가상 가게 | PASS(로컬 DB) | 최신 development Expo 웹 export를 QA API 3308에 연결하여 탐색 목록과 상세의 `QA 가상 월계 달빛빵집`, 주소, 최신 대표 이미지, 1·3·5 목표 및 보상 가능을 확인했다. `07`·`08` 캡처와 `browser-db-result.json`이 같은 DB 실행을 기록한다 |
+| QA 재실행·환경 한계 | PASS / NOT_RUN | 포트 중복으로 다른 API를 검증하지 않도록 시작 전 검사 추가. 3309의 fresh DB `masscom_showcase_ci_202610082fea38_test`에서 최종 스크립트 PASS. production web·proxy 시험은 138 중 136 통과, Caddy 컨테이너 두 시험은 `docker ENOENT`로 실행하지 못함 |
 
 ## 2026-10-08 첫 사용 경험: 웹 첫 화면·동의·첫 코인·가게 사실 표시 (Issue #412, 배포 동결)
 

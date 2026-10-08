@@ -4,7 +4,7 @@ Generated on 2026-10-08 KST from `27_MassCOM-latest` at `e06c97cd`.
 
 ## Local API
 
-- API base URL: `http://127.0.0.1:3308`
+- Latest reproducible API base URL: `http://127.0.0.1:3309` (`start-api.ps1`). Browser captures use the earlier 3308 run recorded in `browser-db-result.json`.
 - Database: fresh `masscom_showcase_ci_<run>_test` database per run. The latest run name is recorded in `result.json`.
 - Credential pattern: `PGPASSWORD` is read from `C:\Hackerton\27_MassCOM\.omx\qa-postgres\db-password.txt` by `start-api.ps1`. Do not paste the password into chat, docs, PRs, or issue comments.
 - Start command: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File docs\evidence\merchant-dual-studio-2026-10-08\start-api.ps1`
@@ -31,7 +31,7 @@ Fresh run:
 Last pass:
 
 ```text
-QA_PASS masscom_showcase_ci_20261008133817_test http://127.0.0.1:3308 qa-wolgye-dalbit-bakery-20261008
+QA_PASS masscom_showcase_ci_202610082fea38_test http://127.0.0.1:3309 qa-wolgye-dalbit-bakery-20261008
 ```
 
 Verified paths:
@@ -42,5 +42,5 @@ Verified paths:
 - `GET /v1/discovery/merchants/qa-wolgye-dalbit-bakery-20261008`
 - `POST /v1/discovery/game-content`
 - `GET /v1/discovery/photos/<thumbnail-digest>`
-- `PostgresCollectibleProjectService.create/publish` created publication `fbe9f867-4cb7-484c-b031-3b2d8e1b213d` with reward grades `{1: bronze, 3: custom, 5: gold}`.
+- `PostgresCollectibleProjectService.create/publish` created and linked a publication with reward grades `{1: bronze, 3: custom, 5: gold}`.
 - Separate fresh DB integration: `tsx --test apps/api/src/real-world.postgres.integration.ts` on a dedicated `_test` database → `tests 1`, `pass 1`, `fail 0`.

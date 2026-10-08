@@ -33,6 +33,22 @@ function closeCreator(doc, reason) {
   creators.delete(doc);
   creatorStores.delete(doc);
   doc.getElementById('merchant-creator-editor')?.replaceChildren();
+  const dialog = doc.getElementById('merchant-creator-dialog');
+  if (dialog?.open) dialog.close();
+}
+
+function creatorDialog(doc) {
+  let dialog = doc.getElementById('merchant-creator-dialog');
+  if (dialog) return dialog;
+  const editor = doc.getElementById('merchant-creator-editor');
+  if (!editor) return null;
+  dialog = doc.createElement('dialog');
+  if (typeof dialog.showModal !== 'function') return null;
+  dialog.id = 'merchant-creator-dialog'; dialog.className = 'merchant-creator-dialog';
+  dialog.setAttribute('aria-label', '가게 수집품 만들기');
+  const close = doc.createElement('button'); close.id = 'merchant-creator-close'; close.type = 'button'; close.textContent = '← 운영 화면으로';
+  dialog.append(close, editor); doc.body.append(dialog);
+  return dialog;
 }
 
 // 기기 저장소 인자를 생략해(clearCollectibleDrafts가 전역 기기 저장소를 기본값으로 쓴다) 이 화면의 소스에는
@@ -83,6 +99,16 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   // 저장하지 않은 편집이 있으면 제작기를 다시 열거나 점포를 바꾸기 전에 묻는다. 거절하면 그대로 둔다.
   const isDirty = () => creators.get(doc)?.isDirty?.() === true;
   const keepEdits = () => isDirty() && !confirm(discardMessage);
+  const dialog = creatorDialog(doc);
+  const leaveCreator = () => {
+    const discarding = isDirty();
+    if (keepEdits()) return false;
+    closeCreator(doc, discarding ? 'discard' : undefined); open.focus(); return true;
+  };
+  if (dialog) {
+    doc.getElementById('merchant-creator-close').onclick = leaveCreator;
+    dialog.oncancel = event => { event.preventDefault(); leaveCreator(); };
+  }
   select.onchange = () => {
     const mounted = creatorStores.get(doc);
     if (!mounted || select.value === mounted) return;
@@ -131,6 +157,7 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
       if (merchantRequests.get(doc) !== currentRequest) { cleanup?.(); return; }
       creators.set(doc, cleanup);
       creatorStores.set(doc, merchant.id);
+      if (dialog && !dialog.open) dialog.showModal();
     } catch (error) {
       if (merchantRequests.get(doc) === currentRequest) doc.getElementById('merchant-status').textContent = error.status === 403
         ? creatorDenied : '제작기를 열지 못했어요. 다시 시도해 주세요.';

@@ -929,6 +929,26 @@ test('저장하지 않은 편집이 있으면 제작기를 다시 열기 전에 
   assert.equal(api.calls.filter(call => call.path === '/collectible-projects' && call.method === 'GET').length, 1, '다시 열지 않았다');
 });
 
+test('사진 처리가 끝나기 전 제작기를 다시 열면 저장하지 않은 편집으로 확인한다', async () => {
+  const api = createFakeApi();
+  const previousReader = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');
+  globalThis.FileReader = class { readAsDataURL() {} };
+  try {
+    const ui = await mountViaMerchant(api, { confirm: () => false });
+    const photo = ui.control('photo');
+    photo.files = [photoFile];
+    photo.dispatchEvent({ type: 'change' });
+    await settle(1);
+    await ui.openEditor();
+    assert.match(ui.asked[0], /저장하지 않은 편집이 있어요\. 지금 제작기를 다시 열거나 다른 점포로 바꾸면 사라져요/);
+    assert.ok(ui.host.children.length > 0, '거절하면 처리 중인 제작기를 닫지 않는다');
+    assert.equal(api.calls.filter(call => call.path === '/collectible-projects' && call.method === 'GET').length, 1, '처리 중이면 다시 열지 않는다');
+  } finally {
+    if (previousReader) Object.defineProperty(globalThis, 'FileReader', previousReader);
+    else delete globalThis.FileReader;
+  }
+});
+
 test('저장하지 않은 편집이 있어도 수락하면 새 제작기를 연다', async () => {
   const api = createFakeApi();
   const accepted = await mountViaMerchant(api, { confirm: () => true });

@@ -1061,7 +1061,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       finally { if (active) setBusy(false); }
       return;
     }
-    if (action === 'home') { stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(); return; }
+    if (action === 'ai-back') { stopAi(); studio.hideAi(); studio.showHome(); return; }
+    if (action === 'home') { stopAi(); studio.hideAi(); stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(); return; }
     if (action === 'resume') { navigateStep(studio.step); return; }
     if (action === 'step' || action === 'previous-step' || action === 'next-step') { navigateStep(action === 'step' ? id : studio.step + (action === 'next-step' ? 1 : -1)); return; }
     if (action === 'open-project') { stopHiddenMedia(); await loadProject(id); return; }
@@ -1579,6 +1580,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     clearCollectibleRenderCache(); container.replaceChildren();
   };
   // 점주 웹이 제작기를 닫거나 다른 점포로 바꾸기 전에 저장하지 않은 편집을 물어볼 수 있게 한다.
-  dispose.isDirty = () => dirty;
+  dispose.isDirty = () => dirty || mediaPending();
   return dispose;
 }

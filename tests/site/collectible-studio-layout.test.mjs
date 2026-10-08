@@ -58,6 +58,36 @@ test('고정 작업 영역의 미리보기 캔버스를 관찰하고 표시되�
   }
 });
 
+test('작업 영역은 현재 단계 패널 하나만 보이고 다음·이전으로 이동해도 입력값을 보존한다', async () => {
+  const ui = await mountStudio();
+  const workspace = ui.q('[data-view="workspace"]');
+  const visiblePanels = () => ui.all('[data-step-panel]').filter(panel => !panel.hidden).map(panel => panel.dataset.stepPanel);
+
+  assert.equal(workspace.dataset.step, '1');
+  assert.deepEqual(visiblePanels(), ['1']);
+  ui.q('[data-control="zoom"]').value = '1.5';
+  ui.q('[data-control="zoom"]').dispatchEvent({ type: 'input' });
+  await settle();
+
+  await ui.act('next-step');
+  assert.equal(workspace.dataset.step, '2');
+  assert.deepEqual(visiblePanels(), ['2']);
+  assert.equal(ui.q('[data-step-panel="1"]').hidden, true);
+  assert.equal(ui.q('[data-control="zoom"]').value, '1.5', '이전 단계 입력값은 숨겨져도 남아 있다');
+
+  await ui.act('next-step');
+  assert.equal(workspace.dataset.step, '3');
+  assert.deepEqual(visiblePanels(), ['3']);
+
+  await ui.act('previous-step');
+  assert.equal(workspace.dataset.step, '2');
+  assert.deepEqual(visiblePanels(), ['2']);
+
+  await ui.act('step', '4');
+  assert.equal(workspace.dataset.step, '4');
+  assert.deepEqual(visiblePanels(), ['4']);
+});
+
 test('1단계에는 사진·모양·자르기만 펼치고 이름은 4단계로 간다', async () => {
   const ui = await mountStudio();
   assert.equal(ui.stepOf(ui.q('[data-control="photo"]')), '1');
@@ -346,15 +376,14 @@ test('값이 있는 필터가 여럿이면 먼저 오는 것을 보인다', asyn
 
 const visible = node => { for (let item = node; item; item = item.parentElement) if (item.hidden) return false; return true; };
 
-test('하단 바: 1단계는 다음만, 2~3단계는 이전·다음, 4단계는 전체 미리보기·게시하기', async () => {
+test('하단 바: 1단계는 다음만, 2~3단계는 이전·다음, 4단계는 이전·전체 미리보기·게시하기', async () => {
   const ui = await mountStudio();
   const footer = ui.q('.ce-stage-footer');
   const shown = () => ['previous-step', 'replay', 'next-step', 'publish'].filter(name => { const button = footer.querySelector(`[data-action="${name}"]`); return button && !button.hidden; });
   assert.deepEqual(shown(), ['next-step']);
   await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'next-step']);
   await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'next-step']);
-  // 규칙 R17: 4단계 하단 바는 전체 미리보기·게시하기만 둔다(명세 우선). 돌아가기는 단계 타일로 한다.
-  await ui.act('next-step'); assert.deepEqual(shown(), ['replay', 'publish']);
+  await ui.act('next-step'); assert.deepEqual(shown(), ['previous-step', 'replay', 'publish']);
   assert.equal(footer.querySelector('[data-action="publish"]').textContent, '게시하기');
   await ui.act('step', '3'); assert.deepEqual(shown(), ['previous-step', 'next-step'], '단계 타일로 돌아오면 다시 이전·다음');
 });
@@ -426,15 +455,22 @@ test('알림 줄과 하단 바는 하나의 고정 하단 묶음 안에 알림 �
 test('단계를 옮기면 스크롤 칸(작업 영역)을 맨 위로 되돌린다', async () => {
   const ui = await mountStudio();
   const workspace = ui.q('[data-view="workspace"]');
+  const grid = ui.q('.ce-grid');
   workspace.scrollTop = 500;
+  grid.scrollTop = 300;
   await ui.act('next-step');
-  assert.equal(workspace.scrollTop, 0, '다음 단계');
+  assert.equal(workspace.scrollTop, 0, '다음 단계 작업 영역');
+  assert.equal(grid.scrollTop, 0, '다음 단계 스크롤 칸');
   workspace.scrollTop = 500;
+  grid.scrollTop = 300;
   await ui.act('step', '4');
-  assert.equal(workspace.scrollTop, 0, '단계 타일');
+  assert.equal(workspace.scrollTop, 0, '단계 타일 작업 영역');
+  assert.equal(grid.scrollTop, 0, '단계 타일 스크롤 칸');
   workspace.scrollTop = 500;
+  grid.scrollTop = 300;
   await ui.act('previous-step');
-  assert.equal(workspace.scrollTop, 0, '이전 단계');
+  assert.equal(workspace.scrollTop, 0, '이전 단계 작업 영역');
+  assert.equal(grid.scrollTop, 0, '이전 단계 스크롤 칸');
 });
 
 test('⋯ 메뉴는 동작·홈·단계 이동·Esc로 닫히고 동작·Esc 뒤에만 초점이 ⋯로 돌아온다', async () => {
@@ -643,6 +679,19 @@ test('오류 알림은 내용을 쓰기 전에 alert·assertive로, 일반 알�
   assert.match(notice.textContent, /되돌릴 편집/);
   assert.deepEqual(writes.at(-1), ['status', 'polite']);
   assert.equal(notice.classList.contains('ce-error'), false);
+});
+
+test('폰의 열린 dialog에서는 운영 화면 복귀 버튼을 inert로 잠그지 않는다', async () => {
+  const media = document.createElement('div'); media.matches = true;
+  dom.window.matchMedia = query => query === '(max-width: 820px)' ? media : { matches: false, addEventListener() {}, removeEventListener() {} };
+  const ui = await mountStudio(), dialog = document.createElement('dialog'), close = document.createElement('button');
+  dialog.open = true; close.inert = false;
+  dialog.append(close, ui.container); document.body.append(dialog);
+  await ui.act('step', '2');
+  assert.equal(close.inert, false, 'native dialog 안의 닫기 버튼은 누를 수 있다');
+  assert.equal(Boolean(ui.container.inert), false);
+  await ui.act('home');
+  assert.equal(close.inert, false);
 });
 
 for (const phone of [true, false]) {

@@ -86,9 +86,10 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   aiPanel.dataset.view = 'ai-panel'; aiPanel.hidden = true;
   const aiStatus = node('p', 'ce-help'); aiStatus.setAttribute('role', 'status'); aiStatus.dataset.view = 'ai-status';
   const aiDrafts = node('div', 'ce-ai-drafts'); aiDrafts.dataset.view = 'ai-drafts';
-  aiPanel.append(aiStatus, aiDrafts, action('생성 상태 다시 확인', 'ai-start', undefined, 'ce-text-button'), action('AI 새 초안 만들기', 'ai-create', undefined, 'ce-text-button'));
+  aiPanel.append(action('← 시작 방식 선택', 'ai-back', undefined, 'ce-text-button'), aiStatus, aiDrafts, action('생성 상태 다시 확인', 'ai-start', undefined, 'ce-text-button'), action('AI 새 초안 만들기', 'ai-create', undefined, 'ce-text-button'), action('준비한 이미지로 스튜디오 가기', 'prepared-photo', undefined, 'ce-text-button'));
   home.append(aiPanel);
-  home.append(action('최근 등록한 가게 사진으로 시작', 'latest-photo', undefined, 'ce-text-button'));
+  const latestPhoto = action('최근 등록한 가게 사진으로 시작', 'latest-photo', undefined, 'ce-text-button'); home.append(latestPhoto);
+  const homeOptions = node('div', 'ce-home-options'); home.append(homeOptions);
   {
     const starters = section('가게에서 시작하기');
     const choices = node('div', 'ce-starter-grid');
@@ -105,17 +106,17 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
       tile.append(visual, node('span', 'ce-starter-source', source), node('strong', '', title), node('span', 'ce-starter-detail', detail));
       choices.append(tile);
     }
-    starters.append(choices); home.append(starters);
+    starters.append(choices); homeOptions.append(disclosure('가게·메뉴에서 시작하기', starters));
   }
   const resume = node('div', 'ce-resume'); resume.hidden = true;
   const resumeText = node('p', 'ce-resume-text'); resume.append(resumeText, action('이어서 편집하기 →', 'resume', undefined, 'ce-resume-button')); home.append(resume);
   const saved = section('나의 제작물', '저장한 초안과 게시 버전을 다시 열어 이어서 만들 수 있어요.');
   const savedHeading = node('div', 'ce-section-heading'); savedHeading.append(saved.querySelector('h3'), action('목록 새로 보기', 'refresh', undefined, 'ce-text-button')); saved.prepend(savedHeading);
-  const gallery = node('div', 'ce-project-gallery'); gallery.dataset.view = 'project-gallery'; saved.append(gallery); home.append(saved);
+  const gallery = node('div', 'ce-project-gallery'); gallery.dataset.view = 'project-gallery'; saved.append(gallery); homeOptions.append(disclosure('저장한 제작물 보기', saved));
   const season = section('시즌 테마', '새로 만들 수집품의 테마를 골라 주세요. 등급과 보상 조건은 그대로예요.');
   const homeThemes = seasonTiles('season'); season.append(homeThemes);
   const customField = node('label', 'ce-field', '자유 입력 테마'); customField.hidden = true;
-  const custom = node('input'); custom.type = 'text'; custom.maxLength = 80; custom.placeholder = '예: 우리 동네 생일 축제'; custom.dataset.control = 'home-theme'; customField.append(custom); season.append(customField); home.append(season);
+  const custom = node('input'); custom.type = 'text'; custom.maxLength = 80; custom.placeholder = '예: 우리 동네 생일 축제'; custom.dataset.control = 'home-theme'; customField.append(custom); season.append(customField); homeOptions.append(disclosure('새 수집품의 시즌 설정', season));
   let homeTheme = '기본', currentStep = 1, hasCurrent = false;
   let historyEntry = window.history?.state?.collectibleWorkspace === true, pendingBack = false;
   const workspace = node('div', 'ce-workspace'); workspace.hidden = true; workspace.dataset.view = 'workspace'; workspace.dataset.step = '1';
@@ -127,7 +128,8 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   }
   function syncBackground() {
     restoreBackground();
-    if (workspace.hidden || !phoneLayout?.matches) return;
+    // 열린 native dialog가 배경을 이미 잠그므로 내부의 운영 화면 복귀 버튼까지 잠그지 않는다.
+    if (workspace.hidden || !phoneLayout?.matches || container.closest('dialog')?.open) return;
     // 작업 영역의 조상은 그대로 두고 형제만 잠근다.
     for (let current = workspace; current !== document.body && current.parentElement; current = current.parentElement) {
       for (const sibling of current.parentElement.children) {
@@ -292,10 +294,15 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }
     grid.querySelector('.ce-preview').hidden = currentStep === 1;
-    previous.hidden = currentStep === 1 || currentStep === 4; nextButton.hidden = currentStep === 4;
+    previous.hidden = currentStep === 1; nextButton.hidden = currentStep === 4;
     fullPreview.hidden = currentStep !== 4; publish.hidden = currentStep !== 4;
     statusLine.prepend(noticeView); syncBackground(); setMenu(false);
-    if (focus) { title.focus({ preventScroll: true }); title.scrollIntoView({ block: 'start', behavior: 'instant' }); }
+    if (focus) {
+      title.focus({ preventScroll: true });
+      if (container.closest('dialog')) container.scrollTop = 0;
+      else title.scrollIntoView({ block: 'start', behavior: 'instant' });
+    }
+    grid.scrollTop = 0;
     // 폰에서는 .ce-workspace가 스크롤 칸이고 제목은 고정 머리 안이라 scrollIntoView가 위치를 되돌리지 못하고 1px쯤 밀기도 한다. 마지막에 맨 위로 맞춘다.
     workspace.scrollTop = 0;
     syncChoices();
@@ -305,7 +312,11 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     if (historyEntry) { historyEntry = false; if (!fromHistory && window.history?.back) { pendingBack = true; window.history.back(); } }
     restoreBackground();
     workspace.hidden = true; home.hidden = false; resume.hidden = !hasCurrent; home.prepend(noticeView); setMenu(false);
-    if (focus) { const heading = home.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true }); heading.scrollIntoView({ block: 'start', behavior: 'instant' }); }
+    if (focus) {
+      const heading = home.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true });
+      if (container.closest('dialog')) container.scrollTop = 0;
+      else heading.scrollIntoView({ block: 'start', behavior: 'instant' });
+    }
   }
   function renderProjects(projects, selectedId = '') {
     gallery.replaceChildren();
@@ -324,14 +335,17 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   return {
     showStep, showHome, renderProjects, setBusy, dispose: restoreBackground,
     showAi(message, drafts = []) {
+      const entering = aiPanel.hidden;
+      hero.hidden = true; latestPhoto.hidden = true; homeOptions.hidden = true; resume.hidden = true;
       aiPanel.hidden = false; aiStatus.textContent = message; aiDrafts.replaceChildren();
       for (const draft of drafts) {
         const tile = action('', 'ai-use', String(draft.index), 'ce-ai-draft');
         const image = node('img'); image.src = draft.imageDataUrl; image.alt = `${draft.label} AI 초안`;
         tile.append(image, node('strong', '', draft.label), node('span', '', '이 그림으로 스튜디오 가기 →')); aiDrafts.append(tile);
       }
+      if (entering) { const heading = aiPanel.querySelector('h3'); heading.tabIndex = -1; heading.focus({ preventScroll: true }); if (container.closest('dialog')) container.scrollTop = 0; }
     },
-    hideAi() { aiPanel.hidden = true; aiDrafts.replaceChildren(); },
+    hideAi() { aiPanel.hidden = true; aiDrafts.replaceChildren(); hero.hidden = false; latestPhoto.hidden = false; homeOptions.hidden = false; resume.hidden = !hasCurrent; },
     setHistoryEntry(value) { historyEntry = value; },
     // 홈 버튼의 늦은 기록 이동은 재진입한 작업 영역을 닫지 않는다.
     consumePendingBack() { const pending = pendingBack; pendingBack = false; return pending; },

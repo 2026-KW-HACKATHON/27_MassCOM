@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { spawn, spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:net';
 
 import pg from '../../apps/api/node_modules/pg/lib/index.js';
 import { runMigrations } from '../../apps/api/src/postgres/migrate.ts';
@@ -60,7 +61,7 @@ async function ensureLocalPostgres() {
   if (!existsSync(pgCtl) || !existsSync(pgData) || !existsSync(passwordFile)) {
     throw new Error('QA_POSTGRES_NOT_FOUND');
   }
-  process.env.PGPASSWORD = (await readFile(passwordFile, 'utf8')).trim();
+  Reflect.set(process.env, 'PGPASSWORD', (await readFile(passwordFile, 'utf8')).trim());
   const status = run(pgCtlPath, ['status', '-D', pgDataPath]);
   if (status.status === 0) return 'already-running';
   const started = spawnSync(
@@ -370,11 +371,12 @@ async function verifyHttp() {
   return { searchBody, legacyHit, searchHit, detailMerchant, gameContext, publicPhotoBytes };
 }
 
-function redactedDatabaseUrl() {
-  return databaseUrl.replace(/masscom_qa(?=@)/, 'masscom_qa:<PGPASSWORD>');
-}
-
 async function main() {
+  await new Promise<void>((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', () => reject(new Error('QA_API_PORT_UNAVAILABLE: choose MERCHANT_DUAL_STUDIO_QA_PORT')));
+    probe.listen(apiPort, '127.0.0.1', () => probe.close((error) => error ? reject(error) : resolve()));
+  });
   await mkdir(evidenceRoot, { recursive: true });
   console.error('QA_STAGE postgres');
   const postgresState = await ensureLocalPostgres();
@@ -400,7 +402,7 @@ async function main() {
       git: run('git', ['-C', repoRootPath, 'log', '-1', '--oneline']).stdout,
       postgresState,
       databaseName,
-      databaseUrl: redactedDatabaseUrl(),
+      databaseUrl,
       apiBaseUrl,
       merchant: qaMerchant,
       database: dbEvidence,
@@ -422,7 +424,7 @@ async function main() {
       },
     };
     await writeFile(new URL('result.json', evidenceRoot), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
-    await writeFile(new URL('start-api.ps1', evidenceRoot), `\$ErrorActionPreference = 'Stop'\nSet-Location -LiteralPath 'C:\\Hackerton\\27_MassCOM-latest'\n\$env:PGPASSWORD = [IO.File]::ReadAllText('C:\\Hackerton\\27_MassCOM\\.omx\\qa-postgres\\db-password.txt').Trim()\n\$env:DATABASE_URL = '${databaseUrl}'\n\$env:PORT = '${apiPort}'\n\$env:API_BIND_HOST = '127.0.0.1'\n\$env:ALLOW_INSECURE_DEMO_ACCOUNT = 'true'\n\$env:NFT_MINTING_MODE = 'PREPARING'\n\$taskPreviewBytes = New-Object byte[] 32\n[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes(\$taskPreviewBytes)\n\$taskPreviewHmac = [BitConverter]::ToString(\$taskPreviewBytes) -replace '-', ''\n\$env:ACCOUNT_DELETION_HMAC_SECRET = \$taskPreviewHmac\n\$env:MERCHANT_REFERENCE_HMAC_SECRET = \$taskPreviewHmac\nRemove-Item Env:SHOWCASE_MODE -ErrorAction SilentlyContinue\nRemove-Item Env:GOOGLE_OAUTH_CLIENT_IDS -ErrorAction SilentlyContinue\nRemove-Item Env:EXPO_PUSH_ACCESS_TOKEN -ErrorAction SilentlyContinue\n& '.\\apps\\api\\node_modules\\.bin\\tsx.cmd' apps/api/src/server.ts\nexit \$LASTEXITCODE\n`, 'utf8');
+    await writeFile(new URL('start-api.ps1', evidenceRoot), `\$ErrorActionPreference = 'Stop'\nSet-Location -LiteralPath 'C:\\Hackerton\\27_MassCOM-latest'\nSet-Item -Path Env:PGPASSWORD -Value ([IO.File]::ReadAllText('C:\\Hackerton\\27_MassCOM\\.omx\\qa-postgres\\db-password.txt').Trim())\n\$env:DATABASE_URL = '${databaseUrl}'\n\$env:PORT = '${apiPort}'\n\$env:API_BIND_HOST = '127.0.0.1'\n\$env:ALLOW_INSECURE_DEMO_ACCOUNT = 'true'\n\$env:NFT_MINTING_MODE = 'PREPARING'\n\$taskPreviewBytes = New-Object byte[] 32\n[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes(\$taskPreviewBytes)\n\$taskPreviewHmac = [BitConverter]::ToString(\$taskPreviewBytes) -replace '-', ''\nSet-Item -Path Env:ACCOUNT_DELETION_HMAC_SECRET -Value \$taskPreviewHmac\nSet-Item -Path Env:MERCHANT_REFERENCE_HMAC_SECRET -Value \$taskPreviewHmac\nRemove-Item Env:SHOWCASE_MODE -ErrorAction SilentlyContinue\nRemove-Item Env:GOOGLE_OAUTH_CLIENT_IDS -ErrorAction SilentlyContinue\nRemove-Item Env:EXPO_PUSH_ACCESS_TOKEN -ErrorAction SilentlyContinue\n& '.\\apps\\api\\node_modules\\.bin\\tsx.cmd' apps/api/src/server.ts\nexit \$LASTEXITCODE\n`, 'utf8');
     console.log(`QA_PASS ${databaseName} ${apiBaseUrl} ${qaMerchant.id}`);
   } finally {
     stopApi(api);
