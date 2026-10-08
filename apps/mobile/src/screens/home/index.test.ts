@@ -12,7 +12,10 @@ const layout = read('../../app/_layout.tsx');
 test('home loads real room, ticket, reward, collection and merchant data', () => {
   for (const request of ['clients.studio.getMine()', 'clients.coins.getShop()', 'clients.rewards.listStoreTickets()',
     'clients.collection.getCollection()', 'clients.merchants.listMerchants()']) assert.ok(home.includes(request), request);
-  assert.match(home, /Promise\.allSettled\(/);
+  // Each request settles into its own section (home-load.ts), so no single slow request holds the whole screen back.
+  assert.doesNotMatch(home, /Promise\.allSettled\(/);
+  for (const section of ['studio', 'coins', 'rewards', 'collection', 'merchants']) assert.match(home, new RegExp(`track\\('${section}', `), section);
+  assert.match(home, /settleHomeSection\(data, section, \{ ok: true, value \}\)/);
   assert.match(home, /homeVisitGoal\(data\.merchants, data\.collection, data\.loadedAt\)/);
   assert.match(home, /data\?\.studio \? <View[\s\S]*?<StudioScene/);
   assert.doesNotMatch(home, /AsyncStorage|fixture/i);
@@ -81,4 +84,23 @@ test('missions keep the 1, 3 and 5 goals and existing reward box on a backable p
   assert.match(home, /<HomeRewardCard book=\{book\} onOpen=\{badgeApi\.openReward\} onRevealed=\{onRevealed\} onOpenFailed=\{onOpenFailed\} \/>/);
   assert.match(home, /shouldRefreshBadgesQuietly\(code\)/);
   assert.match(home, /\[1, 3, 5\]\.map/);
+});
+
+test('a visitor with no visit gets one highlighted first store, and an empty room with coins gets a place-them action', () => {
+  assert.match(overview, /const firstStore = pickFirstStore\(data, goal\)/);
+  assert.match(overview, /pathname: '\/merchants\/\[merchantId\]', params: \{ merchantId: firstStore\.merchantId, from: 'recommendation' \}/);
+  assert.match(overview, /clients\.recommendations\.listRecommendations\(\)/);
+  assert.match(overview, /label: `수집품 \$\{collectedCount\}개 · 방에 놓기`, onPress: \(\) => router\.push\('\/studio'\)/);
+  assert.match(overview, /emptyRoom && collectedCount > 0/);
+});
+
+test('each home section names its own loading or failure instead of waiting for the others', () => {
+  assert.match(overview, /failed\('studio'\) \? '마이룸을 불러오지 못했어요\.' : '마이룸을 불러오고 있어요\.'/);
+  assert.match(overview, /failed\('coins'\) \? '뽑기권을 불러오지 못했어요\.' : '뽑기권 확인 중'/);
+  assert.match(overview, /failed\('collection'\) \|\| failed\('merchants'\) \? '방문 목표를 불러오지 못했어요'/);
+});
+
+test('a superseded or revisited load never asks for a recommendation, so the first-store card does not flicker or swap', () => {
+  assert.match(overview, /const hadRecommendations = loadedRef\.current\?\.clients === clients && loadedRef\.current\.value\.recommendations !== undefined;/);
+  assert.match(overview, /request === generation\.current && needsFirstStoreRecommendation\(collection\.visits\.length, hadRecommendations\)/);
 });

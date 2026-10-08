@@ -291,6 +291,9 @@ test('mascots are plain images unless asked to be interactive, and the exhibit h
     assert.doesNotMatch(hero, /accessibilityLabel/, `${file} hero mascot is decorative`);
   }
   assert.match(readSource('screens/foundation/index.tsx'), /<Mascot interactive pose="wave"[^>]*accessibilityLabel=/);
+  // On web the labelled heroes become decoration (tabIndex -1 + aria-hidden); the native announced button is unchanged.
+  assert.match(read('mascot.tsx'), /decorativeOnWeb/);
+  assert.match(read('mascot.tsx'), /Platform\.OS === 'web' && decorativeOnWeb \? undefined : labelProp/);
   assert.doesNotMatch(read('state-scene.tsx'), /interactive/);
   assert.doesNotMatch(readSource('gamification/celebration.tsx'), /<Mascot[^>]*interactive/);
   assert.doesNotMatch(readSource('gamification/reward-reveal.tsx'), /<Mascot[^>]*interactive/);
@@ -419,6 +422,8 @@ test('the role screen greets with the waving mascot and the logo badge instead o
   assert.match(foundation, /<Mascot interactive pose="wave"/);
   assert.match(foundation, /logo-badge/);
   assert.match(foundation, /accessibilityLabel="손을 흔드는 마스코트"/);
+  // Web only: the same hero is dropped from the tab order and the accessibility tree; native keeps the label above.
+  assert.match(foundation, /<Mascot interactive pose="wave" size=\{136\} accessibilityLabel="손을 흔드는 마스코트" decorativeOnWeb \/>/);
   assert.match(foundation, /월계 마스코트/);
   assert.doesNotMatch(foundation, />masscom</);
   // Role cards keep the existing hand-off to the caller.

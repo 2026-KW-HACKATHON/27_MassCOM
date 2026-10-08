@@ -55,3 +55,10 @@ test('map keeps native gesture canvas outside a vertical ScrollView and bounds i
   assert.match(mapBranch,/<ScrollView keyboardShouldPersistTaps="handled" style=\{styles\.mapPanel\}>/);
   assert.ok(mapBranch.indexOf('<TmapMap')<mapBranch.indexOf('<ScrollView keyboardShouldPersistTaps="handled" style={styles.mapPanel}>'));
 });
+
+test('a demo store keeps its 시연 데이터 marker on the row name and in the spoken label; only the placeholder address line is dropped', () => {
+  assert.match(map, /<Text style=\{styles\.name\}>\{merchant\.name\}\{merchant\.demo\?' · 시연 데이터':''\}<\/Text>/);
+  assert.match(map, /\$\{merchant\.name\}, \$\{merchant\.roadAddress\}, \$\{merchant\.demo\?'시연 데이터, ':''\}/);
+  assert.match(map, /\[merchant\.demo\?null:merchant\.roadAddress,/);
+  assert.doesNotMatch(map, /the banner already says/);
+});

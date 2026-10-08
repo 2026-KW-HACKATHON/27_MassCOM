@@ -12,7 +12,10 @@ import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { StatusBarScrim, useStatusBarScrim } from '@/ui/status-bar-scrim';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
-import { businessLabel, campaignLabel, enrollmentLabel, photoKindLabel, rewardLabel, routeWarningLabel } from '@/merchant/real-world-labels';
+import { businessLabel, campaignLabel, photoKindLabel, rewardLabel, routeWarningLabel } from '@/merchant/real-world-labels';
+import { merchantCardFacts, unlocatedNotice } from '@/merchant/merchant-card-facts';
+import { MerchantCrest } from '../merchant-list/merchant-crest';
+import { FactLine } from './fact-line';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
@@ -228,13 +231,19 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       error instanceof DiscoveryApiError&&error.status===404?'코스 가게가 더는 게시되지 않았습니다. 다른 가게로 바꿔 주세요.':'보행 경로를 가져오지 못했습니다. 가게를 바꾸거나 주소로 길찾기를 이용하세요.');}
   }
   const button=(label:string,onPress:()=>void,selected=false)=><Pressable accessibilityRole="button" accessibilityState={{selected}} onPress={onPress} style={[styles.button,selected&&styles.selected]}><Text style={styles.buttonText}>{selected?`✓ ${label}`:label}</Text></Pressable>;
-  const row=(merchant:MerchantSummary,source:'list'|'map'|'recommendation')=><Pressable key={merchant.id} accessibilityRole="button" accessibilityLabel={`${merchant.name}, ${merchant.roadAddress}, ${merchant.position?'위치 확인됨':'위치 확인 필요'}, ${businessLabel(merchant.business)}, ${merchant.campaign?`${campaignLabel(merchant.campaign.state)} 캠페인, ${rewardLabel(merchant.campaign.rewardAvailability)}`:'진행 중인 캠페인 없음'}, ${merchant.distance?`${Math.round(merchant.distance.meters)}미터 직선거리`:'거리 정보 없음'}`} accessibilityState={{selected:state.selectedId===merchant.id}} accessibilityHint="상세 보기와 코스 추가 동작이 있습니다" onPress={()=>select(merchant.id,source)} style={styles.row}>
-    <View style={styles.photoBox}>{merchant.thumbnail&&publishedPhotoUri(apiUrl,merchant.thumbnail.url)?<Image source={{uri:publishedPhotoUri(apiUrl,merchant.thumbnail.url)!}} style={styles.photo}/>:<Text style={styles.photoPlaceholder}>점주 사진 없음</Text>}</View>
-    <View style={{flex:1}}><Text style={styles.name}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text style={styles.muted}>{merchant.roadAddress}{merchant.floor?` · ${merchant.floor}`:''}</Text><Text style={styles.muted}>{merchant.position?'위치 확인됨':'위치 확인 필요'} · {businessLabel(merchant.business)}</Text>
-      <Text style={styles.muted}>{merchant.distance?`${merchant.distance.meters}m 직선거리 · ${merchant.distance.origin==='CURRENT_LOCATION'?'현재 위치':merchant.distance.origin==='MANUAL'?'선택한 출발지':'지도 중심'}`:'거리를 표시할 출발지 없음'} · {merchant.campaign?`${campaignLabel(merchant.campaign.state)} 캠페인 · ${enrollmentLabel(merchant.campaign.enrollment)} · ${rewardLabel(merchant.campaign.rewardAvailability)}`:'진행 중인 캠페인 없음'}</Text>
+  const row=(merchant:MerchantSummary,source:'list'|'map'|'recommendation')=>{const facts=merchantCardFacts(merchant);const distance=facts.core.find(fact=>fact.key==='distance');
+    // The seeded demo address is placeholder text, not a place, so the line is dropped; the 시연 데이터 marker stays on the name and in the label.
+    const where=[merchant.demo?null:merchant.roadAddress,facts.core.find(fact=>fact.key==='floor')?.value].filter(Boolean).join(' · ');
+    return <Pressable key={merchant.id} accessibilityRole="button" accessibilityLabel={`${merchant.name}, ${merchant.roadAddress}, ${merchant.demo?'시연 데이터, ':''}${merchant.position?'위치 확인됨':'위치 확인 필요'}, ${businessLabel(merchant.business)}, ${merchant.campaign?`${campaignLabel(merchant.campaign.state)} 캠페인, ${rewardLabel(merchant.campaign.rewardAvailability)}`:'진행 중인 캠페인 없음'}, ${merchant.distance?`${Math.round(merchant.distance.meters)}미터 직선거리`:'거리 정보 없음'}`} accessibilityState={{selected:state.selectedId===merchant.id}} accessibilityHint="상세 보기와 코스 추가 동작이 있습니다" onPress={()=>select(merchant.id,source)} style={styles.row}>
+    <View style={styles.photoBox}>{merchant.thumbnail&&publishedPhotoUri(apiUrl,merchant.thumbnail.url)?<Image source={{uri:publishedPhotoUri(apiUrl,merchant.thumbnail.url)!}} style={styles.photo}/>:<MerchantCrest merchant={{id:merchant.id,name:merchant.name,artUrl:null}} apiUrl={apiUrl}/>}</View>
+    <View style={{flex:1}}><Text style={styles.name}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text>
+      {where?<Text style={styles.muted}>{where}</Text>:null}
+      {distance?<Text style={styles.muted}>{distance.value}</Text>:null}
+      <FactLine facts={facts.critical.filter(fact=>fact.key==='business'||fact.key==='lastOrder')} base={styles.muted} warning={styles.warning}/>
+      <FactLine facts={facts.critical.filter(fact=>fact.key==='reward')} base={styles.muted} warning={styles.warning}/>
       {merchant.thumbnail?<Text style={styles.muted}>점주 제공 실제 사진 · {photoKindLabel(merchant.thumbnail.kind)}</Text>:null}
       <View style={styles.actions}>{button('상세',()=>openMerchant(merchant.id,source))}{merchant.position?button('코스에 추가',()=>updateCourse([...course.filter(stop=>stop.merchantId!==merchant.id),...(!course.some(stop=>stop.merchantId===merchant.id)&&course.length<5?createCourse([merchant.id]):[])])):null}</View>
-    </View></Pressable>;
+    </View></Pressable>;};
   const searchTools=<>
     <TextInput value={state.filters.query} onChangeText={query=>discoveryState.setFilters({query})} placeholder="가게 이름·주소 검색" placeholderTextColor={world.cardMuted} accessibilityLabel="가게 검색" style={[styles.input,styles.searchInput]} returnKeyType="search"/>
     <ScrollView horizontal keyboardShouldPersistTaps="handled" style={styles.filters} contentContainerStyle={[styles.actions,styles.filterRow]}>
@@ -269,7 +278,8 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       {selected?<View style={styles.panel}><Text style={styles.heading}>선택한 가게</Text>{row(selected,state.mode==='map'?'map':'list')}</View>:null}
       {state.error==='DISCOVERY_ZOOM_REQUIRED'?<View style={styles.panel}><Text accessibilityRole="alert" style={styles.notice}>이 범위에 영업 중인 가게가 너무 많습니다. 지도를 확대하거나 영업 중 필터를 해제하세요.</Text>{state.filters.openOnly?button('영업 중 필터 해제',()=>discoveryState.setFilters({openOnly:false})):null}</View>:state.error?<Text accessibilityRole="alert" style={styles.notice}>가게 정보를 불러오지 못했어요. 연결을 확인하고 새로고침해 주세요.</Text>:null}
       {state.loading?<ActivityIndicator accessibilityLabel="가게 불러오는 중"/>:null}
-      <Text accessibilityRole="header" style={styles.heading}>가게 {visible.length}곳{state.unlocatedCount?` · 위치 미확인 ${state.unlocatedCount}곳`:''}</Text>
+      <Text accessibilityRole="header" style={styles.heading}>가게 {visible.length}곳</Text>
+      {unlocatedNotice(state.unlocatedCount)?<Text style={styles.muted}>{unlocatedNotice(state.unlocatedCount)}</Text>:null}
       {!state.loading&&!visible.length?<Text style={styles.notice}>조건에 맞는 실제 가게가 없습니다. 필터를 조정하거나 지도를 이동해 보세요.</Text>:null}
       {visible.map(m=>row(m,'list'))}
       {state.nextCursor?<Pressable accessibilityRole="button" onPress={()=>load(true)} style={styles.button}><Text style={styles.buttonText}>{state.loading?'불러오는 중':'더 보기'}</Text></Pressable>:null}

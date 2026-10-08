@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useSyncExternalStore } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 
 import { foregroundAudioMode } from './playback-audio-mode';
 import {
@@ -52,7 +52,18 @@ const backend: SoundBackend = {
   },
 };
 
-const controller = createUiSoundController({ backend, storage: AsyncStorage });
+// 웹은 플레이어를 만드는 즉시 파일을 내려받으므로 일곱 UI 소리는 첫 사용자 동작에서 만든다. 네이티브는 시작 때 그대로 만든다.
+const controller = createUiSoundController({ backend, storage: AsyncStorage, deferUiPlayers: Platform.OS === 'web' });
+
+/** 웹: 첫 pointerdown·keydown(클릭보다 먼저 온다)에서 한 번만 `onGesture`를 부르고 리스너를 거둔다. */
+function onFirstGesture(onGesture: () => void): () => void {
+  if (typeof document === 'undefined') return () => undefined;
+  const events = ['pointerdown', 'keydown'] as const;
+  const stop = () => events.forEach((name) => document.removeEventListener(name, handle, true));
+  function handle() { stop(); onGesture(); }
+  events.forEach((name) => document.addEventListener(name, handle, true));
+  return stop;
+}
 
 /** Call once from the root layout's effect and return its cleanup. */
 export function initializeUiSounds(): () => void {
@@ -60,7 +71,9 @@ export function initializeUiSounds(): () => void {
   const subscription = AppState.addEventListener('change', (state) => {
     controller.setForeground(state === 'active');
   });
+  const stopGesture = Platform.OS === 'web' ? onFirstGesture(() => controller.loadUiPlayers()) : undefined;
   return () => {
+    stopGesture?.();
     subscription.remove();
     cleanup();
   };

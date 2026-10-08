@@ -1,5 +1,44 @@
 # 테스트 상태
 
+## 2026-10-08 첫 사용 경험: 웹 첫 화면·동의·첫 코인·가게 사실 표시 (Issue #412, 배포 동결)
+
+기준 main `b572184e`(PR #411 병합) 위에서 만든 작업 브랜치 `feat/first-use-v2`이며, PR #413·#414가 병합된 main `108f6b38` 위로 리베이스했다. 앱 코드와 CI 한 줄이 바뀌었고 API·DB는 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행한 결과다. 배포·게시는 하지 않았다(소유자 결정 A). 결정은 [D-083~D-087](DECISIONS.md)이다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 모바일 시험 | PASS | `npm test` 1992/1992(PR #414 위로 리베이스한 뒤의 합계. 리베이스 전 이 브랜치 단독은 1974, #414 단독은 1919, 직전 기록은 1901). 늘어난 시험은 웹 대기 안내·지갑 스텁·Metro 리다이렉트 조건·소리 지연 생성·동의 요약/전체 동의/mixed 상태·랜드마크·홈 요청별 표시·가게 사실·방문 조건·첫 코인 제안이다. 기존 시험은 삭제하거나 건너뛰지 않았다. 의도한 동작 변경에 맞춰 바꾼 것은 세 가지다: 홈의 `Promise.allSettled` 단언(요청별 표시로 바뀜, 구간별 단언으로 대체), 동의 안내 시험의 이름과 보강(전체 안내가 접힘, 늘 보이는 요약 단언 추가), BGM 지연 생성에 맞춘 준비 단계 한 줄(`setDrawMusicFocused(true)`, 음량 단언은 그대로) |
+| typecheck·lint | PASS | `npm run typecheck`, `npm run lint` 모두 exit 0 |
+| 접근성 의미 검사·지갑 표면 검사 | PASS | 새 "전체 동의" 체크박스도 `aria-checked`와 Space 키 토글을 가진다(체크박스 가드가 통과). 지갑 표면 검사는 `scripts/check-release-wallet-surface.sh`를 고치지 않고 통과한다(Reown import 5곳 유지, 웹 리다이렉트는 Metro 설정) |
+| 시연 웹 export | PASS | 진입 번들 6,375,429B → 4,119,372B(−35.4%, gzip 1,044,640B). 번들에서 `@reown`·`walletconnect`·`ethers` 0건, `index.html`에 `class="boot"` 대기 안내와 `lang="ko"` 포함. 로컬로 열어 보니 앱이 뜨면 대기 안내가 사라지고 콘솔 오류가 없었다 |
+| 웹 번들 가드(CI 단계) | PASS | 같은 `if grep … ; test -d …` 단계를 로컬에서 세 경우로 돌렸다. 현재 export는 통과, 폴더가 없으면 실패("웹 번들 폴더가 없습니다"), 번들에 `@walletconnect` 문자열을 넣거나 Metro 리다이렉트를 끈 export(진입 번들 6,395,390B)에서는 실패한다. 리다이렉트를 되돌려 `metro.config.js`가 원래와 같음을 해시로 확인했다 |
+| 동의 화면 | PASS(소스 시험) | 요약·전체 동의·mixed·펼침(`aria-expanded`)은 소스 시험으로 고정했다. 앱 안내와 웹 `apps/production-web/index.html` 안내 문구가 같아야 한다는 사이트 시험 통과. 실제 기기 렌더링은 `NOT_RUN` |
+| 소리 지연 생성 | PASS(단위 시험) | 배경음은 그리기 진입 전 생성되지 않고 웹 UI 소리는 첫 동작 전 생성되지 않음을 컨트롤러 시험으로 확인했다. 실제 네트워크 바이트·첫 화면 시간 측정은 `NOT_RUN` |
+| 첫 코인 제안 | PASS(단위 시험) | 제안 조건·저장 직전 공개 범위 재조회·충돌 처리를 `first-coin-placement.test.ts`로 고정했다. 저장과 공개 범위 사이의 좁은 창은 남아 있다(D-086) |
+| API 시험 | 변경 없음 | 567/567 그대로, API 코드 변경 없음 |
+| 독립 리뷰 | 지적 반영 | Claude Sonnet·Claude Opus 교차 리뷰 두 차례. 1차 지적과 2차 마지막 지적을 모두 반영했고 2차에서 승인됐다 |
+| 공개 서버·설치본 | 변경 없음 | 운영 API·웹 `687427c2`, 운영 test.13, 시연 Preview 22, 시연 `/play/` 번들 `5ca98955`. 이 코드는 다음 빌드부터 사용자에게 닿는다 |
+| 첫 화면 실측·용량 분석·실기 | NOT_RUN | Resource Timing·Lighthouse·느린 네트워크 측정, APK·이미지·음원 용량 분석, 동의 화면·첫 코인 제안·가게 카드의 실제 기기 확인은 하지 않았다 |
+
+### Issue #412 로컬 검사
+
+환경: macOS, `feat/first-use-v2` worktree, 2026-10-08 KST.
+
+| 명령 | 결과 |
+| --- | --- |
+| `npm test --prefix apps/mobile` | PASS (1992/1992, exit 0, PR #414 위로 리베이스한 뒤의 합계) |
+| `npm run typecheck --prefix apps/mobile` | PASS (exit 0) |
+| `npm run lint --prefix apps/mobile` | PASS (exit 0) |
+| `bash tests/mobile/check_accessibility_semantics_test.sh` | PASS (exit 0) |
+| `bash tests/release/check_release_wallet_surface_test.sh` | PASS (exit 0) |
+| `bash tests/ci/ci_wiring_test.sh` | PASS (시험 파일 86개 모두 실행됨, exit 0) |
+| `node --test tests/site/verify_production_web_test.mjs tests/site/legal-pages.test.mjs` | PASS (147/147, exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0, README·PROJECT_STATE의 "현재 자동 시험 합계" 줄을 모바일 1992/1992로 함께 고침) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (31 PASS · 2 BLOCKED · 3 NOT_RUN, exit 0) |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=showcase … npm run export:web:showcase` (더미 `MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID`) | PASS (exit 0, 진입 번들 4,119,372B) |
+
+필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. README는 "현재 자동 시험 합계" 줄만 고쳤다. 첫 사용 흐름을 화면별로 설명하는 곳이 아니고 동의는 배포 증거 상태로만 적혀 있으며, 이 변경은 배포하지 않았기 때문이다.
+
 ## 2026-10-08 놀이를 방문한 가게와 모은 코인에 잇기 (Issue #412, 배포 동결)
 
 기준 main `b572184e5d94c4ebbed73b5f817bc1bac2de5171`(PR #411 병합) 위의 작업 브랜치 `feat/play-store-memory`다. 앱(클라이언트) 코드만 바꿨다. API·DB migration·`apps/api/src/play-rules.ts`는 그대로다. 배포·게시는 하지 않았다(소유자 결정 A).

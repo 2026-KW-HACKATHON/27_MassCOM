@@ -232,4 +232,13 @@ jobs:
             MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" \
             MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-ci.apps.googleusercontent.com \
             npm run export:web:showcase --prefix apps/mobile -- --output-dir dist/showcase-web
+          # 웹 첫 화면 대기 안내(apps/mobile/public/index.html)가 내보낸 index.html에 실제로 들어갔는지(없으면 번들이 내려오는 동안 흰 화면).
+          grep -q 'class="boot"' apps/mobile/dist/showcase-web/index.html
+          # 웹 번들에 지갑 SDK·ethers가 들어오지 않았는지(웹 자리 채움 .web 파일과 metro.config.js 리다이렉트가 빠지면 번들이 약 2.2 MB 커진다).
+          # `! grep`은 bash -e에서 단계를 실패시키지 못하므로 if로 쓴다. 폴더가 없으면 grep이 오류(2)로 끝나 if가 조용히 통과하므로 먼저 폴더를 확인한다.
+          test -d apps/mobile/dist/showcase-web/_expo/static/js/web || { echo '웹 번들 폴더가 없습니다' >&2; exit 1; }
+          if grep -rlE 'walletconnect|@reown|ethers/' apps/mobile/dist/showcase-web/_expo/static/js/web; then
+            echo '웹 번들에 지갑 SDK(walletconnect·@reown·ethers)가 들어 있습니다. .web 자리 채움 파일과 metro.config.js 리다이렉트를 확인하세요.' >&2
+            exit 1
+          fi
           npm run audit:ci --prefix apps/mobile

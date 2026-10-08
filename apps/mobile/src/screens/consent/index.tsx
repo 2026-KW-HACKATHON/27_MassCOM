@@ -6,12 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { accountContextLabel } from '@/config/app-context';
 import { ConsentApiClient } from '@/privacy/consent-api';
-import { consentChecks, consentCopy, consentNotice } from '@/privacy/consent-copy';
+import { consentChecks, consentCopy, consentNotice, consentSummary } from '@/privacy/consent-copy';
 import {
   canSubmitConsent,
   loadConsentState,
+  masterConsentState,
   noChecks,
   submitConsent,
+  toggleAllConsent,
   type ConsentChecks,
   type ConsentGateState,
 } from '@/privacy/consent-flow';
@@ -47,6 +49,7 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
   const [gate, setGate] = useState<ConsentGateState>({ kind: 'loading' });
   const [checks, setChecks] = useState<ConsentChecks>(noChecks);
   const [busy, setBusy] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [message, setMessage] = useState<string>();
 
@@ -67,6 +70,9 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
   }, [gate.kind, onAccepted]);
 
   const ready = canSubmitConsent(checks);
+  // "전체 동의": 세 개 모두 = true, 한두 개 = 'mixed', 없음 = false. 누르면 모두 켜거나(없음·일부) 모두 끈다(순수 함수, consent-flow.ts). 서버로 보내는 값과 필수 집합은 그대로다.
+  const masterChecked = masterConsentState(checks);
+  const toggleAll = () => { if (!busy) setChecks(toggleAllConsent); };
 
   async function submit() {
     if (busy || !ready) return;
@@ -169,15 +175,56 @@ export function ConsentScreen({ apiUrl, credential, onAccepted, onLogout, onSess
       <View accessible={false}>
         <FloatingCard style={styles.noticeCard}>
           <Text accessibilityRole="header" style={styles.noticeHeading}>{consentCopy.noticeTitle}</Text>
-          {consentNotice.map((item) => (
-            <View key={item.title} style={styles.noticeItem}>
-              <Text style={styles.noticeTitle}>{item.title}</Text>
-              <Text selectable style={styles.noticeBody}>{item.body}</Text>
+          {consentSummary.map((item) => (
+            <View key={item.heading} style={styles.noticeItem}>
+              <Text style={styles.noticeTitle}>{item.heading}</Text>
+              <Text selectable style={styles.noticeBody}>{item.text}</Text>
             </View>
           ))}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={consentCopy.details}
+            accessibilityHint={consentCopy.detailsHint}
+            accessibilityState={{ expanded: detailsOpen }}
+            // react-native-web ignores accessibilityState, so web needs aria-expanded to expose the state.
+            aria-expanded={detailsOpen}
+            onPress={() => setDetailsOpen((open) => !open)}
+            style={styles.detailsToggle}
+          >
+            <Text style={styles.linkText}>{detailsOpen ? `${consentCopy.details} ▲` : `${consentCopy.details} ▼`}</Text>
+          </Pressable>
+          {/* 전체 안내는 접힌 동안 렌더하지 않는다(의도). 필수 항목(목적·항목, 보유 기간, 거부 시 결과)은 위의 늘 보이는 요약이 맡고, 펼치면 전체 네 항목이 보인다. */}
+          {detailsOpen ? (
+            <View style={styles.detailsGroup}>
+              {consentNotice.map((item) => (
+                <View key={item.title} style={styles.noticeItem}>
+                  <Text style={styles.noticeTitle}>{item.title}</Text>
+                  <Text selectable style={styles.noticeBody}>{item.body}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
         </FloatingCard>
       </View>
 
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityLabel={consentCopy.agreeAll}
+        accessibilityHint={consentCopy.agreeAllHint}
+        accessibilityState={{ checked: masterChecked, disabled: busy }}
+        aria-checked={masterChecked}
+        disabled={busy}
+        onPress={toggleAll}
+        {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggleAll) } : {})}
+        style={styles.masterRow}
+      >
+        <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.box, { width: boxSize, height: boxSize, minWidth: boxSize, minHeight: boxSize }, masterChecked && styles.boxChecked]}>
+          <Text style={styles.tick}>{masterChecked === 'mixed' ? '–' : masterChecked ? '✓' : ''}</Text>
+        </View>
+        <Text style={styles.checkLabel}>{consentCopy.agreeAll}</Text>
+      </Pressable>
+
+      <Text style={styles.individualHeading}>{consentCopy.individualHeading}</Text>
       {consentChecks.map((check) => {
         const checked = checks[check.key];
         const toggle = () => { if (!busy) setChecks((current) => ({ ...current, [check.key]: !current[check.key] })); };

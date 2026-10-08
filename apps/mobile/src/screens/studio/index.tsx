@@ -19,6 +19,7 @@ import { createCoinApiClient, type CoinCollection } from '@/shop/coin-api';
 import { friendArt } from '@/shop/shop-art';
 import { AvatarWardrobe, clothingArtForId, equippedClothingArt, useEquippedClothingArt } from '@/shop/wardrobe';
 import { StudioScene } from '@/studio/studio-scene';
+import { itemFromCollection } from '@/studio/studio-items';
 import { ShareFormatButtons, useStudioShare } from '@/studio/studio-share';
 import { createStudioApiClient, studioErrorMessage, type FurnitureSnapshot, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme, type StudioCoinSource } from '@/studio/studio-api';
 import { clampPosition, changeFurniture, ownedFurniture, placeFurniture, removeFurniture, studioAfterSave, studioDirty, studioNeedsReload } from '@/studio/studio-furniture';
@@ -42,13 +43,6 @@ const studioModes: { id: StudioMode; label: string }[] = [
   { id: 'room', label: '가구·벽·바닥' }, { id: 'coins', label: '코인 전시' },
   { id: 'companion', label: '동행·의상' }, { id: 'goal', label: '목표·공유' },
 ];
-
-function itemFromCollection(item: CollectionSnapshot['collectibles'][number]): StudioItem {
-  return {
-    entitlementId: item.entitlementId, merchantId: item.merchantId, merchantName: item.merchantName,
-    campaignTitle: item.campaignTitle, displayName: item.displayName, artwork: item.artwork,
-  };
-}
 
 export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEntitlement, requestedAvatar, requestedSource }: {
   apiUrl: string; credential: AccountCredential; onSessionInvalid: () => Promise<void>;

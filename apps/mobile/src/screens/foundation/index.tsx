@@ -83,7 +83,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
             onBack={showcaseTour && onExit ? onExit : () => { setStage('role'); setRole(undefined); }}
           />
         ) : (
-          <ScrollView contentContainerStyle={styles.onboarding} showsVerticalScrollIndicator={false}>
+          <ScrollView role="main" contentContainerStyle={styles.onboarding} showsVerticalScrollIndicator={false}>
             {stage === 'role' ? <SkyArt /> : null}
             <View style={styles.brandRow}>
               <Image source={mascotArt['logo-badge']} accessible={false} style={styles.brandBadge} />
@@ -92,7 +92,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
             {stage === 'role' ? (
               <>
                 <View style={styles.greeting}>
-                  <Mascot interactive pose="wave" size={136} accessibilityLabel="손을 흔드는 마스코트" />
+                  <Mascot interactive pose="wave" size={136} accessibilityLabel="손을 흔드는 마스코트" decorativeOnWeb />
                   <Text accessibilityRole="header" style={[styles.title, styles.greetingTitle, { color: world.skyInk }]}>반가워요! 동네 탐험을 시작해요</Text>
                   <Text style={[styles.description, styles.greetingTitle, { color: world.skyMuted }]}>가게에 방문하면 도장과 코인을 모아요</Text>
                 </View>

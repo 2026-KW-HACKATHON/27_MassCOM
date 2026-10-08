@@ -40,3 +40,10 @@ test('live coin and PNG/MP4 capture share the same grade face with a static capt
   assert.match(share, /<StudioCoin item=\{face!\} apiUrl=\{apiUrl\} size=\{170\} onLoad=/);
   assert.match(video, /coinUri: layers\.coinUri/);
 });
+
+test('an empty room offers its action as a real button and keeps the passive note otherwise', () => {
+  const scene = read('./studio-scene.tsx');
+  assert.match(scene, /!sceneItems\.length && emptyAction \? <Pressable accessibilityRole="button" accessibilityLabel=\{emptyAction\.label\} onPress=\{emptyAction\.onPress\}/);
+  assert.match(scene, /첫 수집품을 기다리는 공간/);
+  assert.match(scene, /emptyAction: \{ width: '58%', minHeight: 44,/);
+});

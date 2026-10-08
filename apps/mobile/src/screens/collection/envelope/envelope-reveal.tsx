@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppState, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AppState, PanResponder, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 
@@ -15,6 +15,7 @@ import { EnvelopeCard } from './envelope-card';
 import { EnvelopeBody, EnvelopeFlapTorn, LeafSealGlyph } from './envelope-glyphs';
 import { startCards, stepCard, type EnvelopeCardStep, type EnvelopeMilestone } from './envelope-state';
 import { RevealLifecycle } from '../reveal-lifecycle';
+import { FirstCoinPlacement } from './first-coin-offer';
 
 export type EnvelopeCardData = { entitlementId: string; collectible: PublishedCollectible; isNew: boolean };
 
@@ -23,6 +24,8 @@ type Props = {
   merchantName: string;
   series: StoreSeries | undefined;
   milestone: EnvelopeMilestone;
+  /** The account's collection as the reveal screen holds it; only gates the first-coin placement offer. */
+  collectibles: readonly { entitlementId: string }[];
   onSkip: () => void;
   onCardShown: (entitlementId: string) => void;
   /** Opens the full detail for the first card. */
@@ -38,7 +41,7 @@ const TEAR_MS = 650;
  * but the instance is only created once the person actually taps, so backgrounding the idle, untapped envelope
  * cannot auto-complete a tear nobody asked for (RevealLifecycle's `stage` starts at 'opening' from construction).
  */
-export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip, onCardShown, onOpenDetail }: Props) {
+export function EnvelopeReveal({ cards, merchantName, series, milestone, collectibles, onSkip, onCardShown, onOpenDetail }: Props) {
   const motionAllowed = useMotionEnabled();
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
@@ -216,7 +219,7 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, onSkip,
           </View>
         </View>
       ) : (
-        <EndCard merchantName={merchantName} series={series} milestone={milestone} onOpenDetail={() => onOpenDetail(cards[0]!.entitlementId)} onSkip={onSkip} />
+        <EndCard merchantName={merchantName} series={series} milestone={milestone} cards={cards} collectibles={collectibles} onOpenDetail={() => onOpenDetail(cards[0]!.entitlementId)} onSkip={onSkip} />
       )}
     </View>
   );
@@ -231,11 +234,12 @@ function NavButton({ label, glyph, disabled = false, onPress }: { label: string;
   );
 }
 
-function EndCard({ merchantName, series, milestone, onOpenDetail, onSkip }: {
-  merchantName: string; series: StoreSeries | undefined; milestone: EnvelopeMilestone; onOpenDetail: () => void; onSkip: () => void;
+function EndCard({ merchantName, series, milestone, cards, collectibles, onOpenDetail, onSkip }: {
+  merchantName: string; series: StoreSeries | undefined; milestone: EnvelopeMilestone; cards: readonly EnvelopeCardData[];
+  collectibles: readonly { entitlementId: string }[]; onOpenDetail: () => void; onSkip: () => void;
 }) {
   return (
-    <View style={styles.endStage}>
+    <ScrollView contentContainerStyle={styles.endStage}>
       <Mascot pose={milestone.reached ? 'cheer' : 'gift'} size={96} />
       <Text accessibilityRole="header" style={styles.endTitle}>도감에 보관했어요</Text>
       {series ? (
@@ -258,7 +262,9 @@ function EndCard({ merchantName, series, milestone, onOpenDetail, onSkip }: {
         <Control label="자세히 보기" primary onPress={onOpenDetail} />
         <Control label="닫기" onPress={onSkip} />
       </View>
-    </View>
+      {/* Below the buttons on purpose: the offer mounts late (after its server reads), and anything above them would make them jump mid-tap. */}
+      <FirstCoinPlacement cards={cards} collectibles={collectibles} onClose={onSkip} />
+    </ScrollView>
   );
 }
 
@@ -296,7 +302,7 @@ const styles = StyleSheet.create({
   navButtonDisabled: { opacity: 0.35 },
   navButtonText: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
   cardCount: { color: '#C9D3EA', fontSize: 14, fontWeight: '700', minWidth: 48, textAlign: 'center' },
-  endStage: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
+  endStage: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   endTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '900', textAlign: 'center' },
   seriesCard: { width: '100%', backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 18, padding: 16, gap: 10 },
   seriesTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', textAlign: 'center' },

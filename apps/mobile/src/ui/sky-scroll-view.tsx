@@ -30,7 +30,7 @@ export const SkyScrollView = forwardRef<ScrollView, Props>(function SkyScrollVie
       >
         <View onLayout={onHeaderLayout ? (event) => onHeaderLayout(event.nativeEvent.layout.height) : undefined}>{header}</View>
         {/* Grows to fill what the header leaves, so content that centres itself (a sign-in prompt) still centres. */}
-        <View style={[styles.grow, contentContainerStyle]}>{children}</View>
+        <View role="main" style={[styles.grow, contentContainerStyle]}>{children}</View>
       </ScrollView>
       <StatusBarScrim scrollY={scrim.scrollY} />
     </>

@@ -20,6 +20,11 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       type: 'sourceFile',
     };
   }
+  // 웹 체험은 외부 지갑을 연결하지 않는다: 지갑 SDK(+ethers, 번들의 약 3분의 1)는 웹에서 자리 채움 파일로 바꿔 번들에 넣지 않는다.
+  // 네이티브는 그대로 실제 패키지를 쓴다. 루트 레이아웃의 import 줄은 릴리스 게이트가 고정하므로 패키지 이름 자체를 가리킨다.
+  if (platform === 'web' && moduleName === '@reown/appkit-react-native') {
+    return { filePath: resolve(__dirname, 'src/wallet/appkit-ui.web.tsx'), type: 'sourceFile' };
+  }
   return context.resolveRequest(context, moduleName, platform);
 };
 

@@ -53,6 +53,11 @@ type Dependencies = {
   backend: SoundBackend;
   storage: SoundPreferenceStorage;
   now?: () => number;
+  /**
+   * 웹: 일곱 UI 소리 플레이어를 시작할 때 만들지 않고 `loadUiPlayers()`(첫 사용자 동작)를 부를 때 만든다.
+   * 브라우저는 플레이어를 만드는 즉시 파일을 내려받기 때문이다. 네이티브는 켜지 않아 시작 때 만든다.
+   */
+  deferUiPlayers?: boolean;
 };
 
 type PersistedSoundSettings = {
@@ -107,7 +112,7 @@ function settingsSnapshot(settings: PersistedSoundSettings) {
 }
 
 /** One root-owned controller; callbacks are deliberately fire-and-forget. */
-export function createUiSoundController({ backend, storage, now = Date.now }: Dependencies) {
+export function createUiSoundController({ backend, storage, now = Date.now, deferUiPlayers = false }: Dependencies) {
   let mounted = false;
   let foreground = false;
   let generation = 0;
@@ -126,6 +131,10 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
   let musicActivated = false;
   let musicState: 'idle' | 'intro' | 'loop' = 'idle';
   let pendingMusic: MusicSoundName | undefined;
+  let backendReady = false;
+  let uiPlayersWanted = !deferUiPlayers;
+  let uiPlayersCreated = false;
+  let musicPlayersCreated = false;
 
   function publish(next: typeof settings) {
     settings = { ...next, enabled: next.soundEffectsEnabled };
@@ -185,6 +194,9 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
     musicSeeking.clear();
     musicActivated = false;
     musicState = 'idle';
+    backendReady = false;
+    uiPlayersCreated = false;
+    musicPlayersCreated = false;
   }
 
   function applyEffectVolume() {
@@ -261,40 +273,47 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
     }
   }
 
+  function ensureUiPlayers() {
+    if (!backendReady || !uiPlayersWanted || uiPlayersCreated) return;
+    uiPlayersCreated = true;
+    for (const name of UI_SOUND_NAMES) {
+      try {
+        const player = backend.createPlayer(name);
+        player.volume = settings.soundEffectsVolume;
+        players.set(name, player);
+      } catch { /* A missing sound leaves other sounds usable. */ }
+    }
+  }
+
+  /** 두 BGM 플레이어는 그리기 화면에 처음 들어갈 때(setDrawMusicFocused)에야 만든다. 큰 mp3를 첫 화면과 함께 내려받지 않는다. */
+  function ensureMusicPlayers() {
+    if (!backendReady || musicPlayersCreated) return;
+    musicPlayersCreated = true;
+    const epoch = lifecycle;
+    for (const name of MUSIC_NAMES) {
+      try {
+        const player = backend.createMusicPlayer?.(name);
+        if (!player) continue;
+        player.volume = settings.bgmVolume;
+        if (name === 'drawLoop') player.loop = true;
+        const subscription = player.addListener?.('playbackStatusUpdate', (status) => {
+          if (!mounted || lifecycle !== epoch || musicPlayers.get(name) !== player) return;
+          if (name === 'drawIntro' && status.didJustFinish) handleIntroFinished(epoch);
+          if (status.isLoaded && pendingMusic === name) applyMusicIntent(true);
+        });
+        if (subscription) musicSubscriptions.push(subscription);
+        musicPlayers.set(name, player);
+      } catch { /* BGM is optional. */ }
+    }
+  }
+
   async function prepare(epoch: number) {
     try {
       await backend.prepare();
       if (!mounted || lifecycle !== epoch) return;
-      for (const name of UI_SOUND_NAMES) {
-        try {
-          const player = backend.createPlayer(name);
-          player.volume = settings.soundEffectsVolume;
-          if (!mounted || lifecycle !== epoch) {
-            removePlayer(player);
-            return;
-          }
-          players.set(name, player);
-        } catch { /* A missing sound leaves other sounds usable. */ }
-      }
-      for (const name of MUSIC_NAMES) {
-        try {
-          const player = backend.createMusicPlayer?.(name);
-          if (!player) continue;
-          player.volume = settings.bgmVolume;
-          if (name === 'drawLoop') player.loop = true;
-          if (!mounted || lifecycle !== epoch) {
-            removePlayer(player);
-            return;
-          }
-          const subscription = player.addListener?.('playbackStatusUpdate', (status) => {
-            if (!mounted || lifecycle !== epoch || musicPlayers.get(name) !== player) return;
-            if (name === 'drawIntro' && status.didJustFinish) handleIntroFinished(epoch);
-            if (status.isLoaded && pendingMusic === name) applyMusicIntent(true);
-          });
-          if (subscription) musicSubscriptions.push(subscription);
-          musicPlayers.set(name, player);
-        } catch { /* BGM is optional. */ }
-      }
+      backendReady = true;
+      ensureUiPlayers();
+      if (drawMusicFocused || musicActivated) ensureMusicPlayers();
       applyMusicIntent(false);
     } catch { /* Old clients may not include expo-audio. */ }
   }
@@ -453,6 +472,7 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
       if (active) {
         musicActivated = true;
         musicState = 'idle';
+        ensureMusicPlayers();
         applyMusicIntent(true);
         return;
       }
@@ -464,6 +484,11 @@ export function createUiSoundController({ backend, storage, now = Date.now }: De
     setBgmVolume,
     setHapticMode,
     reset,
+    /** `deferUiPlayers`일 때 일곱 UI 소리 플레이어를 만든다(첫 사용자 동작). 이미 만들었거나 시작 전이면 아무 일도 하지 않는다. */
+    loadUiPlayers() {
+      uiPlayersWanted = true;
+      if (mounted) ensureUiPlayers();
+    },
     play(name: UiSoundName): void {
       if (!mounted || !foreground || !settings.ready || !settings.soundEffectsEnabled) return;
       const player = players.get(name);

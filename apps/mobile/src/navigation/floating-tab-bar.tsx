@@ -1,7 +1,7 @@
 import { useIsFocused } from 'expo-router';
 import { BottomTabBarHeightCallbackContext, type BottomTabBarProps } from 'expo-router/tabs';
 import { useContext, useEffect, useState, type ComponentProps } from 'react';
-import { Keyboard, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { lightHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
@@ -18,6 +18,9 @@ const glyphByRoute: Record<string, GlyphName> = {
   shop: 'shop', collection: 'collection', index: 'home', search: 'map', 'play-tab': 'play',
   'shop-again': 'shop', map: 'map', claim: 'claim', friends: 'friends',
 };
+
+/** 웹 내비게이션 랜드마크(웹만: 안드로이드 TalkBack에 정지 지점이 하나 더 생기지 않게 한다). */
+export const navigationLandmark = Platform.OS === 'web' ? ({ role: 'navigation', 'aria-label': '주요 메뉴' } as const) : {};
 
 /** Five stable destinations; only the active destination gets a filled selection. */
 export function FloatingTabBar({ state, descriptors, navigation, insets }: BottomTabBarProps) {
@@ -46,6 +49,8 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
   return <>
     {/* 떠 있는 바 아래 틈으로 스크롤 콘텐츠가 비치지 않게 화면 배경색으로 덮는다. */}
     <View pointerEvents="none" style={[styles.gapMask, { height: gap, backgroundColor: worldForScheme(scheme).page }]} />
+    {/* role은 accessibilityRole보다 앞서므로 탭 목록 역할은 안쪽 View가 그대로 맡고, 이 바깥 View는 화면 전체를 덮되 터치는 막지 않는다. */}
+    <View {...navigationLandmark} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
     <View accessibilityRole="tablist" style={[styles.bar, { bottom: gap, height, backgroundColor: colors.background }]}>
       {visible.map((route) => {
         const options = descriptors[route.key]!.options;
@@ -60,6 +65,7 @@ export function FloatingTabBar({ state, descriptors, navigation, insets }: Botto
             }
           }} />;
       })}
+    </View>
     </View>
   </>;
 }

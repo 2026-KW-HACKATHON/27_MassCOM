@@ -83,12 +83,14 @@ export function StudioDecor({ id, width, height, onLoad, onError }: {
   </View>;
 }
 
-export function StudioScene({ studio, items, avatar, clothing, apiUrl, onItemPress, onAssetsReady, onAssetError, width = 360, height = 330, experienceProfile, badgeName, representativeCoin, videoBackground = false, furniture, furnitureItems, selectedFurnitureId, onFurnitureSelect, onFurnitureMove }: {
+export function StudioScene({ studio, items, avatar, clothing, apiUrl, onItemPress, onAssetsReady, onAssetError, width = 360, height = 330, experienceProfile, badgeName, representativeCoin, videoBackground = false, furniture, furnitureItems, selectedFurnitureId, onFurnitureSelect, onFurnitureMove, emptyAction }: {
   studio: PublicStudio; items: readonly StudioItem[]; avatar: string | null; clothing?: EquippedClothingArt | null; apiUrl: string;
   onItemPress?: (item: StudioItem) => void; onAssetsReady?: () => void; onAssetError?: () => void;
   width?: number; height?: number; experienceProfile?: DisplayExperienceProfile; badgeName?: string; representativeCoin?: StudioItem; videoBackground?: boolean;
   furniture?: FurnitureSnapshot; furnitureItems?: PlacedFurnitureItem[]; selectedFurnitureId?: string; onFurnitureSelect?: (inventoryId: string) => void;
   onFurnitureMove?: (inventoryId: string, x: number, y: number) => void;
+  /** Shown instead of the empty-room note when nothing is on show yet (e.g. "수집품 3개 · 방에 놓기"). */
+  emptyAction?: { label: string; onPress: () => void };
 }) {
   const { fontScale } = useWindowDimensions();
   const loaded = useRef(new Set<string>());
@@ -152,7 +154,10 @@ export function StudioScene({ studio, items, avatar, clothing, apiUrl, onItemPre
             </Pressable>
           );
         })}
-      {!sceneItems.length && fontScale < 1.5 ? <View style={[styles.empty, { right: width * 0.04, bottom: 6 }]}>
+      {!sceneItems.length && emptyAction ? <Pressable accessibilityRole="button" accessibilityLabel={emptyAction.label} onPress={emptyAction.onPress}
+        style={[styles.empty, styles.emptyAction, { right: width * 0.04, bottom: 6 }]}>
+        <Text style={styles.emptyActionText}>{emptyAction.label}</Text>
+      </Pressable> : !sceneItems.length && fontScale < 1.5 ? <View style={[styles.empty, { right: width * 0.04, bottom: 6 }]}>
         <Text style={styles.emptyText}>첫 수집품을 기다리는 공간</Text>
       </View> : null}
       {experienceProfile?.badgeId ? <View style={[styles.badge, { right: 12, maxWidth: width * .40 }]}><BadgeArt id={experienceProfile.badgeId} size={30} onLoad={() => markLoaded('badge')} onError={onAssetError} /><Text allowFontScaling={!onAssetsReady} style={styles.badgeText} numberOfLines={1}>{badgeName ?? experienceProfile.badgeName ?? experienceProfile.badgeId}</Text></View> : null}
@@ -195,6 +200,8 @@ const styles = StyleSheet.create({
   missingArt: { color: '#35445B', textAlign: 'center', fontSize: 10, fontWeight: '700' },
   empty: { position: 'absolute', width: '46%', backgroundColor: '#FFFFFFDD', padding: 9, borderRadius: 6 },
   emptyText: { color: '#34445B', fontWeight: '700', fontSize: 12, textAlign: 'center' },
+  emptyAction: { width: '58%', minHeight: 44, justifyContent: 'center', backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: '#0B5C52' },
+  emptyActionText: { color: '#0B5C52', fontWeight: '800', fontSize: 13, textAlign: 'center' },
   badge: { position: 'absolute', top: 9, right: 12, maxWidth: '40%', borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4, backgroundColor: '#FFF1BD', flexDirection: 'row', alignItems: 'center', gap: 4, borderWidth: 1, borderColor: '#C5904E' },
   badgeText: { color: '#68491E', fontWeight: '900', fontSize: 11 },
   coinLabel: { position: 'absolute', bottom: 8, right: 8, maxWidth: '45%', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#FFFFFFDD', flexDirection: 'row', alignItems: 'center', gap: 4 },
