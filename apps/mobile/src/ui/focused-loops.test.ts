@@ -17,11 +17,14 @@ test('마스코트는 화면 이탈 시 숨쉬기와 터치 회전을 취소한�
   assert.match(mascot, /return \(\) => \{ cancelAnimation\(scale\); cancelAnimation\(rotate\); scale\.set\(1\); rotate\.set\(0\); \}/);
 });
 
-test('배경 구름과 뽑기 기계의 무한 반복도 화면 이탈 시 멈춘다', () => {
+test('배경 구름과 우표 뽑기 영상의 반복도 화면 이탈 시 멈춘다', () => {
   const sky = source('./sky-art.tsx');
-  const gacha = source('../screens/shop/gacha-machine.tsx');
+  const stampStage = source('../screens/shop/stamp-draw-stage.tsx');
+  const stampMedia = source('../screens/shop/stamp-draw-media.ts');
   assert.match(sky, /useFocusEffect\(useCallback\(\(\) => \{\s*if \(enabled\)/);
   assert.match(sky, /return \(\) => \{ cancelAnimation\(x\); x\.set\(startX\); \}/);
-  assert.match(gacha, /useFocusEffect\(useCallback\(\(\) => \{\s*if \(motionAllowed\)/);
-  assert.match(gacha, /return \(\) => \{ cancelAnimation\(bob\); bob\.set\(0\); \}/);
+  assert.match(stampStage, /useFocusEffect\(useCallback\(\(\) => \{[\s\S]*?setFocused\(true\)[\s\S]*?return \(\) => \{ setFocused\(false\); \};/);
+  assert.match(stampStage, /AppState\.addEventListener\('change', \(state\) => setForeground\(state === 'active'\)\)/);
+  assert.match(stampStage, /const active = focused && foreground/);
+  assert.match(stampMedia, /playing: active && \(!opening \|\| !finishedOpening\)/);
 });

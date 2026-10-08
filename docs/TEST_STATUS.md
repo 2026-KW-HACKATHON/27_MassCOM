@@ -17,6 +17,43 @@
 - 신규 API·migration·앱 소스는 운영·시연에 미배포. 실제 Android 기기와 유료 OpenAI 생성은 `NOT_RUN`. 서버 키 연결과 기존 이미지 health 확인은 별도 운영 증거([OpenAI 설정](evidence/openai-ai-art-enable-2026-10-09.json))에 기록한다.
 
 
+## 2026-10-09 PR #445와 main 통합 검증 (파일 수정만·미배포)
+
+환경: macOS 제한 sandbox, `.worktrees/pr445`, 브랜치 `feat/gacha-stamp-reveal`, HEAD `dd76e693`, MERGE_HEAD main `2cfcc8e8`, Git index 미병합. 문서·RNW fixture의 양쪽 변경을 보존하고 Android 영상은 다운로드된 `localUri`가 생긴 뒤에만 재생기를 장착하며 준비 전 native 오류로 공개 흐름을 끝내지 않도록 수정했다. 영상 소리는 설정 준비와 효과음 허용을 모두 확인한 뒤 출력한다. 기존 시험은 약화하지 않았다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 모바일 전체 npm 진입점 | `BLOCKED` | `npm test --prefix apps/mobile`: sandbox의 tsx IPC `listen EPERM`으로 시험 시작 전 중단. `/tmp/pr445-mobile-npm.log`. |
+| 모바일 전체 대체 실행 | **2229/2229 `PASS`** | `cd apps/mobile && node --import tsx --test 'src/**/*.test.ts'`: fail 0. 같은 시험 glob, `/tmp/pr445-mobile-fallback.log`. |
+| 영상·소리 대상 | **9/9 `PASS`** | 새 소리 준비 회귀 1건과 native 영상 회귀 3건을 포함해 기존 시험을 유지했다. 첫 실행의 예상 실패 3건은 수정 뒤 통과했다. 전체 실행에서 기존 소스 모양 단언도 확인해 음소거 조건의 원래 표현을 유지했다. |
+| 모바일 타입·린트 | `PASS` | `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`; 오류 0, 기존 `collectible-aura.test.ts`의 미사용 `runInNewContext` 경고 1. |
+| 지정 계약 검사 | `PASS` | `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh`, `bash tests/ci/ci_wiring_test.sh`(104개 시험 파일), `bash tests/bootstrap/operations_submission_readiness_test.sh`. |
+| RNW fixture 준비 | `PASS` | `run-qa.cjs` Node 문법 검사와 `--build-only`; 실제 브라우저 QA는 재실행하지 않았다. |
+| 문서·Git 상태 검사 | `PASS` | 충돌 표식 없음, README·PROJECT_STATE 합계 자리표시자 한 줄 동일/후속 문장 보존, D-001~D-103 각 한 번·번호순, HANDOFF `## N.` 14절, Git index·HEAD·MERGE_HEAD 불변. |
+| API·빌드·원격·실기 | `NOT_RUN` | API 단위 674/674는 앞선 main 측정이며 이번 병합에서는 재실행하지 않았다. 새 앱/네이티브 빌드, 원격 CI, 브라우저, 운영/시연 설치본 재생, 실제 청음·구매·배포는 실행하지 않았다. |
+
+아래 2212/2212와 브라우저 27/27·네이티브 모듈 컴파일·Android JS export는 병합 전 Windows 작업 트리의 기록이다.
+
+## 2026-10-09 우표 뽑기 영상·제공 효과음 (Issue #442, 미배포)
+
+Windows / Node 24.15.0 / Chrome / JDK 17.0.20.1 / Android SDK 36. 기준 main `b37063c0`, 브랜치 `feat/gacha-stamp-reveal`. 당시 모바일 전체 측정값은 **2212/2212**다. 아래 이전 macOS IPC 제한과 2203개 결과는 더 오래된 기록이며 당시 Windows 실행은 npm 진입점으로 통과했다. API 시험과 필수 36개 ID의 기존 집계는 변경하지 않는다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 모바일 전체 | `PASS` | `npm test --prefix apps/mobile`: 2212 passed, 0 failed. Windows CRLF에 의존하던 기존 소스 문자열 시험은 로컬 checkout만 LF로 정규화해 실행; 무관한 소스 변경은 커밋하지 않는다. |
+| 타입·린트 | `PASS` | `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`; 오류 0, 기존 `collectible-aura.test.ts` 미사용 import 경고 1. |
+| 실제 브라우저 컴포넌트 | `PASS` | `node tests/fixtures/reward-album-rnw/run-qa.cjs`: 27/27, 콘솔 오류 0. 실제 MP4, 320x568/390x844, 구매 1회, 결과 지연, 완료·건너뛰기·복구·오류·움직임 감소·음소거·StrictMode·unmount pause. [JSON](evidence/gacha-stamp-2026-10-09/browser-qa-report.json). |
+| Android 네이티브 모듈 | `PASS` | Expo prebuild/autolinking 후 `gradlew.bat :masscom-studio-video:compileDebugKotlin -Pkotlin.incremental=false`. 첫 incremental cache 경로 오류는 incremental 비활성화로 해소했고 마지막 수정 뒤 재컴파일 PASS. |
+| 운영 Android JS 번들 | `PASS` | `APP_VARIANT=production`, `EXPO_PUBLIC_API_URL=https://api.masscom.kr`, 기준 SHA 환경에서 `npx expo export --platform android --output-dir dist --max-workers 2`. |
+| 시연 Android JS 번들 | `PASS` | `APP_VARIANT=showcase`, 전용 demo API와 빌드 확인용 공개 client ID 형식 fixture로 같은 export 성공. 실제 로그인·서명·배포용 빌드가 아니다. |
+| 영상·소리 | `PASS` | 두 영상 스트림 SHA-256 동일, FFmpeg decode 오류 0. 최종 AAC decode peak -3.7dBFS / mean -21.2dBFS, 클리핑 0. 제공 OGG로 repo 내 빌더 재현 성공. [자산·manifest](../apps/mobile/assets/videos/README.md). |
+| 독립 검토 | `PASS` | code-reviewer의 StrictMode 개봉 생략 지적 수정 후 재검토 APPROVE, 보조 critic CLEAR. 지정 architect 실행은 모델 지원 오류로 unavailable이며 전체 스킬 승인으로 간주하지 않는다. |
+| 로컬 gate 구성 검사 | `PASS` | `tools/gate.sh`에서 비밀·파일 크기·충돌·부트스트랩·운영 문서·증거 일관성 통과. 마지막 배포 문서 검사는 Windows CRLF 때문에 exit 1이었으며 checkout만 LF로 정규화한 뒤 `node scripts/render-current-release.mjs --check` 별도 재실행 PASS. 전체 gate 단일 재실행 PASS로 바꾸어 기록하지 않는다. |
+| 설치본·청음·실제 구매·배포 | `NOT_RUN` | 운영/시연 각 Android 설치본, 실제 청음, 실제 계정 구매, Play·서버 배포는 실행하지 않았다. |
+
+수용 기준·복구·재현 환경은 [우표 뽑기 QA](GACHA_STAMP_QA_2026-10-09.md)를 따른다. 코드/영상 자산은 공통 고객 화면이며 보상 API·정책·DB·의존성은 그대로다.
+
+구현 커밋 `6b7bc2f7`, [PR #445](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/445). GitHub CI는 이 로컬 검증과 별도로 진행한다.
 ## 2026-10-09 CI 병렬 작업 분리 (소유자 직접 요청, 미커밋)
 
 환경: macOS 제한 sandbox, `.worktrees/ci`, 브랜치 `ci/parallel-jobs`, 기준 HEAD `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`. 15분 직렬 CI를 검사 범위 그대로 병렬화했다. 사용자 제공 측정(API·worker 묶음 377초, 모바일 약 5분, AWS 웹 62초, 수집품 웹 60초, Anvil 24초)을 바탕으로 캐시가 준비되고 6개 runner가 동시에 배정되면 약 5~6분을 예상한다. 실제 GitHub 소요 시간과 6분 목표 달성은 `NOT_RUN`이다.

@@ -7,6 +7,13 @@
 ## 2026-10-09 Codex — 통합 기능 및 점주 AI 사용량 제한
 
 사용자가 요청한 연합 미션, 공유 음식점 마스코트 뽑기, 일반 보상 상자·재뽑기와 계정당 AI 이미지 생성 제한을 병렬 구현했다. AI 제한은 여러 가게를 운영하는 한 계정에 합산하며, KST 날짜별 시안 3회·최종 3회와 요청 사이 60초 쿨다운을 PostgreSQL 거래에서 검사한다. 응답은 계정 잔여량·초기화·쿨다운을 전달하고 초과 요청은 `429`와 `Retry-After`를 보낸다. 점포별 제한과 월 예산도 계속 적용된다.
+## 2026-10-09 PR #445와 main 병합 충돌 해결 (직접 요청, 파일 수정만)
+
+Codex가 `feat/gacha-stamp-reveal`에서 문서·브라우저 fixture의 양쪽 변경을 보존하고 Android 영상 준비 및 영상 음소거 조건을 수정했다. 기존 시험을 약화하지 않고 대상 9/9와 모바일 전체 대체 실행 2229/2229, 타입·린트·접근성·지갑 표면·CI 연결·운영 제출 준비를 확인했다. npm 진입점은 sandbox tsx IPC `listen EPERM`으로 `BLOCKED`이며 API·브라우저·설치본·실제 청음·배포는 `NOT_RUN`이다([TEST_STATUS](TEST_STATUS.md)). Git add·commit·stash·merge·rebase·push는 수행하지 않는다.
+
+## 2026-10-09 우표 뽑기 영상·효과음 연결 (Issue #442)
+
+사용자가 승인한 우표 영상을 뽑기 화면에 적용하고 제공한 OGG 사운드로 효과음을 교체해 PR을 만들도록 직접 요청했다. Codex가 최신 main의 별도 작업 트리에서 통합하고 native 서브에이전트가 공통 재생기, 두 뽑기 화면, Android 재생 뷰, 사운드 분석, 실제 브라우저 검증을 나누어 맡았다. 독립 code-reviewer와 보조 critic 검토도 수행했다. 기존 일반 모델 운용 정책 자체는 변경하지 않는다. 영상 스트림과 보상 API·확률·마일리지 차감·도감 등록 규칙을 유지한다. 실제 청음은 지원되지 않아 주파수·음량 수치로 판단했다. 검사와 설치본 검증 경계는 [이번 QA 문서](GACHA_STAMP_QA_2026-10-09.md)에 기록한다.
 ## 2026-10-09 CI 병렬 작업 분리 (소유자 직접 요청, 미커밋)
 
 Codex가 `ci/parallel-jobs`에서 기존 15분 직렬 CI를 API·PostgreSQL 2샤드·모바일·웹/운영/문서·계약/worker로 나누고 `bootstrap-contract` 필수 상태를 최종 집계로 유지했다. 읽기 전용 explore가 기존 YAML 파서와 의존성 경계를 확인했고 독립 code-reviewer가 검사 보존·DB 격리·집계를 검토해 구체적인 결함을 찾지 않았다. 새 샤드/집계 회귀 2/2, CI 연결 104개, 기존 CI YAML 참조 시험·PyYAML 파싱·명령 보존·문법 검증은 [TEST_STATUS](TEST_STATUS.md)에 기록했다. actionlint 미설치·실제 GitHub CI 시간은 `NOT_RUN`; Git add·commit·stash·merge·rebase·push는 수행하지 않았다.

@@ -1,5 +1,7 @@
 # HANDOFF
 
+2026-10-09 PR #445 우표형 뽑기 영상과 효과음은 main `97d351bd`에 병합됐다. 이번 통합은 영상 준비 뒤 재생·효과음 설정 대기·움직임 줄이기 조건을 유지하며, 공유 재고·일반 상자·재뽑기 보상과 등록 앨범도 함께 보존한다. 당시 시험 결과는 [TEST_STATUS](TEST_STATUS.md)에 남긴다.
+
 2026-10-09 CI 병렬화(PR #443)는 API·PostgreSQL 2샤드·모바일·웹/운영/문서·계약/Worker로 기존 검사를 나누고 필수 `bootstrap-contract` 집계를 유지한다. 상세 변경과 당시 검증은 [TEST_STATUS](TEST_STATUS.md)에 보존한다. 실제 GitHub 실행 시간과 actionlint는 이 로컬 병합에서 확인하지 않았다.
 
 ## 1. 기준 커밋과 작업 위치

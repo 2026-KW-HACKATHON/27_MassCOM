@@ -1,0 +1,544 @@
+{
+  "generatedAt": "2026-10-08T19:52:20.019Z",
+  "fixture": "file:///C:/Hackerton/27_MassCOM-gacha-stamp/tests/fixtures/reward-album-rnw",
+  "baseUrl": "http://127.0.0.1:55221",
+  "videoAssets": [
+    {
+      "name": "gacha-stamp-idle.mp4",
+      "path": "apps/mobile/assets/videos/gacha-stamp-idle.mp4",
+      "bytes": 317168,
+      "sha256": "53ddafb8fc339c01e69e48afdde070db8fb0683f613d90b1b7997e5ac4b90c64"
+    },
+    {
+      "name": "gacha-stamp-reveal.mp4",
+      "path": "apps/mobile/assets/videos/gacha-stamp-reveal.mp4",
+      "bytes": 2514129,
+      "sha256": "3a16af28a32c19ef02607b01d6f3bfa2b57fa89f04d38fa9f3bfe27f4f8f0b88"
+    }
+  ],
+  "screenshots": [
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\album-320-narrow.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\album-390-after-mount.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\album-390-dark.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\album-390-font-200.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\album-390-reduced-motion.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\album-390-settled.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\album-390-skip-holds.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\gacha-registration.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\gacha-result-summary.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\gacha-reward-1-mileage.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\gacha-reward-2-clothing.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\gacha-reward-3-character.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\grade-registration.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\grade-result.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\grade-skip-holds.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-gacha-320x568.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-gacha-390x844.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-gacha-idle-video.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-gacha-opening-burst-peak.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-gacha-opening-video.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-gacha-reduced-motion.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-gacha-reward-after-opening.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-grade-idle-video.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-grade-opening-video.png",
+    "C:\\Hackerton\\27_MassCOM-gacha-stamp\\docs\\evidence\\gacha-stamp-2026-10-09\\screens\\stamp-grade-result-after-opening.png"
+  ],
+  "videos": [],
+  "assertions": [
+    {
+      "name": "album settled frame has visible registration slots",
+      "passed": true,
+      "visibleSlots": 3
+    },
+    {
+      "name": "album skip keeps registration screen visible",
+      "passed": true
+    },
+    {
+      "name": "320 narrow album cards do not overlap or overflow",
+      "passed": true,
+      "cardCount": 3,
+      "textOverflows": [],
+      "overlaps": [],
+      "horizontalOverflow": 0
+    },
+    {
+      "name": "200 percent font page remains scrollable",
+      "passed": true,
+      "scrollHeight": 1621
+    },
+    {
+      "name": "200 percent font album cards do not overlap or overflow",
+      "passed": true,
+      "cardCount": 3,
+      "textOverflows": [],
+      "overlaps": [],
+      "horizontalOverflow": 0
+    },
+    {
+      "name": "grade registration animates from hidden/small to settled",
+      "passed": true,
+      "sampleCount": 110,
+      "cardSampleCount": 108,
+      "distinctScaleCount": 21,
+      "distinctOpacityCount": 8,
+      "minScale": 0.64,
+      "maxScale": 1.12,
+      "minOpacity": 0,
+      "maxOpacity": 1,
+      "finalOpacity": 1,
+      "finalScale": 1.0042
+    },
+    {
+      "name": "grade registration settled frame has visible slot",
+      "passed": true,
+      "visibleSlots": 1
+    },
+    {
+      "name": "grade skip keeps registration screen visible",
+      "passed": true
+    },
+    {
+      "name": "gacha registration settled frame has visible slots",
+      "passed": true,
+      "visibleSlots": 2
+    },
+    {
+      "name": "grade detail uses a real muted looping idle stamp mp4",
+      "passed": true,
+      "videos": [
+        {
+          "index": 0,
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-idle.mp4",
+          "poster": "data-url-poster",
+          "loop": true,
+          "muted": true,
+          "volume": 0,
+          "paused": false,
+          "ended": false,
+          "duration": 3,
+          "readyState": 4,
+          "networkState": 1,
+          "rect": {
+            "left": 22,
+            "top": 123,
+            "width": 346,
+            "height": 300,
+            "right": 368,
+            "bottom": 423
+          }
+        }
+      ]
+    },
+    {
+      "name": "grade draw calls purchase once and stays pending until the delayed result arrives",
+      "passed": true,
+      "drawCalls": 1,
+      "hasResult": false
+    },
+    {
+      "name": "grade opening swaps to a non-looping reveal stamp mp4 with sound enabled",
+      "passed": true,
+      "videos": [
+        {
+          "index": 0,
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-reveal.mp4",
+          "poster": "data-url-poster",
+          "loop": false,
+          "muted": false,
+          "volume": 0.72,
+          "paused": false,
+          "ended": false,
+          "duration": 4.208008,
+          "readyState": 1,
+          "networkState": 1,
+          "rect": {
+            "left": 22,
+            "top": 123,
+            "width": 346,
+            "height": 440,
+            "right": 368,
+            "bottom": 563
+          }
+        }
+      ]
+    },
+    {
+      "name": "grade stamp result still opens registration album",
+      "passed": true,
+      "visibleSlots": 1
+    },
+    {
+      "name": "legacy gacha detail uses a real muted looping idle stamp mp4",
+      "passed": true,
+      "videos": [
+        {
+          "index": 0,
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-idle.mp4",
+          "poster": "data-url-poster",
+          "loop": true,
+          "muted": true,
+          "volume": 0,
+          "paused": false,
+          "ended": false,
+          "duration": 3,
+          "readyState": 4,
+          "networkState": 1,
+          "rect": {
+            "left": 22,
+            "top": 123,
+            "width": 346,
+            "height": 300,
+            "right": 368,
+            "bottom": 423
+          }
+        }
+      ]
+    },
+    {
+      "name": "legacy gacha purchase calls draw once and holds pending before result",
+      "passed": true,
+      "drawCalls": 1,
+      "hasReward": false
+    },
+    {
+      "name": "legacy gacha opening uses a non-looping reveal stamp mp4 with sound enabled",
+      "passed": true,
+      "videos": [
+        {
+          "index": 0,
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-reveal.mp4",
+          "poster": "data-url-poster",
+          "loop": false,
+          "muted": false,
+          "volume": 0.72,
+          "paused": false,
+          "ended": false,
+          "duration": 4.208008,
+          "readyState": 1,
+          "networkState": 1,
+          "rect": {
+            "left": 22,
+            "top": 123,
+            "width": 346,
+            "height": 440,
+            "right": 368,
+            "bottom": 563
+          }
+        }
+      ]
+    },
+    {
+      "name": "legacy gacha reveal burst peak can be captured by seeking the real mp4 without completing the flow",
+      "passed": true,
+      "note": "Visual capture only: this seek/pause screenshot is separate from the real playback completion path.",
+      "found": true,
+      "targetTime": 2.417,
+      "reachedTarget": true,
+      "seekError": null,
+      "currentTime": 2.427951,
+      "paused": true,
+      "duration": 4.208008,
+      "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-reveal.mp4"
+    },
+    {
+      "name": "StrictMode effect replay does not skip the gacha reveal video immediately after the delayed result arrives",
+      "passed": true,
+      "drawCalls": 1,
+      "hasOpeningCopy": true,
+      "hasReward": false,
+      "videos": [
+        {
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-reveal.mp4",
+          "paused": false,
+          "ended": false,
+          "currentTime": 0.377223,
+          "loop": false
+        }
+      ]
+    },
+    {
+      "name": "StrictMode effect replay does not skip the grade reveal video immediately after the delayed result arrives",
+      "passed": true,
+      "drawCalls": 1,
+      "hasOpeningCopy": true,
+      "hasResult": false,
+      "videos": [
+        {
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-reveal.mp4",
+          "paused": false,
+          "ended": false,
+          "currentTime": 0.30406,
+          "loop": false
+        }
+      ]
+    },
+    {
+      "name": "StrictMode initial grade result enters reveal video instead of skipping straight to result",
+      "passed": true,
+      "hasOpeningCopy": true,
+      "hasResult": false,
+      "videos": [
+        {
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-reveal.mp4",
+          "paused": false,
+          "ended": false,
+          "currentTime": 0.330783,
+          "loop": false
+        }
+      ]
+    },
+    {
+      "name": "reduced motion detail renders poster instead of autoplaying idle video",
+      "passed": true,
+      "videoCount": 0
+    },
+    {
+      "name": "reduced motion skips opening video and advances after result",
+      "passed": true,
+      "videoCount": 0
+    },
+    {
+      "name": "sound-off setting keeps reveal video muted and records no UI sound calls before reveal reward",
+      "passed": true,
+      "videos": [
+        {
+          "index": 0,
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-reveal.mp4",
+          "poster": "data-url-poster",
+          "loop": false,
+          "muted": true,
+          "volume": 0,
+          "paused": false,
+          "ended": false,
+          "duration": 4.208008,
+          "readyState": 4,
+          "networkState": 1,
+          "rect": {
+            "left": 22,
+            "top": 123,
+            "width": 346,
+            "height": 440,
+            "right": 368,
+            "bottom": 563
+          }
+        }
+      ],
+      "soundEvents": []
+    },
+    {
+      "name": "failed draw returns to detail without hanging pending",
+      "passed": true,
+      "drawCalls": 1,
+      "hasPending": false
+    },
+    {
+      "name": "leaving the draw screen unmounts and pauses the detached stamp video element",
+      "passed": true,
+      "videoCount": 0,
+      "detachedExists": true,
+      "detachedConnected": false,
+      "detachedPaused": true,
+      "detachedCurrentTime": 0
+    },
+    {
+      "name": "320x568 stamp draw detail has no horizontal overflow and reachable controls",
+      "passed": true,
+      "viewport": {
+        "width": 320,
+        "height": 568
+      },
+      "health": {
+        "horizontalOverflow": 0,
+        "unreachableButtons": [
+          {
+            "label": "500 마일리지",
+            "disabled": false,
+            "rect": {
+              "left": 22,
+              "top": 871,
+              "right": 298,
+              "bottom": 919,
+              "width": 276,
+              "height": 48
+            }
+          }
+        ],
+        "visibleButtons": 5
+      },
+      "purchaseRect": {
+        "left": 22,
+        "top": 480,
+        "right": 298,
+        "bottom": 528,
+        "width": 276,
+        "height": 48
+      },
+      "videos": [
+        {
+          "index": 0,
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-idle.mp4",
+          "poster": "data-url-poster",
+          "loop": true,
+          "muted": true,
+          "volume": 0,
+          "paused": false,
+          "ended": false,
+          "duration": 3,
+          "readyState": 4,
+          "networkState": 1,
+          "rect": {
+            "left": 22,
+            "top": 123,
+            "width": 276,
+            "height": 300,
+            "right": 298,
+            "bottom": 423
+          }
+        }
+      ]
+    },
+    {
+      "name": "390x844 stamp draw detail has no horizontal overflow and reachable controls",
+      "passed": true,
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "health": {
+        "horizontalOverflow": 0,
+        "unreachableButtons": [],
+        "visibleButtons": 5
+      },
+      "purchaseRect": {
+        "left": 22,
+        "top": 756,
+        "right": 368,
+        "bottom": 804,
+        "width": 346,
+        "height": 48
+      },
+      "videos": [
+        {
+          "index": 0,
+          "src": "http://127.0.0.1:55221/qa-video-assets/gacha-stamp-idle.mp4",
+          "poster": "data-url-poster",
+          "loop": true,
+          "muted": true,
+          "volume": 0,
+          "paused": false,
+          "ended": false,
+          "duration": 3,
+          "readyState": 4,
+          "networkState": 1,
+          "rect": {
+            "left": 22,
+            "top": 123,
+            "width": 346,
+            "height": 300,
+            "right": 368,
+            "bottom": 423
+          }
+        }
+      ]
+    }
+  ],
+  "consoleErrors": [],
+  "aliases": [
+    {
+      "module": "@react-native-async-storage/async-storage",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\async-storage.ts"
+    },
+    {
+      "module": "expo-application",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-application.ts"
+    },
+    {
+      "module": "expo-audio",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-audio.ts"
+    },
+    {
+      "module": "expo-constants",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-constants.ts"
+    },
+    {
+      "module": "expo-haptics",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-haptics.ts"
+    },
+    {
+      "module": "expo-router",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-router.ts"
+    },
+    {
+      "module": "expo-sharing",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-sharing.ts"
+    },
+    {
+      "module": "html2canvas",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\html2canvas.ts"
+    },
+    {
+      "module": "react",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react\\index.js"
+    },
+    {
+      "module": "react-dom",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react-dom\\index.js"
+    },
+    {
+      "module": "react-dom/client",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react-dom\\client.js"
+    },
+    {
+      "module": "react-native",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\react-native.ts"
+    },
+    {
+      "module": "react-native-reanimated",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react-native-reanimated\\src\\index.ts"
+    },
+    {
+      "module": "react-native-safe-area-context",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\safe-area-context.tsx"
+    },
+    {
+      "module": "react-native-svg",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react-native-svg\\src\\index.ts"
+    },
+    {
+      "module": "react-native-view-shot",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\react-native-view-shot.ts"
+    },
+    {
+      "module": "react-native-web",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react-native-web\\dist\\cjs\\index.js"
+    },
+    {
+      "module": "react-native-worklets",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react-native-worklets\\src\\index.ts"
+    },
+    {
+      "module": "react/jsx-runtime",
+      "target": "C:\\Hackerton\\27_MassCOM-gacha-stamp\\apps\\mobile\\node_modules\\react\\jsx-runtime.js"
+    }
+  ],
+  "mockedBoundaries": [
+    "@react-native-async-storage/async-storage",
+    "expo-application",
+    "expo-audio",
+    "expo-constants",
+    "expo-haptics",
+    "expo-router",
+    "expo-sharing",
+    "html2canvas",
+    "react-native",
+    "react-native-safe-area-context",
+    "react-native-view-shot"
+  ],
+  "limits": [
+    "Playwright video recording was skipped because the local sandbox lacks the ffmpeg sidecar; screenshot sequences cover the same flows.",
+    "This run uses the real Reanimated, Worklets, and react-native-svg web-capable source paths with the local Reanimated Babel plugin.",
+    "Large text uses a fixture React Native adapter that overrides only useWindowDimensions().fontScale from the query string, plus doubled web text styles for screenshot readability; Android OS font-scale behavior remains native QA."
+  ],
+  "passed": true
+}

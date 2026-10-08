@@ -3,11 +3,12 @@ const http = require('http');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { createRequire } = require('module');
+const crypto = require('crypto');
 
 const repoRoot = path.resolve(__dirname, '../../..');
 const mobileRoot = path.join(repoRoot, 'apps/mobile');
 const fixtureRoot = __dirname;
-const evidenceRoot = path.join(repoRoot, 'docs/evidence/reward-album-2026-10-09');
+const evidenceRoot = path.join(repoRoot, 'docs/evidence/gacha-stamp-2026-10-09');
 const screenshotDir = path.join(evidenceRoot, 'screens');
 const videoDir = path.join(evidenceRoot, 'videos');
 const reportPath = path.join(evidenceRoot, 'browser-qa-report.json');
@@ -68,6 +69,12 @@ function resolveSource(base) {
 const aliasPlugin = {
   name: 'reward-album-alias',
   setup(build) {
+    build.onResolve({ filter: /^@\/sound\/ui-sounds$/ }, () => ({
+      path: fromFixture('src/mocks/ui-sounds.ts'),
+    }));
+    build.onResolve({ filter: /^@\/motion\/use-motion$/ }, () => ({
+      path: fromFixture('src/mocks/use-motion.ts'),
+    }));
     build.onResolve({ filter: /^@\/auth\/auth-provider$/ }, () => ({ path: fromFixture('src/mocks/auth-provider.ts') }));
     build.onResolve({ filter: /^(expo-router\/tabs|expo-crypto)$/ }, (args) => ({ path: alias[args.path] }));
     build.onResolve({ filter: /^@\/assets\// }, (args) => ({
@@ -114,6 +121,19 @@ const reanimatedBabelPlugin = {
   },
 };
 
+const videoAssetPlugin = {
+  name: 'reward-album-video-assets',
+  setup(build) {
+    build.onLoad({ filter: /\.mp4$/ }, async (args) => {
+      const targetName = path.basename(args.path);
+      return {
+        contents: `module.exports = ${JSON.stringify(`/qa-video-assets/${targetName}`)};`,
+        loader: 'js',
+      };
+    });
+  },
+};
+
 async function buildBundle() {
   await esbuild.build({
     entryPoints: [fromFixture('src/main.tsx')],
@@ -140,8 +160,8 @@ async function buildBundle() {
       '.svg': 'dataurl',
     },
     resolveExtensions: ['.web.tsx', '.web.ts', '.web.jsx', '.web.js', '.tsx', '.ts', '.jsx', '.js', '.json'],
-    banner: { js: 'var global = globalThis;' },
-    plugins: [aliasPlugin, reanimatedBabelPlugin],
+    banner: { js: 'var global = globalThis; var process = globalThis.process || { env: { NODE_ENV: "development" } };' },
+    plugins: [aliasPlugin, reanimatedBabelPlugin, videoAssetPlugin],
   });
 }
 
@@ -149,6 +169,7 @@ function contentType(file) {
   if (file.endsWith('.html')) return 'text/html; charset=utf-8';
   if (file.endsWith('.js')) return 'text/javascript; charset=utf-8';
   if (file.endsWith('.png')) return 'image/png';
+  if (file.endsWith('.mp4')) return 'video/mp4';
   return 'application/octet-stream';
 }
 
@@ -158,6 +179,49 @@ function serveFixture() {
     if (requestPath === '/favicon.ico') {
       res.writeHead(204);
       res.end();
+      return;
+    }
+    if (requestPath.startsWith('/qa-video-assets/')) {
+      const localVideo = path.normalize(path.join(mobileRoot, 'assets/videos', path.basename(requestPath)));
+      if (!localVideo.startsWith(path.join(mobileRoot, 'assets/videos'))) {
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+      fs.stat(localVideo, (error, stat) => {
+        if (error) {
+          res.writeHead(404);
+          res.end('Not found');
+          return;
+        }
+        const range = req.headers.range;
+        if (range) {
+          const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+          if (match) {
+            const start = match[1] ? Number.parseInt(match[1], 10) : 0;
+            const end = match[2] ? Number.parseInt(match[2], 10) : stat.size - 1;
+            if (Number.isFinite(start) && Number.isFinite(end) && start <= end && end < stat.size) {
+              res.writeHead(206, {
+                'accept-ranges': 'bytes',
+                'content-type': contentType(localVideo),
+                'content-length': String(end - start + 1),
+                'content-range': `bytes ${start}-${end}/${stat.size}`,
+              });
+              fs.createReadStream(localVideo, { start, end }).pipe(res);
+              return;
+            }
+          }
+          res.writeHead(416, { 'content-range': `bytes */${stat.size}` });
+          res.end();
+          return;
+        }
+        res.writeHead(200, {
+          'accept-ranges': 'bytes',
+          'content-type': contentType(localVideo),
+          'content-length': String(stat.size),
+        });
+        fs.createReadStream(localVideo).pipe(res);
+      });
       return;
     }
     const normalized = requestPath === '/' ? '/index.html' : requestPath;
@@ -196,6 +260,8 @@ async function openPage(browser, baseUrl, scenario, options = {}) {
   });
   const params = new URLSearchParams({ scenario });
   if (options.fontScale) params.set('fontScale', String(options.fontScale));
+  if (options.sound) params.set('sound', options.sound);
+  if (options.strict) params.set('strict', '1');
   await page.goto(`${baseUrl}/?${params.toString()}`, { waitUntil: 'networkidle' });
   if (options.largeText) {
     await page.evaluate(() => {
@@ -209,6 +275,123 @@ async function openPage(browser, baseUrl, scenario, options = {}) {
     });
   }
   return { context, page, errors };
+}
+
+async function stampVideos(page) {
+  return page.evaluate(() => Array.from(document.querySelectorAll('video')).map((video, index) => ({
+    index,
+    src: video.currentSrc || video.src,
+    poster: video.poster.startsWith('data:') ? 'data-url-poster' : video.poster,
+    loop: video.loop,
+    muted: video.muted,
+    volume: video.volume,
+    paused: video.paused,
+    ended: video.ended,
+    duration: Number.isFinite(video.duration) ? video.duration : null,
+    readyState: video.readyState,
+    networkState: video.networkState,
+    rect: (() => {
+      const rect = video.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height, right: rect.right, bottom: rect.bottom };
+    })(),
+  })));
+}
+
+async function pageLayoutHealth(page) {
+  return page.evaluate(() => {
+    const buttons = Array.from(document.querySelectorAll('[role="button"], button')).map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        label: element.getAttribute('aria-label') || element.textContent?.trim() || '',
+        disabled: element.getAttribute('aria-disabled') === 'true' || element.hasAttribute('disabled'),
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height },
+      };
+    });
+    return {
+      horizontalOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      unreachableButtons: buttons.filter((button) => button.rect.width > 0 && button.rect.height > 0 && (
+        button.rect.right < 0 || button.rect.left > window.innerWidth || button.rect.bottom < 0 || button.rect.top > document.documentElement.scrollHeight
+      )),
+      visibleButtons: buttons.filter((button) => button.rect.width > 0 && button.rect.height > 0).length,
+    };
+  });
+}
+
+function pushVideoAssertion(report, name, videos, predicate) {
+  report.assertions.push({ name, passed: predicate(videos), videos });
+}
+
+
+async function captureRevealBurstPeak(page, fileName) {
+  const state = await page.evaluate(async () => {
+    const video = document.querySelector('video');
+    if (!video) return { found: false };
+    const targetTime = 2.417;
+    if (video.readyState < 1) {
+      await new Promise((resolve) => {
+        const timeout = window.setTimeout(resolve, 1200);
+        video.addEventListener('loadedmetadata', () => {
+          window.clearTimeout(timeout);
+          resolve(undefined);
+        }, { once: true });
+      });
+    }
+    video.autoplay = false;
+    video.removeAttribute('autoplay');
+    video.pause();
+    let seekError = null;
+    try {
+      if (typeof video.fastSeek === 'function') {
+        video.fastSeek(targetTime);
+      } else {
+        video.currentTime = targetTime;
+      }
+    } catch (error) {
+      seekError = error instanceof Error ? error.message : 'seek-error';
+    }
+    const start = performance.now();
+    let reachedTarget = false;
+    while (performance.now() - start < 2200) {
+      if (Math.abs(video.currentTime - targetTime) <= 0.22) {
+        reachedTarget = true;
+        break;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      video.autoplay = false;
+      video.removeAttribute('autoplay');
+      video.pause();
+      await new Promise((resolve) => window.setTimeout(resolve, 30));
+      if (video.paused) break;
+    }
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return {
+      found: true,
+      targetTime,
+      reachedTarget,
+      seekError,
+      currentTime: video.currentTime,
+      paused: video.paused,
+      duration: Number.isFinite(video.duration) ? video.duration : null,
+      src: video.currentSrc || video.src,
+    };
+  });
+  await page.screenshot({ path: path.join(screenshotDir, fileName), fullPage: true });
+  return state;
+}
+
+function videoAssetManifest() {
+  return ['gacha-stamp-idle.mp4', 'gacha-stamp-reveal.mp4'].map((name) => {
+    const file = path.join(mobileRoot, 'assets/videos', name);
+    const data = fs.readFileSync(file);
+    return {
+      name,
+      path: path.relative(repoRoot, file).replace(/\\/g, '/'),
+      bytes: data.length,
+      sha256: crypto.createHash('sha256').update(data).digest('hex'),
+    };
+  });
 }
 
 async function visibleRegistrationSlots(page) {
@@ -366,6 +549,10 @@ async function albumCases(browser, baseUrl, report) {
 
 async function gradeCase(browser, baseUrl, report) {
   const grade = await openPage(browser, baseUrl, 'grade');
+  await grade.page.getByText(/우표를 여는 중|이번 뽑기 결과/).waitFor({ timeout: 5000 });
+  if (await grade.page.getByRole('button', { name: '연출 건너뛰기' }).isVisible().catch(() => false)) {
+    await grade.page.getByRole('button', { name: '연출 건너뛰기' }).click();
+  }
   await grade.page.getByText('이번 뽑기 결과').waitFor({ timeout: 5000 });
   await grade.page.screenshot({ path: path.join(screenshotDir, 'grade-result.png'), fullPage: true });
   await startRegistrationAnimationSampler(grade.page);
@@ -385,6 +572,36 @@ async function gradeCase(browser, baseUrl, report) {
   const held = await grade.page.getByText('도감 등록 확인').isVisible();
   await grade.page.screenshot({ path: path.join(screenshotDir, 'grade-skip-holds.png'), fullPage: true });
   report.assertions.push({ name: 'grade skip keeps registration screen visible', passed: held });
+  await grade.context.close();
+  report.consoleErrors.push(...grade.errors);
+}
+
+async function gradeDelayedCase(browser, baseUrl, report) {
+  const grade = await openPage(browser, baseUrl, 'grade-delayed');
+  await grade.page.getByText('골드 전체 랜덤').waitFor({ timeout: 5000 });
+  await grade.page.waitForTimeout(350);
+  const idleVideos = await stampVideos(grade.page);
+  pushVideoAssertion(report, 'grade detail uses a real muted looping idle stamp mp4', idleVideos, (videos) => (
+    videos.length === 1 && videos[0].src.includes('.mp4') && videos[0].loop && videos[0].muted && videos[0].rect.width > 250 && videos[0].rect.height >= 250
+  ));
+  await grade.page.screenshot({ path: path.join(screenshotDir, 'stamp-grade-idle-video.png'), fullPage: true });
+  await grade.page.getByRole('button', { name: '500 마일리지로 뽑기' }).first().click();
+  await grade.page.getByText('뽑기 결과 확인 중…').waitFor({ timeout: 3000 });
+  const pendingState = await grade.page.evaluate(() => ({ drawCalls: window.__qaDrawCalls ?? 0, hasResult: document.body.textContent?.includes('이번 뽑기 결과') ?? false }));
+  report.assertions.push({ name: 'grade draw calls purchase once and stays pending until the delayed result arrives', passed: pendingState.drawCalls === 1 && !pendingState.hasResult, ...pendingState });
+  await grade.page.getByText('우표를 여는 중…').waitFor({ timeout: 5000 });
+  const openingVideos = await stampVideos(grade.page);
+  pushVideoAssertion(report, 'grade opening swaps to a non-looping reveal stamp mp4 with sound enabled', openingVideos, (videos) => (
+    videos.length === 1 && videos[0].src.includes('.mp4') && !videos[0].loop && !videos[0].muted && videos[0].volume > 0.5
+  ));
+  await grade.page.screenshot({ path: path.join(screenshotDir, 'stamp-grade-opening-video.png'), fullPage: true });
+  await grade.page.getByRole('button', { name: '연출 건너뛰기' }).click();
+  await grade.page.getByText('이번 뽑기 결과').waitFor({ timeout: 5000 });
+  await grade.page.screenshot({ path: path.join(screenshotDir, 'stamp-grade-result-after-opening.png'), fullPage: true });
+  await grade.page.getByRole('button', { name: '도감 등록 확인' }).click();
+  await grade.page.getByText('도감 등록 확인').waitFor();
+  const registered = await visibleRegistrationSlots(grade.page);
+  report.assertions.push({ name: 'grade stamp result still opens registration album', passed: registered >= 1, visibleSlots: registered });
   await grade.context.close();
   report.consoleErrors.push(...grade.errors);
 }
@@ -410,6 +627,207 @@ async function gachaCase(browser, baseUrl, report) {
   report.assertions.push({ name: 'gacha registration settled frame has visible slots', passed: visibleGachaSlots >= 2, visibleSlots: visibleGachaSlots });
   await gacha.context.close();
   report.consoleErrors.push(...gacha.errors);
+}
+
+async function gachaDelayedCase(browser, baseUrl, report) {
+  const gacha = await openPage(browser, baseUrl, 'gacha-delayed', { viewport: { width: 390, height: 844 } });
+  await gacha.page.getByText('골드 재뽑기권').waitFor({ timeout: 5000 });
+  const idleVideos = await stampVideos(gacha.page);
+  pushVideoAssertion(report, 'legacy gacha detail uses a real muted looping idle stamp mp4', idleVideos, (videos) => (
+    videos.length === 1 && videos[0].src.includes('.mp4') && videos[0].loop && videos[0].muted
+  ));
+  await gacha.page.screenshot({ path: path.join(screenshotDir, 'stamp-gacha-idle-video.png'), fullPage: true });
+  await gacha.page.getByRole('button', { name: '500 마일리지', exact: true }).click();
+  await gacha.page.getByText('친구를 만나러 가는 중…').waitFor({ timeout: 3000 });
+  const pendingState = await gacha.page.evaluate(() => ({ drawCalls: window.__qaDrawCalls ?? 0, hasReward: document.body.textContent?.includes('보상을 하나씩 열어요') ?? false }));
+  report.assertions.push({ name: 'legacy gacha purchase calls draw once and holds pending before result', passed: pendingState.drawCalls === 1 && !pendingState.hasReward, ...pendingState });
+  await gacha.page.getByText('두근두근, 누가 나올까요?').waitFor({ timeout: 5000 });
+  const openingVideos = await stampVideos(gacha.page);
+  pushVideoAssertion(report, 'legacy gacha opening uses a non-looping reveal stamp mp4 with sound enabled', openingVideos, (videos) => (
+    videos.length === 1 && videos[0].src.includes('.mp4') && !videos[0].loop && !videos[0].muted && videos[0].volume > 0.5
+  ));
+  await gacha.page.screenshot({ path: path.join(screenshotDir, 'stamp-gacha-opening-video.png'), fullPage: true });
+  const burstPeak = await captureRevealBurstPeak(gacha.page, 'stamp-gacha-opening-burst-peak.png');
+  report.assertions.push({
+    name: 'legacy gacha reveal burst peak can be captured by seeking the real mp4 without completing the flow',
+    passed: burstPeak.found === true && burstPeak.paused === true && burstPeak.reachedTarget === true,
+    note: 'Visual capture only: this seek/pause screenshot is separate from the real playback completion path.',
+    ...burstPeak,
+  });
+  await gacha.page.getByRole('button', { name: '건너뛰기' }).click();
+  await gacha.page.getByText('보상을 하나씩 열어요').waitFor({ timeout: 5000 });
+  await gacha.page.screenshot({ path: path.join(screenshotDir, 'stamp-gacha-reward-after-opening.png'), fullPage: true });
+  await gacha.context.close();
+  report.consoleErrors.push(...gacha.errors);
+}
+
+
+async function stampStrictModeGachaDelayedCase(browser, baseUrl, report) {
+  const entry = await openPage(browser, baseUrl, 'gacha-delayed', { strict: true });
+  await entry.page.getByText('골드 재뽑기권').waitFor({ timeout: 5000 });
+  await entry.page.getByRole('button', { name: '500 마일리지', exact: true }).click();
+  await entry.page.getByText('두근두근, 누가 나올까요?').waitFor({ timeout: 5000 });
+  await entry.page.waitForTimeout(450);
+  const state = await entry.page.evaluate(() => ({
+    drawCalls: window.__qaDrawCalls ?? 0,
+    hasOpeningCopy: document.body.textContent?.includes('두근두근, 누가 나올까요?') ?? false,
+    hasReward: document.body.textContent?.includes('보상을 하나씩 열어요') ?? false,
+    videos: Array.from(document.querySelectorAll('video')).map((video) => ({
+      src: video.currentSrc || video.src,
+      paused: video.paused,
+      ended: video.ended,
+      currentTime: video.currentTime,
+      loop: video.loop,
+    })),
+  }));
+  report.assertions.push({
+    name: 'StrictMode effect replay does not skip the gacha reveal video immediately after the delayed result arrives',
+    passed: state.drawCalls === 1 && state.hasOpeningCopy && !state.hasReward && state.videos.length === 1 && !state.videos[0].loop,
+    ...state,
+  });
+  await entry.context.close();
+  report.consoleErrors.push(...entry.errors);
+}
+
+async function stampStrictModeGradeDelayedCase(browser, baseUrl, report) {
+  const entry = await openPage(browser, baseUrl, 'grade-delayed', { strict: true });
+  await entry.page.getByText('골드 전체 랜덤').waitFor({ timeout: 5000 });
+  await entry.page.getByRole('button', { name: '500 마일리지로 뽑기' }).first().click();
+  await entry.page.getByText('우표를 여는 중…').waitFor({ timeout: 5000 });
+  await entry.page.waitForTimeout(450);
+  const state = await entry.page.evaluate(() => ({
+    drawCalls: window.__qaDrawCalls ?? 0,
+    hasOpeningCopy: document.body.textContent?.includes('우표를 여는 중') ?? false,
+    hasResult: document.body.textContent?.includes('이번 뽑기 결과') ?? false,
+    videos: Array.from(document.querySelectorAll('video')).map((video) => ({
+      src: video.currentSrc || video.src,
+      paused: video.paused,
+      ended: video.ended,
+      currentTime: video.currentTime,
+      loop: video.loop,
+    })),
+  }));
+  report.assertions.push({
+    name: 'StrictMode effect replay does not skip the grade reveal video immediately after the delayed result arrives',
+    passed: state.drawCalls === 1 && state.hasOpeningCopy && !state.hasResult && state.videos.length === 1 && !state.videos[0].loop,
+    ...state,
+  });
+  await entry.context.close();
+  report.consoleErrors.push(...entry.errors);
+}
+
+async function stampStrictModeInitialGradeCase(browser, baseUrl, report) {
+  const entry = await openPage(browser, baseUrl, 'grade', { strict: true });
+  await entry.page.getByText(/우표를 여는 중|이번 뽑기 결과/).waitFor({ timeout: 5000 });
+  await entry.page.waitForTimeout(450);
+  const state = await entry.page.evaluate(() => ({
+    hasOpeningCopy: document.body.textContent?.includes('우표를 여는 중') ?? false,
+    hasResult: document.body.textContent?.includes('이번 뽑기 결과') ?? false,
+    videos: Array.from(document.querySelectorAll('video')).map((video) => ({
+      src: video.currentSrc || video.src,
+      paused: video.paused,
+      ended: video.ended,
+      currentTime: video.currentTime,
+      loop: video.loop,
+    })),
+  }));
+  report.assertions.push({
+    name: 'StrictMode initial grade result enters reveal video instead of skipping straight to result',
+    passed: state.hasOpeningCopy && !state.hasResult && state.videos.length === 1 && !state.videos[0].loop,
+    ...state,
+  });
+  await entry.context.close();
+  report.consoleErrors.push(...entry.errors);
+}
+
+async function stampReducedMotionCase(browser, baseUrl, report) {
+  const reduced = await openPage(browser, baseUrl, 'gacha-delayed', { reducedMotion: 'reduce' });
+  await reduced.page.getByText('골드 재뽑기권').waitFor({ timeout: 5000 });
+  const idleVideos = await stampVideos(reduced.page);
+  report.assertions.push({ name: 'reduced motion detail renders poster instead of autoplaying idle video', passed: idleVideos.length === 0, videoCount: idleVideos.length });
+  await reduced.page.getByRole('button', { name: '500 마일리지', exact: true }).click();
+  await reduced.page.getByText('보상을 하나씩 열어요').waitFor({ timeout: 5000 });
+  const openingVideos = await stampVideos(reduced.page);
+  report.assertions.push({ name: 'reduced motion skips opening video and advances after result', passed: openingVideos.length === 0, videoCount: openingVideos.length });
+  await reduced.page.screenshot({ path: path.join(screenshotDir, 'stamp-gacha-reduced-motion.png'), fullPage: true });
+  await reduced.context.close();
+  report.consoleErrors.push(...reduced.errors);
+}
+
+async function stampMutedCase(browser, baseUrl, report) {
+  const muted = await openPage(browser, baseUrl, 'gacha-delayed', { sound: 'off' });
+  await muted.page.getByText('골드 재뽑기권').waitFor({ timeout: 5000 });
+  await muted.page.getByRole('button', { name: '500 마일리지', exact: true }).click();
+  await muted.page.getByText('두근두근, 누가 나올까요?').waitFor({ timeout: 5000 });
+  const videos = await stampVideos(muted.page);
+  const soundEvents = await muted.page.evaluate(() => window.__qaSoundEvents ?? []);
+  report.assertions.push({ name: 'sound-off setting keeps reveal video muted and records no UI sound calls before reveal reward', passed: videos.length === 1 && videos[0].muted && videos[0].volume === 0 && soundEvents.length === 0, videos, soundEvents });
+  await muted.context.close();
+  report.consoleErrors.push(...muted.errors);
+}
+
+async function stampFallbackCase(browser, baseUrl, report) {
+  const failed = await openPage(browser, baseUrl, 'grade-error');
+  await failed.page.getByText('골드 전체 랜덤').waitFor({ timeout: 5000 });
+  await failed.page.getByRole('button', { name: '500 마일리지로 뽑기' }).first().click();
+  await failed.page.getByText('골드 전체 랜덤').waitFor({ timeout: 5000 });
+  const state = await failed.page.evaluate(() => ({ drawCalls: window.__qaDrawCalls ?? 0, hasPending: document.body.textContent?.includes('뽑기 결과 확인 중') ?? false }));
+  report.assertions.push({ name: 'failed draw returns to detail without hanging pending', passed: state.drawCalls === 1 && !state.hasPending, ...state });
+  await failed.context.close();
+  report.consoleErrors.push(...failed.errors);
+}
+
+async function stampUnmountCase(browser, baseUrl, report) {
+  const entry = await openPage(browser, baseUrl, 'gacha-delayed');
+  await entry.page.getByText('골드 재뽑기권').waitFor({ timeout: 5000 });
+  await entry.page.getByRole('button', { name: '500 마일리지', exact: true }).click();
+  await entry.page.getByText('두근두근, 누가 나올까요?').waitFor({ timeout: 5000 });
+  await entry.page.evaluate(() => {
+    window.__qaDetachedVideo = document.querySelector('video');
+    window.dispatchEvent(new CustomEvent('qa:set-scenario', { detail: 'album' }));
+  });
+  await entry.page.getByText('도감 등록 확인').waitFor({ timeout: 5000 });
+  const state = await entry.page.evaluate(() => ({
+    videoCount: document.querySelectorAll('video').length,
+    detachedExists: Boolean(window.__qaDetachedVideo),
+    detachedConnected: window.__qaDetachedVideo?.isConnected ?? null,
+    detachedPaused: window.__qaDetachedVideo?.paused ?? null,
+    detachedCurrentTime: window.__qaDetachedVideo?.currentTime ?? null,
+  }));
+  report.assertions.push({
+    name: 'leaving the draw screen unmounts and pauses the detached stamp video element',
+    passed: state.videoCount === 0 && state.detachedExists && state.detachedConnected === false && state.detachedPaused === true,
+    ...state,
+  });
+  await entry.context.close();
+  report.consoleErrors.push(...entry.errors);
+}
+
+async function stampViewportCases(browser, baseUrl, report) {
+  for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
+    const entry = await openPage(browser, baseUrl, 'gacha-delayed', { viewport });
+    await entry.page.getByText('골드 재뽑기권').waitFor({ timeout: 5000 });
+    await entry.page.waitForTimeout(150);
+    const health = await pageLayoutHealth(entry.page);
+    const videos = await stampVideos(entry.page);
+    const purchase = entry.page.getByRole('button', { name: '500 마일리지', exact: true });
+    await purchase.scrollIntoViewIfNeeded();
+    const purchaseRect = await purchase.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height };
+    });
+    report.assertions.push({
+      name: `${viewport.width}x${viewport.height} stamp draw detail has no horizontal overflow and reachable controls`,
+      passed: health.horizontalOverflow <= 1 && health.visibleButtons > 0 && purchaseRect.top >= 0 && purchaseRect.bottom <= viewport.height + 1 && videos.length === 1 && videos[0].rect.right <= viewport.width + 1,
+      viewport,
+      health,
+      purchaseRect,
+      videos,
+    });
+    await entry.page.screenshot({ path: path.join(screenshotDir, `stamp-gacha-${viewport.width}x${viewport.height}.png`), fullPage: true });
+    await entry.context.close();
+    report.consoleErrors.push(...entry.errors);
+  }
 }
 
 async function main() {
@@ -442,6 +860,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     fixture: pathToFileURL(fixtureRoot).href,
     baseUrl,
+    videoAssets: videoAssetManifest(),
     screenshots: [],
     videos: [],
     assertions: [],
@@ -459,6 +878,16 @@ async function main() {
     await albumCases(browser, baseUrl, report);
     await gradeCase(browser, baseUrl, report);
     await gachaCase(browser, baseUrl, report);
+    await gradeDelayedCase(browser, baseUrl, report);
+    await gachaDelayedCase(browser, baseUrl, report);
+    await stampStrictModeGachaDelayedCase(browser, baseUrl, report);
+    await stampStrictModeGradeDelayedCase(browser, baseUrl, report);
+    await stampStrictModeInitialGradeCase(browser, baseUrl, report);
+    await stampReducedMotionCase(browser, baseUrl, report);
+    await stampMutedCase(browser, baseUrl, report);
+    await stampFallbackCase(browser, baseUrl, report);
+    await stampUnmountCase(browser, baseUrl, report);
+    await stampViewportCases(browser, baseUrl, report);
   } finally {
     await browser.close().catch(() => undefined);
     server.close();
@@ -466,6 +895,15 @@ async function main() {
   report.screenshots = fs.readdirSync(screenshotDir).filter((name) => name.endsWith('.png')).sort().map((name) => path.join(screenshotDir, name));
   report.videos = report.videos.filter(Boolean);
   report.passed = report.assertions.every((entry) => entry.passed) && report.consoleErrors.length === 0;
+  const visualVerdict = {
+    generatedAt: report.generatedAt,
+    target: 'gacha stamp browser QA',
+    verdict: report.passed ? 'PASS' : 'FAIL',
+    checkedScreenshots: report.screenshots,
+    failedAssertions: report.assertions.filter((entry) => !entry.passed).map((entry) => entry.name),
+    consoleErrors: report.consoleErrors,
+  };
+  fs.writeFileSync(path.join(evidenceRoot, 'visual-verdict.json'), `${JSON.stringify(visualVerdict, null, 2)}\n`);
   fs.writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   if (!report.passed) {
     console.error(JSON.stringify(report, null, 2));
