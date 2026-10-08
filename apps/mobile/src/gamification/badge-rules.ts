@@ -177,7 +177,7 @@ export function featuredRaisedMedal(diff: BadgeBookDiff): Medal | undefined {
 }
 
 export const shareDestination: Record<ShareVariant, string> = {
-  showcase: 'https://demo-api.masscom.kr/play/',
+  showcase: 'https://www.masscom.kr/demo',
   production: 'https://www.masscom.kr/app/',
 };
 
