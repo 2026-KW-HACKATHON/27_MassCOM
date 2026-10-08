@@ -1,50 +1,48 @@
 ## 1. 기준 커밋과 작업 위치
 
-기준 시각: 2026-10-09 KST (통합 검증 최종 갱신 대기)
-기준 main 커밋 SHA: `8aa8b724` (origin/main을 병합한 통합 소스 HEAD `43c0cee0`)
-브랜치 `fix/ai-image-gap-fixes`, worktree `.worktrees/ai-image-gap-fixes`. 이 문서는 이 HEAD의 현재 상태를 설명한다.
+기준 시각: 2026-10-09 KST
+기준 main 커밋 SHA: `b37063c0` (통합 HEAD `9545b503`)
+브랜치 `fix/ai-image-gap-fixes`, worktree `.worktrees/ai-image-gap-fixes`. 최신 소스는 통합되어 커밋되었으며 부모가 PR 준비를 진행한다.
 
 ## 2. 현재 구현
 
-연합 미션은 점주 동의가 기록된 실제 가게 2–4곳을 기간 안의 유효 방문으로 연결한다. 공유 음식점 마스코트 풀은 100개(B50/S35/G14/P1)에서 공동 차감하며 프리즘을 지급하면 새 회차 100개로 재충전한다. 미사용 음식점 뽑기권은 최대 7일에 만료하고 보유자에게만 현재 잔여 확률을 공개한다. 일반 상자는 음식점 코인·캐릭터를 주지 않으며 등급별 재뽑기권·마일리지·가구·테마 중 하나를 지급한다. 재뽑기는 코인 1개와 권 1장을 사용하고 하락을 허용하며 NFT 진행·완료 코인은 잠근다.
-
-점주 체험 AI 생성은 계정 전체 기준 KST 하루 시안 3회·최종 3회와 생성 사이 60초를 적용한다. 쿼터를 DB 잠금 안에서 예약해 가게 전환과 여러 인스턴스로 우회하지 못하게 한다. API·migration·모바일 구현이며 새 소스는 아직 운영·시연에 배포하지 않았다.
+통합본에는 도감 보상 등록과 실제 가게만 노출하는 공개 경계가 포함된다. 점주 체험 AI 생성은 계정 전체 기준 KST 하루 시안 3회·최종 3회, 요청 간 60초 제한이다. 공유 뽑기·일반 상자·재뽑기·연합 미션 규칙은 최신 통합 HEAD에서 유지된다.
 
 ## 3. 현재 검증 결과
 
-API 단위 675/675, 모바일 2165/2165, 사이트 493/493 통과. API·모바일 typecheck/build와 모바일 lint도 통과했고 lint warning은 0개다. 필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN`.
+API 677/677, 모바일 2220/2220, 사이트 493/493 PASS. API·모바일 typecheck/build 및 모바일 lint(경고 0) PASS. 최신 독립 리뷰에서 핵심 7개 경로와 UI 대상 19개 모두 APPROVE. 필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN`.
 
 ## 4. PostgreSQL 검증
 
-전체 PostgreSQL 통합은 64개 파일 중 600건에서 597 PASS / 0 FAIL / 3 SKIP이다. 세 SKIP은 별도의 hosted-showcase seed 컨테이너(55435)가 필요한 기존 시험이며, 각 항목은 fresh host-seed DB에서 별도 실행해 1/1씩 PASS했다. 근거는 합쳐 600건을 한 번에 PASS로 표시하지 않고, 597건 통합 실행과 세 개의 별도 재실행으로 나눠 기록한다. 기능 격리 시험은 공유 풀 11/11, 일반 상자 15/15, 연합 코스 24/24, AI 계정 쿼터 71건 PASS다. AI 제한 독립 P2 리뷰는 APPROVE이며, 완료 최종 행의 새 일일 제한 소급 집계 여부는 WATCH로 남았다.
+fresh schema migration 75/75 PASS. 전체 통합은 603개 중 600 PASS / 0 FAIL / 3 SKIP이고, 각 SKIP은 fresh host-seed 환경에서 별도로 1/1 PASS했다. 이를 단일 603/603 runner 결과라고 쓰지 않는다.
 
-## 5. 로컬 화면 확인
+## 5. 브라우저와 화면 증거
 
-390×844 실제 브라우저와 로컬 API·PostgreSQL에서 일반 상자·공유 풀·재뽑기·보유 상세·7일 만료·시연 코스 3/3 완주·AI 잔여량 표시를 확인했다. 골드400→80P 및 실버200→40P, 공유 재고100→99→98, 마지막 B 권 사용 뒤 B 확률 비공개, 재뽑기 티켓/코인 원자적 교환, 가상 A/B/C 방문 후 장면·배지 저장을 확인했다. QA는 가상 시연 데이터만 사용하며 실제 점주 동의나 방문이 아니다. 캡처·응답·visual verdict93 PASS는 [증거 폴더](evidence/alliance-draw-2026-10-09/README.md) 참고.
+이전 HEAD `43c0cee0`의 [기능 캡처](evidence/alliance-draw-2026-10-09/README.md)는 일반 상자·공유 재고·재뽑기·보유 상세·7일권 만료·가상 A/B/C 시연 코스·AI 잔여량 표시를 확인한 양성 검증이다. 최신 main 통합 뒤의 [development 캡처와 manifest](evidence/alliance-draw-2026-10-09/integration-9545b503.json)는 개발 화면이라 가상 A/B/C가 보인다. hosted real-only 화면의 시각적 비노출 근거로 설명하지 않는다. real-only filter는 integration/PG 시험에서 확인했다.
 
 ## 6. 배포와 개인정보 동의
 
-새 API·migration·앱은 운영·시연 서버나 APK에 반영되지 않았다. 새 `privacy-2026-10-09`를 쓰므로 API·웹·운영 APK·시연 APK·시연 웹을 한 릴리스로 갱신한다. API만 먼저 배포하지 않는다. 현재 배포 버전의 키 설정만 별도 변경되었다.
+최신 통합 소스는 운영·시연 서버나 공개 APK에 반영되지 않았다. `privacy-2026-10-09` 동의 변경을 포함하므로 배포 시 API·웹·운영 APK·시연 APK·시연 웹을 함께 갱신한다.
 
 ## 7. OpenAI 키와 과금 경계
 
-운영·시연 API는 각각 서버 비밀 파일의 키를 읽고 기존 이미지에서 `ENABLED`·healthy이며 health 확인을 통과했다. 기존 서버 설정은 월 USD 5 예산, 점포별 시안·최종 각 일 3회다. 새 계정 공통 제한은 아직 배포되지 않았다. 실제 유료 이미지 생성은 `NOT_RUN`; 증거는 [OpenAI 설정](evidence/openai-ai-art-enable-2026-10-09.json)이다. 키·결제·환불 개인 정보는 저장소에 기록하지 않는다.
+운영·시연 API의 키는 기존 이미지에서 healthy 상태로 확인됐다. 서버별 USD 5 월 예산과 기존 점포별 시안·최종 일 3회 설정이 적용돼 있고 새 계정 공통 제한은 소스에서만 동작한다. 실제 유료 생성은 `NOT_RUN`; 키·환불·결제 개인정보는 문서에 기록하지 않는다.
 
 ## 8. 데이터베이스 변경
 
-새 migration은 공유 마스코트 풀 `0073`, 일반 상자 보상 `0074`, 계정별 AI 생성 제한 `0076`이다. `0075`는 기준 main에서 이미 병합된 NFT 상한 변경이다. 이 작업의 migration은 운영·시연 DB에 적용하지 않았다. 전체 migration 적용 여부는 각 호스트 배포 증거를 확인한다.
+fresh schema 75/75 migration 검증에는 `0076_ai_art_account_limits.sql`이 포함된다. 신규 통합 전체를 운영/시연 DB에 적용하지 않았다. 호스트 적용은 별도 배포 증거로 판정한다.
 
 ## 9. 알려진 검증 한계
 
-AI 계정 한도는 과거 완료된 최종 생성 행을 소급해 집계하지 않는다(독립 P2 리뷰 APPROVE, 이 경계는 WATCH). 세 hosted 전용 PG SKIP은 별도 fresh host-seed DB에서 각각 1/1 PASS했으며 통합 runner는 597 PASS/3 SKIP 그대로다. Android 실기, 새 기능 서버 배포, 실제 OpenAI 유료 생성은 `NOT_RUN`이다. 브라우저 QA는 로컬 가상 데이터 한정이다.
+과거 완료 최종 생성 행은 새 계정 한도에 소급 집계되지 않는다(독립 P2 리뷰 APPROVE, WATCH). main 통합 후 development 화면에는 가상 점포가 표시된다. hosted real-only UI 수용, Android 실기, 유료 생성 및 새 소스의 운영/시연 배포는 `NOT_RUN`이다.
 
 ## 10. 다음 확인
 
-남은 로컬 브라우저 재뽑기·연합 미션 캡처를 마친 뒤 이 절과 TEST_STATUS를 실제 결과에 맞춰 갱신한다. PR CI·코드 리뷰·공개 API·앱 설치본·Android 실기 검증은 별도 증거로 기록한다.
+PR 생성 및 CI는 부모가 진행한다. 배포 시 개인정보 동의 버전과 API·웹·두 APK·시연 웹의 동시 릴리스 조건을 확인한다.
 
 ## 11. PR 추적과 제출 검사
 
-현재 PR 목록은 `gh pr list --repo 2026-KW-HACKATHON/27_MassCOM`으로 확인한다. 로컬 검증은 CI·PR 병합·공개 배포를 뜻하지 않는다. 제출 시 제목과 본문을 실제 내용에 맞게 바꿔 검사한다.
+현재 PR 목록은 `gh pr list --repo 2026-KW-HACKATHON/27_MassCOM`으로 확인한다. 제출 시 제목과 본문을 실제 내용에 맞게 바꿔 검사한다.
 
 ```bash
 PR_TITLE='한국어 PR 제목'
@@ -55,14 +53,14 @@ bash tests/bootstrap/check_pr_korean_test.sh  # checker 자체 회귀 시험
 
 ## 12. 문서·검증 명령
 
-운영 문서 회귀는 `bash tests/bootstrap/verify_operations_docs_test.sh`, 전체 기준 검사는 `bash tools/gate.sh`로 확인한다. API·모바일 시험과 기능별 통합 결과는 [TEST_STATUS](TEST_STATUS.md)의 현재 항목을 따른다.
+운영 문서 회귀는 `bash tests/bootstrap/verify_operations_docs_test.sh`, 출시 문서 일치는 `node scripts/render-current-release.mjs --check`, 빠른 전체 gate는 `bash tools/gate.sh`로 확인한다.
 
 ## 13. 승인·보안 경계
 
-OpenAI 키는 서버 비밀 파일에만 보관하며 출력·저장소·증거에 복사하지 않는다. 실제 유료 생성·계정 권한 부여·실제 점주 동의·운영 데이터 변경·운영/시연 배포·APK 게시 여부를 로컬 시험으로 추정하지 않는다. 개인키·복구 문구·비밀번호를 기록하지 않는다.
+OpenAI 키는 서버 비밀 파일에만 둔다. 자동/가상 시험을 실제 점주 동의·현장 방문·유료 이미지 생성·운영 변경·공개 배포의 증거로 표현하지 않는다. 개인키·복구 문구·결제 정보를 기록하지 않는다.
 
 ## 14. 이력과 변경 규칙
 
-- 이력의 이전 브랜치·검증 수치는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 작성 당시 기준 그대로 보존한다.
-- 이 현재 문서는 기준 SHA·시험 수치·남은 확인을 새 증거에 맞춰 갱신한다. 확정되지 않은 브라우저 캡처 상태는 완료로 표시하지 않는다.
+- 이전 브랜치 검증과 main 병합 전 브라우저 캡처는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 당시 범위 그대로 보존한다.
+- 최신 main 이후 development 캡처는 별도 표기하고 hosted real-only 시각 검수와 혼동하지 않는다.
 - 한국어 PR 검사와 Lore 커밋 규칙을 따른다. AI 공동 작성자 표시는 넣지 않는다.

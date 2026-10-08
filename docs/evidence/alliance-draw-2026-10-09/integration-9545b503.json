@@ -1,0 +1,52 @@
+{
+  "sourceCommit": "9545b503",
+  "mainBaseline": "b37063c0",
+  "date": "2026-10-09",
+  "apiUnit": {
+    "passed": 677,
+    "failed": 0
+  },
+  "mobileUnit": {
+    "passed": 2220,
+    "failed": 0
+  },
+  "siteUnit": {
+    "passed": 493,
+    "failed": 0
+  },
+  "postgres": {
+    "uniqueCovered": 603,
+    "fullRunPassed": 600,
+    "fullRunSkipped": 3,
+    "followupHostSeedPassed": 3,
+    "failed": 0,
+    "freshDatabaseRequired": true
+  },
+  "migration": {
+    "applied": 75,
+    "last": "0076_ai_art_account_limits.sql"
+  },
+  "typecheck": "PASS",
+  "lint": "PASS zero warnings",
+  "mergeReview": "APPROVE no new P1/P2",
+  "browser": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "scope": "latest local DEVELOPMENT API/browser; virtual test stores remain visible in this mode; hosted real-only filtering is verified by integration tests, not this screenshot",
+    "screenshot": "16-development-integration-final.jpg",
+    "sha256": "61c2e5e81282bbb969d908f9fced27e61b74111aeac1933dae3b47d33e8758bf"
+  },
+  "previousPositiveBrowserProof": {
+    "sourceBaseline": "8aa8b724 + 43c0cee0 + follow-up changes before b370 merge",
+    "manifest": "result.json",
+    "notCurrentRealOnlyPreview": true
+  },
+  "notRun": [
+    "physical-android",
+    "audible-audio-haptics",
+    "paid-openai-image-generation",
+    "new-application-deployment"
+  ]
+}

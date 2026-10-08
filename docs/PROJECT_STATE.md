@@ -1,4 +1,4 @@
-현재 자동 시험 합계(2026-10-09 KST, PR #434·#435·#437 통합 HEAD `5e4e648e` 위 `fix/album-registration-followups`의 미커밋 수정 기준, API는 통합 시 기존 측정값·모바일은 이번 재실행): API 단위 674/674 · 모바일 2203/2203. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, main `b37063c0`를 병합한 HEAD `9545b503` 기준): API 단위 677/677 · 모바일 2220/2220. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이 한 줄은 README와 PROJECT_STATE가 동일하다. 이전 기준선·브랜치별 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존한다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 후속 (파일 수정만·미커밋)
 
@@ -37,20 +37,11 @@ HEAD `04f9ea2a` 후속 리뷰 수정 6건은 파일로 반영했다. ENDED/PAUSE
 앞선 `feat/collectible-reeded-edge`의 HEAD `9a433fee`에서 main `a1a3eef3`를 병합한 당시 기록이다. PR #429의 회전·움직임 분리·Flame 오라·reeded edge와 main의 T3 혜택·T4 코스·T8 공공자료 시연 점포를 보존한다. 공공자료 점포명이 보이는 상세 화면의 고지와 접근성 이름을 함께 유지한다. Git index는 의도대로 미병합 상태다. 모바일 typecheck·lint·동일 glob 대체 단위 2148/2148, 대상 32/32, 운영 제출 준비·CI 연결 103개 파일·접근성은 PASS다. `npm test`는 tsx IPC `EPERM`으로 BLOCKED이고 운영·시연 배포 및 실제 설치본 수용은 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). 당시 전체 합계 자리표시자는 유지했다. 현재 T9와 main `8aa8b724` 병합의 전체 합계는 오케스트레이터가 확정한다.
 
 
-## 2026-10-09 현재 통합 기능 상태 (HEAD `43c0cee0`, 새 기능 미배포)
+## 2026-10-09 최신 통합 main 기준 (HEAD `9545b503`, main `b37063c0`)
 
-새 통합 소스는 음식점 마스코트 뽑기권을 가진 고객에게만 남은 공유 풀의 확률을 공개한다. 기본 재고는 100개(브론즈 50·실버 35·골드 14·프리즘 1)이며, 추첨 차감은 고객 간 공유되고 프리즘 지급 때 회차를 올려 100개를 다시 채운다. 사용하지 않은 음식점 권은 발급 후 최대 7일에 만료한다.
+API 단위 677/677, 모바일 2220/2220, 사이트 493/493 PASS. API·모바일 typecheck/build와 모바일 lint(경고 0)도 PASS했다. PostgreSQL은 fresh schema 75/75에서 603개 중 600 PASS·3 SKIP이며, SKIP 3개를 fresh host-seed DB에서 각 1/1로 별도 통과시켰다. 이를 단일 603/603 실행으로 합쳐 표기하지 않는다. 통합 독립 리뷰는 7개 핵심 경로와 19개 UI 대상을 APPROVE했다.
 
-일반 상자는 캐릭터와 음식점 코인을 지급하지 않고, 재뽑기권·마일리지·가구·테마 중 하나를 지급한다. 브론즈 상자는 모든 보상 등급을, 실버는 실버 이상을, 골드는 골드 이상을 뽑는다. 가구 카탈로그는 등급 정보가 없어 브론즈에만 둔다. 재뽑기는 코인 1개와 권 1장을 원자적으로 사용하며 등급 하락도 가능하다. NFT 발행 중·완료 코인은 잠긴다.
-
-연합 미션은 실제 등록·동의된 가게 2–4곳을 연결하며, 지정 기간 안의 취소되지 않은 비직원 방문만 진행에 포함한다. 순서는 자유이고 고객은 다음 미완료 가게로 이동한다. 점주 체험 AI 이미지 생성에는 계정 전체 기준 한국 날짜별 시안 3회·최종 3회와 생성 요청 사이 60초 제한이 적용된다. 점포별 기존 제한·월 USD 5 예산도 남는다.
-
-위 기능은 API·migration·모바일 소스와 자동 시험 및 로컬 실브라우저 검증에 반영됐으며 아직 운영·시연에 배포되지 않았다. 실제 local API/DB와 가상 시연 계정 A/B/C를 사용한 390×844 브라우저 흐름은 [캡처·응답·visual verdict 93](evidence/alliance-draw-2026-10-09/README.md)에 기록했다. 현장 방문·점주 동의 증거는 아니다. 새 개인정보 안내는 API·웹·운영/시연 APK·시연 웹을 같은 릴리스로 제공해야 한다. 실제 OpenAI 생성·앱 설치 실기·이 기능의 공개 배포는 `NOT_RUN`이다. 운영·시연 API의 키 연결/healthy 증거는 [OpenAI 설정 기록](evidence/openai-ai-art-enable-2026-10-09.json)을 본다.
-
-T4 단독 브랜치 자동 시험 합계(2026-10-09 KST, Issue #412 T4 브랜치 `feat/cross-store-courses`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 652/652 · 모바일 2110/2110. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
-
-README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
-
+이전 `43c0cee0` 기준 브라우저 캡처는 긍정 기능 검증이다. 최신 통합 화면은 development 모드라 가상 A/B/C 점포가 보이며, hosted real-only 고객 화면의 시각적 비노출 증거가 아니다. 최신 [integration manifest와 캡처](evidence/alliance-draw-2026-10-09/integration-9545b503.json)를 따른다. real-only filtering은 integration/PG 시험으로 확인했으며 새 소스는 운영·시연에 미배포다. 운영·시연 AI 키는 기존 이미지 API에서 health 확인됐으나 실제 유료 생성은 `NOT_RUN`이다.
 
 ## 2026-10-08 점주 웹 제작기와 가상 가게 QA (PR #418, Issue #416·#417)
 

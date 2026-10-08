@@ -1,3 +1,9 @@
+## 2026-10-09 통합 main b37063c0 → 9545b503 검증
+
+최신 통합본 API 677/677, 모바일 2220/2220, 사이트 493/493; API·모바일 type/build와 lint warning 0 통과. PostgreSQL fresh schema 75/75, runner 600 PASS/3 SKIP이며 SKIP 3개는 각각 fresh host-seed DB에서 1/1로 통과했다(단일 603 PASS run 아님). 최신 독립 merge review는 7개 core·19개 UI target APPROVE.
+
+43c0 이전 캡처는 positive feature flow를 검증한다. main 통합 뒤 화면은 development mode이며 가상 A/B/C가 표시된다([manifest](evidence/alliance-draw-2026-10-09/integration-9545b503.json)); hosted real-only UI를 시각 검증한 결과가 아니다. real-only filtering은 integration tests로 확인했다. Android 실기·유료 OpenAI 생성·신규 source 배포는 NOT_RUN.
+
 ## 2026-10-09 Codex — 통합 기능 및 점주 AI 사용량 제한
 
 사용자가 요청한 연합 미션, 공유 음식점 마스코트 뽑기, 일반 보상 상자·재뽑기와 계정당 AI 이미지 생성 제한을 병렬 구현했다. AI 제한은 여러 가게를 운영하는 한 계정에 합산하며, KST 날짜별 시안 3회·최종 3회와 요청 사이 60초 쿨다운을 PostgreSQL 거래에서 검사한다. 응답은 계정 잔여량·초기화·쿨다운을 전달하고 초과 요청은 `429`와 `Retry-After`를 보낸다. 점포별 제한과 월 예산도 계속 적용된다.

@@ -1,3 +1,12 @@
+## 2026-10-09 latest integration main `b37063c0` → HEAD `9545b503`
+
+현재 자동 합계는 README·PROJECT_STATE의 동일한 줄과 일치한다: API 677/677, 모바일 2220/2220. 사이트 493/493, API·모바일 typecheck/build 및 모바일 lint(경고 0)도 PASS. 필수 36개 운영 판정은 `31 PASS / 2 BLOCKED / 3 NOT_RUN` 그대로다.
+
+- fresh PostgreSQL schema migration 75/75 PASS. 전체 통합은 603개 중 600 PASS / 0 FAIL / 3 SKIP이며, 각 SKIP은 fresh host-seed 환경에서 별도로 1/1 PASS했다. 근거는 600+별도3이며 단일 603 PASS라 표기하지 않는다.
+- 최신 독립 merge review는 핵심 7개 경로와 UI 대상 19개 모두 APPROVE.
+- 이전 HEAD `43c0cee0` 기준의 [기능 캡처](evidence/alliance-draw-2026-10-09/README.md)는 일반 상자·공유 재고·재뽑기·보유 상세·7일권 만료·가상 A/B/C 시연 코스·AI 잔여량 표시를 확인한 긍정 검증이다. main `b37063c0` 병합 후 최신 [development 캡처·manifest](evidence/alliance-draw-2026-10-09/integration-9545b503.json)는 개발 화면이므로 가상 A/B/C가 보인다. 이를 hosted real-only 화면의 시각적 비노출 근거로 쓰지 않는다. real-only filtering은 integration 시험으로 검증했다.
+- 유료 OpenAI 생성·Android 실기·신규 source의 운영/시연 배포는 `NOT_RUN`. 두 기존 서버의 키 설정과 health 확인은 [별도 증거](evidence/openai-ai-art-enable-2026-10-09.json)다.
+
 ## 2026-10-09 통합 기능 구현·검증 (HEAD `43c0cee0`, 신규 소스 미배포)
 
 현재 자동 합계는 README·PROJECT_STATE 첫 줄과 동일하다: API 675/675, 모바일 2163/2163, 사이트 493/493. API·모바일 typecheck/build와 모바일 lint 통과(lint warning 0개). 필수 36개 운영 상태는 `31 PASS / 2 BLOCKED / 3 NOT_RUN`으로 유지했다.

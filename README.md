@@ -103,12 +103,14 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | --- | --- |
 | 실제 제휴 점포 0곳(운영 점포 0건, 시연은 가상 3곳뿐) | [운영 관리자 현황](docs/evidence/operating-admin-status-deployment-2026-09-29.json) |
 | 현장 실증(필드 검증) 전체 `NOT_RUN` | [FIELD_VALIDATION](docs/FIELD_VALIDATION.md) |
-| AI 가게 그림 실제 호출 꺼짐(OpenAI 키 미투입, [B-026](docs/BLOCKERS.md)) | [켜기 준비 리허설](docs/evidence/ai-art-enable-rehearsal-2026-09-30.json) |
+| AI 가게 그림 키 연결·API healthy 확인, 실제 유료 생성 `NOT_RUN` ([B-026](docs/BLOCKERS.md)) | [설정 증거](docs/evidence/openai-ai-art-enable-2026-10-09.json) |
 | NFT는 Base Sepolia 테스트넷까지만, 메인넷 발행 없음 | [BLOCKERS](docs/BLOCKERS.md) |
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-09 KST, PR #434·#435·#437 통합 HEAD `5e4e648e` 위 `fix/album-registration-followups`의 미커밋 수정 기준, API는 통합 시 기존 측정값·모바일은 이번 재실행): API 단위 674/674 · 모바일 2203/2203. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, main `b37063c0`를 병합한 HEAD `9545b503` 기준): API 단위 677/677 · 모바일 2220/2220. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이 한 줄은 README와 PROJECT_STATE가 동일하다. 이전 기준선·브랜치별 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존한다.
+
+최신 통합 HEAD `9545b503`의 추가 검증은 API 677/677·모바일 2220/2220·사이트 493/493, PostgreSQL runner 600 PASS·3 SKIP이다. SKIP 세 건은 각각 별도 fresh host-seed DB에서 통과했다. 최신 development 화면에는 가상 A/B/C가 보이므로 hosted real-only 화면의 시각 증거로 해석하지 않는다([통합 증거](docs/evidence/alliance-draw-2026-10-09/integration-9545b503.json)).
 
 앱 시작 배경음 수정은 로컬 구현·검증됐다. 네이티브는 첫 렌더 뒤, 웹은 첫 입력과 자산 준비 뒤 일반 배경음을 재생하며 뽑기 화면의 intro→loop는 유지한다. 실제 브라우저·각 Android 앱 청음과 배포는 별도다([D-103](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 
