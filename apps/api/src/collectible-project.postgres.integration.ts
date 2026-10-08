@@ -538,10 +538,14 @@ test('a v1-shaped publication detail row (written before the v2 schema) is retur
   assert.equal('motions' in detail, false); assert.equal('backImageDataUrl' in detail, false);
 });
 
-test('a v2 publish round-trips through getAcquired with motions, playback and the back image intact', async t => {
+test('a v2 publish round-trips through getAcquired with motions, rotation speed, thickness 48 and the back image intact', async t => {
   const { projects, input, claim, setDay } = await setup(t);
   const raw = photoProject(); raw.motion = raw.motion.map(item => ({ ...item, gradeIds: ['silver'] }));
+  raw.rotationSpeed = 2;
+  raw.thickness = 48;
   const draft = await projects.create({ ...input, project: raw });
+  assert.equal(draft.project.rotationSpeed, 2);
+  assert.equal(draft.project.thickness, 48);
   const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
   await claim('customer-v2-round-trip', 'first');
   setDay(1); await claim('customer-v2-round-trip', 'second');
@@ -550,6 +554,8 @@ test('a v2 publish round-trips through getAcquired with motions, playback and th
   const detail = await projects.getAcquired({ accountId: 'customer-v2-round-trip', entitlementId: reward.entitlementId });
   assert.equal(detail.publicationId, published.publicationId); assert.equal(detail.gradeId, 'silver');
   assert.equal(detail.animation, 'float'); assert.deepEqual(detail.motions, [{ type: 'float', playback: 'loop' }]);
+  assert.equal(detail.rotationSpeed, 2);
+  assert.equal(detail.thickness, 48);
   assert.equal(detail.backImageDataUrl, tinyPng); assert.equal('parallax' in detail, false); assert.equal('strokes' in detail, false);
 });
 

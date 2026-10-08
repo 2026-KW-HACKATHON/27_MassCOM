@@ -26,6 +26,24 @@ test('앞면·뒷면 정면에서는 모서리 가로 이동이 정확히 0이�
   for (const angle of [0, 180, -180]) assert.equal(collectibleEdgeOffset(angle, 12), 0, `${angle}°`);
 });
 
+test('두께 48은 이전 최대치보다 두 배의 측면을 만들며 모든 회전 각도와 화면 크기에서 잘리지 않는다', () => {
+  for (const size of [160, 256, 360]) {
+    const thickEdge = collectibleEdgeOffset(90, 48 * size / 512);
+    const oldEdge = collectibleEdgeOffset(90, 24 * size / 512);
+    assert.equal(thickEdge, oldEdge * 2);
+    for (let angle = -180; angle <= 180; angle += 5) {
+      const faceSize = size * .82;
+      const scaleX = Math.max(.04, Math.abs(Math.cos(angle * Math.PI / 180)));
+      const depth = collectibleEdgeOffset(angle, 48 * size / 512);
+      for (const fraction of [0, .2, .4, .6, .8, 1]) {
+        const left = size * .09 + depth * fraction + faceSize * (1 - scaleX) / 2;
+        assert.ok(left >= 0 && left + faceSize * scaleX <= size, `${size}px ${angle}° layer ${fraction}`);
+      }
+    }
+  }
+  assert.match(detail, /collectibleEdgeOffset\(angle, snapshot\.thickness \* size \/ 512\)/);
+});
+
 test('게시 사진과 각도별 프레임은 앞뒷면 공통 윤곽으로 잘린다', () => {
   assert.match(detail, /function FaceImage\([\s\S]*?overflow: 'hidden', borderRadius:/);
   assert.match(detail, /function FaceImage\([\s\S]*?<ClipPath id=\{clipId\}>[\s\S]*?<CollectibleFaceOutline shape=\{shape\}/);

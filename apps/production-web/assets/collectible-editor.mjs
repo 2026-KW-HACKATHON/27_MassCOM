@@ -1,4 +1,4 @@
-import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel, DEFAULT_GRADES, STANDARD_VISIT_REWARD_LABELS, applyStandardVisitRewards, isStandardVisitCampaign } from './collectible-model.mjs';
+import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel, DEFAULT_GRADES, STANDARD_VISIT_REWARD_LABELS, applyStandardVisitRewards, isStandardVisitCampaign, rotationSpeedValue, rotationAngleAt } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { fixedCollectibleBack } from './collectible-back-assets.mjs';
@@ -148,6 +148,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   let brushTarget = 'photo', selectedLivingId = '';
   let active = true, playing = false, storyPlaying = false, frame = 0, renderSequence = 0, cropSequence = 0, previewQueued = false;
   let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0;
+  let previewRotation = 0, rotationTick = performance.now();
   // living 미리보기 전용 시계(PR #310 리뷰 P2). start는 재생·단계 이동마다 리셋되지만(카드 전체 동작용), living은
   // "지금 보는 등급" 선택이 바뀌어도 계속 흐르는 시간이 필요해 따로 둔다.
   const livingStart = performance.now();
@@ -168,7 +169,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     <label class="ce-field">저장한 프로젝트<select data-control="project-list"><option value="">초안을 골라 다시 편집할 수 있어요</option></select></label>
     <p data-view="notice" class="ce-notice" role="status" aria-live="polite"></p>
     <div class="ce-grid"><div class="ce-controls">
-      <label class="ce-field">수집품 이름<input data-control="name" maxlength="80" required></label>
+      <label class="ce-field">코인 이름<input data-control="name" maxlength="80" aria-label="코인 이름" required></label>
       <label class="ce-field">대표 사진 · JPG, PNG, WebP · 20 MB까지<input data-control="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
       <p class="ce-help">가게·메뉴·간판·그림도 좋아요. 최근 사진을 골라 주세요. JPG·PNG·WebP, 20 MB·4,800만 픽셀·한 변 12,000픽셀까지 받아요. 큰 사진은 편집용으로 줄여 저장하며 기기의 원본 파일은 그대로예요. 편집용 사진으로 다시 자를 수 있어요. 게시한 사진·음성은 이미 받은 손님의 도감에 남을 수 있어요. 사용할 권한이 있는 자료를 골라 주세요.</p>
       <label class="ce-field">모양<select data-control="shape"><option value="circle">원형 동전</option><option value="stamp">우표</option><option value="serrated">뾰족한 톱니</option></select></label>
@@ -232,7 +233,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       <details><summary>움직임과 두께</summary><div class="ce-detail">
         <p class="ce-help">예시는 모두 같은 기본 동전이에요. 선택한 예시 한 개만 재생하고, 원하는 등급에 적용할 수 있어요.</p>
         <div data-view="templates" class="ce-templates"></div><div data-view="motion-grades"></div><div data-view="motion-settings"></div>
-        <label class="ce-field">두께 <output data-value="thickness"></output><input data-control="thickness" type="range" min="1" max="24" step="1" value="8"></label><button type="button" data-action="thickness-reset">기본 두께로</button>
+        <label class="ce-field">두께 <output data-value="thickness"></output><input data-control="thickness" type="range" min="1" max="48" step="1" value="8"></label><button type="button" data-action="thickness-reset">기본 두께로</button>
         <p class="ce-help">각도와 두께는 놓으면 완성 미리보기가 갱신돼요.</p>
       </div></details>
       <details><summary>살아 있는 그림</summary><div class="ce-detail">
@@ -277,6 +278,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       <canvas data-view="preview" width="512" height="512" aria-label="선택된 등급의 완성 수집품 미리보기"></canvas>
       <label class="ce-field">회전 각도 <output data-value="angle"></output><input data-control="angle" type="range" min="-180" max="180" value="0"></label>
       <div class="ce-actions"><button type="button" data-action="play">재생</button><button type="button" data-action="pause">정지</button><button type="button" data-action="replay">다시 보기</button><button type="button" data-action="angle-reset">정면 보기</button></div>
+      <label class="ce-field ce-rotation-speed">회전 속도 <output data-value="rotation-speed">1×</output><input data-control="rotation-speed" aria-label="회전 속도" type="range" min="0.25" max="3" step="0.25" value="1"></label>
       <label class="ce-check"><input data-control="reduce-motion" type="checkbox"> 움직임 줄이기</label>
       <p data-view="preview-caption" class="ce-help"></p><p data-view="greeting" class="ce-greeting"></p>
       <div class="ce-publish"><button type="button" data-action="draft">초안 저장</button><button type="button" data-action="publish" class="primary">이 결과 게시</button><button type="button" data-action="unpublish">게시 중지</button><button type="button" data-action="delete" class="ce-danger">삭제</button><p class="ce-help">게시한 버전은 보존하고, 다음 편집은 새 버전으로 게시해요. 이미 얻은 수집품은 기존 모습과 음성을 유지해요.</p><p data-view="distribution" class="ce-distribution" role="status"></p><p data-view="save-state" class="ce-help"></p></div>
@@ -359,12 +361,16 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
   }
   function syncValues() {
+    previewRotation = 0; rotationTick = performance.now();
     renderCampaignOptions();
     const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
     for (const [name, value] of Object.entries(values)) control(name).value = value;
     for (const input of container.querySelectorAll('[data-edit]')) input.value = project.photoEdits[input.dataset.edit];
     output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`;
     output('angle').textContent = `${project.angle}°`; output('thickness').textContent = `${project.thickness}`;
+    control('rotation-speed').value = rotationSpeedValue(project.rotationSpeed);
+    output('rotation-speed').textContent = `${rotationSpeedValue(project.rotationSpeed)}×`;
+    output('rotation-speed').setAttribute('aria-label', `회전 속도 ${rotationSpeedValue(project.rotationSpeed)}배`);
     output('living-period').textContent = `${project.living.periodMs}ms`;
     syncGreetingPreview();
     const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio; waveform.refresh();
@@ -611,17 +617,34 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     syncGreetingPreview();
   }
+  function advancePreviewRotation(now = performance.now()) {
+    if (playing && !control('reduce-motion').checked) previewRotation = rotationAngleAt(previewRotation, now - rotationTick, project.rotationSpeed) % 360;
+    rotationTick = now;
+  }
+  function setRotationSpeed(value) {
+    const speed = rotationSpeedValue(Number(value));
+    advancePreviewRotation();
+    if (speed !== rotationSpeedValue(project.rotationSpeed)) mutate(() => { project.rotationSpeed = speed; });
+    output('rotation-speed').textContent = `${speed}×`;
+    output('rotation-speed').setAttribute('aria-label', `회전 속도 ${speed}배`);
+    schedulePreview();
+  }
+  function previewAngle() { return ((project.angle + previewRotation + 540) % 360) - 180; }
   async function drawPreview(time = 0, livingTime = 0) {
     const sequence = ++renderSequence;
     const copy = cloneProject(project);
     const buffer = document.createElement('canvas'); buffer.width = previewCanvas.width; buffer.height = previewCanvas.height;
     try {
       const reducedMotion = control('reduce-motion').checked;
-      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, livingTime, reducedMotion, staticFrame: !playing || reducedMotion, merchantName });
+      const angle = previewAngle();
+      await renderCollectible(buffer, copy, selectedGrade, { angle, rotationTime: 0, time, livingTime, reducedMotion, staticFrame: !playing || reducedMotion, merchantName });
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
       view('preview-caption').textContent = `${project.name} · ${grade?.name || ''} · ${project.theme.name} · 두께 ${thicknessPresetLabel(project.thickness) ?? project.thickness}`;
+      output('angle').textContent = `${Math.round(angle)}°`;
+      output('angle').setAttribute('aria-label', `회전 각도 ${Math.round(angle)}도`);
+      container.querySelector('[data-action="play"]').setAttribute('aria-pressed', String(playing));
     } catch (error) { notice(error.message || '미리보기를 만들지 못했어요. 입력은 유지했어요. 자르기 적용을 눌러 다시 시도해 주세요.', true); }
   }
   function schedulePreview() {
@@ -688,6 +711,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     frame = 0;
     if (!active || document.hidden || !anyRenderVisible() || studio.isHome) return;
     const allowMotion = !control('reduce-motion').checked;
+    advancePreviewRotation(now);
     // living은 재생 버튼과 무관하게 "지금 보는 등급"에 걸려 있으면 계속 움직여야 한다(PR #310 리뷰 P2).
     const hasLiving = allowMotion && project.living.items.some(item => item.gradeIds.includes(selectedGrade));
     const coinVisible = renderVisibility.get(previewCanvas), storyVisible = renderVisibility.get(storyCanvas);
@@ -760,22 +784,22 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   async function save(publish = false) {
     if (busy) return;
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
-    if (!project.name.trim()) { navigateStep(4); control('name').closest('details').open = true; notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
-    if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
+    if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
+    if (!project.theme.name.trim()) { navigateStep(1); const detail = control('theme').closest('details'); if (detail) detail.open = true; notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
     if (project.stickers.some(item => !item.text.trim())) { navigateStep(2); studio.selectEditPanel('sticker'); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
     if (project.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(2); studio.selectEditPanel('sticker'); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지워 주세요.', true); return; }
-    if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); studio.selectExtraPanel('voice'); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
+    if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(3); studio.selectExtraPanel('voice'); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
     // PR #310 리뷰(P1): region 대상 living 항목은 서버가 점 1~20개를 요구한다(rules.ts parseLivingItem). 칠한
     // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
     // 초안 저장조차 거절된다(validateCollectibleProject는 등급 연결 여부와 무관하게 구조 전체를 검사한다).
     if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
-      navigateStep(4); studio.selectExtraPanel('living'); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
+      navigateStep(3); studio.selectExtraPanel('living'); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
     }
     applyStandardVisitRewards(project);
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
-      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') studio.selectExtraPanel('story'); notice(reason, true); return; } }
+      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl || !project.name.trim() ? 1 : project.story.type !== 'none' ? 3 : 4); if (project.story.type !== 'none') studio.selectExtraPanel('story'); notice(reason, true); return; } }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
     // 복원·업그레이드 경로에 놓친 곳이 있어도 서버로 나가는 프로젝트는 항상 v2여야 한다(PR #293 P1 방어선).
     const revision = upgradeProject(cloneProject(project)), savedSerial = editSerial;
@@ -852,7 +876,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function controlButtonsRecording(value) { if (!active) return; container.querySelector('[data-action="record"]').disabled = value; container.querySelector('[data-action="record-stop"]').disabled = !value; }
   async function record() {
-    if (studio.isHome || studio.step !== 4 || recorder?.state === 'recording' || recordingPending) return;
+    if (studio.isHome || studio.step !== 3 || recorder?.state === 'recording' || recordingPending) return;
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.MediaRecorder) { notice('이 브라우저는 직접 녹음을 지원하지 않아요. MP3를 올리거나 텍스트 인사말로 계속해 주세요.', true); return; }
     const sourceProject = project;
     const sourceNavigation = navigationSequence;
@@ -863,7 +887,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     updateMediaLocks();
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || document.hidden || studio.isHome || studio.step !== 4 || navigationSequence !== sourceNavigation || project !== sourceProject) { localStream.getTracks().forEach(track => track.stop()); return; }
+      if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || document.hidden || studio.isHome || studio.step !== 3 || navigationSequence !== sourceNavigation || project !== sourceProject) { localStream.getTracks().forEach(track => track.stop()); return; }
       recordingStream = localStream;
       const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
       if (!mimeType) { recordingStream.getTracks().forEach(track => track.stop()); recordingStream = null; notice('이 브라우저의 녹음 형식을 아직 지원하지 않아요. MP3를 올리거나 텍스트 인사말로 계속해 주세요.', true); return; }
@@ -972,7 +996,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function navigateStep(step) {
     stopHiddenMedia(); studio.showStep(step); start = performance.now();
-    if (studio.step === 1 || studio.step === 2 || studio.step === 4) drawCrop();
+    if (studio.step === 1 || studio.step === 2 || studio.step === 3) drawCrop();
     if (studio.step >= 3) schedulePreview();
   }
   // 저장하지 않은 편집이 있으면 새로 시작하거나 다른 프로젝트를 열기 전에 묻는다. 거절하면 지금 프로젝트를 그대로 둔다.
@@ -1023,7 +1047,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   async function act(action, id, source) {
     if (action === 'record-stop') { stopRecording(); return; }
-    if (action === 'pause') { playing = false; schedulePreview(); return; }
+    if (action === 'pause') { advancePreviewRotation(); playing = false; schedulePreview(); return; }
     if (action === 'story-stop') { storyPlaying = false; storyCanvas.hidden = true; return; }
     if (busy || loading) return;
     if (action === 'ai-start' || action === 'ai-create') { await startAi(action === 'ai-create'); return; }
@@ -1226,9 +1250,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'parallax-clear') {
       mutate(() => { project.parallax.strokes = []; }); drawCrop(); return;
     }
-    if (action === 'template') { selectedTemplate = id; playing = true; start = performance.now(); renderMotionGrades(); schedulePreview(); return; }
-    if (action === 'play' || action === 'replay') { playing = true; if (action === 'replay') start = performance.now(); schedulePreview(); return; }
-    if (action === 'angle-reset') { mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
+    if (action === 'template') { advancePreviewRotation(); selectedTemplate = id; playing = !control('reduce-motion').checked; start = rotationTick = performance.now(); renderMotionGrades(); schedulePreview(); return; }
+    if (action === 'play' || action === 'replay') {
+      if (control('reduce-motion').checked) { notice('움직임 줄이기를 끄면 코인을 회전할 수 있어요.'); return; }
+      if (playing && action === 'play') return;
+      if (action === 'replay') previewRotation = 0;
+      playing = true; start = rotationTick = performance.now(); schedulePreview(); return;
+    }
+    if (action === 'angle-reset') { previewRotation = 0; rotationTick = performance.now(); mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
     if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; studio.sync(project, { dirty, wrapper }); return; }
     if (action === 'record') { await record(); return; }
     if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; waveform.refresh(); return; }
@@ -1282,8 +1311,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (['zoom', 'crop-x', 'crop-y'].includes(field)) {
       project.crop[field === 'zoom' ? 'zoom' : field.slice(-1)] = Number(target.value); output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`; changed(); drawCrop(); schedulePreview();
     } else if (field === 'angle' || field === 'thickness') {
-      playing = false; output(field).textContent = `${target.value}${field === 'angle' ? '°' : ''}`;
+      playing = false; previewRotation = 0; output(field).textContent = `${target.value}${field === 'angle' ? '°' : ''}`;
       // The value changes immediately. The expensive final is generated on release.
+    } else if (field === 'rotation-speed') { setRotationSpeed(target.value);
     } else if (['name', 'greeting', 'theme'].includes(field)) {
       if (field === 'theme') project.theme.name = target.value; else project[field] = target.value;
       changed();
@@ -1347,7 +1377,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         mutate(() => project.story.frames.push(...frames)); renderStoryFrames(); return;
       }
       if (field === 'shape' || field === 'style') { mutate(() => { project[field] = target.value; if (field === 'style' && target.value !== 'original') project.photoColor = 0; }); control('photo-color').value = project.photoColor; renderFixedBack(); await drawCrop(); return; }
-      if (field === 'angle' || field === 'thickness') { project[field] = Number(target.value); changed(); schedulePreview(); return; }
+      if (field === 'angle' || field === 'thickness') { playing = false; previewRotation = 0; project[field] = Number(target.value); changed(); schedulePreview(); return; }
       if (field === 'sticker-list') { selectedSticker = target.value; renderStickers(); return; }
       if (field === 'sticker-kind') { syncStickerKindVisibility(); return; }
       if (field === 'brush-target') { brushTarget = target.value; renderBrushTargetOptions(); renderLivingItems(); drawCrop(); return; }
@@ -1406,7 +1436,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         renderLivingItems(); return;
       }
       if (field === 'story-type') { mutate(() => { project.story.type = target.value; }); renderStoryFrames(); return; }
-      if (field === 'reduce-motion') { if (target.checked) { playing = false; storyPlaying = false; } schedulePreview(); return; }
+      if (field === 'rotation-speed') { setRotationSpeed(target.value); return; }
+      if (field === 'reduce-motion') { if (target.checked) { advancePreviewRotation(); playing = false; storyPlaying = false; } schedulePreview(); return; }
       if (target.dataset.gradeName) { mutate(() => { project.grades.find(item => item.id === target.dataset.gradeName).name = target.value.trim() || '새 등급'; }); renderGrades(); renderEffects(); return; }
       if (target.dataset.gradeEnabled) {
         const grade = project.grades.find(item => item.id === target.dataset.gradeEnabled);
@@ -1515,7 +1546,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(previewCanvas, 'pointerdown', event => {
     if (loading) return;
     const point = pointOn(previewCanvas, event), x = (point.x - 512 * .11) / (512 * .78), y = (point.y - 512 * .11) / (512 * .78);
-    if (Math.abs(project.angle) > 15 || playing) { notice('스티커를 드래그하려면 정면 보기와 정지를 눌러 주세요. 위치 조절바는 어느 각도에서도 사용할 수 있어요.'); return; }
+    if (Math.abs(previewAngle()) > 15 || playing) { notice('스티커를 드래그하려면 정면 보기와 정지를 눌러 주세요. 위치 조절바는 어느 각도에서도 사용할 수 있어요.'); return; }
     // 등급별 배치 중인 스티커는 그 등급의 좌표(stickerPositionTarget)로 맞아야 보이는 자리와 드래그 판정이 일치한다.
     const candidate = [...project.stickers].sort((a, b) => b.order - a.order).find(sticker => { const pos = stickerPositionTarget(sticker); return Math.hypot((pos.x - x) * 512, (pos.y - y) * 512) < Math.max(25, pos.size); });
     if (!candidate) return; remember(); selectedSticker = candidate.id; renderStickers(); previewCanvas.setPointerCapture(event.pointerId);

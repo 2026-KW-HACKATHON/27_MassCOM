@@ -250,11 +250,12 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
 
 function validateUpgradedProject(value: unknown, publish: boolean): CollectibleProject {
   const p = object(value, ['schemaVersion','name','campaignId','theme','photo','shape','crop','photoEdits','style','baseColor','photoColor','relief',
-    'stickers','back','grades','effects','motion','thickness','angle','greeting','greetingOverrides','audio','story','parallax','living','derived','rewardGrades']);
+    'stickers','back','grades','effects','motion','thickness','angle','greeting','greetingOverrides','audio','story','parallax','living','derived','rewardGrades'], ['rotationSpeed']);
   if (p.schemaVersion !== 2) invalid();
   string(p.name, 80); string(p.campaignId, 120, true); const theme = object(p.theme, ['name']); string(theme.name, 80);
   enumeration(p.shape, ['circle','stamp','serrated']); enumeration(p.style, ['original','incised','raised']);
-  color(p.baseColor); number(p.photoColor, 0, 100); number(p.relief, 0, 100); number(p.thickness, 1, 24); number(p.angle, -180, 180);
+  color(p.baseColor); number(p.photoColor, 0, 100); number(p.relief, 0, 100); number(p.thickness, 1, 48); number(p.angle, -180, 180);
+  if (p.rotationSpeed !== undefined) number(p.rotationSpeed, .25, 3);
   const photo = object(p.photo, ['originalDataUrl','width','height']);
   if (photo.originalDataUrl === '') { if (photo.width !== 0 || photo.height !== 0 || publish) throw new CollectibleProjectError(publish ? 'COLLECTIBLE_NOT_READY' : 'COLLECTIBLE_INVALID_PROJECT'); }
   else {
@@ -614,6 +615,7 @@ export function collectibleSnapshot(project: CollectibleProject, projectId: stri
   return {
     projectId, publicationId, gradeId, gradeName: grade.name, name: project.name, shape: project.shape,
     theme: { name: project.theme.name }, ...safeAsset, thickness: project.thickness, angle: project.angle,
+    ...(project.rotationSpeed !== undefined ? { rotationSpeed: project.rotationSpeed } : {}),
     animation: gradeMotions.find(m => (m.playback ?? 'loop') === 'loop')?.type ?? 'still',
     motions: gradeMotions.map(({ type, playback, particle }) => ({ type, playback: playback ?? 'loop', ...(particle !== undefined ? { particle } : {}) })),
     greeting: resolveGreeting(project, gradeId),

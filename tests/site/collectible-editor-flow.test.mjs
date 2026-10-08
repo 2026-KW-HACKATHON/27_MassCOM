@@ -125,6 +125,44 @@ test('방문 보상을 확인하지 못하면 게시는 막되 편집과 초안 
 });
 
 const photoFile = { type: 'image/png', size: 1000, name: 'shop.png', dataUrl: 'data:image/png;base64,AAAA' };
+
+test('재생은 동작 없는 코인도 회전시키고 속도 변경·정지·재개·다시 보기와 저장을 지원한다', async () => {
+  const originalPerformance = Object.getOwnPropertyDescriptor(globalThis, 'performance');
+  let now = 0, sequence = 0;
+  const frames = new Map();
+  Object.defineProperty(globalThis, 'performance', { configurable: true, value: { now: () => now } });
+  globalThis.requestAnimationFrame = handler => { frames.set(++sequence, handler); return sequence; };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  const run = async time => {
+    now = time; const pending = [...frames.values()]; frames.clear();
+    assert.ok(pending.length, '미리보기 RAF가 예약된다');
+    for (const handler of pending) await handler(time);
+  };
+  try {
+    const api = createFakeApi(), ui = await mount(api);
+    await ui.click('new'); await ui.upload(photoFile);
+    ui.container.querySelector('[data-action="step"][data-id="4"]').dispatchEvent({ type: 'click' }); await settle();
+    const angle = () => ui.container.querySelector('[data-value="angle"]').textContent;
+    await run(0); await ui.click('play'); await run(7500);
+    assert.equal(angle(), '100°', 'motion이 없어도 재생하면 회전한다');
+    await ui.input('rotation-speed', '2'); await run(11250);
+    assert.equal(angle(), '-160°', '속도를 바꿔도 각도가 튀지 않고 이후 두 배로 움직인다');
+    assert.equal(ui.container.querySelector('[data-value="rotation-speed"]').textContent, '2×');
+    await ui.click('pause'); await run(19000); assert.equal(angle(), '-160°', '정지는 현재 각도를 유지한다');
+    ui.container.querySelector('[data-view="preview"]').dispatchEvent({ type: 'pointerdown', clientX: 256, clientY: 256, pointerId: 1 });
+    assert.match(ui.notice, /정면 보기와 정지/, '멈춘 뒷면에서도 앞면 스티커 드래그를 막는다');
+    await ui.click('play'); await run(22750); assert.equal(angle(), '-60°', '재개는 멈춘 각도부터 이어진다');
+    await ui.click('play'); await run(26500); assert.equal(angle(), '40°', '반복 재생 클릭은 시계를 초기화하지 않는다');
+    await ui.click('replay'); await run(34000); assert.equal(angle(), '-160°', '다시 보기는 처음부터 회전한다');
+    ui.control('reduce-motion').checked = true; await ui.change('reduce-motion', '');
+    await ui.click('play'); await run(41500); assert.equal(angle(), '-160°', '동작 줄이기에서는 회전하지 않는다');
+    assert.match(ui.notice, /움직임 줄이기/);
+    await ui.change('angle', '20'); await run(42000); assert.equal(angle(), '20°', '수동 각도는 회전을 멈추고 적용된다');
+    await ui.click('draft'); assert.equal(created(api).rotationSpeed, 2);
+    assert.deepEqual(created(api).motion, [], '재생과 속도 조절은 등급의 기존 동작 연결을 바꾸지 않는다');
+    await ui.change('project-list', [...api.store.keys()][0]); assert.equal(Number(ui.control('rotation-speed').value), 2);
+  } finally { Object.defineProperty(globalThis, 'performance', originalPerformance); }
+});
 const sceneFile = { type: 'image/png', size: 1000, name: 'scene.png', dataUrl: 'data:image/png;base64,BBBB' };
 const posts = api => api.calls.filter(call => call.method === 'POST').map(call => call.path);
 

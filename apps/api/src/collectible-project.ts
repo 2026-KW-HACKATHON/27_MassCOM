@@ -41,6 +41,7 @@ export type CollectibleProject = {
   motion: CollectibleMotion[];
   thickness: number;
   angle: number;
+  rotationSpeed?: number;
   greeting: string;
   greetingOverrides: CollectibleGreetingOverride[];
   audio: null | { dataUrl: string; mimeType: string; durationSeconds: number };
@@ -72,6 +73,7 @@ export type CollectibleArtwork = {
 };
 export type CollectibleDetail = CollectibleArtwork & {
   imageDataUrl: string; thickness: number; angle: number;
+  rotationSpeed?: number;
   baseDataUrl?: string; effectMasks?: Record<string, string>;
   backImageDataUrl?: string; angleFrames?: CollectibleDerivedAngleFrames; living?: CollectibleDerivedLiving;
   // animation은 Android 구버전이 아는 v1 8종 그대로: 등급의 loop 재생 첫 모션(없으면 'still'). motions가 전체(재생·파티클 포함) 목록이다.

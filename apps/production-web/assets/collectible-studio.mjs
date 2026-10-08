@@ -163,6 +163,9 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), cropSlots[0], zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));
   shape.hidden = true;
   const shapes = section('모양'); shapes.append(shape, choices('shape', [['circle', '원형'], ['stamp', '우표'], ['serrated', '톱니']], '모양', 'shape'));
+  const identity = section('코인 이름', '먼저 이름을 정하고 사진을 배치해 주세요.');
+  identity.append(field('name'));
+  panels[0].append(identity);
   panels[0].append(photo);
   if (merchantArtUrl) panels[0].append(action('가게 그림으로 시작', 'art-photo', undefined, 'ce-text-button'));
   panels[0].append(shapes, photoStage, disclosure('사진 규격·보관 안내', photoHelp));
@@ -173,7 +176,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const thickness = field('thickness'), thicknessReset = container.querySelector('[data-action="thickness-reset"]'), thicknessHelp = thicknessReset.nextElementSibling;
   const thicknessCustom = node('p', 'ce-thickness-custom'); thicknessCustom.hidden = true;
   const volume = section('수집품 두께', '화면에 보이는 측면 깊이예요. 실물 제작 치수가 아니에요.');
-  volume.append(choices('thickness', THICKNESS_PRESETS.map(([value, label]) => [String(value), label]), '두께', 'thickness'), thicknessCustom, disclosure('더 보기 · 두께 세밀하게', thickness, thicknessReset, thicknessHelp));
+  volume.append(choices('thickness', THICKNESS_PRESETS.map(([value, label]) => [String(value), label]), '두께', 'thickness'), thicknessCustom, thickness, thicknessReset, thicknessHelp);
   panels[2].append(volume);
   const gradesDetail = view('grade-manager').closest('details'), gradeContent = gradesDetail.querySelector('.ce-detail');
   const gradeManager = view('grade-manager'), gradeNew = field('grade-name').parentElement, gradeAdd = container.querySelector('[data-action="grade-add"]');
@@ -246,7 +249,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const selectEditPanel = name => { if (!editOptions.has(name)) return; editPanel = name; syncEditTools(); };
   editorTabs.addEventListener('click', event => { const tile = event.target.closest('[data-edit-panel]'); if (tile) { if (tile.dataset.editPanel === 'brush') control('brush').value = tile.dataset.id; selectEditPanel(tile.dataset.editPanel); } });
   photoEditor.replaceChildren(tools, editorTabs, cropSlots[1], ...editOptions.values()); panels[1].append(photoEditor);
-  const materials = section('효과 스튜디오', '지금 보는 등급 한 개와 효과를 적용할 여러 등급은 따로 골라요.');
+  const materials = section('재질 효과', '지금 보는 등급 한 개와 효과를 적용할 여러 등급은 따로 골라요.');
   const effectControls = field('effect-type').parentElement; field('effect-type').hidden = true; field('effect-target').hidden = true;
   const materialsChoices = choices('effect-type', Object.entries(effectNames), '재질 효과', 'material');
   const targets = node('div', 'ce-target-chips'); targets.dataset.view = 'effect-target-chips'; targets.setAttribute('role', 'group'); targets.setAttribute('aria-label', '새 효과의 적용 대상');
@@ -263,12 +266,13 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   motionDetail.querySelector('summary').textContent = '움직임';
   livingDetail.querySelector('summary').textContent = '더 보기 · 살아 있는 그림';
   story.querySelector('summary').textContent = '더 보기 · 가게 이야기';
-  rewards.querySelector('summary').textContent = '이름·자동 방문 보상';
+  rewards.querySelector('summary').textContent = '자동 방문 보상';
   const rewardsBody = rewards.querySelector('.ce-detail');
-  rewardsBody.prepend(disclosure('시즌 설정', seasonTiles('theme'), field('theme'))); rewardsBody.prepend(field('name'));
+  identity.append(disclosure('시즌 설정', seasonTiles('theme'), field('theme'), container.querySelector('[data-action="copy"]')));
   const result = section('완성된 코인', '코인을 저장하거나 방문 보상으로 게시하세요.');
   const resultSummary = node('p', 'ce-result-summary'); resultSummary.dataset.view = 'result-summary'; result.append(resultSummary, action('코인 이미지 저장', 'export-image', undefined, 'ce-export-button'));
-  const extras = disclosure('추가 꾸미기 · 움직임·효과·목소리');
+  const extras = section('애니메이션과 효과', '움직임·재질 효과·목소리를 고르고 바로 재생해 보세요.');
+  extras.classList.add('ce-animation-panel');
   const extraTabs = node('div', 'ce-extra-tabs'); extraTabs.setAttribute('role', 'group'); extraTabs.setAttribute('aria-label', '추가 꾸미기');
   const extraOptions = new Map([['motion', motionDetail], ['materials', materials], ['voice', voice], ['living', livingDetail], ['story', story]]);
   for (const [name, label] of [['motion', '움직임'], ['materials', '재질 효과'], ['voice', '목소리'], ['living', '살아 있는 그림'], ['story', '가게 이야기']]) {
@@ -278,11 +282,12 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const selectExtraPanel = name => {
     for (const [key, panel] of extraOptions) { panel.hidden = key !== name; if (key === name && panel.tagName === 'DETAILS') panel.open = true; }
     for (const tile of extraTabs.children) tile.setAttribute('aria-pressed', String(tile.dataset.extraPanel === name));
-    if (name) extras.open = true;
   };
   extraTabs.addEventListener('click', event => { const tile = event.target.closest('[data-extra-panel]'); if (tile) selectExtraPanel(tile.dataset.extraPanel); });
-  extras.querySelector('.ce-detail').append(extraTabs, ...extraOptions.values());
-  panels[3].append(result, rewards, extras);
+  extras.append(extraTabs, ...extraOptions.values());
+  selectExtraPanel('motion');
+  panels[2].prepend(extras);
+  panels[3].append(result, rewards);
   controls.replaceChildren(...panels);
   const preview = grid.querySelector('.ce-preview'), publishBox = grid.querySelector('.ce-publish');
   const previewActions = field('angle').nextElementSibling;
@@ -298,7 +303,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   rewardsBody.append(publishBox.querySelector('.ce-help'), view('distribution'));
   const statusLine = node('div', 'ce-status-line'); statusLine.append(view('save-state'));
   publishBox.remove();
-  preview.append(previewRow, previewMore);
+  preview.append(previewRow, field('rotation-speed'), previewMore);
   publish.textContent = '게시하기';
   const previous = action('← 이전', 'previous-step'), nextButton = action('다음 →', 'next-step', undefined, 'primary'), fullPreview = action('전체 미리보기', 'replay', undefined, 'ce-full-preview');
   const footer = node('div', 'ce-stage-footer'); footer.append(previous, fullPreview, nextButton, publish);
@@ -337,16 +342,14 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   function showStep(step, focus = true) {
     const entering = workspace.hidden;
     const next = Math.max(1, Math.min(4, Number(step) || 1));
-    // 붓(지우개 등)과 붓 대상(패럴랙스·living 영역)은 칠하는 단계(3·4단계) 안에서만 쓴다. 단계가 바뀌거나 홈에서 들어올 때마다 "사진 이동"·"사진 보정"으로 되돌려
-    // 1단계 끌기가 사진을 옮기는 대신 지우거나 점을 찍지 않게 한다. 붓 값은 편집기가 pointerdown에서 읽기만 하고, 붓 대상은 편집기의 change 처리가
-    // 상태와 화면을 맞춘다(4단계 "이 영역 칠하기"는 눌렀을 때 대상을 직접 정한다). 둘 다 되돌리기 기록은 만들지 않는다.
+    // 단계 이동마다 붓과 대상을 되돌려 사진 배치에서 지우거나 영역 점을 찍지 않게 한다.
     if (workspace.hidden || next !== currentStep) {
       control('brush').value = 'move';
       const brushTarget = control('brush-target');
       if (brushTarget.value !== 'photo') { brushTarget.value = 'photo'; brushTarget.dispatchEvent(new Event('change', { bubbles: true })); }
     }
     currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true;
-    const cropSlot = cropSlots[currentStep === 2 ? 1 : currentStep === 4 ? 2 : 0];
+    const cropSlot = cropSlots[currentStep === 2 ? 1 : currentStep === 3 ? 2 : 0];
     if (crop.parentElement !== cropSlot) cropSlot.append(crop);
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;

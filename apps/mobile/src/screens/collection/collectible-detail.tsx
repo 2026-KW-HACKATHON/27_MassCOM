@@ -317,7 +317,7 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
       if (playing && !dragging) {
         setAnimationTime(elapsed);
         if (activeAnimation === 'rotate') {
-          angleRef.current = ((startAngle + elapsed / 90 + 180) % 360) - 180;
+          angleRef.current = ((startAngle + collectibleMotionFrame('rotate', elapsed, 0, snapshot.rotationSpeed).rotation + 180) % 360) - 180;
           setAngle(angleRef.current);
           setDraftAngle(angleRef.current);
           gesture.current.angle = angleRef.current;
@@ -325,7 +325,7 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
       }
     }, 60);
     return () => clearInterval(timer);
-  }, [playing, moving, dragging, scene, activeAnimation, animationReplay, sceneReplay]);
+  }, [playing, moving, dragging, scene, activeAnimation, animationReplay, sceneReplay, snapshot.rotationSpeed]);
 
   const playMotionSequence = useCallback((sequence: readonly CollectibleMotion[]) => {
     cancelSequence();
@@ -424,7 +424,7 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
   const depth = collectibleEdgeOffset(angle, snapshot.thickness * size / 512);
   const reverse = collectibleFace(angle) === 'back';
   const picture = imageFailed ? snapshot.thumbnailDataUrl : snapshot.imageDataUrl;
-  const animationFrame = collectibleMotionFrame(playing && moving ? activeAnimation : 'still', animationTime, size);
+  const animationFrame = collectibleMotionFrame(playing && moving ? activeAnimation : 'still', animationTime, size, snapshot.rotationSpeed);
   const frames = snapshot.story.frames;
   const shownProgress = moving ? sceneProgress : .75;
   const frameIndex = Math.min(frames.length - 1, Math.floor(shownProgress * frames.length));

@@ -29,7 +29,7 @@ test('외부 주소·SVG·과대 썸네일은 도감 이미지로 받지 않는�
 });
 
 test('상세의 각도·두께·장면 수치와 실제 자료 요구를 검증한다', () => {
-  for (const extra of [{ angle: Infinity }, { angle: 181 }, { thickness: 0 }, { thickness: 25 }, { animation: 'unbounded-animation' }]) {
+  for (const extra of [{ angle: Infinity }, { angle: 181 }, { thickness: 0 }, { thickness: 49 }, { animation: 'unbounded-animation' }]) {
     assert.equal(parsePublishedCollectible({ ...detail, ...extra }), undefined);
   }
   const frame = { dataUrl: png, width: 512, height: 512 };
@@ -39,6 +39,18 @@ test('상세의 각도·두께·장면 수치와 실제 자료 요구를 검증�
   }
   for (const badFrame of [{ ...frame, width: 0 }, { ...frame, height: 4097 }, { ...frame, width: 1.5 }]) {
     assert.equal(parsePublishedCollectible({ ...detail, story: { ...detail.story, frames: [badFrame] } }), undefined);
+  }
+});
+
+test('두께 1~48을 그대로 받아 모든 모양에서 표시하고 범위 밖이나 잘못된 값은 거절한다', () => {
+  for (const shape of ['circle', 'stamp', 'serrated']) {
+    for (const thickness of [1, 24, 25, 47.5, 48]) {
+      const value = { ...detail, shape, thickness, rotationSpeed: 2 };
+      assert.deepEqual(parsePublishedCollectible(value), value);
+    }
+  }
+  for (const thickness of [0, .999, 48.001, Infinity, -Infinity, NaN, '48', null]) {
+    assert.equal(parsePublishedCollectible({ ...detail, thickness }), undefined);
   }
 });
 
@@ -67,6 +79,16 @@ test('v1 상세는 새 필드 없이 오늘과 똑같이 파싱된다(새 필드
   assert.equal('angleFrames' in parsed!, false);
   assert.equal('living' in parsed!, false);
   assert.equal('motions' in parsed!, false);
+  assert.equal('rotationSpeed' in parsed!, false);
+});
+
+test('회전 속도는 .25~3배의 유효한 값만 보존하며 기존 등급 모션은 그대로 받는다', () => {
+  for (const rotationSpeed of [.25, 1, 1.5, 3]) {
+    assert.deepEqual(parsePublishedCollectible({ ...detail, ...v2Extras, rotationSpeed }), { ...detail, ...v2Extras, rotationSpeed });
+  }
+  for (const rotationSpeed of [0, .249, 3.001, Infinity, -Infinity, NaN, '1', null, true]) {
+    assert.deepEqual(parsePublishedCollectible({ ...detail, ...v2Extras, rotationSpeed }), { ...detail, ...v2Extras });
+  }
 });
 
 test('잘못된 새 필드 하나는 그 필드만 버리고 상세 전체는 거절하지 않는다', () => {

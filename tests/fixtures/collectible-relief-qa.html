@@ -11,6 +11,7 @@
 <p id="status" role="status">게시본을 읽는 중…</p><p id="details"></p></main>
 <script type="module">
 import {renderCollectible,renderPublishedCollectible} from '/app/assets/collectible-renderer.mjs';
+import {rotationAngleAt,rotationSpeedValue} from '/app/assets/collectible-model.mjs';
 const status=document.querySelector('#status'),details=document.querySelector('#details'),grade=document.querySelector('#grade'),angle=document.querySelector('#angle'),play=document.querySelector('#play');
 let project,playing=false,started=0,frames=0,raf=0;
 try{
@@ -28,14 +29,14 @@ try{
   const bytes=new TextEncoder().encode(JSON.stringify({project})).length;
   if(bytes>8*1024*1024||assets.some(item=>item.frameBytes>1024*1024||item.backBytes>256*1024))throw new Error('게시 자료 크기 한도 초과');
   details.textContent=`${project.name} · ${{raised:'양각',incised:'음각',original:'원본'}[project.style]} · 깊이 ${project.relief}\n저장 등급 ${Object.keys(project.derived).join(' / ')} · JSON ${(bytes/1024).toFixed(1)} KiB\n각 등급 ${assets.map(item=>`${item.grade} ${(item.frameBytes/1024).toFixed(1)} KiB`).join(' · ')} · 12칸 / 4열 / 15°`;
-  const record=document.createElement('script');record.type='application/json';record.id='relief-qa-results';record.textContent=JSON.stringify({synthetic:true,version:wrapper.version,style:project.style,relief:project.relief,requestBytes:bytes,assets});document.body.append(record);
+  const record=document.createElement('script');record.type='application/json';record.id='relief-qa-results';record.textContent=JSON.stringify({synthetic:true,version:wrapper.version,style:project.style,relief:project.relief,rotationSpeed:rotationSpeedValue(project.rotationSpeed),requestBytes:bytes,assets});document.body.append(record);
   const draw=async()=>{
     const elapsed=playing?performance.now()-started:0,initial=Number(angle.value),id=grade.value;
     const value=project.derived[id];if(!value)throw new Error('해당 등급의 게시 자료가 없습니다.');
-    const snapshot={...value,shape:project.shape,gradeId:id,gradeName:project.grades.find(item=>item.id===id)?.name,thickness:project.thickness,angle:initial,animation:playing?'rotate':'still',effects:project.effects.filter(item=>item.gradeIds.includes(id))};
+    const snapshot={...value,shape:project.shape,gradeId:id,gradeName:project.grades.find(item=>item.id===id)?.name,thickness:project.thickness,angle:initial,rotationSpeed:rotationSpeedValue(project.rotationSpeed),animation:playing?'rotate':'still',effects:project.effects.filter(item=>item.gradeIds.includes(id))};
     await renderCollectible(document.querySelector('#editor'),project,id,{angle:initial,time:elapsed,animation:playing?'rotate':'still'});
     await renderPublishedCollectible(document.querySelector('#published'),snapshot,{angle:initial,time:elapsed,staticFrame:!playing});
-    frames++;const shown=((initial+elapsed/75+180)%360+360)%360-180;document.querySelector('#angle-value').textContent=`${shown.toFixed(1)}°`;
+    frames++;const shown=((rotationAngleAt(initial,elapsed,project.rotationSpeed)+180)%360+360)%360-180;document.querySelector('#angle-value').textContent=`${shown.toFixed(1)}°`;
     status.textContent=`PASS · 저장본 재읽기 · ${playing?'자동 회전 중':'정지'} · 렌더 ${frames}회`;
   };
   const loop=async()=>{try{await draw();if(playing)raf=requestAnimationFrame(loop);}catch(error){playing=false;status.textContent=`FAIL · ${error.message}`;}};

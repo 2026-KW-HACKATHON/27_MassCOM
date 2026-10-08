@@ -103,6 +103,23 @@ test('저장한 동작은 일반 회전으로 바뀌지 않고 각자의 변화�
   assert.equal(collectibleMotionFrame('stamp', 1000, 320).scale, 1);
 });
 
+test('저장한 회전 속도는 회전 각도만 바꾸고 기존 동작과 once 재생 시간은 유지한다', () => {
+  const base = collectibleMotionFrame('rotate', 9000, 320);
+  assert.equal(base.rotation, 100);
+  for (const speed of [.25, 1, 1.5, 3]) {
+    assert.equal(collectibleMotionFrame('rotate', 9000, 320, speed).rotation, 100 * speed);
+    for (const type of ['still', 'float', 'shine', 'stamp', 'sparkle', 'pulse', 'confetti']) {
+      assert.deepEqual(collectibleMotionFrame(type, 600, 320, speed), collectibleMotionFrame(type, 600, 320));
+    }
+  }
+  for (const speed of [0, .249, 3.001, Infinity, NaN]) {
+    assert.deepEqual(collectibleMotionFrame('rotate', 9000, 320, speed), base);
+  }
+  const detail = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
+  assert.match(detail, /collectibleMotionFrame\('rotate', elapsed, 0, snapshot\.rotationSpeed\)\.rotation/);
+  assert.match(detail, /const holdMs = ONCE_MS\[motion\.type\] \?\? 2000/);
+});
+
 test('빛의 위치는 재생 시간에 반응하고 축하 입자는 짧은 구간에만 보인다', () => {
   assert.equal(collectibleMotionFrame('shine', 1000, 320).light, true);
   assert.equal(collectibleMotionFrame('sparkle', 1000, 320).light, true);

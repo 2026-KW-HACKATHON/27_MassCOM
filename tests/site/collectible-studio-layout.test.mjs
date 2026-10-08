@@ -90,12 +90,13 @@ test('작업 영역은 현재 단계 패널 하나만 보이고 다음·이전�
   assert.deepEqual(visiblePanels(), ['4']);
 });
 
-test('1단계에는 사진·모양·자르기만 펼치고 이름은 4단계로 간다', async () => {
+test('1단계에는 코인 이름·시즌·사진·모양·자르기가 먼저 보인다', async () => {
   const ui = await mountStudio();
+  assert.equal(ui.stepOf(ui.q('[data-control="name"]')), '1');
+  assert.equal(ui.stepOf(ui.q('[data-control="theme"]')), '1');
   assert.equal(ui.stepOf(ui.q('[data-control="photo"]')), '1');
   assert.equal(ui.stepOf(ui.choice('shape', 'stamp')), '1');
   assert.equal(ui.stepOf(ui.q('[data-view="crop"]')), '1');
-  assert.notEqual(ui.stepOf(ui.q('[data-control="name"]')), '1');
   const fine = ui.q('[data-control="crop-x"]').closest('details');
   assert.ok(fine, '가로·세로 미세 조정은 접힌 더 보기 안에 있다');
   assert.equal(fine.open, false);
@@ -140,11 +141,20 @@ test('확대가 한계에 닿은 −/+ 는 되돌리기 기록도 편집 표시�
   assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '되돌리기 기록이 비어 있다');
 });
 
-test('3단계에 표현 스타일·깊이·두께가 있고 등급 관리는 접혀 있다', async () => {
+test('3단계에 애니메이션·재질 효과와 두께가 처음부터 보이고 등급 관리는 접혀 있다', async () => {
   const ui = await mountStudio();
+  await ui.act('step', '3');
+  assert.equal(ui.stepOf(ui.q('[data-extra-panel="motion"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-extra-panel="materials"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-extra-panel="voice"]')), '3');
+  assert.equal(ui.q('[data-extra-panel="motion"]').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(ui.all('[data-extra-options]').filter(panel => !panel.hidden).map(panel => panel.dataset.extraOptions), ['motion']);
   assert.equal(ui.stepOf(ui.choice('style', 'incised')), '3');
   assert.equal(ui.stepOf(ui.q('[data-control="relief"]')), '3');
+  assert.equal(ui.q('[data-control="thickness"]').getAttribute('max'), '48');
   assert.equal(ui.stepOf(ui.choice('thickness', '14')), '3');
+  assert.equal(ui.stepOf(ui.choice('thickness', '32')), '3');
+  assert.equal(ui.q('[data-control="thickness"]').closest('details'), null, '두께 슬라이더는 더 보기 안에 숨기지 않는다');
   const grades = ui.q('[data-view="grade-manager"]').closest('details');
   assert.equal(ui.stepOf(grades), '3'); assert.equal(grades.open, false);
 });
@@ -180,12 +190,15 @@ test('지금 보는 등급은 작업 영역 재질 미리보기 상태를 silver
 test('두께 버튼은 값을 바꾸고, 다른 값은 직접 지정으로 보존한다', async () => {
   const ui = await mountStudio();
   const thickness = ui.q('[data-control="thickness"]');
+  await ui.click(ui.choice('thickness', '32'));
+  assert.equal(thickness.value, '32');
+  assert.equal(ui.choice('thickness', '32').getAttribute('aria-pressed'), 'true');
   await ui.click(ui.choice('thickness', '14'));
   assert.equal(thickness.value, '14');
   assert.equal(ui.choice('thickness', '14').getAttribute('aria-pressed'), 'true');
   thickness.value = '11'; thickness.dispatchEvent({ type: 'change' }); await settle();
   assert.equal(thickness.value, '11', '직접 지정 값은 바뀌지 않는다');
-  assert.ok(['4', '8', '14'].every(id => ui.choice('thickness', id).getAttribute('aria-pressed') === 'false'));
+  assert.ok(['4', '8', '14', '32'].every(id => ui.choice('thickness', id).getAttribute('aria-pressed') === 'false'));
   const custom = ui.q('.ce-thickness-custom');
   assert.equal(custom.hidden, false); assert.equal(custom.textContent, '직접 지정 11');
 });
@@ -280,39 +293,41 @@ test('단계를 옮기면 붓은 사진 이동으로 되돌아오고 사진 캔�
   await ui.act('step', '4'); await ui.act('step', '2');
   assert.equal(ui.stepOf(crop()), '2', '2단계로 다시 가면 캔버스도 따라온다');
   await ui.act('step', '3');
-  assert.notEqual(ui.stepOf(crop()), '3', '3단계 코인 만들기에는 사진 편집 캔버스를 보이지 않는다');
+  assert.equal(ui.stepOf(crop()), '3', '3단계 코인 만들기에서는 살아 있는 그림 옵션 자리로 옮겨 둔다');
+  assert.equal(crop().closest('[data-extra-options="living"]').hidden, true, '살아 있는 그림을 고르기 전에는 캔버스를 보이지 않는다');
 });
 
-test('4단계에서는 선택한 살아 있는 그림 옵션 안에만 사진 캔버스가 있고 3단계에는 나타나지 않는다', async () => {
+test('3단계에서는 선택한 살아 있는 그림 옵션 안에만 사진 캔버스가 있고 다른 단계에는 남지 않는다', async () => {
   const ui = await mountStudio();
   const crop = ui.q('[data-view="crop"]');
-  await ui.act('step', '4');
+  await ui.act('step', '3');
   const livingToggle = ui.q('[data-extra-panel="living"]');
   const living = ui.q('[data-extra-options="living"]');
-  assert.equal(living.hidden, true, '결과 단계의 선택 옵션은 처음엔 모두 숨겨져 있다');
+  assert.equal(living.hidden, true, '3단계는 움직임 탭을 먼저 보인다');
   await ui.click(livingToggle);
   assert.equal(living.hidden, false);
-  assert.equal(ui.stepOf(crop), '4');
+  assert.equal(ui.stepOf(crop), '3');
   assert.equal(crop.closest('[data-extra-options]'), living, '캔버스는 살아 있는 그림 선택 옵션 안에 있다');
-  for (const step of ['3', '2', '1']) {
+  for (const step of ['4', '2', '1']) {
     await ui.act('step', step);
     assert.notEqual(crop.closest('[data-extra-options]'), living, `${step}단계에는 캔버스가 살아 있는 그림 옵션에 남지 않는다`);
-    if (step === '3') assert.notEqual(ui.stepOf(crop), '3', '3단계에는 사진 캔버스를 보이지 않는다');
+    if (step === '4') assert.notEqual(ui.stepOf(crop), '4', '4단계 결과에는 사진 캔버스를 보이지 않는다');
   }
 });
 
-test('4단계에서 영역 칠하기를 켜도 다른 단계로 가면 사진 보정으로 돌아와 1단계 끌기가 점을 찍지 않는다', async () => {
+test('3단계에서 영역 칠하기를 켜도 다른 단계로 가면 사진 보정으로 돌아와 1단계 끌기가 점을 찍지 않는다', async () => {
   const ui = await mountStudio();
   const target = ui.q('[data-control="brush-target"]'), crop = ui.q('[data-view="crop"]');
   const photo = ui.q('[data-control="photo"]');
   photo.files = [{ type: 'image/png', size: 1000, name: 'p.png', dataUrl: 'data:image/png;base64,AAAA' }]; photo.dispatchEvent({ type: 'change' }); await settle();
-  await ui.act('step', '4');
+  await ui.act('step', '3');
+  await ui.click(ui.q('[data-extra-panel="living"]'));
   await ui.act('living-add');
   const paint = ui.all('[data-action="living-paint"]')[0];
   assert.ok(paint, '영역 항목에는 "이 영역 칠하기"가 있다');
   await ui.click(paint);
-  assert.match(target.value, /^living:/, '4단계에서 칠하기를 켜면 living 대상이 된다');
-  assert.equal(ui.stepOf(crop), '4');
+  assert.match(target.value, /^living:/, '3단계에서 칠하기를 켜면 living 대상이 된다');
+  assert.equal(ui.stepOf(crop), '3');
   crop.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: 100, clientY: 100 });
   crop.dispatchEvent({ type: 'pointerup', pointerId: 1 }); await settle();
   await ui.act('step', '1');
@@ -323,7 +338,7 @@ test('4단계에서 영역 칠하기를 켜도 다른 단계로 가면 사진 �
   await ui.act('draft');
   const saved = ui.api.calls.filter(call => call.body?.project).at(-1).body.project;
   assert.equal(saved.living.items.length, 1);
-  assert.equal(saved.living.items[0].strokes.length, 1, '점은 4단계에서 찍은 한 개뿐이고 1단계 끌기는 점을 더하지 않았다');
+  assert.equal(saved.living.items[0].strokes.length, 1, '점은 3단계에서 찍은 한 개뿐이고 1단계 끌기는 점을 더하지 않았다');
 });
 
 test('필터 선택은 보이는 강도 슬라이더만 바꾸고 값은 그대로 둔다', async () => {
@@ -352,31 +367,55 @@ test('다른 초안을 열면 필터 선택을 그 초안 값으로 다시 정�
   assert.equal(ui.q('[data-edit="cartoon"]').closest('label').hidden, false, '새 초안은 기본(만화풍)으로 돌아간다');
 });
 
-test('4단계에는 필수 게시 정보가 열려 있고 선택형 결과 옵션은 토글한 것만 보인다', async () => {
+test('4단계에는 결과와 자동 방문 보상만 열려 있고 꾸미기 옵션은 3단계에 있다', async () => {
   const ui = await mountStudio();
-  for (const selector of ['[data-control="name"]', '[data-view="campaign-status"]', '[data-view="reward-grades"]']) {
+  for (const selector of ['[data-view="campaign-status"]', '[data-view="reward-grades"]']) {
     assert.equal(ui.stepOf(ui.q(selector)), '4', selector);
   }
+  assert.equal(ui.stepOf(ui.q('[data-control="name"]')), '1');
   assert.equal(ui.q('[data-control="campaign"]'), null, '캠페인 선택은 점주가 조작하지 않는다');
   assert.equal(ui.q('[data-reward-count]'), null, '방문 횟수별 등급 선택도 없다');
   assert.match(ui.q('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
   assert.equal(ui.q('[data-view="reward-grades"]').closest('details').open, true, '방문 보상 연결은 기본으로 열린다');
+  await ui.act('step', '3');
   const selectedExtras = () => ui.all('[data-extra-options]').filter(panel => !panel.hidden).map(panel => panel.dataset.extraOptions);
-  assert.deepEqual(selectedExtras(), [], '선택형 결과 옵션은 처음엔 모두 숨겨져 있다');
+  assert.deepEqual(selectedExtras(), ['motion'], '3단계는 움직임 옵션을 먼저 보인다');
   for (const id of ['motion', 'materials', 'voice', 'living', 'story']) {
     const button = ui.q(`[data-extra-panel="${id}"]`);
-    assert.equal(button.getAttribute('aria-pressed'), 'false', `${id} 처음 상태`);
     await ui.click(button);
     assert.deepEqual(selectedExtras(), [id], `${id} 옵션만 보인다`);
     assert.equal(button.getAttribute('aria-pressed'), 'true', `${id} 선택 상태`);
   }
-  assert.equal(ui.stepOf(ui.q('[data-view="templates"]')), '4');
-  assert.equal(ui.stepOf(ui.q('[data-control="effect-type"]')), '4');
-  assert.equal(ui.stepOf(ui.q('[data-control="greeting"]')), '4');
-  assert.equal(ui.stepOf(ui.q('[data-control="living-kind"]')), '4');
-  assert.equal(ui.stepOf(ui.q('[data-control="story-type"]')), '4');
+  assert.equal(ui.stepOf(ui.q('[data-view="templates"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-control="effect-type"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-control="greeting"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-control="living-kind"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-control="story-type"]')), '3');
   assert.ok(ui.q('[data-action="export-image"]'), '결과 단계에는 이미지 내보내기가 있다');
   assert.equal(ui.stepOf(ui.q('[data-action="export-image"]')), '4');
+});
+
+test('녹음은 3단계 목소리 흐름에서만 마이크 권한을 요청하고 실패 안내를 보인다', async () => {
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  const recorderDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'MediaRecorder');
+  let calls = 0;
+  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { mediaDevices: { getUserMedia: async () => { calls++; throw new Error('denied'); } } } });
+  Object.defineProperty(globalThis, 'MediaRecorder', { configurable: true, value: class { static isTypeSupported() { return true; } } });
+  try {
+    const ui = await mountStudio();
+    await ui.act('step', '2');
+    await ui.act('record');
+    assert.equal(calls, 0, '3단계 밖에서는 마이크를 요청하지 않는다');
+    await ui.act('step', '3');
+    await ui.click(ui.q('[data-extra-panel="voice"]'));
+    await ui.act('record');
+    await settle();
+    assert.equal(calls, 1, '3단계 목소리 흐름에서 마이크를 요청한다');
+    assert.match(ui.q('[data-view="notice"]').textContent, /마이크를 사용할 수 없어요/);
+  } finally {
+    if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator;
+    if (recorderDescriptor) Object.defineProperty(globalThis, 'MediaRecorder', recorderDescriptor); else delete globalThis.MediaRecorder;
+  }
 });
 
 test('2단계를 떠나면 붓 대상도 사진 보정으로 돌아와 1단계에서 끌어도 패럴랙스 점이 생기지 않는다', async () => {
@@ -589,17 +628,17 @@ test('미리보기는 등급·캔버스·재생/각도 줄만 펼치고 나머�
   assert.equal(distributionDetails.querySelector('[data-control="campaign"]'), null, '게시 정보 안에도 캠페인 선택은 없다');
 });
 
-test('칠한 점이 없는 살아 있는 그림이 있어 저장이 4단계로 돌려보내면 living 옵션이 열린다', async () => {
+test('칠한 점이 없는 살아 있는 그림이 있어 저장이 3단계로 돌려보내면 living 옵션이 열린다', async () => {
   const ui = await mountStudio();
   const living = ui.q('[data-extra-options="living"]');
   assert.equal(living.hidden, true, '처음에는 숨겨져 있다');
-  await ui.act('step', '4');
+  await ui.act('step', '3');
   await ui.click(ui.q('[data-extra-panel="living"]'));
   await ui.act('living-add'); await ui.act('step', '1');
   assert.equal(ui.q('[data-view="workspace"]').dataset.step, '1');
   await ui.act('draft');
   assert.match(ui.q('[data-view="notice"]').textContent, /칠한 점이 없는/);
-  assert.equal(ui.q('[data-view="workspace"]').dataset.step, '4', '저장 검증이 4단계로 돌려보낸다');
+  assert.equal(ui.q('[data-view="workspace"]').dataset.step, '3', '저장 검증이 3단계로 돌려보낸다');
   assert.equal(living.hidden, false, '칠할 영역이 보이도록 living 옵션이 열린다');
   assert.equal(ui.q('[data-extra-panel="living"]').getAttribute('aria-pressed'), 'true');
   assert.equal(ui.api.calls.filter(call => call.method === 'POST').length, 0, '서버로 저장 요청을 보내지 않는다');
@@ -814,15 +853,25 @@ test('작업 영역이 열린 채 제작기를 닫아도 history.back()을 부�
 
 
 for (const action of ['draft', 'publish']) {
-  test(`${action}: 빈 이름은 4단계 접힘을 열고 이름 입력에 초점을 둔다`, async () => {
+  test(`${action}: 빈 이름은 1단계 이름 입력에 초점을 둔다`, async () => {
     const ui = await mountStudio(), name = ui.q('[data-control="name"]');
     name.value = ' '; name.dispatchEvent({ type: 'input' }); await settle();
-    name.closest('details').open = false;
     if (action === 'draft') await ui.click(ui.q('.ce-menu-button'));
     await ui.act(action);
-    assert.equal(ui.q('[data-view="workspace"]').dataset.step, '4');
-    assert.equal(name.closest('details').open, true);
+    assert.equal(ui.q('[data-view="workspace"]').dataset.step, '1');
     assert.equal(document.activeElement, name);
+    assert.equal(ui.api.calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
+  });
+
+  test(`${action}: 빈 시즌은 1단계 시즌 입력에 초점을 둔다`, async () => {
+    const ui = await mountStudio(), theme = ui.q('[data-control="theme"]');
+    theme.value = ' '; theme.dispatchEvent({ type: 'input' }); await settle();
+    theme.closest('details').open = false;
+    if (action === 'draft') await ui.click(ui.q('.ce-menu-button'));
+    await ui.act(action);
+    assert.equal(ui.q('[data-view="workspace"]').dataset.step, '1');
+    assert.equal(theme.closest('details').open, true);
+    assert.equal(document.activeElement, theme);
     assert.equal(ui.api.calls.some(call => call.method === 'POST' || call.method === 'PUT'), false);
   });
 }

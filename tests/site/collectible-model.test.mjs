@@ -4,12 +4,21 @@ import { test } from 'node:test';
 
 import {
   angleFrameIndex, applyStandardVisitRewards, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
-  particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, stickerLineOffsets, stickerLines, THICKNESS_PRESETS, thicknessPresetLabel, toggleEffectGrade, upgradeProject,
+  particleAt, resolveGreeting, resolveSticker, rotationAngleAt, rotationSpeedValue, shapePath, shapePoints, stickerLineOffsets, stickerLines, THICKNESS_PRESETS, thicknessPresetLabel, toggleEffectGrade, upgradeProject,
 } from '../../apps/production-web/assets/collectible-model.mjs';
 
 // Issue #284 WP1: 공유 픽스처(tests/fixtures)는 apps/api의 같은 시험이 읽는 파일 그대로다. 서버(rules.ts)와
 // 브라우저(model.mjs)의 업그레이드·인사말·파티클·각도 계산이 같은 값을 내는지 이 파일들로 맞춘다.
 const fixture = (name) => JSON.parse(readFileSync(new URL(`../fixtures/${name}`, import.meta.url), 'utf8'));
+
+test('회전 속도는 0.25~3배이고 구 저장본은 기본 1배로 움직인다', () => {
+  assert.equal(createProject().rotationSpeed, 1);
+  for (const speed of [undefined, NaN, Infinity, '2']) assert.equal(rotationSpeedValue(speed), 1);
+  assert.equal(rotationSpeedValue(0), .25); assert.equal(rotationSpeedValue(5), 3);
+  assert.equal(rotationAngleAt(20, 7500), 120);
+  assert.equal(rotationAngleAt(20, 7500, .5), 70);
+  assert.equal(rotationAngleAt(20, 7500, 2), 220);
+});
 
 test('사진 제작 초안은 보상 규칙·등급 효과를 자동으로 설정하지 않는다', () => {
   const first = createProject({ campaignId: 'campaign-a' });
@@ -203,11 +212,12 @@ test('angleFrameIndex vectors match the shared fixture the server also checks: f
   assert.deepEqual(angleFrameIndex(-360 - 82.5), angleFrameIndex(-82.5));
 });
 
-test('두께 3단계는 4·8·14이고 그 밖의 값은 이름이 없다', () => {
-  assert.deepEqual(THICKNESS_PRESETS.map(([value]) => value), [4, 8, 14]);
+test('두께 프리셋은 기존 4·8·14를 유지하고 32를 추가한다', () => {
+  assert.deepEqual(THICKNESS_PRESETS.map(([value]) => value), [4, 8, 14, 32]);
   assert.equal(thicknessPresetLabel(4), '얇게');
   assert.equal(thicknessPresetLabel(8), '보통');
   assert.equal(thicknessPresetLabel(14), '두껍게');
+  assert.equal(thicknessPresetLabel(32), '아주 두껍게');
   assert.equal(thicknessPresetLabel(11), null);
   assert.equal(thicknessPresetLabel(NaN), null);
 });

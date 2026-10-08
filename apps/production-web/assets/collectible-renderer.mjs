@@ -1,5 +1,5 @@
 import {
-  shapePoints, cropTransform, effectsForGrade, cloneProject, resolveSticker, stickerLines, stickerLineOffsets, particleAt, ONCE_MS,
+  shapePoints, cropTransform, effectsForGrade, cloneProject, resolveSticker, stickerLines, stickerLineOffsets, particleAt, ONCE_MS, rotationAngleAt,
   strokeAlpha, parallaxOffset, livingPhaseAt, livingFrameAt, livingSpriteCount, livingSpriteGrid, livingBoundingBox, angleFrameIndex, MASCOT_BLINK,
 } from './collectible-model.mjs';
 import { fixedCollectibleBack, fixedCollectibleBackShape } from './collectible-back-assets.mjs';
@@ -475,6 +475,13 @@ export function collectibleMetalColors(gradeId, gradeName = '') {
         : ['#E3BB8B', '#FFF1DC', '#A9673F'];
 }
 
+function animatedAngle(project, options, motion, playback = 'loop') {
+  const angle = options.angle ?? project.angle ?? 0;
+  if (options.staticFrame || motion !== 'rotate') return angle;
+  const elapsed = options.rotationTime ?? options.time ?? 0;
+  const time = playback === 'once' ? Math.min(elapsed, ONCE_MS.rotate - 1) : elapsed;
+  return rotationAngleAt(angle, time, options.rotationSpeed ?? project.rotationSpeed);
+}
 function drawVolume(canvas, front, project, options = {}) {
   const context = canvas.getContext('2d'), width = canvas.width, height = canvas.height;
   context.clearRect(0, 0, width, height);
@@ -485,8 +492,7 @@ function drawVolume(canvas, front, project, options = {}) {
   const duration = ONCE_MS[motion];
   const rawTime = options.staticFrame ? 0 : (options.time || 0);
   const time = playback === 'once' && duration ? Math.min(rawTime, duration - 1) : rawTime;
-  const manualAngle = options.angle ?? project.angle ?? 0;
-  const angle = motion === 'rotate' ? manualAngle + time / 75 : manualAngle;
+  const angle = animatedAngle(project, options, motion, playback);
   const radians = angle * Math.PI / 180;
   let scale = 1, yOffset = 0;
   if (motion === 'float') yOffset = Math.sin(time / 800) * height * .025;
@@ -548,8 +554,7 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   const animation = options.staticFrame ? 'still' : (options.animation || motion?.type || 'still');
   const playback = options.playback ?? motion?.playback ?? 'loop';
   const particle = options.particle ?? motion?.particle;
-  const angle = options.angle ?? project.angle ?? 0;
-  const faceAngle = angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0);
+  const faceAngle = animatedAngle(project, options, animation, playback);
   // PR #310 리뷰 2차 P2: living이 가져다 쓰는 스티커는 정지 포즈로 frontFor가 또 그리면, 아래서 합성하는
   // living 오버레이와 겹쳐 이중으로 보인다(발행 경로의 angleFramesFor·livingStickerTargets와 같은 규칙).
   let front = await frontFor(project, gradeId, size, faceAngle, options.time, true, livingStickerTargets(project, gradeId));
@@ -595,7 +600,7 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
   // 모바일 구 발행본의 gear 별칭도 동일한 톱니 윤곽으로 읽으며 원본 snapshot은 고치지 않는다.
   snapshot = { ...snapshot, shape: fixedCollectibleBackShape(snapshot.shape) };
   const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
-  const angle = (options.angle ?? snapshot.angle ?? 0) + (animation === 'rotate' ? (options.time || 0) / 75 : 0);
+  const angle = animatedAngle(snapshot, options, animation, options.playback ?? 'loop');
   let front = snapshot.angleFrames ? await angleFrameFront(snapshot.angleFrames, angle) : null;
   if (!front) front = await imageFor(snapshot.baseDataUrl || snapshot.imageDataUrl || snapshot.thumbnailDataUrl);
   if (!front) return;

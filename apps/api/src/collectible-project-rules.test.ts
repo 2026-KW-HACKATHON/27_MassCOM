@@ -96,6 +96,45 @@ test('publication snapshot contains final assets, grade scoped effects and anima
   assert.equal(collectibleSnapshot(photoProject(),'p','pub','bronze').effects.length,0);
 });
 
+test('optional rotation speed survives project validation and every grade snapshot without changing authored motions', () => {
+  for (const rotationSpeed of [.25, 1, 1.5, 3]) {
+    const project = photoProject(); project.rotationSpeed = rotationSpeed;
+    const saved = validateCollectibleProject(project, true);
+    assert.equal(saved.rotationSpeed, rotationSpeed);
+    assert.deepEqual(saved.motion, project.motion);
+    for (const grade of saved.grades) {
+      const snapshot = collectibleSnapshot(saved, 'p', 'pub', grade.id);
+      assert.equal(snapshot.rotationSpeed, rotationSpeed);
+      assert.equal(snapshot.animation, grade.id === 'custom' ? 'float' : 'still');
+    }
+  }
+  const legacy = validateCollectibleProject(photoProject(), true);
+  assert.equal('rotationSpeed' in legacy, false);
+  assert.equal('rotationSpeed' in collectibleSnapshot(legacy, 'p', 'pub', 'custom'), false);
+});
+
+test('rotation speed rejects nonfinite values, wrong types and values outside .25 through 3', () => {
+  for (const rotationSpeed of [0, .249, 3.001, Infinity, -Infinity, NaN, '1', null, true]) {
+    assert.throws(() => validateCollectibleProject({ ...photoProject(), rotationSpeed }), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+});
+
+test('coin thickness up to 48 survives validation and every shape and grade publication snapshot', () => {
+  for (const shape of ['circle', 'stamp', 'serrated'] as const) {
+    for (const thickness of [1, 24, 25, 47.5, 48]) {
+      const project = photoProject(); project.shape = shape; project.thickness = thickness;
+      const saved = validateCollectibleProject(project, true);
+      assert.equal(saved.thickness, thickness);
+      for (const grade of saved.grades) {
+        assert.equal(collectibleSnapshot(saved, 'p', 'pub', grade.id).thickness, thickness);
+      }
+    }
+  }
+  for (const thickness of [0, .999, 48.001, Infinity, -Infinity, NaN, '48', null]) {
+    assert.throws(() => validateCollectibleProject({ ...photoProject(), thickness }), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+});
+
 test('real image dimensions prevent spoofed pixel counts and oversized decode even when metadata claims a tiny photo',()=>{
   const p=photoProject();p.photo.width=2;
   assert.throws(()=>validateCollectibleProject(p),{code:'COLLECTIBLE_INVALID_PROJECT'});
