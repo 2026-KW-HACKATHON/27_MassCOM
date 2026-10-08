@@ -4,7 +4,7 @@ PostgreSQL Outbox의 mint job을 임대해 계약 설정·기존 reward key·rec
 
 체인 확인이 초기 lease보다 오래 걸려도 Worker가 1/3 주기로 lease를 갱신합니다. 소유권 갱신에 실패한 Worker는 다음 신규 전송 전에 중단하며, 다른 Worker는 기존 reward key와 transaction hash부터 복구합니다.
 
-기본 로컬 예시는 Anvil이며 `CHAIN_ID=31337`에서는 `ALLOW_UNLOCKED_LOCAL_MINTER=true`가 있어야만 RPC의 잠금 해제 계정을 사용합니다. 공개 체인 경로는 Base Sepolia `CHAIN_ID=84532`와 저장소 밖 암호화 keystore를 함께 요구합니다. 다른 체인과 raw private key 환경변수는 거절합니다. 서비스 민터 코드는 로컬 Anvil에서 검증됐지만 실제 Base Sepolia 전송은 `NOT_RUN`입니다.
+기본 로컬 예시는 Anvil이며 `CHAIN_ID=31337`에서는 `ALLOW_UNLOCKED_LOCAL_MINTER=true`가 있어야만 RPC의 잠금 해제 계정을 사용합니다. 공개 체인 경로는 Base Sepolia `CHAIN_ID=84532`와 저장소 밖 암호화 keystore를 함께 요구합니다. 다른 체인과 raw private key 환경변수는 거절합니다. 서비스 민터 코드는 로컬 Anvil에서 검증됐고, Base Sepolia 테스트넷에서는 Worker 한 번 실행으로 발행한 proof가 `PASS`입니다([증거](../../docs/evidence/base-sepolia-deployment.json)의 `workerProof`, 2026-09-22, 로컬 임시 DB). 메인넷 전송과 운영 서버 상시 실행은 `NOT_RUN`입니다.
 
 아래 명령은 `apps/worker` 디렉터리에서 실행합니다. Worker PostgreSQL 시험은 package script 안에서 API schema의 `npm run db:migrate --prefix ../api`를 먼저 실행합니다.
 
@@ -29,7 +29,7 @@ set -a; source .env; set +a
 npm run start:once
 ```
 
-Worker는 user private key·recovery phrase를 사용하지 않습니다. 로컬 시험은 Anvil unlocked account만 사용하며 Base Sepolia 전용 시험 키는 별도 승인·주입 방식이 정해질 때까지 `BLOCKED`입니다.
+Worker는 user private key·recovery phrase를 사용하지 않습니다. 로컬 시험은 Anvil unlocked account만 사용합니다. Base Sepolia에서는 소유자가 만든 암호화 keystore를 저장소 밖에 두고 Worker가 직접 서명합니다(아래 "공개 테스트넷 서비스 민터"). 키 생성과 비밀번호 입력은 소유자만 하고, Worker·에이전트는 만들지 않습니다.
 
 재시도 지연은 전송 시도마다 두 배(기본 1초, 최대 5분)로 늘고, 전송 시도가 5회에 도달한 작업은 `MANUAL_REVIEW`(`RETRY_LIMIT_EXCEEDED`)로 닫혀 다시 임대되지 않습니다. 전송 전 단계의 완결성 대기와 RPC 조회 실패는 시도 횟수를 늘리지 않습니다.
 
@@ -114,6 +114,6 @@ npm run build && npm run start:prod   # 배포: node dist/run-worker-loop.js
 - 수수료 정보를 받지 못하거나 `0 < maxPriorityFeePerGas <= maxFeePerGas` 관계가 깨지면 서명하지 않고 `FEE_DATA_UNAVAILABLE`로 재시도합니다(기록되는 것이 없음). gas 한도는 추정값의 1.2배입니다. nonce는 `latest`·`pending`·기록된 미확정 거래의 nonce+1 중 가장 큰 값입니다.
 - keystore·비밀번호 파일은 canonical 경로 기준으로 저장소 밖이어야 하고, 파일은 권한 600 이하, 모든 상위 디렉터리는 현재 사용자 또는 root 소유이며 그룹·기타 쓰기 불가여야 합니다(root 소유 sticky 임시 디렉터리 제외). 이름 정규화 뒤 개인키·mnemonic·seed/recovery phrase로 끝나는 환경변수가 있으면 로컬 경로를 포함해 기동을 거절합니다.
 - 대체(가속) 거래는 만들지 않습니다. 오래 채굴되지 않는 거래는 `RECEIPT_TIMEOUT` → 운영자 검토로 갑니다.
-- 실제 Base Sepolia 전송은 아직 하지 않았습니다(로컬 Anvil에서 시험용 keystore로만 검증).
+- Base Sepolia 서비스 민터 전송은 `workerProof`(2026-09-22)로 `PASS`했습니다. 메인넷 전송과 운영 서버에서 상시 실행한 기록은 아직 없습니다(`NOT_RUN`).
 
-운영 모드 요약: Local Anvil은 `CHAIN_ID=31337`와 `ALLOW_UNLOCKED_LOCAL_MINTER=true`, Base Sepolia encrypted keystore는 `CHAIN_ID=84532`와 `MINTER_KEYSTORE_PATH`·`MINTER_KEYSTORE_PASSWORD_FILE`을 사용합니다. 실제 Base Sepolia 전송은 `NOT_RUN`입니다.
+운영 모드 요약: Local Anvil은 `CHAIN_ID=31337`와 `ALLOW_UNLOCKED_LOCAL_MINTER=true`, Base Sepolia encrypted keystore는 `CHAIN_ID=84532`와 `MINTER_KEYSTORE_PATH`·`MINTER_KEYSTORE_PASSWORD_FILE`을 사용합니다. Base Sepolia 서비스 민터 전송은 `PASS`(`workerProof`), 메인넷과 운영 서버 상시 실행은 `NOT_RUN`입니다.

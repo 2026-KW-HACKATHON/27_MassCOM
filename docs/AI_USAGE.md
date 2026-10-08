@@ -14,7 +14,7 @@
 ## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) 구현 (D-080)
 
 - Claude Sonnet 5.5가 소유자 지시("B안대로 구현")에 따라 Worker 반복 루프(`worker-loop.ts`·`run-worker-loop.ts`), 실행기 분리(`createConfiguredWorker`), 게이트웨이 조회 시작 블록 갱신(`setScanFromBlock`), `worker.Dockerfile`, 운영 compose의 `nft-live` 프로파일 서비스, 시험, 문서를 작성했다. 설계 추천과 구현이 같은 세션이었고 독립 리뷰는 아직 하지 않았다(`NOT_RUN`).
-- 검증은 [TEST_STATUS](TEST_STATUS.md)의 같은 날짜 항목을 따른다. 커밋·푸시·PR은 하지 않았다. 일회용 컨테이너 리허설에 쓴 keystore는 그 실행에서만 만든 임의 키이며 저장하지 않았다. 사용자·운영 키와 DB는 쓰지 않았다.
+- 검증은 [TEST_STATUS](TEST_STATUS.md)의 같은 날짜 항목을 따른다. 커밋 `418f8c57`을 브랜치 `feat/worker-continuous-loop`에 푸시했고 PR은 아직 만들지 않았다. 일회용 컨테이너 리허설에 쓴 keystore는 그 실행에서만 만든 임의 키이며 저장하지 않았다. 사용자·운영 키와 DB는 쓰지 않았다.
 
 ## 2026-10-08 첫 사용 경험 (Issue #412)
 

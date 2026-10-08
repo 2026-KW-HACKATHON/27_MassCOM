@@ -2,7 +2,7 @@
 
 ## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) (D-080)
 
-기준 main `e06c97cd` 위의 작업 브랜치 `feat/worker-continuous-loop`(커밋 전 작업 트리). 앱·API·DB 스키마는 바뀌지 않았고 Worker 코드, Worker 이미지, 운영 compose의 프로파일 서비스, 문서가 바뀌었다. 이 서비스는 어디에도 배포·활성화하지 않았다.
+기준 main `e06c97cd` 위의 작업 브랜치 `feat/worker-continuous-loop`(커밋 `418f8c57`, 푸시됨, PR 전). 앱·API·DB 스키마는 바뀌지 않았고 Worker 코드, Worker 이미지, 운영 compose의 프로파일 서비스, 문서가 바뀌었다. 이 서비스는 어디에도 배포·활성화하지 않았다.
 
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |

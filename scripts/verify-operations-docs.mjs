@@ -24,7 +24,7 @@ const required = [
   [worker, 'CHAIN_ID=31337'], [worker, 'ALLOW_UNLOCKED_LOCAL_MINTER=true'],
   [worker, 'Base Sepolia encrypted keystore'], [worker, 'CHAIN_ID=84532'],
   [worker, 'MINTER_KEYSTORE_PATH'], [worker, 'MINTER_KEYSTORE_PASSWORD_FILE'],
-  [worker, 'npm run db:migrate --prefix ../api'], [worker, '실제 Base Sepolia 전송은 `NOT_RUN`'],
+  [worker, 'npm run db:migrate --prefix ../api'], [worker, 'Base Sepolia 서비스 민터 전송은 `PASS`'],
   [handoff, '기준 main 커밋 SHA:'], [handoff, 'gh pr list'],
 ];
 let failures = 0;
