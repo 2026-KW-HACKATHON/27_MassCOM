@@ -42,3 +42,10 @@ test('campaign benefit appears only from an account-backed response and claims t
   for(const copy of ['혜택 받기','받을 수 있음','모두 소진','내 쿠폰 보기']) assert.match(source,new RegExp(copy));
   assert.doesNotMatch(source,/unitExtraCostWon|maxUses|issuedCount/);
 });
+
+test('authenticated detail adds an optional ACTIVE-course merchant chip without surfacing course failures',()=>{
+  assert.match(source,/createCourseApiClient\(\{apiUrl,credential,onSessionInvalid\}\)\.list\(controller\.signal\)/);
+  assert.match(source,/merchantCourseChip\(courses,merchantId\)/);
+  assert.match(source,/\.catch\(\(\)=>undefined\)/);
+  assert.match(source,/courseChip\?<Text style=\{ds\.courseChip\}>\{courseChip\}<\/Text>/);
+});

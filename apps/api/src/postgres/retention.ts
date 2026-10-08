@@ -105,7 +105,7 @@ const steps: readonly Step[] = [
   },
 ];
 
-// 비밀이 필요한 마지막 두 단계: 롤백 이미지가 남긴 놀이·공간 행 삭제와 감사 대상 비식별화.
+// 비밀이 필요한 마지막 두 단계: 롤백 이미지가 남긴 놀이·공간·코스 행 복구와 감사 대상 비식별화.
 const deletedTargetsStep = 'admin_audit_deleted_targets' as const;
 const deletedPlayDataStep = 'deleted_play_data' as const;
 const saveScanPosition = `INSERT INTO retention_scan_progress (step, position, updated_at) VALUES ($1, $2, $3)
@@ -149,7 +149,7 @@ export class PostgresRetentionService {
    * 기존 단계는 하나의 거래로, 놀이 단계는 한정된 행 수씩 거래를 나눠 지운다. 실패하면 현재 거래만 되돌리고
    * 나머지 단계는 계속한다. 놀이 단계의 앞선 커밋과 개수는 유지하며 실행 상한은 capHit로 보고한다.
    * `hmacSecret`(계정 삭제와 같은 `ACCOUNT_DELETION_HMAC_SECRET`)을 주면 지우기 단계 뒤에 롤백 이미지가 남긴
-   * 놀이·공간 행을 지우고 감사 대상 ID도 비식별화한다. 각 단계는 독립적으로 실패를 보고한다.
+   * 놀이·공간 행을 지우고 코스 큐레이터·감사 대상 ID도 비식별화한다. 각 단계는 독립적으로 실패를 보고한다.
    */
   async run(options: { hmacSecret?: string } = {}): Promise<RetentionRun> {
     const now = this.now();
@@ -230,7 +230,7 @@ export class PostgresRetentionService {
    * Rollback repair for 0042: older API images still insert the deletion ledger but do not know the play tables.
    * Persist only the number of fully processed candidates, never an account ID. Resume with one OFFSET query,
    * then keyset-page within this run, including live-only pages. Each deletion transaction shares one row budget
-   * across all three tables and commits its scan position with its deletes. A partial page stays at its start.
+   * across play rows and curator IDs, and commits its scan position with the repairs. A partial page stays at its start.
    * Candidate pages have their own fixed budget; reaching the end resets the position for the next sweep.
    */
   private async purgeDeletedPlayData(hmacSecret: string, now: Date, progress: RetentionCount): Promise<void> {
@@ -252,6 +252,14 @@ export class PostgresRetentionService {
            UNION
            (SELECT account_id FROM studios WHERE ($1::text IS NULL OR account_id > $1)
             ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
+           UNION
+           (SELECT DISTINCT account_id FROM course_unlocks WHERE ($1::text IS NULL OR account_id > $1)
+            ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
+           UNION
+           (SELECT DISTINCT curated_by_account_id AS account_id FROM courses
+            WHERE curated_by_account_id NOT LIKE 'deleted:%'
+              AND ($1::text IS NULL OR curated_by_account_id > $1)
+            ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
          ) candidates ORDER BY account_id LIMIT $2 OFFSET $3`,
         [cursor, this.playBatchSize, cursor === null ? position.toString() : '0'],
       )).rows.map((row) => row.account_id);
@@ -261,11 +269,12 @@ export class PostgresRetentionService {
         return;
       }
       const hashes = accounts.map((accountId) => lifecycle.referenceHash(accountId));
-      const known = await this.pool.query<{ account_reference_hash: Buffer }>(
-        `SELECT account_reference_hash FROM account_deletion_requests
+      const known = await this.pool.query<{ account_reference_hash: Buffer; deleted_account_alias: string }>(
+        `SELECT account_reference_hash, deleted_account_alias FROM account_deletion_requests
          WHERE account_reference_hash = ANY($1::bytea[])`, [hashes],
       );
       const gone = new Set(known.rows.map((row) => row.account_reference_hash.toString('hex')));
+      const aliases = new Map(known.rows.map((row) => [row.account_reference_hash.toString('hex'), row.deleted_account_alias]));
       let goneAccounts = accounts.filter((_, index) => gone.has(hashes[index]!.toString('hex')));
       const deletedCandidates = goneAccounts.length;
       const pageCompletePosition = position + BigInt(accounts.length - deletedCandidates);
@@ -287,19 +296,37 @@ export class PostgresRetentionService {
           await client.query('BEGIN');
           // All identifiers are fixed here; every table has a primary key for the limited selection.
           for (const [table, key] of [['play_runs', 'id'], ['play_records', '(account_id, kind)'],
-            ['studios', 'account_id']] as const) {
+            ['studios', 'account_id'], ['course_unlocks', '(account_id, course_id)']] as const) {
             const remaining = this.playBatchSize - deleted;
             if (remaining === 0) break;
             const result = await client.query(`DELETE FROM ${table} WHERE ${key} IN (
-              SELECT ${key === '(account_id, kind)' ? 'account_id, kind' : key} FROM ${table}
+              SELECT ${key.startsWith('(') ? key.slice(1, -1) : key} FROM ${table}
               WHERE account_id = ANY($1::text[]) ORDER BY ${key} LIMIT $2
             )`, [goneAccounts, remaining]);
+            deleted += result.rowCount ?? 0;
+          }
+          const curatorAccounts = goneAccounts.filter((accountId) => aliases.has(lifecycle.referenceHash(accountId).toString('hex')));
+          if (deleted < this.playBatchSize && curatorAccounts.length > 0) {
+            const curatorAliases = curatorAccounts.map((accountId) => aliases.get(lifecycle.referenceHash(accountId).toString('hex'))!);
+            const result = await client.query(
+              `WITH targets AS (
+                 SELECT id, curated_by_account_id FROM courses
+                 WHERE curated_by_account_id = ANY($1::text[]) ORDER BY id LIMIT $3 FOR UPDATE
+               )
+               UPDATE courses AS course SET curated_by_account_id = gone.alias
+               FROM targets, unnest($1::text[], $2::text[]) AS gone(account_id, alias)
+               WHERE course.id = targets.id AND targets.curated_by_account_id = gone.account_id`,
+              [curatorAccounts, curatorAliases, this.playBatchSize - deleted],
+            );
             deleted += result.rowCount ?? 0;
           }
           const remainingAccounts = (await client.query<{ account_id: string }>(
             `SELECT account_id FROM play_runs WHERE account_id = ANY($1::text[])
              UNION SELECT account_id FROM play_records WHERE account_id = ANY($1::text[])
-             UNION SELECT account_id FROM studios WHERE account_id = ANY($1::text[])`, [goneAccounts],
+             UNION SELECT account_id FROM studios WHERE account_id = ANY($1::text[])
+             UNION SELECT account_id FROM course_unlocks WHERE account_id = ANY($1::text[])
+             UNION SELECT curated_by_account_id AS account_id FROM courses
+               WHERE curated_by_account_id = ANY($1::text[])`, [goneAccounts],
           )).rows.map((row) => row.account_id);
           // Deleted candidates disappear from the ordered list, so only surviving accounts advance the offset.
           // Partial pages retain their starting offset, even when some accounts have already disappeared.

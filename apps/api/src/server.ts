@@ -76,6 +76,7 @@ import { PostgresMileageShopService } from './postgres/mileage-shop.js';
 import { PostgresVisitorFeedbackService } from './postgres/visitor-feedback.js';
 import { showcaseAllAccessOptions } from './showcase/all-access.js';
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
+import { PostgresCourseService } from './postgres/courses.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
@@ -94,6 +95,7 @@ import { handleAccountDeletion } from './routes/account-deletion.js';
 import { handleAuth } from './routes/auth.js';
 import { handleCoinsRooms } from './routes/coins-rooms.js';
 import { handleCustomer } from './routes/customer.js';
+import { handleCourses } from './routes/courses.js';
 import { handleDiscovery } from './routes/discovery.js';
 import { handleExperience } from './routes/experience.js';
 import { handleMerchantApp } from './routes/merchant-app.js';
@@ -233,6 +235,7 @@ export function createApiServer(input: ApiDeps) {
         },
       })) return;
       if (await handleCustomer(routeContext)) return;
+      if (await handleCourses(routeContext)) return;
       if (await handleMerchantApp(routeContext)) return;
       if (await handleWalletClaims(routeContext)) return;
       if (await handlePublicAssets(routeContext)) return;
@@ -404,9 +407,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   // 운영 compose는 PREPARING(발행 준비 중)을 넘기고 시연은 넘기지 않아 발행 동작이 그대로다(#246, D-054).
   const nftMinting = parseNftMintingMode(process.env.NFT_MINTING_MODE);
   const collection = pool ? new PostgresCollectionReader(pool, { nftMinting }) : undefined;
-  const recommendations = pool
-    ? new RecommendationService(new PostgresRecommendationSource(pool))
-    : undefined;
   const accountDeletionHmacSecret = process.env.ACCOUNT_DELETION_HMAC_SECRET;
   const accountLifecycle =
     pool && accountDeletionHmacSecret
@@ -437,6 +437,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       ? (await pool.query<{ name: string }>('SELECT current_database() AS name')).rows[0]?.name
       : undefined;
   const showcaseDeployment = resolveShowcaseDeployment(authMode, Boolean(showcaseInvites), currentShowcaseDatabaseName);
+  const courses = pool ? new PostgresCourseService(pool, {
+    includeDemo: Boolean(showcaseDeployment),
+    ...(accountLifecycle ? { accountLifecycle } : {}),
+  }) : undefined;
+  const recommendations = pool
+    ? new RecommendationService(new PostgresRecommendationSource(pool, undefined, courses))
+    : undefined;
   const accountDeletions =
     pool && accountDeletionHmacSecret
       ? new PostgresAccountDeletionService(pool, {
@@ -614,6 +621,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     claimSlots,
     collection,
     recommendations,
+    courses,
     mintRequests,
     accountDeletions,
     requireReauthentication: reauthenticationGuard,

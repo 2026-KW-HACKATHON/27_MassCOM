@@ -19,6 +19,17 @@
 
 실행한 명령과 숫자는 [TEST_STATUS](TEST_STATUS.md) 맨 위가 정본이다. 실제 관리자 브라우저·설치본·휴대전화·두 variant 종단 수용은 NOT_RUN, Chrome 시연 테마 시험은 로컬 SIGABRT로 BLOCKED다. 코드·시험 통과는 사람의 발표·현장 판정·리뷰를 대신하지 않는다.
 
+## 2026-10-09 T4·T3 병합 충돌 해결 (Issue #412)
+
+이번 사용자의 명시적인 Codex 요청에 따라 `feat/cross-store-courses`와 PR #425가 포함된 main `055d0523`의 충돌을 파일 수정만으로 해결했다. 기본 세션이 README·PROJECT_STATE·HANDOFF·감사 시험·운영 migration 수를 통합하고 별도 executor 세션이 AI_USAGE·DECISIONS·TEST_STATUS의 양쪽 기록을 보존했다. 운영 문서 회귀·CI 연결(94개 시험 파일)·API typecheck는 PASS다. API·모바일 단위 시험 합계는 통합 재측정 대기 그대로 두고 오케스트레이터가 채운다. add·commit·stash·rebase·push·운영 배포는 실행하지 않았다.
+
+## 2026-10-09 코스 리뷰 지적 수정 (Issue #412 T4 A)
+
+이번 사용자의 명시적인 Codex 수정 요청으로 브랜치 `feat/cross-store-courses`, HEAD `29644366`에서 권한 재검사·보존 복구·조회 배치·추천 호환·DB 가드·모바일 캐시와 코스 안내를 수정했다. 기본 세션이 통합·문서를 담당하고 executor 세션이 백엔드, migration/보존·시험, 모바일의 범위를 나눠 맡았다. 검증은 [TEST_STATUS](TEST_STATUS.md)와 [코스 증거](evidence/t4-courses-2026-10-08.md)에 실제 실행 결과를 기록한다. Git 쓰기·운영 데이터·배포는 실행하지 않고 후속 커밋은 오케스트레이터가 담당한다.
+
+## 2026-10-08 가게 사이를 잇는 코스 (Issue #412 T4 A)
+
+이 세션의 명시적인 Codex 구현 지시에 따라 Codex가 T4 A 구현·시험·문서를 맡았다. 기존 "Codex 이미지 생성만" 운용 기록을 전체적으로 변경한 것이 아니라 이번 요청 범위의 실행 기록이다. 기본 세션은 API 경로·deps·추천·문서를 통합했고, 별도 executor 세션은 코스 DB/서비스, 관리자 웹, 모바일을 각각 맡았다. 구현 세션과 다른 code-reviewer 세션이 데이터·동의·중복·시연 경계를 검토했다. 리뷰 지적은 반복 seed, 과거 획득 그림 보존, 실제 직원 수령·취소 시험, 동의 갱신과 조회 재시도에 반영했다. 실제 검사 결과와 미실행 항목은 [TEST_STATUS](TEST_STATUS.md)를 따른다. 운영 데이터·키·배포·push는 하지 않았다.
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1)
 
 Claude Opus 5.5가 범위 설계와 지휘를 맡았고 Claude Sonnet 5.5 서브에이전트가 구현했다(migration 0068, 순수 규칙, 방문 확정 경로의 시간대 판정, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 표기 정정, 시험과 문서). Codex는 쓰지 않았다(2026-10-08부터 소유자 지시로 이미지 생성 외에는 쓰지 않는다). 방문 확정 경로(`claim-slot-service.ts`)는 민감 경로라 구현과 다른 세션의 교차 리뷰 2건이 필요하며, 구현 세션은 자기 코드를 리뷰하지 않았다.

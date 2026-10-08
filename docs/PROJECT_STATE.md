@@ -16,6 +16,16 @@ README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조�
 
 운영 API·DB·웹·Android와 시연 API·DB·웹·Android는 배포/설치하지 않았다(소유자 결정 A). 공통 고객 코드가 두 variant에 적용되지만 실제 둘의 기기 수용은 각각 NOT_RUN이다. 결과 카드·설문·파일럿 설정/안내물은 T3 후속 PR 범위이며, 지정 스키마에 되돌리기 재생 원장이 없어 두 번째 undo는 COUPON_NOT_REDEEMED다.
 
+T4 단독 브랜치 자동 시험 합계(2026-10-09 KST, Issue #412 T4 브랜치 `feat/cross-store-courses`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 652/652 · 모바일 2110/2110. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
+
+README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
+
+## Issue #412 T4 A — 가게 사이를 잇는 코스 (2026-10-08, 배포하지 않음)
+
+브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 2–4개 점포 코스의 관리자 초안·점검 스냅샷·게시·중지, 보상권 기반 고객 진행·장면 열기, 추천 우선순위, 관리자 웹과 최소 모바일 목록·상세·장면을 구현했다. migration `0072_courses.sql`은 추가 전용이며 D-093을 따른다. 코스 완성은 재화·쿠폰을 지급하지 않는다. 시연 코스는 시연 DB seed에만 있고 운영 fixture는 없다. 수령·방문 보상·취소·0034 트리거를 바꾸지 않았다. 검증 결과는 [TEST_STATUS](TEST_STATUS.md)의 최상단 항목이다. Studio 배치·실제 브라우저/기기·배포는 `NOT_RUN`이다.
+
+2026-10-09 리뷰 수정: 검토 시작 HEAD `29644366`에서 관리자 4개 쓰기의 트랜잭션 안 권한 재검사, 삭제 큐레이터 ID의 제한된 복구, 고객 코스 최대 50개 배치 조회와 그림 없는 추천 힌트, 이용 불가 단계·중지/종료 장면 접근 규칙, DB 고유키·가드·감사 action, 앱 캐시 해제·구 API 호환·가게 상세 코스 칩을 보강했다. API 634/634, PG 553건 중 550 PASS·0 FAIL·기존 3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139다. 후속 커밋은 오케스트레이터가 담당한다.
+
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
 기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`의 작업이다. 점주가 캠페인으로 풀 문제를 세 목적(MassCOM에서 처음 확인되는 방문 늘리기·다시 방문하게 하기·한산한 시간대 채우기) 중 하나로 고르게 하고, 시간대 조건을 서버가 판정하게 했다. 결정은 [D-092](DECISIONS.md)다.
@@ -663,3 +673,6 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 - Base Sepolia Worker proof와 upload-key AAB·16KB runtime·App Links는 PASS. Play는 별도 `NOT_RUN`
 
 상세 실행 근거는 [TEST_STATUS.md](TEST_STATUS.md), Phase 3 증거는 [phase3-worker-anvil-android.json](evidence/phase3-worker-anvil-android.json), 차단 사유는 [BLOCKERS.md](BLOCKERS.md), 다음 세션 상태는 [HANDOFF.md](HANDOFF.md)를 기준으로 합니다.
+
+[current-test-status]: TEST_STATUS.md
+[current-handoff-history]: HANDOFF_HISTORY.md

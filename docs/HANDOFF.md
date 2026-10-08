@@ -10,6 +10,10 @@
 
 - 현재 작업: `.worktrees/t3-benefits`, `feat/campaign-benefits`, 기준 `055d0523`(T3 PR 1 병합). T3 PR 2 구현/검증과 문서가 변경 상태다. 이번 세션은 push/stash/rebase·배포·PR 생성/병합을 하지 않는다. 커밋은 shared Git index.lock 쓰기 차단으로 미실행이며 전체 파일은 11절에 기록한다.
 
+- 이번 병합: `feat/cross-store-courses`에 PR #425가 포함된 `origin/main` `055d0523`를 병합 중이다. 충돌 해결은 파일 수정만 수행하고 add·commit·stash·rebase·push는 실행하지 않는다. 병합 후 단위 시험 합계의 통합 재측정 대기는 오케스트레이터가 채운다.
+
+- 이번 작업: Issue #412 T4 A, `.worktrees/t4-courses`, 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 검토 시작 HEAD는 `29644366`(기준 위 4개 커밋)이며 후속 커밋은 오케스트레이터가 담당한다. 이번 세션은 add·commit·stash·rebase·push·배포를 실행하지 않는다. 결정 D-093, 추가 전용 migration 0072. 검증은 TEST_STATUS 최상단과 실제 git 이력을 따른다.
+
 - 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
 - PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
 - 병합 순서: PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결, `a742e32d`) → #406(재측정·대체 시연 영상·제출 후보 기록, `6ce8ad03`) → #408(Issue #407의 낮은 화면 결함 4건 수정과 #402를 다음 설치본·웹 체험에 반영, `687427c2`). Issue #401은 #403 병합으로 닫혔다.
@@ -88,6 +92,10 @@
 ## 9. 자동 검증 상태
 
 - T3 PR 2 최종 로컬 측정: API 625/625·typecheck/build PASS, PostgreSQL 557건 중 554 pass/0 fail/3 skip, 모바일 2098/2098·typecheck/lint PASS, 사이트 584/584와 기존 Chrome 1건 BLOCKED. CI 연결 94파일·접근성·지갑 표면·운영 문서 PASS. `LC_ALL=C bash tools/gate.sh` PASS(plain gate의 기존 Bash locale 오류는 TEST_STATUS에 별도 기록). 전체 근거는 TEST_STATUS 맨 위다.
+
+- T4·T3 병합 충돌 해결(2026-10-09, main `055d0523`): 운영 문서 회귀·CI 연결(94개 시험 파일)·API typecheck PASS. 양쪽 기록·감사 단언 보존, migration 27/70, 합계 줄 동일, 14절·텍스트 충돌 표시 없음도 확인했다. API·모바일 단위 시험 합계의 통합 재측정 대기는 오케스트레이터가 채운다. PostgreSQL 통합·실기·배포는 NOT_RUN이며 Git index는 미병합 상태로 유지했다.
+
+- T4 A 리뷰 수정 실행(2026-10-09): API 634/634, PG 553건 중 550 PASS/0 FAIL/3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139; typecheck·모바일 lint·CI 연결·접근성·문서·gate PASS. PG SKIP은 별도 disposable hosted-showcase 55435 컨테이너가 필요한 기존 3건이다. 검토 시작 HEAD `29644366`(기준 위 4개 커밋); 후속 커밋은 오케스트레이터가 담당한다. 이번 세션은 Git 쓰기를 실행하지 않는다. [검증과 전달](evidence/t4-courses-2026-10-08.md)을 따른다. 전체 사이트·실제 브라우저/기기·설치·배포는 이번 실행에서 NOT_RUN이다.
 
 - Issue #412 T3 PR 1 브랜치 `feat/purpose-campaigns`(main `8841efea` 병합 후): API 단위 615/615(main 597에서 18건 증가)·typecheck, PostgreSQL 전체 543건 중 540 pass / 0 fail / 3 skip(이 작업 전 527건 중 524 pass, 3건은 전용 hosted seed 컨테이너 조건), 모바일 `npm test` 2093/2093(main 2077에서 16건 증가)·typecheck·lint, 사이트·운영 웹 578/578, CI 연결·모바일 접근성 의미·지갑 표면·`bash tools/gate.sh` PASS, 변이 점검 8건 모두 시험 실패. 바뀐 기존 단언과 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 
@@ -187,6 +195,8 @@ tests/site/merchant-copy-no-newcomer.test.mjs
 ## 12. 다음 실행 명령
 
 1. 현재 T3 PR 2 재현: 비공개 제공 파일에서 TEST_DATABASE_URL을 환경 변수로 읽고 `DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate --prefix apps/api` → API typecheck/test/test:postgres → mobile test/typecheck/lint → 사이트 시험·CI 연결·운영 문서·접근성·지갑 표면·gate. URL/비밀번호를 출력하지 않는다. Chrome 테마만 별도 환경에서 재검증한다. push/stash/rebase와 배포는 하지 않는다.
+
+- T4 A 재개: `git status -sb`, `git log -3 --oneline`; 코스 PG 시험은 전용 `_test` DB에서만 실행한다. 준비된 DB는 오케스트레이터가 삭제한다. 시험 URL·비밀번호를 출력하지 않는다. 기존 0068 목적형 캠페인 뒤 0072 적용에서 감사 CHECK 합집합을 확인한다. 이 작업은 배포하지 않는다.
 
 1. 완료: PR #408 병합과 운영 웹 재배포로 라이브 `/open`이 test.13·Preview 22를 가리킨다.
 2. Issue #409·#410 코드와 PR #413(Caddy)·#414(놀이)·#415(첫 사용 경험)·#420(NFT 발행 Worker 상시 실행)·#421(T5 운영 품질)·#422(T1 API 서버 구조 정리)는 main에 있고 모두 배포하지 않았다(소유자 결정 A). PR 상태는 `gh pr list --state all`로 확인한다. 새 Preview·test 번호와 게시 시점은 소유자가 정한다. 다음 빌드 전에 10절의 사용자 판정 항목(홈 탭 뒤로 가기)도 소유자가 정한다.
