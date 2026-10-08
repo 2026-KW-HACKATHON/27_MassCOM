@@ -1,5 +1,19 @@
 # 테스트 상태
 
+## 2026-10-09 배경음 수정 브랜치에 PR #433 반영 main 병합 문서 충돌 해결 (파일 수정만·미배포)
+
+환경: macOS 제한 sandbox, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `6af6ab47450930ec8bafb405469fd7cdd64be206`, MERGE_HEAD `c7632b35b189744dcd0213d6497fad2bac87266a`. 사용자 지정 병합 대상 main은 T9(D-101)·PR #429(D-102)을 포함하며, 이번 작업은 앱 전역 BGM(D-103) 기록과 함께 문서 충돌만 해결했다. BGM 이력은 T9보다 위에 보존했고 아래 수치는 각각 이전 작업의 실측이다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 운영 제출 준비 | `PASS` | `bash tests/bootstrap/operations_submission_readiness_test.sh`, A01·A02·A03 운영 문서 회귀·exit 0. |
+| CI 연결 | `PASS` | `bash tests/ci/ci_wiring_test.sh`, 시험 파일 103개 모두 연결·exit 0. 원격 CI 실행 결과와 구분한다. |
+| 문서 구조·내용 | `PASS` | README·PROJECT_STATE에 현재 합계 줄 각각 1개·동일 문장·지정 `__API__/__API__`와 `__MOB__/__MOB__` 및 main의 뒤 문장 보존. HANDOFF 1~14절, DECISIONS D-001~D-103 각각 한 번·번호순, BGM→T9 이력 순서와 추적 파일의 충돌 표식 없음 확인. |
+| 변경 범위·Git 상태 | `PASS` | `git diff --check`·exit 0. 시작 시점 파일 해시와 비교해 README·HANDOFF·PROJECT_STATE·TEST_STATUS만 변경했으며 DECISIONS는 그대로다. `git ls-files --stage -z`·HEAD·MERGE_HEAD는 시작 값과 동일하다. |
+| 전체 시험·빌드·실기·배포 | `NOT_RUN` | API·모바일 전체, PostgreSQL 통합, typecheck·lint·build, 실제 브라우저/각 Android variant 청음, 배포·설치·원격 PR/CI 확인은 이번 문서 작업에서 실행하지 않았다. 현재 전체 합계는 오케스트레이터가 채운다. |
+
+Git add·commit·stash·merge·rebase·push는 실행하지 않았다. 파일의 충돌 표식은 제거했지만 Git index는 의도대로 미병합 상태로 남는다.
+
 ## 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (직접 요청, 미커밋·미배포)
 
 환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `570b5e58d4c163c06c1f4b14733160275c0aa125` 위 미커밋 수정. 아래 앱 시작 배경음 구현은 HEAD에 커밋된 상태이며 이번 리뷰 수정은 staging·commit·stash·merge·rebase·push 없이 수행했다.
@@ -42,9 +56,102 @@
 
 재현: BGM을 켠 채 뽑기 화면을 방문하지 않고 앱을 시작한다. 네이티브는 hydrate/지연 준비 뒤 loop, 웹은 첫 입력과 자산 준비 뒤 loop를 기대한다. 뽑기 진입은 intro→loop, 이탈은 loop, BGM 끄기·백그라운드는 무음을 기대한다. 자동 시험은 컨트롤러의 재생 의도를 증명하며 실제 브라우저 정책에 따른 청음은 별도다. Git add·commit·stash·merge·rebase·push는 실행하지 않았다.
 
+## 2026-10-09 T9 시연 가상 점포 은퇴·공공자료 30곳 전환 (미커밋·미배포)
+
+### PR #429 반영 main `8aa8b724` 병합 문서 충돌 해결 (HEAD `65699443`, 파일 수정만)
+
+환경: macOS, `.worktrees/t9-real`, 브랜치 `feat/showcase-real-only`, HEAD `65699443`, MERGE_HEAD `8aa8b724`. README·DECISIONS·HANDOFF·PROJECT_STATE·TEST_STATUS의 두 쪽 기록을 보존하고 T9 이력을 PR #429보다 위에 두었다. D-101·D-102는 각각 한 번씩 번호순이며 HANDOFF는 1~14절이다. README·PROJECT_STATE의 동일 합계 줄은 `__API__/__API__`·`__MOB__/__MOB__`를 유지하며 오케스트레이터가 확정한다.
+
+**PASS:** `bash tests/bootstrap/operations_submission_readiness_test.sh`(A01·A02·A03, exit 0), `bash tests/ci/ci_wiring_test.sh`(시험 파일 103개 연결, exit 0), `git diff --check`, 충돌 표식 없음·합계 줄 일치·결정 번호 중복/순서·14절 구조 검사. Git index·HEAD·MERGE_HEAD는 변경하지 않았다. **NOT_RUN:** 이번 병합의 API·모바일 전체 시험, PostgreSQL 통합, 빌드·배포·설치·실기·원격 PR/CI 확인. 아래 수치는 각각 앞선 작업의 검증 이력이다. Git add·commit·stash·merge·rebase·push는 실행하지 않았다.
+
+### 리뷰 지적 1~6 후속 수정 (HEAD `04f9ea2a`, 파일 수정만)
+
+환경: macOS·Node.js v25.9.0, 같은 브랜치·worktree, 시작/현재 HEAD `04f9ea2a`. 아래 초기 T9 검증과 구분한 새 실측이다. 지정된 전용 로컬 `_test` DB URL은 환경 변수로만 읽고 출력하지 않았다. migration 적용은 PASS이며 schema reset은 필요하지 않았다. Git add·commit·stash·merge·rebase·push는 실행하지 않았다.
+
+- 코스: ENDED/PAUSED라도 계정 소유의 미회수 unlock이 있으면 목록·상세·획득 장면을 읽는다. 다른 계정·추천·새 unlock은 거절한다. D-093의 v1 접근 제한을 D-101과 함께 수정했다. 기존 5-query 목록·3-query 추천 읽기 예산과 ACTIVE 50건 상한은 그대로 시험한다.
+- 배지: 신규 고객의 잠긴 혜택 3개와 발급 쿠폰 이름을 `시연 혜택`으로 반환한다. 내부 연습 점포 ID와 일반 점포 이름은 유지한다. 추첨 풀·코인 카탈로그에서는 연습 점포를 제외한다.
+- 권한·정본: 취소 이력 두 목록도 공공자료 점포의 오래된 멤버십을 거절한다. 코스·점포 목록·추천의 practice ID는 공통 상수를 쓴다. hosted fresh 게시물 수 30개와 기존 DB의 은퇴 게시본 보존을 운영 README에 명시했다.
+
+| 후속 검사 | 상태 | 실제 명령·근거 |
+| --- | --- | --- |
+| API 타입·단위·빌드 | PASS | `cd apps/api && npm run typecheck && npm test`, 672/672·0 FAIL/SKIP. `npm run build` PASS. `/private/tmp/t9-review-api-{typecheck,unit,build}.log` |
+| 모바일 | PASS | `cd apps/mobile && npm test && npm run typecheck && npm run lint`, 2138/2138·0 FAIL/SKIP·타입/lint PASS. `/private/tmp/t9-review-mobile-{unit,typecheck,lint}.log` |
+| PostgreSQL migration | PASS | 지정 DB의 `DATABASE_URL`로 `node --import tsx src/postgres/migrate-command.ts`. `/private/tmp/t9-review-migrate.log` |
+| 획득 코스 재시드 회귀 | PASS | `node --import tsx --test --test-name-pattern='existing A showcase data becomes hidden' src/showcase/local-seed.postgres.integration.ts`, 1/1. 실제 방문·보상권·unlock 증거의 `UNLOCKED`·시간·그림·목록/상세 일치와 미소유자 거절. `/private/tmp/t9-review-course-reseed.log` |
+| PostgreSQL 전체 | PASS | `cd apps/api && npm run test:postgres`, 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP·exit 0. 해당 hosted 3건은 아래 별도 DB에서 3/3 PASS. 첫 실행의 목록 읽기 예산 회귀를 구현에서 고쳤고 새 획득 이력 fixture의 NOT NULL/FK를 맞췄다. 예산·제약·기존 단언을 완화하지 않았다. `/private/tmp/t9-review-postgres-final.log` |
+| hosted seed 전용 | PASS | `bash tests/ops/run_showcase_host_postgres.sh`, 별도 disposable PostgreSQL 16.10-alpine 컨테이너 3개에서 3/3·0 FAIL/SKIP. 기존 코스 소유자 상세/목록과 재시드 이력 조회도 검증. `/private/tmp/t9-review-hosted-final.log` |
+| CI·운영 문서·gate | PASS | `bash tests/ci/ci_wiring_test.sh`(101개 파일 연결), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tools/gate.sh`, `git diff --check`. `/private/tmp/t9-review-{ci,operations,gate}.log` |
+| 독립 소스 검토 | PASS | 별도 읽기 전용 code-reviewer가 수정 전후 소스를 검토했고 차단 지적 없음. 실행 시험과 구분하며 LSP/AST 도구는 없었다. |
+| 배포·기기·사이트 재측정 | NOT_RUN | 운영/시연 배포·라이브 DB·새 APK/서명/설치·두 variant 실기·TalkBack·전체 사이트/Chrome 재측정·AI 과금·Play는 이번 후속 범위에서 실행하지 않았다. 아래 최초 T9의 사이트 결과는 이전 측정이다. |
+
+신규 시험은 API 단위 취소 이력 권한 1건·PostgreSQL 배지 표시/추첨·카탈로그 2건이다. 기존 코스 중지 시험은 새 D-093 계약에 맞춰 소유자 읽기 허용과 미소유자·회수 기록·unlock 거절을 함께 검증한다. 목록 읽기 예산·활성 코스 상한·기존 이력 보존 단언은 유지하며 모바일 코스 복사와 로컬/hosted 재시드 시험에 단언을 더했다. 새 skip·의존성·migration은 없다. 당시 README·PROJECT_STATE 합계는 API 672/672·모바일 2138/2138로 동일했다. 현재 T9와 main `8aa8b724` 병합의 전체 합계는 오케스트레이터가 확정한다.
+
+### 최초 T9 구현 검증 (기준 `c0449f1b`)
+
+환경: macOS, Node 실행, `feat/showcase-real-only`, worktree `.worktrees/t9-real`, 시작/현재 HEAD `c0449f1b`. 사용자 요청으로 Git add·commit·stash·merge·rebase·push는 실행하지 않았다. D-101의 시연 전용 은퇴/권한/프리즘/코스를 구현했으며 운영 DB·서버·실제 점포에는 적용하지 않았다. 제공된 `_test` DB URL은 출력하지 않고 migration을 먼저 실행했다. 아래 결과는 작업 트리의 실측이며 variant 설치·라이브 배포 근거가 아니다.
+
+| 검사 | 상태 | 실제 명령·근거 |
+| --- | --- | --- |
+| API 타입·단위 | PASS | `cd apps/api && npm run typecheck && npm test`, 671/671·0 fail/skip. 추가 `npm run build` PASS. `/private/tmp/t9-api-final.log` |
+| PostgreSQL migration | PASS | 제공된 `TEST_DATABASE_URL`을 `DATABASE_URL`로 넘겨 `node --import tsx src/postgres/migrate-command.ts`. URL은 출력하지 않음. `/private/tmp/t9-migrate.log` |
+| PostgreSQL 전체 | PASS | `cd apps/api && npm run test:postgres`, 최종591건 중588 PASS/0 FAIL/기존hosted3 SKIP, exit0(428,504ms). hosted3건은 별도컨테이너에서3/3 PASS. 첫실행의25건 A/B/C 대상 미치환·quota fixture1건을 고쳤고 media-redaction은 기존immutable원본까지3개보존으로 강화했다. `/private/tmp/t9-postgres-final.log`(첫실행 `/private/tmp/t9-postgres.log`) |
+| hosted seed 전용 | PASS | `bash tests/ops/run_showcase_host_postgres.sh`, disposable PostgreSQL 16.10-alpine 컨테이너 3개에서 3/3. 기존 A/B/C 재시드의 코인·방문·쿠폰·옛 코스 보존, 새30곳과 연습 가게 숨김·직원/실점포 권한 거절, 게시물30개·등급90개·수령 그림 확인 |
+| 모바일 | PASS | `cd apps/mobile && npm test && npm run typecheck && npm run lint`, 2138/2138·0 fail/skip·typecheck/lint exit0. npm 자체 실행 가능해 Node loader fallback 불필요. 이후 home은퇴표시 회귀를 더해 최종2138/2138·typecheck/lint PASS(`/private/tmp/t9-mobile-final.log`); owner-art28/28·map/art/owner22/22 PASS |
+| 사이트 전체 | 환경 BLOCKED 포함 | 요청 명령 `node --test tests/site/*.test.mjs tests/site/*_test.mjs`: 645건 중 644 PASS/1 FAIL/0 SKIP, exit1. 유일한 실패 `verify_showcase_theme_test.mjs`는 Chrome DevTools 이전 SIGABRT. socket/HTTP listen 거부로 막힌 시험은 없음. 시험을 skip/삭제하지 않았으며 색·대비 단언까지 도달하지 못함. 첫 실행의 portal 문구 실패2건은 기존 NFT 안내 문장을 보존해 해결. `/private/tmp/t9-site-final.log` |
+| 정적30곳·빌드 준비·가동 probe | PASS | `/preview` verifier30/30, `bash tests/release/verify_showcase_apk_test.sh`, `bash tests/ops/uptime_probe_test.sh`. 정확한30개 ID·중복·29/31개·은퇴/운영점포 혼입 거절을 fake fetch/curl로 확인. APK 생성·라이브 probe 없음 |
+| CI·문서·접근성·지갑 | PASS | `bash tests/ci/ci_wiring_test.sh`(101개 시험 연결), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh`. 각각 `/private/tmp/t9-{ci,operations,accessibility,wallet}.log` |
+| 빠른 gate·최종 diff | PASS | `bash tools/gate.sh` exit0, 비밀·큰파일·충돌표식·bootstrap·운영문서·증거정합·현재릴리스 검사 PASS. `git diff --check` PASS. `/private/tmp/t9-gate-final.log` |
+| 독립 검토 | 지적 반영 | 별도 읽기 전용 code-reviewer: guest quota 집계, `/preview` orphan C, 설치 안내 A/B/C와 구 티켓/배치 코인의 Home 노출 수정. 최종 읽기 전용 재검토에서 남은 차단 지적 없음. 오래된 직원 멤버십은 회수하며 공식 Google 신원·세션·계정/시연 DB 검사 후 연습 가게로 재부여하는 운영 절차를 명시. LSP/AST 도구는 없으며 타입·실행·독립 소스 검토와 구분 |
+| 배포·실제입력 | NOT_RUN | 운영/시연 배포, 라이브 기존 DB, 새APK/서명/설치·두variant 실기·실제Google 직원/승인자·D-091 기기넘김·TalkBack·현장 영업/도보·AI과금·Play. Git write 금지 유지 |
+
+새 DB는 점포31(공개실점포30+숨은연습1)·캠페인31·목표93이며 로컬 STAFF는 연습 가게1곳뿐이다. hosted fresh는 직원0명이다. 기존 A/B/C가 있는 hosted fixture는 총34점포·30공개·옛방문/코인/쿠폰/게시본을 유지한다. 프리즘은 더까까주까월계역점(28m) 하나이고 새 코스는 그 점포·갱스터떡볶이인덕대점(54m)·하다식당(64m)이다. 기존 staff/approver가 은퇴 가게만 승인받았다면 권한을 공식 절차로 다시 부여해야 하며, 은퇴 권한을 자동으로 실점포에 옮기지 않는다. 연습 가게는 점포 탐색·등급 추첨 풀·코인 카탈로그에 나오지 않으며 배지 혜택·발급 쿠폰의 API 표시 이름은 `시연 혜택`이다. 내부 점포 연결은 유지한다. 실제 혜택·실제 점포 동의를 뜻하지 않는다.
+
+**기존 단언 변경 전체 목록.** 아래에 같은 fixture를 쓰는 assertion은 같은 행으로 묶었으며 원래 동작·경합·오류·접근성 검사는 유지했다. A/B/C 호스트 fixture는 은퇴 회귀에만 남긴다. 삭제·skip·예외 허용으로 시험을 통과시키지 않았다.
+
+| 파일(경로) | 기존 → 새 단언·검증 대상 |
+| --- | --- |
+| `apps/api/src/showcase/local-seed.postgres.integration.ts` | fresh 점포/공개/캠페인/목표/STAFF 33/33/33/99/3 → 31/30/31/93/1; seed 반환 A → 연습 가게; 3개 milestone 혜택 A/B/C → 연습 가게 3개와 가상 방문 고지; A 상세/발행시각 → 첫 실점포 상세·연습 상세 숨김; 로컬 방문 A → 첫 실점포; 지도/탐색33 →30; A-only 추가B/C → A 숨김·캠페인종료·진행수보존·총32; A/B/C 손상 → 연습/혜택 손상에 동일 rollback; 별도 A public campaign → 숨김/종료; concurrent 합계31/31/93/1; 삽입실패 CHECK 대상 → 연습 캠페인. 추가로 프리즘 정확히1·골드29와 새코스3곳, 연습 게시시각 변경 충돌 검증 |
+| `apps/api/src/showcase/host-seed.postgres.integration.ts` | fresh [33,33,99,0,3] → [31,31,93,0,3]; enrolled_count·직원grant·history FK·멤버십취소·충돌 대상 A → 연습 가게; A 및 실점포 직원grant 거절 추가; 공개30·연습비노출·새코스 실점포3곳·기존진행/방문/보상 보존 |
+| `apps/api/src/showcase/host-seed-existing.postgres.integration.ts` | A-only 확대B/C → 기존 A/B/C3곳+옛course+실제보유coin/쿠폰 fixture; 삽입실패 CHECK → 연습campaign; 성공 총34/목표96/게시본31; A/B/C PAUSED·비게시/ENDED·비공개·원progress 유지; 두번seed 후 방문/보상/획득coin/쿠폰 snapshot 불변·옛offer PAUSED+issued_count1·옛course ENDED+unlock 유지·새course 실점포3곳 |
+| `apps/api/src/showcase/store-collectibles.postgres.integration.ts` | publication33/grade99 →30/90; A/B/C 연결·그림 a/b/c → 실점포 연결 b/b/c; C prism → 첫실점포 prism; 3곳 방문·받은artwork·course 확인을 새ID에 그대로 적용 |
+| `apps/api/src/showcase/store-collectibles.test.ts` | A/B/C target/이름 → 월계 실점포; C5회prism → 더까까주까월계역점5회prism+art b; 인사말 고지 → 가상 방문/코인 명시. 1/3/5 연결·등급·motion·size·서버검증 유지 |
+| `apps/api/src/showcase/test-visit.postgres.integration.ts` | 모든 성공·거부·비시연/숨김/당일중복/일반직원 시험의 A대상 → 공공자료 실점포; 정상 직원발급 → 연습 가게. 기존 거래·권한·DB가드·결과 단언 유지 |
+| `apps/api/src/showcase/all-access.postgres.integration.ts` | A 기본방문/진행/계정별/가게별/취소/30일/시작시각/비시연일반규칙 → Wolgye #2골드; B 분리 → #3골드; 정상STAFF → 연습가게; 총campaign33→31, 기간확대/미축소/멱등 → 실제3campaign, ended거절 → 연습campaign; A/B골드/Cprism target → #2/#3골드+#1prism(그림 b/c/b); 독립호환fixture 세link만 해제하며 나머지27project/27publication/81grade/27link 보존; 방문5회의 마지막등급 → target.topGrade; 옛단일등급upgrade·C이전gold snapshot·작성자/변조/removed-media 거절·author publish 경합·FK잠금·CAS rollback·각identity조건을 새3ID로 유지; 전체seed/publish경합 → 연습가게ACTIVE·미게시 검증, 구metadata backfill 조건을 새코스/30곳 전환에서도 무교착으로 치환 |
+| `apps/api/src/showcase/access-requests.postgres.integration.ts` | 승인/거절/삭제/경합/OPS/멤버십 결과의 A → 비공개 연습가게; 다른점포 membership count는 연습만 제외; 실점포membership0 추가; mine practiceMerchantId=연습/trial=null 추가; 오래된 실점포OWNER가 context/transaction/collectible 관리권한을 얻지 못함 추가 |
+| `apps/api/src/showcase/guest-trials.postgres.integration.ts` | publiclist/recommend33→30+연습부재; clone source A→연습+목표동일; mine JSON practiceMerchantId:null; 친구stamp A→실점포 ID/이름(실점포testvisit+숨은본인trial 방문); quota trial-% 집계→showcase_guest_trials JOIN, 30/30/31과 quota/session/rollback 단언 그대로 |
+| `apps/api/src/showcase/all-access-wiring.test.ts` | showcase admin service가 `!showcaseDeployment`에서만 배선돼 local/hosted approver는 전체점포관리 불가, production 유지하는 source 단언 추가 |
+| `apps/api/src/server.test.ts` | access-state fixture/deepEqual에 practiceMerchantId:null 추가; 시연customer preview/coupon의 A이름은 새시연fixture 이름으로 치환, HTTP상태·token/body/auth 단언 유지 |
+| `apps/api/src/collectible-project.postgres.integration.ts` | 일반 owner/staff service fixture 이름 A/B → 체험점주가게/다른체험점주가게. ID·scope·role·공개/취소/스냅샷/원자성 단언은 유지 |
+| `apps/mobile/src/commerce/commerce-api.test.ts` | createTestVisit 요청URL/body/결과/error target A→첫실점포; access-state 결과에 practice:null/구server:null/새practiceID cases. token/headers/오류/timeout 단언 유지 |
+| `apps/mobile/src/friends/open-link.test.ts`, `friends/recommend.test.ts` | 추천/shared fixture ID·이름 A/B → 월계실점포, 공유고지→실제정보/가상방문. URI·이동scope·보안·fallback 단언 유지 |
+| `apps/mobile/src/gamification/badge-api.test.ts`, `gamification/badge-rules.test.ts` | fixture/expected merchantName A→실점포/연습가게 문맥별 치환. badge/coupon 상태·scope·중복·오류·기간 단언 유지 |
+| `apps/mobile/src/screens/collection/collection-stamps.test.ts` | A/B/C 이름/ID·글자glyph A/B/C→실점포/더까·갱스·하다, 미보유·보유·역순·회수·중복 단언 유지 |
+| `apps/mobile/src/screens/merchant-list/merchant-card-label.test.ts`, `screens/recommendations/recommendation-label.test.ts`, `screens/town-map/town-pins.test.ts`, `ui/styles.test.ts` | API/accessibility label의 가상점포 이름→세실점포 이름, 공개자료고지 있는 기존label 유지; source style/글자크기/상태별label 단언 보존 |
+| `apps/mobile/src/merchant-art/art-source.test.ts`, `wallet/wallet-metadata.test.ts` | 가상점포 copy→예시그림 또는 실제정보/가상방문·코인, production copy 단언 유지 |
+| `apps/mobile/src/merchant-art/owner-art-api.test.ts` | 성공관리요청 A→비공개 trial-showcase-practice URL. Bearer/header/result/요금한도/error/retry 단언 유지(성공실점포관리 mock을 만들지 않음) |
+| `apps/mobile/src/merchant/showcase-staff.test.ts` | owntrial 우선·서버practice만fallback·권한없는공개demo 후보없음 추가 |
+| `apps/mobile/src/screens/showcase-access-admin/copy.test.ts` | A STAFF 승인 확인창→체험점주가게 STAFF 확인창. 코드/접근성/자기승인/오류표시 단언 유지 |
+| `apps/mobile/src/screens/collection/showcase-collectible-art.test.ts` | A/B/C artID mapping→실점포첫3 b/b/c; 은퇴ID undefined 추가. 크기/미보유/알수없는ID 검사 유지 |
+| `apps/mobile/src/screens/town-map/anchors.test.ts` | 고정 A/B/C anchorID→실점포첫3; placement/그림지도 범위·안전fallback 단언 유지 |
+| `apps/mobile/src/screens/town-map/directions.test.ts` | 실제정보 demo address search 허용 추가, 비공개가상demo 길찾기거절·주소/URL/선택지원 단언 유지 |
+| `tests/site/verify_showcase_site_test.mjs` | 3가상card→30정확JSON ID/name/address/각고지card, global 실제정보/가상record banner·A/B/C부재·course다음두이름 추가; fake HTML 같은30곳과 고지로 치환; 쓰기/개인정보/경로탈출/메뉴/외부연결 거절 검사 유지; README 템플릿PNG크기/해시자산검사 유지 |
+| `tests/site/public-entry.test.mjs` | hero의 가상점포→공공자료30곳+가상방문/코인, 기존 NFT아님·진입버튼·44px 단언 유지 |
+| `tests/site/verify_showcase_theme_test.mjs` | tag/focus label의 가상점포→공공자료점포/월계가게, 실제색·대비threshold·focus 단언 그대로. Chrome 환경실패를 PASS로 치환하지 않음 |
+| `tests/ops/uptime_probe_test.sh` | 성공fake3A/B/C→JSON 기반30정확ID, 첫detail/preview URL→첫실점포; demo:false실패 fixture도30개 유지해 단독원인 확인; 30개에은퇴혼입·31개·duplicate 실패 추가. timeout/TLS/issue/retry/쓰기manual-only 모든 기존단언 유지 |
+| `tests/release/verify_showcase_apk_test.sh` | 실제build준비fetch block을 VM으로 실행, 정확30개성공·29/31개/은퇴ID/demo:false/중복 실패6cases 추가. 서명키·oauth·apiorigin·dirtyworktree·lock 기존안전검사 유지 |
+
+추가 단언: `all-access.postgres.integration.ts`의 미디어 제거는 기존2개(legacy/upgraded) →3개(original/legacy/upgraded) 게시본 모두 유지·redacted로 바뀐다. 실점포 seed가 이미 만든 immutable original snapshot도 지워지지 않아야 하므로 보존 검사를 강화했다.
+
+| 추가 파일 | 새 단언·검증 이유 |
+| --- | --- |
+| `apps/mobile/src/screens/home/index.test.ts` | ticket cards가 `visibleHomeMerchantItems(data?.coinShop?.tickets ?? [], packageId)`를 쓰고 room도 `displayStudioItems` 결과를 같은 helper로 걸러 전달하는 source 배선 단언 추가 |
+| `apps/mobile/src/screens/home/showcase-visibility.test.ts` | exact 은퇴3ID만 showcase Home에서 숨김; 실제Wolgye/비슷한이름ID 유지; production/development 배열 원본참조·내용불변; `displayStudioItems`의 구coin/수집품 history 조회는 그대로이며 Home 전달값만 필터링 |
+
+필수 36개 시험 ID 상태는 31 PASS / 2 BLOCKED / 3 NOT_RUN으로 유지한다. 당시 README·PROJECT_STATE의 “현재 자동 시험 합계” 줄은 같은 측정값으로 함께 갱신했다.
+
 ## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
 
-환경: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`에서 main `a1a3eef3` 병합 중. Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지를 파일 수준에서 보존한다. 사용자 요청에 따라 README·PROJECT_STATE의 현재 전체 API·모바일 합계는 `__API__`·`__MOB__`로 유지한다. 아래 PR #429 및 Issue #412 결과는 각각 이전 브랜치에서 얻은 이력이다.
+이전 PR #429 병합 검증 기록: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`에서 main `a1a3eef3` 병합 당시. Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지를 파일 수준에서 보존한다. 사용자 요청에 따라 README·PROJECT_STATE의 현재 전체 API·모바일 합계는 `__API__`·`__MOB__`로 유지한다. 아래 PR #429 및 Issue #412 결과는 각각 이전 브랜치에서 얻은 이력이다.
 
 - `cd apps/mobile && npm run typecheck`: `PASS`(exit 0).
 - `cd apps/mobile && npm run lint`: `PASS`(exit 0, 기존 `src/screens/collection/collectible-aura.test.ts:4`의 미사용 `runInNewContext` 경고 1개, 오류 0개).

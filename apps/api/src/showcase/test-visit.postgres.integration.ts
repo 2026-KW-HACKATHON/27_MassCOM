@@ -1,5 +1,5 @@
 // #295: PostgresClaimSlotService.issueShowcaseTestSlot의 핵심 — DB 이름·점포 is_demo 격리, 발급자 멤버 행의 REVOKED
-// 불변조건, 그리고 redeem()이 그대로 적용하는 방문·보상 규칙(가상 점포는 일반 방문처럼 진행도에 센다)을 확인한다.
+// 불변조건, 그리고 redeem()이 그대로 적용하는 방문·보상 규칙(시연 공공데이터 점포는 일반 방문처럼 진행도에 센다)을 확인한다.
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
@@ -10,13 +10,13 @@ import { ClaimSlotError } from '../claim-slot-service.js';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
 import { PostgresCollectionReader } from '../postgres/collection.js';
-import { seedLocalShowcase, SHOWCASE_MERCHANT_ID } from './local-seed.js';
+import { seedLocalShowcase } from './local-seed.js';
 import { storeCollectibleArt } from './store-collectible-art.js';
 import { WOLGYE_STORES } from './wolgye-seed.js';
 
 const referenceHmacSecret = 'test-only-test-visit-reference-secret-32-bytes';
 
-/** A fresh masscom_showcase_ci_<uuid>_test database, migrated and seeded with the three local demo merchants (store A included). */
+/** A fresh masscom_showcase_ci_<uuid>_test database, migrated and seeded with the 30 public-data stores and one hidden practice store. */
 async function withFreshShowcaseDatabase(run: (pool: Pool) => Promise<void>): Promise<void> {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error('TEST_DATABASE_URL is required');
@@ -112,9 +112,9 @@ test('a non-demo merchant is refused with SHOWCASE_MERCHANT_NOT_FOUND and no cla
 
 test('a paused demo merchant is refused with CLAIM_MERCHANT_INACTIVE', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    await pool.query(`UPDATE merchants SET status = 'PAUSED' WHERE id = $1`, [SHOWCASE_MERCHANT_ID]);
+    await pool.query(`UPDATE merchants SET status = 'PAUSED' WHERE id = $1`, [WOLGYE_STORES[0]!.id]);
     await assert.rejects(
-      service(pool).issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-1' }),
+      service(pool).issueShowcaseTestSlot({ merchantId: WOLGYE_STORES[0]!.id, accountId: 'customer-1' }),
       (error: unknown) => error instanceof ClaimSlotError && error.code === 'CLAIM_MERCHANT_INACTIVE',
     );
     const rows = await pool.query('SELECT 1 FROM claim_slots');
@@ -125,10 +125,10 @@ test('a paused demo merchant is refused with CLAIM_MERCHANT_INACTIVE', async () 
 test('a demo-store test visit counts like a normal visit: progress, badge goal 1, and a REVOKED issuer row', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const svc = service(pool, () => testNow);
-    const issued = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-1' });
+    const issued = await svc.issueShowcaseTestSlot({ merchantId: WOLGYE_STORES[0]!.id, accountId: 'customer-1' });
     const redeemed = await svc.redeem({ accountId: 'customer-1', token: issued.token });
 
-    assert.equal(redeemed.merchantId, SHOWCASE_MERCHANT_ID);
+    assert.equal(redeemed.merchantId, WOLGYE_STORES[0]!.id);
     assert.equal(redeemed.visit.progressCounted, true);
     assert.equal(redeemed.visit.progressVisitCount, 1);
     assert.equal(redeemed.visit.progressExcludedReason, undefined);
@@ -138,7 +138,7 @@ test('a demo-store test visit counts like a normal visit: progress, badge goal 1
     const issuer = await pool.query<{ role: string; status: string; revoked_at: Date | null }>(
       `SELECT role, status, revoked_at FROM merchant_members
        WHERE merchant_id = $1 AND account_id = 'showcase-test-visit-issuer'`,
-      [SHOWCASE_MERCHANT_ID],
+      [WOLGYE_STORES[0]!.id],
     );
     assert.deepEqual(
       { role: issuer.rows[0]?.role, status: issuer.rows[0]?.status, revoked: issuer.rows[0]?.revoked_at !== null },
@@ -147,7 +147,7 @@ test('a demo-store test visit counts like a normal visit: progress, badge goal 1
     // merchant-access.ts의 모든 권한 조회는 status='ACTIVE'만 보므로, 발급자 계정은 이 점포에 아무 권한도 갖지 못한다.
     const activeIssuerMembership = await pool.query(
       `SELECT 1 FROM merchant_members WHERE merchant_id = $1 AND account_id = 'showcase-test-visit-issuer' AND status = 'ACTIVE'`,
-      [SHOWCASE_MERCHANT_ID],
+      [WOLGYE_STORES[0]!.id],
     );
     assert.equal(activeIssuerMembership.rowCount, 0);
   });
@@ -172,11 +172,11 @@ test('a public-data demo store test visit grants a collectible with existing tem
 test('issuing twice the same day counts the second visit but not its progress', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const svc = service(pool, () => testNow);
-    const first = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-2' });
+    const first = await svc.issueShowcaseTestSlot({ merchantId: WOLGYE_STORES[0]!.id, accountId: 'customer-2' });
     const firstRedeemed = await svc.redeem({ accountId: 'customer-2', token: first.token });
     assert.equal(firstRedeemed.visit.progressCounted, true);
 
-    const second = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-2' });
+    const second = await svc.issueShowcaseTestSlot({ merchantId: WOLGYE_STORES[0]!.id, accountId: 'customer-2' });
     const secondRedeemed = await svc.redeem({ accountId: 'customer-2', token: second.token });
     assert.equal(secondRedeemed.visit.progressCounted, false);
     assert.equal(secondRedeemed.grantedRewards.length, 0);
@@ -187,16 +187,16 @@ test('an issuer row that was somehow promoted to ACTIVE blocks further issuing i
   await withFreshShowcaseDatabase(async (pool) => {
     const svc = service(pool, () => testNow);
     // Issue once so the lazy REVOKED issuer row exists, then simulate tampering (should never happen in practice).
-    const first = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-4' });
+    const first = await svc.issueShowcaseTestSlot({ merchantId: WOLGYE_STORES[0]!.id, accountId: 'customer-4' });
     await svc.redeem({ accountId: 'customer-4', token: first.token });
     await pool.query(
       `UPDATE merchant_members SET status = 'ACTIVE', revoked_at = NULL
        WHERE merchant_id = $1 AND account_id = 'showcase-test-visit-issuer'`,
-      [SHOWCASE_MERCHANT_ID],
+      [WOLGYE_STORES[0]!.id],
     );
     const beforeCount = (await pool.query('SELECT count(*)::int AS count FROM claim_slots')).rows[0]!.count;
     await assert.rejects(
-      svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-4' }),
+      svc.issueShowcaseTestSlot({ merchantId: WOLGYE_STORES[0]!.id, accountId: 'customer-4' }),
       /SHOWCASE_TEST_VISIT_ISSUER_COMPROMISED/,
     );
     const afterCount = (await pool.query('SELECT count(*)::int AS count FROM claim_slots')).rows[0]!.count;

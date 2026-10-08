@@ -6,8 +6,8 @@ const situations: Record<CourseSituation, string> = {
   OTHER: '함께 들러볼 만한 곳',
 };
 
-export function courseChipText(course: { situation: CourseSituation; done: number; total: number }): string {
-  return `'${situations[course.situation]}' 코스 ${course.done}/${course.total}`;
+export function courseChipText(course: Pick<Course, 'situation' | 'done' | 'total'> & { status?: Course['status'] }): string {
+  return `${course.status === 'PAUSED' || course.status === 'ENDED' ? '지난 코스 · ' : ''}'${situations[course.situation]}' 코스 ${course.done}/${course.total}`;
 }
 
 export function merchantCourseChip(courses: Course[], merchantId: string): string | undefined {

@@ -152,7 +152,7 @@ export type ShowcaseAccessRequest = { code: string; status: ShowcaseAccessStatus
 // is_public은 true로 두지만(D-064(e), 참여 등록 같은 공개 캠페인 전용 경로가 동작해야 한다) 서버가
 // showcase_guest_trials를 NOT EXISTS로 걸러 /merchants·추천에서 뺀다 — 그래서 점주 화면은 이 id를
 // 공개 목록 앞에 더해 찾아야 한다.
-export type ShowcaseAccessState = { request: ShowcaseAccessRequest | null; staff: boolean; approver: boolean; trialMerchantId: string | null };
+export type ShowcaseAccessState = { request: ShowcaseAccessRequest | null; staff: boolean; approver: boolean; trialMerchantId: string | null; practiceMerchantId: string | null };
 export type PendingShowcaseAccessRequest = { id: string; code: string; createdAt: string };
 
 type Options = {
@@ -327,7 +327,7 @@ export function createCommerceApiClient(options: Options) {
       return parseRedeemedClaim(await post('/claim-slots/redeem', { token }));
     },
 
-    // 시연 전용 "테스트 방문 만들기"(#295): 실제 QR 없이 가상 점포 방문을 만들고 바로 확정한다.
+    // 시연 전용 "테스트 방문 만들기"(#295): 실제 QR 없이 가상 방문을 만들고 바로 확정한다.
     async createTestVisit(merchantId: string): Promise<RedeemedClaim> {
       return parseRedeemedClaim(await post('/showcase/test-visits', { merchantId }));
     },
@@ -757,6 +757,7 @@ function parseShowcaseAccessState(value: unknown): ShowcaseAccessState {
     approver: value.approver,
     // 오래된 서버 응답에는 이 필드가 아직 없을 수 있다 — 없거나 모양이 다르면 체험 계정이 아닌 것으로 본다.
     trialMerchantId: typeof value.trialMerchantId === 'string' ? value.trialMerchantId : null,
+    practiceMerchantId: typeof value.practiceMerchantId === 'string' ? value.practiceMerchantId : null,
   };
 }
 

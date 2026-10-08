@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 
 import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
-import { isPermittedShowcaseDatabaseName } from './local-seed.js';
+import { isPermittedShowcaseDatabaseName, SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
 
 type GrantInput = {
   accountId: string;
@@ -31,7 +31,7 @@ function isShowcaseDatabaseName(name: string): boolean {
 }
 
 /**
- * 가상 점포 STAFF 권한 부여의 핵심(#294). 운영자 명령의 허용목록·세션 검사(아래 grantShowcaseStaff)와
+ * 비공개 체험 점포 STAFF 권한 부여의 핵심(#294). 운영자 명령의 허용목록·세션 검사(아래 grantShowcaseStaff)와
  * 권한 요청 승인(showcase/access-requests.ts)이 함께 쓴다: 승인 쪽은 요청 행 자체가 자격 증명이라
  * 허용목록·세션 검사를 다시 하지 않는다. 호출자가 이미 연 트랜잭션의 client를 받는다.
  */
@@ -44,11 +44,14 @@ export async function grantShowcaseStaffTx(
     throw new Error('SHOWCASE_HOST_DATABASE_REQUIRED');
   }
   await input.accountLifecycle.assertActive(client, input.accountId);
-  const merchant = await client.query<{ is_demo: boolean }>(
-    'SELECT is_demo FROM merchants WHERE id = $1 FOR UPDATE',
+  const merchant = await client.query<{ is_demo: boolean; status: string; published_at: Date | null }>(
+    'SELECT is_demo, status, published_at FROM merchants WHERE id = $1 FOR UPDATE',
     [input.merchantId],
   );
-  if (merchant.rows[0]?.is_demo !== true) throw new Error('SHOWCASE_STAFF_NOT_ELIGIBLE');
+  if (input.merchantId !== SHOWCASE_PRACTICE_MERCHANT_ID || merchant.rows[0]?.is_demo !== true ||
+      merchant.rows[0].status !== 'ACTIVE' || merchant.rows[0].published_at !== null) {
+    throw new Error('SHOWCASE_STAFF_NOT_ELIGIBLE');
+  }
   await client.query(
     `INSERT INTO merchant_members (merchant_id, account_id, role, status)
      VALUES ($1, $2, 'STAFF', 'ACTIVE')

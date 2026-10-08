@@ -39,7 +39,7 @@ function medal(kind: MedalKind, value: number): Medal {
 }
 
 const coupon: Coupon = {
-  couponId: 'coupon-1', milestone: 1, merchantId: 'm-a', merchantName: '가상 점포 A',
+  couponId: 'coupon-1', milestone: 1, merchantId: 'm-a', merchantName: '더까까주까월계역점',
   title: '체험 음료 1잔', detail: '', status: 'ISSUED',
   issuedAt: '2026-09-29T01:00:00.000Z', expiresAt: '2026-10-29T01:00:00.000Z', redeemedAt: null,
 };
@@ -112,9 +112,9 @@ test('reward boxes are named and report the badges still needed', () => {
   assert.equal(rewardStatusText({ state: 'OPENED', requiredTiers: 3 }, 3), '쿠폰을 받았어요');
   const locked: Reward = {
     milestone: 2, requiredTiers: 6, state: 'LOCKED', coupon: null,
-    offer: { merchantId: 'm-b', merchantName: '가상 점포 B', title: '체험 디저트', detail: '', validDays: 30 },
+    offer: { merchantId: 'm-b', merchantName: '갱스터떡볶이인덕대점', title: '체험 디저트', detail: '', validDays: 30 },
   };
-  assert.equal(rewardAccessibilityLabel(locked, 4), '두 번째 상자, 배지 6개 필요, 배지 2개 더, 혜택 가상 점포 B 체험 디저트');
+  assert.equal(rewardAccessibilityLabel(locked, 4), '두 번째 상자, 배지 6개 필요, 배지 2개 더, 혜택 갱스터떡볶이인덕대점 체험 디저트');
   const voided: Reward = {
     milestone: 1, requiredTiers: 3, state: 'UNAVAILABLE', coupon: null, offer: null, unavailableReason: 'COUPON_REVOKED',
   };
@@ -169,10 +169,10 @@ test('coupon expiry uses the Korean calendar date', () => {
   assert.equal(couponExpiryLabel('2026-12-31T14:59:59.000Z'), '~12월 31일까지');
   assert.equal(couponExpiryLabel('2026-12-31T15:00:00.000Z'), '~1월 1일까지');
   assert.deepEqual(['ISSUED', 'REDEEMED', 'EXPIRED'].map((s) => couponStatusLabel(s as Coupon['status'])), ['사용 가능', '사용 완료', '만료']);
-  assert.equal(couponAccessibilityLabel(coupon), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용 가능, 10월 29일까지');
+  assert.equal(couponAccessibilityLabel(coupon), '쿠폰 체험 음료 1잔, 더까까주까월계역점, 사용 가능, 10월 29일까지');
   assert.equal(couponStatusLabel('VOIDED'), '사용할 수 없는 쿠폰');
   // 무효 쿠폰은 "~까지" 만료 날짜가 오해를 부르므로 읽어 주지 않는다(다른 상태는 그대로다).
-  assert.equal(couponAccessibilityLabel({ ...coupon, status: 'VOIDED' }), '쿠폰 체험 음료 1잔, 가상 점포 A, 사용할 수 없는 쿠폰');
+  assert.equal(couponAccessibilityLabel({ ...coupon, status: 'VOIDED' }), '쿠폰 체험 음료 1잔, 더까까주까월계역점, 사용할 수 없는 쿠폰');
 });
 
 test('an open coupon sheet follows the polled book: redeemed, voided or withdrawn', () => {

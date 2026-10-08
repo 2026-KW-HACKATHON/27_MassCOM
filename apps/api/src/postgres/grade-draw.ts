@@ -6,6 +6,7 @@ import { catalogRewards, chooseGradeReward } from '../grade-draw-rules.js';
 import { GradeDrawError, type GradeDrawHistory, type GradeDrawPool, type GradeDrawResult,
   type GradeDrawService, type GradeDrawShop, type GradeReward } from '../grade-draw.js';
 import { MILEAGE_GRADE_PRICES, isMileageGrade, type MileageGrade } from '../mileage-rules.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from '../showcase/local-seed.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { earnedAndSpent } from './mileage-shop.js';
 
@@ -30,6 +31,7 @@ const liveCoinSql = `SELECT publication.id AS publication_id, grade.grade_id,
   JOIN collectible_publication_grades grade ON grade.publication_id = publication.id
     AND grade.grade_id = publication.reward_grades ->> $1
   WHERE merchant.status = 'ACTIVE' AND campaign.status = 'ACTIVE' AND campaign.is_public
+    AND merchant.id <> '${SHOWCASE_PRACTICE_MERCHANT_ID}'
     AND campaign.starts_at <= $2 AND campaign.ends_at > $2 AND publication.media_removed_at IS NULL
     AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
       WHERE trial.merchant_id = merchant.id AND trial.account_id <> $3)

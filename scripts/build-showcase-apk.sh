@@ -100,16 +100,18 @@ validateBuildEnvironment('showcase', {
 });
 NODE
 
-node <<'NODE'
+node - "$repo_root/apps/api/src/showcase/wolgye-stores.json" <<'NODE'
 const api = 'https://demo-api.masscom.kr';
+const expectedIds = new Set(require(process.argv[2]).stores.map(({ id }) => id));
 (async () => {
   const health = await fetch(`${api}/health`, { signal: AbortSignal.timeout(8000) });
   if (!health.ok || (await health.json()).status !== 'ok') throw new Error('showcase API health is not ready');
   const catalog = await fetch(`${api}/merchants`, { signal: AbortSignal.timeout(8000) });
   const body = await catalog.json();
-  if (!catalog.ok || !Array.isArray(body.merchants) || body.merchants.length < 3 ||
-      !body.merchants.every((merchant) => merchant.demo === true)) {
-    throw new Error('showcase API does not serve only three or more virtual merchants');
+  if (!catalog.ok || !Array.isArray(body.merchants) || body.merchants.length !== 30 ||
+      new Set(body.merchants.map(({ id }) => id)).size !== 30 ||
+      !body.merchants.every((merchant) => merchant.demo === true && expectedIds.has(merchant.id))) {
+    throw new Error('showcase API does not serve exactly the thirty real-data stores');
   }
 })().catch(() => { console.error('SHOWCASE_API_NOT_READY'); process.exitCode = 1; });
 NODE

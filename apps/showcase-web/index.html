@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="월계 마스코트의 가상 점포와 예시 도감·탐험 여권을 보여주는 읽기 전용 체험 화면">
+    <meta name="description" content="월계 마스코트의 월계 실제 음식점 30곳과 예시 도감·탐험 여권을 보여주는 읽기 전용 체험 화면">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
     <title>월계 마스코트 · 체험 도감</title>
     <link rel="icon" href="assets/mascot-stamp.png">
@@ -11,12 +11,12 @@
   </head>
   <body>
     <a class="skip-link" href="#main">본문으로 건너뛰기</a>
-    <p class="demo-ribbon">체험용 가상 데이터로 서비스 흐름을 보여드립니다. 실제 영업점이나 방문 혜택과 연결되지 않습니다.</p>
+    <p class="demo-ribbon">가게 정보는 공공데이터에 등록된 실제 음식점입니다. 방문·도장·코인·혜택은 체험용 가상 데이터이며 실제 이용 실적이나 혜택이 아닙니다.</p>
 
     <header class="site-header">
       <p class="brand"><img class="brand-mark" src="assets/mascot-stamp.png" alt="" width="36" height="36"> 월계 마스코트 <span class="brand-chip">체험</span></p>
       <nav aria-label="체험 화면 이동">
-        <a href="#sample-merchants">가상 점포</a>
+        <a href="#sample-merchants">월계 가게</a>
         <a href="#collection">예시 도감</a>
         <a href="#passport-preview">탐험 여권</a>
       </nav>
@@ -26,48 +26,209 @@
       <section class="intro" aria-labelledby="intro-title">
         <img class="intro-mascot" src="assets/mascot-stamp.png" alt="월계 마스코트: 도장을 든 파란 펭귄" width="132" height="132">
         <p class="context">월계1동 음식점 탐색·수집 흐름 미리보기</p>
-        <h1 id="intro-title">세 가게를 둘러보고 도감까지 걸어봅니다.</h1>
+        <h1 id="intro-title">월계 가게 30곳을 둘러보고 도감까지 걸어봅니다.</h1>
         <p class="intro-body">이 페이지는 기능을 이해하기 위한 보기 전용 예시입니다. 방문 코드와 QR 인증은 여기서 진행하지 않습니다.</p>
       </section>
 
-      <div class="merchant-grid" id="sample-merchants" role="group" aria-label="가상 점포 목록">
-        <section class="merchant-card" id="sample-merchant-a" data-demo-merchant aria-labelledby="merchant-title-a">
-          <p class="tag">가상 점포 · 실제 방문할 수 없습니다</p>
-          <h2 id="merchant-title-a">가상 점포 A</h2>
-          <p class="merchant-location">시연용 가상 위치 · 실제 방문 불가</p>
-          <p class="merchant-body">음식점을 살펴보고 방문을 기록하는 첫 가게 예시입니다. 실제 주문이나 점주 확인과 연결되지 않습니다.</p>
+      <div class="merchant-grid" id="sample-merchants" role="group" aria-label="월계 가게 목록">
+        <section class="merchant-card" id="sample-merchant-1" data-demo-merchant aria-labelledby="merchant-title-1">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-1">더까까주까월계역점</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로53길 89</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
         </section>
-        <section class="merchant-card" id="sample-merchant-b" data-demo-merchant aria-labelledby="merchant-title-b">
-          <p class="tag">가상 점포 · 실제 방문할 수 없습니다</p>
-          <h2 id="merchant-title-b">가상 점포 B</h2>
-          <p class="merchant-location">시연용 가상 위치 · 실제 방문 불가</p>
-          <p class="merchant-body">첫 가게 다음에 다른 곳을 탐색하는 흐름을 보여주는 예시입니다. 실제 음식점이나 방문 혜택이 아닙니다.</p>
+        <section class="merchant-card" id="sample-merchant-2" data-demo-merchant aria-labelledby="merchant-title-2">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-2">갱스터떡볶이인덕대점</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 124</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
         </section>
-        <section class="merchant-card" id="sample-merchant-c" data-demo-merchant aria-labelledby="merchant-title-c">
-          <p class="tag">가상 점포 · 실제 방문할 수 없습니다</p>
-          <h2 id="merchant-title-c">가상 점포 C</h2>
-          <p class="merchant-location">시연용 가상 위치 · 실제 방문 불가</p>
-          <p class="merchant-body">여러 가게를 찾아 도감을 채우는 흐름을 보여주는 예시입니다. 실제 영업점이나 이용 실적이 아닙니다.</p>
+        <section class="merchant-card" id="sample-merchant-3" data-demo-merchant aria-labelledby="merchant-title-3">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-3">하다식당</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 122</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-4" data-demo-merchant aria-labelledby="merchant-title-4">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-4">마루국시&amp;송담추어탕월계점</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로55길 64</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-5" data-demo-merchant aria-labelledby="merchant-title-5">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-5">보리보리옥선이시골밥상</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로55길 64</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-6" data-demo-merchant aria-labelledby="merchant-title-6">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-6">도고</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로55길 64</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-7" data-demo-merchant aria-labelledby="merchant-title-7">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-7">초이빌리지</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로55길 64</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-8" data-demo-merchant aria-labelledby="merchant-title-8">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-8">밥은화인덕대점</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 123</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-9" data-demo-merchant aria-labelledby="merchant-title-9">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-9">오&#x27;블루</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 110</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-10" data-demo-merchant aria-labelledby="merchant-title-10">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-10">민들레초밥</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 109</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-11" data-demo-merchant aria-labelledby="merchant-title-11">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-11">큰손닭강정월계점</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 105</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-12" data-demo-merchant aria-labelledby="merchant-title-12">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-12">휘경곱창</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 106-18</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-13" data-demo-merchant aria-labelledby="merchant-title-13">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-13">예돈</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 98</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-14" data-demo-merchant aria-labelledby="merchant-title-14">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-14">피자스쿨월계점</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로55길 16</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-15" data-demo-merchant aria-labelledby="merchant-title-15">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-15">디어커피</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로55길 16</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-16" data-demo-merchant aria-labelledby="merchant-title-16">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-16">엄마떡집</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로55길 16</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-17" data-demo-merchant aria-labelledby="merchant-title-17">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-17">벼락이네띵똥땡키친</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2길 84</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-18" data-demo-merchant aria-labelledby="merchant-title-18">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-18">오늘은돈부리</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로53길 21</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-19" data-demo-merchant aria-labelledby="merchant-title-19">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-19">카페오롯</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2라길 17</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-20" data-demo-merchant aria-labelledby="merchant-title-20">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-20">날보러와요</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로2라길 37</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-21" data-demo-merchant aria-labelledby="merchant-title-21">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-21">오딧세이</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로 370</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-22" data-demo-merchant aria-labelledby="merchant-title-22">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-22">카페월계</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로 370</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-23" data-demo-merchant aria-labelledby="merchant-title-23">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-23">온달과평강</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로 370</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-24" data-demo-merchant aria-labelledby="merchant-title-24">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-24">메가엠지씨커피월계사슴점</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로 370</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-25" data-demo-merchant aria-labelledby="merchant-title-25">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-25">술이술이</h2>
+          <p class="merchant-location">서울특별시 노원구 월계로 343</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-26" data-demo-merchant aria-labelledby="merchant-title-26">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-26">키라키라윤</h2>
+          <p class="merchant-location">서울특별시 노원구 광운로 132</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-27" data-demo-merchant aria-labelledby="merchant-title-27">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-27">니하오마라탕월계점</h2>
+          <p class="merchant-location">서울특별시 노원구 광운로 132</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-28" data-demo-merchant aria-labelledby="merchant-title-28">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-28">보배반점월계점</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로5길 12</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-29" data-demo-merchant aria-labelledby="merchant-title-29">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-29">파스타찹찹</h2>
+          <p class="merchant-location">서울특별시 노원구 초안산로5길 12</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
+        </section>
+        <section class="merchant-card" id="sample-merchant-30" data-demo-merchant aria-labelledby="merchant-title-30">
+          <p class="tag">실제 가게 정보로 만든 시연 · 참여하지 않은 가게</p>
+          <h2 id="merchant-title-30">솔향</h2>
+          <p class="merchant-location">서울특별시 노원구 마들로3길 13</p>
+          <p class="merchant-body">공공데이터의 가게 정보입니다. 이 가게의 방문·보상 참여를 뜻하지 않습니다.</p>
         </section>
       </div>
-
       <section class="collection-card" id="collection" aria-labelledby="collection-title">
-        <p class="collection-caption">가상 점포 A를 방문했다고 가정한 고정 예시</p>
+        <p class="collection-caption">더까까주까월계역점을 방문했다고 가정한 고정 예시 · 실제 방문 아님</p>
         <h2 id="collection-title">체험 도감</h2>
         <ul class="stamp-board" aria-label="예시 스탬프판">
           <li class="stamp stamp-filled">
             <span class="stamp-ring"><img src="assets/mascot-stamp.png" alt="" width="72" height="72"></span>
-            <strong>가상 점포 A</strong>
+            <strong>더까까주까월계역점</strong>
             <small>예시 도장 1개</small>
           </li>
           <li class="stamp">
             <span class="stamp-ring"></span>
-            <strong>가상 점포 B</strong>
+            <strong>갱스터떡볶이인덕대점</strong>
             <small>아직 도장 없음</small>
           </li>
           <li class="stamp">
             <span class="stamp-ring"></span>
-            <strong>가상 점포 C</strong>
+            <strong>하다식당</strong>
             <small>아직 도장 없음</small>
           </li>
         </ul>
@@ -80,7 +241,7 @@
           <p>이 화면에는 실제 블록체인 발행 결과나 거래 번호를 표시하지 않습니다.</p>
         </div>
         <p class="sync-note">이 고정 예시는 앱의 체험 진행 결과와 자동으로 동기화되지 않습니다.</p>
-        <p class="sync-note">가상 점포 B·C는 다음 가게 탐색을 설명하기 위한 예시이며, 방문 완료로 표시하지 않습니다.</p>
+        <p class="sync-note">갱스터떡볶이인덕대점·하다식당은 실제 가게 정보이며, 예시 도장은 실제 방문 기록이 아닙니다.</p>
       </section>
 
       <section class="passport-preview" id="passport-preview" aria-labelledby="passport-title">
@@ -128,7 +289,7 @@
                 <div class="reward-body">
                   <p class="reward-name"><strong>첫 번째 상자</strong> <small>배지 3개</small></p>
                   <span class="state-chip">받음 · 쿠폰을 받았어요</span>
-                  <p class="reward-offer">가상 점포 A · 체험 음료 1잔</p>
+                  <p class="reward-offer">체험용 예시 · 가상 음료 1잔</p>
                 </div>
               </li>
               <li class="reward reward-ready">
@@ -136,7 +297,7 @@
                 <div class="reward-body">
                   <p class="reward-name"><strong>두 번째 상자</strong> <small>배지 6개</small></p>
                   <span class="state-chip">열 수 있어요 · 앱에서</span>
-                  <p class="reward-offer">가상 점포 B · 체험 디저트 한 접시</p>
+                  <p class="reward-offer">체험용 예시 · 가상 디저트 한 접시</p>
                 </div>
               </li>
               <li class="reward reward-locked">
@@ -144,7 +305,7 @@
                 <div class="reward-body">
                   <p class="reward-name"><strong>황금 상자</strong> <small>배지 9개</small></p>
                   <span class="state-chip">잠김 · 배지 3개 더</span>
-                  <p class="reward-offer">가상 점포 C · 체험 세트 20% 할인</p>
+                  <p class="reward-offer">체험용 예시 · 가상 할인</p>
                 </div>
               </li>
             </ul>
@@ -158,8 +319,8 @@
               <div class="coupon-top">
                 <p class="coupon-eyebrow">첫 번째 상자 쿠폰</p>
                 <p class="coupon-title">체험 음료 1잔</p>
-                <p class="coupon-store">가상 점포 A</p>
-                <p class="coupon-detail">시연용 가상 점포 체험 혜택입니다. 실제 매장에서는 사용할 수 없습니다.</p>
+                <p class="coupon-store">체험용 예시</p>
+                <p class="coupon-detail">가상 체험 혜택입니다. 실제 매장에서는 사용할 수 없습니다.</p>
               </div>
               <div class="coupon-bottom">
                 <span class="state-chip">사용 완료</span>
@@ -173,7 +334,7 @@
     </main>
 
     <footer class="site-footer">
-      <p>이 화면의 점포·방문·수집품은 기능 설명을 위한 가상 예시이며 실제 운영 성과가 아닙니다.</p>
+      <p>가게 정보는 공공데이터이며 방문·수집품은 기능 설명을 위한 가상 예시입니다. 실제 운영 성과가 아닙니다.</p>
     </footer>
   </body>
 </html>

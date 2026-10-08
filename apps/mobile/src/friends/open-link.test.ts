@@ -45,8 +45,8 @@ test('a merchant id that could walk the router is refused: the link goes home', 
   for (const id of ['..%2F..%2Fme%2Ffriends', '..', '.', 'a%2Fb', 'a%5Cb', 'a%2525b', 'a%20b', 'a%00b', 'a%09b', 'a%E3%80%80b']) {
     assert.deepEqual(parseOpenLink(`https://masscom.kr/open#merchant=${id}`, 'production'), { kind: 'none' }, id);
   }
-  assert.deepEqual(parseOpenLink('https://masscom.kr/open#merchant=showcase-local-merchant-b', 'production'), {
-    kind: 'merchant', merchantId: 'showcase-local-merchant-b',
+  assert.deepEqual(parseOpenLink('https://masscom.kr/open#merchant=showcase-wolgye-MA010120220809686086', 'production'), {
+    kind: 'merchant', merchantId: 'showcase-wolgye-MA010120220809686086',
   });
   assert.deepEqual(parseOpenLink('https://masscom.kr/open#merchant=3f2b8c1e-5a4d-4f0e-9a7c-1b2d3e4f5a6b', 'production'), {
     kind: 'merchant', merchantId: '3f2b8c1e-5a4d-4f0e-9a7c-1b2d3e4f5a6b',

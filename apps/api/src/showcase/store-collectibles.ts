@@ -1,10 +1,10 @@
-// #322 시연 호스트 시드 전용: 가상 점포 A·B·C 캠페인마다 수집품 게시물 하나를 붙인다. 붙이지 않으면 보상권에 서버 그림
+// #322 시연 시드 전용: 월계 공공데이터 점포 캠페인마다 수집품 게시물 하나를 붙인다. 붙이지 않으면 보상권에 서버 그림
 // (collection의 artwork)이 없어 앱이 "받은 수집품 보기"를 숨기고 봉투 연출에 들어갈 수 없다.
 // 점주 편집기 경로(PostgresCollectibleProjectService.publish)는 ACTIVE 점주 계정 행을 요구하지만 호스트 시드는 계정·멤버
 // 행을 만들지 않는 것이 규칙이라(host-seed 시험이 merchant_members 0건을 못 박는다), 같은 검증(validateCollectibleProject)과
 // 같은 발행 스냅샷(collectibleSnapshot)으로 같은 표에 직접 넣는다.
-// #333(R-333a)·#365: 목표 1·3·5회는 그대로 두고 A·B는 브론즈·실버·골드, C는 5회에 프리즘을 줘 시연에서도 프리즘 재질을 볼 수 있다.
-// 옛 시드의 단일 등급 '체험'과 C의 이전 브론즈·실버·골드 게시물만, 이름·테마·빈 작성자 열·남은 미디어까지 맞으면 한 번 갈아 끼운다.
+// #333(R-333a)·#365: 목표 1·3·5회는 그대로 두고 월계역 최인접 점포만 5회에 프리즘을 준다.
+// 옛 시드의 단일 등급 '체험'과 프리즘 대상의 이전 브론즈·실버·골드 게시물만 조건이 맞으면 갈아 끼운다.
 // 점주 게시물과 이미 현재 등급이 걸린 캠페인은 건드리지 않고, 이미 받은 보상의 옛 스냅샷도 그대로 둔다.
 import { randomUUID } from 'node:crypto';
 
@@ -23,7 +23,7 @@ export const STORE_COLLECTIBLE_GRADE_IDS = ['bronze', 'silver', 'gold'] as const
 // 목표 방문 횟수 → 등급. 서버의 보상 목표(1·3·5)와 같은 키다.
 export const STORE_COLLECTIBLE_REWARD_GRADES = { 1: 'bronze', 3: 'silver', 5: 'gold' } as const;
 const themeName = '체험 방문 도감';
-const storeDisclosure = '시연용 가상 점포 수집품입니다.';
+const storeDisclosure = '실제 가게 정보를 바탕으로 만든 시연용 가상 방문 수집품입니다.';
 
 // 새 그림 자료를 더하지 않고, 고객 화면이 이미 등급별로 그리는 것만 다르게 한다: 등급 이름, 동작(motion → animation·motions), 인사말.
 // 재질 효과(effects)는 효과 마스크 이미지가 있어야 칠해지고 모바일 앱은 읽지도 않아 쓰지 않는다. 그림은 세 등급이 같은 점포 그림이다.
@@ -119,7 +119,7 @@ export async function seedStoreCollectibles(
        FROM campaign_collectible_publications AS link
        WHERE link.campaign_id = $1`,
       [target.campaignId, target.merchantId, projectName(target), themeName, JSON.stringify(legacyGrades),
-        // A·B의 현재 골드 배열은 교체 대상이 아니다. 프리즘을 선택한 C만 정확한 이전 3등급 시드 배열도 허용한다.
+        // 일반 점포의 현재 골드 배열은 교체 대상이 아니다. 프리즘 대상만 이전 3등급 시드 배열을 허용한다.
         target.topGrade === 'prism' ? JSON.stringify(storeGrades) : null]);
     const link = linked.rows[0];
     if (link && !link.legacy_seed) continue;

@@ -14,12 +14,13 @@ import { PostgresCollectionReader } from '../postgres/collection.js';
 import { PostgresCollectibleProjectService } from '../postgres/collectible-project.js';
 import {
   seedLocalShowcase,
-  SHOWCASE_CAMPAIGN_ID,
-  SHOWCASE_MERCHANT_ID,
+  SHOWCASE_PRACTICE_CAMPAIGN_ID,
+  SHOWCASE_PRACTICE_MERCHANT_ID,
   SHOWCASE_STAFF_ACCOUNT_ID,
 } from './local-seed.js';
 import { storeCollectibleArt } from './store-collectible-art.js';
 import { seedStoreCollectibles, storeCollectibleProject, type StoreCollectibleTarget } from './store-collectibles.js';
+import { WOLGYE_PRISM_STORE, WOLGYE_STORES } from './wolgye-seed.js';
 
 const referenceHmacSecret = 'test-only-all-access-reference-secret-32-bytes';
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -43,6 +44,10 @@ async function withFreshShowcaseDatabase(run: (pool: Pool) => Promise<void>): Pr
     try {
       await runMigrations(pool);
       await seedLocalShowcase(pool);
+      // Preserve immutable seed publications while removing only these three links, so each test
+      // can exercise fresh, legacy, and authored links on real seeded merchants.
+      await pool.query('DELETE FROM campaign_collectible_publications WHERE campaign_id = ANY($1::text[])',
+        [collectibleTargets.map((target) => target.campaignId)]);
       await run(pool);
     } finally {
       await pool.end();
@@ -75,14 +80,14 @@ function service(pool: Pool, options: { showcase?: boolean } = {}): PostgresClai
   });
 }
 
-async function testVisit(svc: PostgresClaimSlotService, accountId: string, merchantId = SHOWCASE_MERCHANT_ID) {
+async function testVisit(svc: PostgresClaimSlotService, accountId: string, merchantId = collectibleTargets[0]!.merchantId) {
   const issued = await svc.issueShowcaseTestSlot({ merchantId, accountId });
   return svc.redeem({ accountId, token: issued.token });
 }
 
 type VisitRow = { business_date: string; occurred_at: Date; progress_counted: boolean };
 
-async function visitsOf(pool: Pool, accountId: string, merchantId = SHOWCASE_MERCHANT_ID): Promise<VisitRow[]> {
+async function visitsOf(pool: Pool, accountId: string, merchantId = collectibleTargets[0]!.merchantId): Promise<VisitRow[]> {
   return (await pool.query<VisitRow>(
     `SELECT business_date::text, occurred_at, progress_counted FROM visit_events
      WHERE customer_account_id = $1 AND merchant_id = $2 ORDER BY occurred_at DESC, id`,
@@ -119,7 +124,7 @@ test('(a) a showcase-configured service counts five consecutive test visits on f
     const entitlements = await pool.query<{ target_visit_count: number; status: string; earned_at: Date; claim_expires_at: Date }>(
       `SELECT target_visit_count, status, earned_at, claim_expires_at FROM reward_entitlements
        WHERE customer_account_id = 'customer-a' AND campaign_id = $1 ORDER BY target_visit_count`,
-      [SHOWCASE_CAMPAIGN_ID],
+      [collectibleTargets[0]!.campaignId],
     );
     assert.deepEqual(entitlements.rows.map((row) => [row.target_visit_count, row.status]), [
       [1, 'GRANTED'], [3, 'GRANTED'], [5, 'GRANTED'],
@@ -144,7 +149,7 @@ test('(a) the dates are chosen per account and per store, so other accounts and 
     const otherAccount = await testVisit(svc, 'customer-b');
     assert.equal(otherAccount.visit.businessDate, kstDateOf(testNow.getTime()));
     assert.equal(otherAccount.visit.progressCounted, true);
-    const otherStore = await testVisit(svc, 'customer-a', 'showcase-local-merchant-b');
+    const otherStore = await testVisit(svc, 'customer-a', collectibleTargets[1]!.merchantId);
     assert.equal(otherStore.visit.businessDate, kstDateOf(testNow.getTime()));
     assert.equal(otherStore.visit.progressCounted, true);
     assert.equal(otherStore.visit.progressVisitCount, 1);
@@ -194,7 +199,7 @@ test('(a) a visit never lands before the campaign start, down to the time of day
   await withFreshShowcaseDatabase(async (pool) => {
     // 어제 18:00(한국)에 시작한 캠페인: "어제 정오"는 시작 전이라 오늘만 센다 → 둘째 방문은 세어지지 않는다.
     const startedYesterdayEvening = new Date(testNow.getTime() - DAY_MS + 6 * 60 * 60 * 1000);
-    await pool.query('UPDATE campaigns SET starts_at = $1 WHERE id = $2', [startedYesterdayEvening, SHOWCASE_CAMPAIGN_ID]);
+    await pool.query('UPDATE campaigns SET starts_at = $1 WHERE id = $2', [startedYesterdayEvening, collectibleTargets[0]!.campaignId]);
     const svc = service(pool, { showcase: true });
     const first = await testVisit(svc, 'customer-a');
     const second = await testVisit(svc, 'customer-a');
@@ -203,7 +208,7 @@ test('(a) a visit never lands before the campaign start, down to the time of day
 
     // 어제 06:00(한국)에 시작한 캠페인: "어제 정오"는 시작 뒤라 어제까지 센다 → 셋째 방문부터 세어지지 않는다.
     const startedYesterdayMorning = new Date(testNow.getTime() - DAY_MS - 6 * 60 * 60 * 1000);
-    await pool.query('UPDATE campaigns SET starts_at = $1 WHERE id = $2', [startedYesterdayMorning, SHOWCASE_CAMPAIGN_ID]);
+    await pool.query('UPDATE campaigns SET starts_at = $1 WHERE id = $2', [startedYesterdayMorning, collectibleTargets[0]!.campaignId]);
     const other = await testVisit(svc, 'customer-b');
     const otherSecond = await testVisit(svc, 'customer-b');
     const otherThird = await testVisit(svc, 'customer-b');
@@ -215,7 +220,7 @@ test('(a) a visit never lands before the campaign start, down to the time of day
         [kstDateOf(testNow.getTime()), false],
       ],
     );
-    const starts = (await pool.query<{ starts_at: Date }>('SELECT starts_at FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID])).rows[0]!.starts_at;
+    const starts = (await pool.query<{ starts_at: Date }>('SELECT starts_at FROM campaigns WHERE id = $1', [collectibleTargets[0]!.campaignId])).rows[0]!.starts_at;
     for (const visit of await visitsOf(pool, 'customer-b')) assert.ok(visit.occurred_at.getTime() >= starts.getTime());
   });
 });
@@ -225,9 +230,9 @@ test('(a) a test-issuer slot at a store that is no longer is_demo is never backd
     const svc = service(pool, { showcase: true });
     const first = await testVisit(svc, 'customer-a');
     assert.equal(first.visit.progressCounted, true);
-    const issued = await svc.issueShowcaseTestSlot({ merchantId: SHOWCASE_MERCHANT_ID, accountId: 'customer-a' });
+    const issued = await svc.issueShowcaseTestSlot({ merchantId: collectibleTargets[0]!.merchantId, accountId: 'customer-a' });
     // 발급 뒤 점포가 가상이 아니게 되는 상황(있어서는 안 되지만 마지막 방어선): 수령은 날짜를 옮기지 않는다.
-    await pool.query('UPDATE merchants SET is_demo = false WHERE id = $1', [SHOWCASE_MERCHANT_ID]);
+    await pool.query('UPDATE merchants SET is_demo = false WHERE id = $1', [collectibleTargets[0]!.merchantId]);
     const second = await svc.redeem({ accountId: 'customer-a', token: issued.token });
     assert.equal(second.visit.progressCounted, false);
     assert.equal(second.visit.businessDate, kstDateOf(testNow.getTime()));
@@ -248,7 +253,7 @@ test('(b) a normal staff-issued slot redeemed twice on the same day still yields
       const results = [];
       for (const reference of ['ref-1', 'ref-2']) {
         const issued = await svc.issue({
-          merchantId: SHOWCASE_MERCHANT_ID,
+          merchantId: SHOWCASE_PRACTICE_MERCHANT_ID,
           customerAccountId: accountId,
           merchantReference: `${accountId}-${reference}`,
           createdByAccountId: SHOWCASE_STAFF_ACCOUNT_ID,
@@ -260,7 +265,7 @@ test('(b) a normal staff-issued slot redeemed twice on the same day still yields
         kstDateOf(testNow.getTime()), kstDateOf(testNow.getTime()),
       ]);
       assert.deepEqual(results.map((result) => result.grantedRewards.length), [1, 0]);
-      const visits = await visitsOf(pool, accountId);
+      const visits = await visitsOf(pool, accountId, SHOWCASE_PRACTICE_MERCHANT_ID);
       assert.equal(visits.length, 2);
       assert.equal(visits.filter((visit) => visit.progress_counted).length, 1);
       assert.ok(visits.every((visit) => visit.occurred_at.getTime() === testNow.getTime()));
@@ -286,8 +291,8 @@ test('(seed) a fresh seed spans 30 days back to 30 days ahead; a re-seed widens 
         .map((row) => [row.id, [row.starts_at.getTime(), row.ends_at.getTime()]]),
     );
     const fresh = await period();
-    assert.equal(fresh.size, 33);
-    assert.equal([SHOWCASE_CAMPAIGN_ID, 'showcase-local-campaign-b', 'showcase-local-campaign-c']
+    assert.equal(fresh.size, 31);
+    assert.equal([collectibleTargets[0]!.campaignId, collectibleTargets[1]!.campaignId, collectibleTargets[2]!.campaignId]
       .filter((id) => fresh.has(id)).length, 3);
     assert.equal([...fresh.keys()].filter((id) => id.startsWith('showcase-wolgye-')).length, 30);
     for (const [starts, ends] of fresh.values()) {
@@ -303,9 +308,9 @@ test('(seed) a fresh seed spans 30 days back to 30 days ahead; a re-seed widens 
     const earlierStartC = reseedNow.getTime() - 90 * DAY_MS;
     const laterEndC = reseedNow.getTime() + 90 * DAY_MS;
     await pool.query('UPDATE campaigns SET starts_at = $2, ends_at = $3 WHERE id = $1',
-      ['showcase-local-campaign-b', new Date(oldStartB), new Date(soonEndB)]);
+      [collectibleTargets[1]!.campaignId, new Date(oldStartB), new Date(soonEndB)]);
     await pool.query('UPDATE campaigns SET starts_at = $2, ends_at = $3 WHERE id = $1',
-      ['showcase-local-campaign-c', new Date(earlierStartC), new Date(laterEndC)]);
+      [collectibleTargets[2]!.campaignId, new Date(earlierStartC), new Date(laterEndC)]);
     const others = async () => (await pool.query(
       'SELECT id, status, is_public, enrollment_capacity, enrolled_count FROM campaigns ORDER BY id',
     )).rows;
@@ -313,14 +318,14 @@ test('(seed) a fresh seed spans 30 days back to 30 days ahead; a re-seed widens 
 
     await seedLocalShowcase(pool, reseedNow);
     const reseeded = await period();
-    const b = reseeded.get('showcase-local-campaign-b')!;
+    const b = reseeded.get(collectibleTargets[1]!.campaignId)!;
     assert.equal(b[0], reseedNow.getTime() - 30 * DAY_MS, 'the old 24h-back campaign starts 30 days back');
     assert.equal(b[1], reseedNow.getTime() + 30 * DAY_MS, 'and ends 30 days ahead instead of 5');
-    assert.deepEqual(reseeded.get('showcase-local-campaign-c'), [earlierStartC, laterEndC], 'a wider period is never shortened');
-    const a = reseeded.get(SHOWCASE_CAMPAIGN_ID)!;
-    assert.equal(a[0], fresh.get(SHOWCASE_CAMPAIGN_ID)![0], 'a campaign already starting 30 days back keeps its start');
+    assert.deepEqual(reseeded.get(collectibleTargets[2]!.campaignId), [earlierStartC, laterEndC], 'a wider period is never shortened');
+    const a = reseeded.get(collectibleTargets[0]!.campaignId)!;
+    assert.equal(a[0], fresh.get(collectibleTargets[0]!.campaignId)![0], 'a campaign already starting 30 days back keeps its start');
     assert.equal(a[1], reseedNow.getTime() + 30 * DAY_MS, 'and its end only moves later (the clock moved on a few ms)');
-    assert.ok(a[1] >= fresh.get(SHOWCASE_CAMPAIGN_ID)![1]);
+    assert.ok(a[1] >= fresh.get(collectibleTargets[0]!.campaignId)![1]);
     assert.deepEqual(await others(), othersBefore, 'nothing but starts_at/ends_at changes');
 
     // 같은 시각의 두 번째 재시드는 아무것도 바꾸지 않는다(멱등). 더 늦은 시각의 재시드는 끝만 더 뒤로 민다.
@@ -333,27 +338,31 @@ test('(seed) a fresh seed spans 30 days back to 30 days ahead; a re-seed widens 
       assert.equal(starts, reseeded.get(id)![0], `${id} start is never moved later`);
       assert.ok(ends >= reseeded.get(id)![1], `${id} end is never moved earlier`);
     }
-    assert.equal(slid.get('showcase-local-campaign-b')![1], later.getTime() + 30 * DAY_MS);
+    assert.equal(slid.get(collectibleTargets[1]!.campaignId)![1], later.getTime() + 30 * DAY_MS);
   });
 });
 
 test('(seed) a campaign that already ended is still refused instead of being silently revived', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    await pool.query(`UPDATE campaigns SET ends_at = now() - interval '1 day' WHERE id = $1`, [SHOWCASE_CAMPAIGN_ID]);
+    await pool.query(`UPDATE campaigns SET ends_at = now() - interval '1 day' WHERE id = $1`, [SHOWCASE_PRACTICE_CAMPAIGN_ID]);
     const before = (await pool.query('SELECT id, starts_at, ends_at FROM campaigns ORDER BY id')).rows;
     await assert.rejects(seedLocalShowcase(pool), /SHOWCASE_FIXTURE_COLLISION/);
     assert.deepEqual((await pool.query('SELECT id, starts_at, ends_at FROM campaigns ORDER BY id')).rows, before);
   });
 });
 
-// ---- R-333a, #365: 시연 가상 점포 수집품의 세 등급(A/B 골드, C 프리즘) ----
+// ---- R-333a, #365: 세 월계 실데이터 점포의 골드·프리즘 등급 ----
 // 호스트 시드(seedShowcaseFixtureData 'hosted')는 DB 이름이 masscom_showcase일 때만 돌아 이 일회용 DB에서는 부를 수 없으므로,
 // 그 안에서 부르는 seedStoreCollectibles를 같은 거래 방식으로 직접 부른다(같은 함수·같은 대상 모양).
 const collectibleTargets: StoreCollectibleTarget[] = [
-  { merchantId: SHOWCASE_MERCHANT_ID, campaignId: SHOWCASE_CAMPAIGN_ID, storeName: '가상 점포 A', art: 'a' },
-  { merchantId: 'showcase-local-merchant-b', campaignId: 'showcase-local-campaign-b', storeName: '가상 점포 B', art: 'b' },
-  { merchantId: 'showcase-local-merchant-c', campaignId: 'showcase-local-campaign-c', storeName: '가상 점포 C', art: 'c', topGrade: 'prism' },
+  { merchantId: WOLGYE_STORES[1]!.id, campaignId: `${WOLGYE_STORES[1]!.id}-campaign`, storeName: WOLGYE_STORES[1]!.name, art: 'b' },
+  { merchantId: WOLGYE_STORES[2]!.id, campaignId: `${WOLGYE_STORES[2]!.id}-campaign`, storeName: WOLGYE_STORES[2]!.name, art: 'c' },
+  { merchantId: WOLGYE_PRISM_STORE.id, campaignId: `${WOLGYE_PRISM_STORE.id}-campaign`, storeName: WOLGYE_PRISM_STORE.name, art: 'b', topGrade: 'prism' },
 ];
+const practiceTarget: StoreCollectibleTarget = {
+  merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, campaignId: SHOWCASE_PRACTICE_CAMPAIGN_ID,
+  storeName: '체험 점주 가게', art: 'b',
+};
 
 async function inTransaction<T>(pool: Pool, work: (client: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
@@ -384,7 +393,7 @@ function legacySingleGradeProject(target: StoreCollectibleTarget): CollectiblePr
     back: { mode: 'default', color: '#bf8149', stickers: [] },
     grades: [{ id: 'bronze', name: '체험', kind: 'basic', enabled: true }],
     effects: [], motion: [], thickness: 8, angle: 0,
-    greeting: '시연용 가상 점포 수집품입니다.', greetingOverrides: [], audio: null,
+    greeting: '실제 가게 정보를 바탕으로 만든 시연용 가상 방문 수집품입니다.', greetingOverrides: [], audio: null,
     story: { type: 'zoom', frames: [], cartoon: 0, strength: 50 },
     parallax: { strength: 0, strokes: [] }, living: { periodMs: 2400, items: [] },
     derived: { bronze: { imageDataUrl: image, thumbnailDataUrl: thumbnail } },
@@ -481,19 +490,20 @@ async function waitUntilTwoBlockOrWorkFinishes(pool: Pool, finished: () => boole
 
 async function collectibleCounts(pool: Pool): Promise<number[]> {
   const tables = ['collectible_projects', 'collectible_publications', 'collectible_publication_grades', 'campaign_collectible_publications'];
+  const targets = collectibleTargets.map((target) => target.merchantId);
   const [results, wolgye] = await Promise.all([Promise.all(tables.map((table) =>
     pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM ${table}`))), Promise.all([
-    pool.query<{ total: number }>("SELECT count(*)::int AS total FROM collectible_projects WHERE merchant_id LIKE 'showcase-wolgye-%'"),
-    pool.query<{ total: number }>("SELECT count(*)::int AS total FROM collectible_publications WHERE merchant_id LIKE 'showcase-wolgye-%'"),
+    pool.query<{ total: number }>("SELECT count(*)::int AS total FROM collectible_projects WHERE merchant_id LIKE 'showcase-wolgye-%' AND merchant_id <> ALL($1::text[])", [targets]),
+    pool.query<{ total: number }>("SELECT count(*)::int AS total FROM collectible_publications WHERE merchant_id LIKE 'showcase-wolgye-%' AND merchant_id <> ALL($1::text[])", [targets]),
     pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM collectible_publication_grades grade
       JOIN collectible_publications publication ON publication.id = grade.publication_id
-      WHERE publication.merchant_id LIKE 'showcase-wolgye-%'`),
+      WHERE publication.merchant_id LIKE 'showcase-wolgye-%' AND publication.merchant_id <> ALL($1::text[])`, [targets]),
     pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM campaign_collectible_publications link
       JOIN campaigns campaign ON campaign.id = link.campaign_id
-      WHERE campaign.merchant_id LIKE 'showcase-wolgye-%'`),
+      WHERE campaign.merchant_id LIKE 'showcase-wolgye-%' AND campaign.merchant_id <> ALL($1::text[])`, [targets]),
   ])]);
-  const baseline = [30, 30, 90, 30];
-  assert.deepEqual(wolgye.map(({ rows }) => rows[0]!.total), baseline);
+  const baseline = [30, 30, 90, 27];
+  assert.deepEqual(wolgye.map(({ rows }) => rows[0]!.total), [27, 27, 81, 27]);
   return results.map(({ rows }, index) => rows[0]!.total - baseline[index]!);
 }
 
@@ -508,7 +518,7 @@ async function gradesOf(pool: Pool, publicationId: string): Promise<{ grade_id: 
      FROM collectible_publication_grades WHERE publication_id = $1 ORDER BY grade_id`, [publicationId])).rows;
 }
 
-test('(R-333a, #365) a fresh collectible seed publishes gold for A/B and prism for C at the fifth visit', async () => {
+test('(R-333a, #365) real stores publish gold twice and prism once at the fifth visit', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     assert.equal((await seedCollectibles(pool)).length, 3);
     assert.deepEqual(await collectibleCounts(pool), [3, 3, 9, 3]);
@@ -516,7 +526,7 @@ test('(R-333a, #365) a fresh collectible seed publishes gold for A/B and prism f
       const publicationId = await linkedPublication(pool, target.campaignId);
       const publication = (await pool.query<{ reward_grades: Record<string, string> }>(
         'SELECT reward_grades FROM collectible_publications WHERE id = $1', [publicationId])).rows[0]!;
-      const topGrade = target.art === 'c' ? 'prism' : 'gold';
+      const topGrade = target.topGrade ?? 'gold';
       assert.deepEqual(publication.reward_grades, { 1: 'bronze', 3: 'silver', 5: topGrade });
       assert.deepEqual(await gradesOf(pool, publicationId), [
         { grade_id: 'bronze', grade_name: '브론즈', animation: 'still' },
@@ -529,13 +539,13 @@ test('(R-333a, #365) a fresh collectible seed publishes gold for A/B and prism f
       `SELECT link.campaign_id, array_agg(grade.grade_id ORDER BY grade.grade_id) AS grades
        FROM campaign_collectible_publications link
        JOIN collectible_publication_grades grade ON grade.publication_id = link.publication_id
-       WHERE link.campaign_id IN ('showcase-local-campaign', 'showcase-local-campaign-b', 'showcase-local-campaign-c')
-       GROUP BY link.campaign_id ORDER BY link.campaign_id`);
+       WHERE link.campaign_id = ANY($1::text[])
+       GROUP BY link.campaign_id ORDER BY link.campaign_id`, [collectibleTargets.map((target) => target.campaignId)]);
     assert.deepEqual(runbookCheck.rows.map((row) => [row.campaign_id, row.grades]), [
-      ['showcase-local-campaign', ['bronze', 'gold', 'silver']],
-      ['showcase-local-campaign-b', ['bronze', 'gold', 'silver']],
-      ['showcase-local-campaign-c', ['bronze', 'prism', 'silver']],
-    ]);
+      [collectibleTargets[0]!.campaignId, ['bronze', 'gold', 'silver']],
+      [collectibleTargets[1]!.campaignId, ['bronze', 'gold', 'silver']],
+      [collectibleTargets[2]!.campaignId, ['bronze', 'prism', 'silver']],
+    ].sort(([left], [right]) => String(left).localeCompare(String(right))));
     // 두 번 돌려도(이미 3등급으로 걸려 있음) 아무것도 더하지 않는다.
     assert.deepEqual(await seedCollectibles(pool), []);
     assert.deepEqual(await collectibleCounts(pool), [3, 3, 9, 3]);
@@ -605,7 +615,7 @@ test('(R-333a) a re-seed upgrades the old single-grade seed link exactly once, k
   });
 });
 
-test('(#365) re-seeding the previous three-grade C seed swaps only C once and preserves issued gold snapshots', async () => {
+test('(#365) re-seeding the previous three-grade prism-store seed swaps it once and preserves issued gold snapshots', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const [storeA, storeB, storeC] = collectibleTargets as [StoreCollectibleTarget, StoreCollectibleTarget, StoreCollectibleTarget];
     assert.deepEqual(await seedCollectibles(pool, [storeA, storeB]), [storeA.campaignId, storeB.campaignId]);
@@ -642,7 +652,7 @@ test('(#365) re-seeding the previous three-grade C seed swaps only C once and pr
   });
 });
 
-test('(#365) C publications with a merchant author or other grades are never replaced', async () => {
+test('(#365) prism-store publications with a merchant author or other grades are never replaced', async () => {
   for (const options of [
     { createdBy: 'owner-1' },
     { editedBy: 'owner-1' },
@@ -675,7 +685,7 @@ test('(R-333a) a merchant-authored publication, even with the seed\'s name and o
     const authoredBefore = await authoredRows();
 
     const published = await seedCollectibles(pool);
-    assert.deepEqual(published.sort(), ['showcase-local-campaign-c', 'showcase-local-campaign-b'].sort(), 'B upgraded, C is new, A left alone');
+    assert.deepEqual(published.sort(), [collectibleTargets[2]!.campaignId, collectibleTargets[1]!.campaignId].sort(), 'B upgraded, C is new, A left alone');
     assert.equal(await linkedPublication(pool, storeA.campaignId), authored, 'the merchant-authored link is untouched');
     assert.notEqual(await linkedPublication(pool, storeB.campaignId), seedOwned);
     assert.deepEqual(await authoredRows(), authoredBefore);
@@ -724,9 +734,9 @@ test('(R-333a race) a merchant publish that commits while the seed waits is neve
   });
 });
 
-test('(R-333 round 3) full re-seed and real merchant publish finish without deadlock when old merchant metadata needs backfill', async () => {
+test('(R-333 round 3) full re-seed and practice merchant publish finish without deadlock', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
-    const storeA = collectibleTargets[0]!;
+    const storeA = practiceTarget;
     const projects = new PostgresCollectibleProjectService(pool);
     await pool.query(
       `INSERT INTO merchant_members (merchant_id, account_id, role, status)
@@ -734,8 +744,6 @@ test('(R-333 round 3) full re-seed and real merchant publish finish without dead
     const draft = await projects.create({
       merchantId: storeA.merchantId, accountId: 'showcase-race-owner', project: modernMerchantPublishProject(storeA),
     });
-    await pool.query('UPDATE merchants SET neighborhood = NULL, category = NULL WHERE id = ANY($1::text[])',
-      [collectibleTargets.map((target) => target.merchantId)]);
     await pool.query(
       `UPDATE campaigns SET starts_at = now() - interval '1 day', ends_at = now() + interval '1 day' WHERE id = $1`,
       [storeA.campaignId]);
@@ -744,15 +752,10 @@ test('(R-333 round 3) full re-seed and real merchant publish finish without dead
     await pool.query(`CREATE FUNCTION showcase_campaign_race_gate() RETURNS trigger LANGUAGE plpgsql AS $$
       BEGIN
         PERFORM pg_advisory_xact_lock(333596::bigint);
-        IF EXISTS (SELECT 1 FROM merchants
-                   WHERE id IN ('showcase-local-merchant', 'showcase-local-merchant-b', 'showcase-local-merchant-c')
-                     AND (neighborhood IS NULL OR category IS NULL)) THEN
-          RAISE EXCEPTION 'SHOWCASE_MERCHANT_BACKFILL_ORDER';
-        END IF;
         RETURN NEW;
       END $$`);
     await pool.query(`CREATE TRIGGER showcase_campaign_race_gate AFTER UPDATE OF starts_at, ends_at ON campaigns
-      FOR EACH ROW WHEN (NEW.id = 'showcase-local-campaign') EXECUTE FUNCTION showcase_campaign_race_gate()`);
+      FOR EACH ROW WHEN (NEW.id = '${SHOWCASE_PRACTICE_CAMPAIGN_ID}') EXECUTE FUNCTION showcase_campaign_race_gate()`);
     const gate = await pool.connect();
     const pending: Promise<unknown>[] = [];
     let gateOpen = false;
@@ -780,9 +783,9 @@ test('(R-333 round 3) full re-seed and real merchant publish finish without dead
       assert.equal(await linkedPublication(pool, storeA.campaignId), publishResult.value.publicationId);
       assert.deepEqual((await gradesOf(pool, publishResult.value.publicationId)).map((grade) => grade.grade_id),
         ['bronze', 'gold', 'prism', 'silver']);
-      const merchant = (await pool.query<{ neighborhood: string; category: string }>(
-        'SELECT neighborhood, category FROM merchants WHERE id = $1', [storeA.merchantId])).rows[0]!;
-      assert.ok(merchant.neighborhood && merchant.category, 'the legacy merchant metadata was filled');
+      const merchant = (await pool.query<{ status: string; published_at: Date | null }>(
+        'SELECT status, published_at FROM merchants WHERE id = $1', [storeA.merchantId])).rows[0]!;
+      assert.deepEqual(merchant, { status: 'ACTIVE', published_at: null }, 'practice merchant stays hidden');
     } finally {
       if (gateOpen) await gate.query('ROLLBACK');
       await Promise.allSettled(pending);
@@ -823,8 +826,9 @@ test('(R-333 round 3) media removal after legacy upgrade also removes the newly 
         'SELECT 1 FROM campaign_collectible_publications WHERE campaign_id = $1', [storeA.campaignId])).rowCount, 0);
       const publications = await pool.query<{ media_removed_at: Date | null }>(
         'SELECT media_removed_at FROM collectible_publications WHERE campaign_id = $1', [storeA.campaignId]);
-      assert.equal(publications.rowCount, 2, 'legacy and upgraded publications both remain as redacted records');
-      assert.ok(publications.rows.every((row) => row.media_removed_at !== null));
+      assert.equal(publications.rowCount, 3, 'original unlinked seed, legacy and upgraded publications remain');
+      assert.equal(publications.rows.filter((row) => row.media_removed_at !== null).length, 3,
+        'operator removal redacts all three retained publications for the campaign');
       assert.equal((await pool.query(
         'SELECT 1 FROM collectible_projects WHERE merchant_id = $1 AND project IS NOT NULL', [storeA.merchantId])).rowCount, 0);
       assert.deepEqual(await seedCollectibles(pool, [storeA]), [], 'a later seed does not restore removed media');
@@ -978,10 +982,10 @@ test('(seed) a campaign that started one day ago but ends in 90 days gets an ear
     const seedNow = new Date();
     const end = new Date(seedNow.getTime() + 90 * DAY_MS);
     await pool.query('UPDATE campaigns SET starts_at = $2, ends_at = $3 WHERE id = $1',
-      [SHOWCASE_CAMPAIGN_ID, new Date(seedNow.getTime() - DAY_MS), end]);
+      [collectibleTargets[0]!.campaignId, new Date(seedNow.getTime() - DAY_MS), end]);
     await seedLocalShowcase(pool, seedNow);
     const row = (await pool.query<{ starts_at: Date; ends_at: Date }>(
-      'SELECT starts_at, ends_at FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID])).rows[0]!;
+      'SELECT starts_at, ends_at FROM campaigns WHERE id = $1', [collectibleTargets[0]!.campaignId])).rows[0]!;
     assert.equal(row.starts_at.getTime(), seedNow.getTime() - 30 * DAY_MS, 'the start is pulled 30 days back');
     assert.equal(row.ends_at.getTime(), end.getTime(), 'the later end (+90 days) is never pulled in to +30 days');
   });

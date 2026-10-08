@@ -323,12 +323,28 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
       (error: unknown) => (error as { code?: string }).code === '23514');
   });
 
-  await t.test('pause removes the course from customer reads', async () => {
+  await t.test('paused and ended courses remain readable only to unlock holders', async () => {
     assert.equal((await service.adminPause('curator', published.id)).status, 'PAUSED');
+    for (const status of ['PAUSED', 'ENDED'] as const) {
+      if (status === 'ENDED') await pool.query("UPDATE courses SET status = 'ENDED' WHERE id = $1", [published.id]);
+      assert.equal((await service.get('course-customer', published.id)).status, status);
+      assert.equal((await service.list('course-customer')).find(course => course.id === published.id)?.status, status);
+      assert.equal((await service.list('course-reco')).some(course => course.id === published.id), false);
+      assert.equal((await service.listHints('course-reco')).some(course => course.id === published.id), false);
+      await assert.rejects(service.get('course-reco', published.id),
+        (error: unknown) => error instanceof CourseError && error.code === 'COURSE_NOT_FOUND');
+      await assert.rejects(service.unlock('course-customer', published.id),
+        (error: unknown) => error instanceof CourseError && error.code === 'COURSE_UNAVAILABLE');
+      await assert.rejects(service.unlock('course-reco', published.id),
+        (error: unknown) => error instanceof CourseError && error.code === 'COURSE_UNAVAILABLE');
+    }
+    await pool.query('UPDATE course_unlocks SET revoked_at = $2 WHERE account_id = $1 AND course_id = $3',
+      ['course-customer', now, published.id]);
+    assert.equal((await service.list('course-customer')).some(course => course.id === published.id), false);
     await assert.rejects(service.get('course-customer', published.id),
       (error: unknown) => error instanceof CourseError && error.code === 'COURSE_NOT_FOUND');
-    await assert.rejects(service.unlock('course-reco', published.id),
-      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_UNAVAILABLE');
+    await pool.query('UPDATE course_unlocks SET revoked_at = NULL WHERE account_id = $1 AND course_id = $2',
+      ['course-customer', published.id]);
   });
 
   await t.test('account deletion removes unlock rows and curator identity', async () => {

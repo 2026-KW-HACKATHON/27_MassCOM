@@ -4,7 +4,7 @@ import type { Pool, PoolClient } from 'pg';
 
 import { AccountLifecycleError, PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
 import { grantShowcaseStaffTx } from './grant-staff.js';
-import { isPermittedShowcaseDatabaseName, SHOWCASE_MERCHANT_ID } from './local-seed.js';
+import { isPermittedShowcaseDatabaseName, SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
 
 export class ShowcaseAccessRequestError extends Error {
   constructor(readonly code:
@@ -71,7 +71,7 @@ function mapRequest(row: Pick<RequestRow, 'code' | 'status' | 'created_at' | 'de
 
 /**
  * 점주 체험 권한 요청(#294). 요청·조회는 계정 본인, 승인·거절은 platform_admins의 승인자만 할 수 있다.
- * 승인은 grantShowcaseStaffTx로 가상 점포 A의 STAFF 권한을 준다(운영자 명령과 같은 핵심, 허용목록·세션 검사는 건너뛴다:
+ * 승인은 grantShowcaseStaffTx로 비공개 체험 점포의 STAFF 권한을 준다(운영자 명령과 같은 핵심, 허용목록·세션 검사는 건너뛴다:
  * 대기 중 요청 행 자체가 자격 증명이다). 모든 트랜잭션이 시작할 때 현재 DB 이름을 다시 확인한다.
  */
 export class ShowcaseAccessRequestService {
@@ -107,7 +107,8 @@ export class ShowcaseAccessRequestService {
   }
 
   async mine(accountId: string): Promise<{
-    request: AccessRequestView | null; staff: boolean; approver: boolean; trialMerchantId: string | null;
+    request: AccessRequestView | null; staff: boolean; approver: boolean;
+    trialMerchantId: string | null; practiceMerchantId: string | null;
   }> {
     return this.transaction(async (client) => {
       await this.accountLifecycle.assertActive(client, accountId);
@@ -117,8 +118,9 @@ export class ShowcaseAccessRequestService {
         [accountId],
       );
       const staff = await client.query(
-        `SELECT 1 FROM merchant_members WHERE account_id = $1 AND role = 'STAFF' AND status = 'ACTIVE'`,
-        [accountId],
+        `SELECT 1 FROM merchant_members WHERE account_id = $1 AND merchant_id = $2
+           AND role = 'STAFF' AND status = 'ACTIVE'`,
+        [accountId, SHOWCASE_PRACTICE_MERCHANT_ID],
       );
       const approver = await client.query(
         `SELECT 1 FROM platform_admins WHERE account_id = $1 AND revoked_at IS NULL`,
@@ -131,9 +133,10 @@ export class ShowcaseAccessRequestService {
       );
       return {
         request: request.rows[0] ? mapRequest(request.rows[0]) : null,
-        staff: staff.rowCount! > 0,
+        staff: staff.rowCount! > 0 || trial.rows.length > 0,
         approver: approver.rowCount! > 0,
         trialMerchantId: trial.rows[0]?.merchant_id ?? null,
+        practiceMerchantId: staff.rowCount! > 0 ? SHOWCASE_PRACTICE_MERCHANT_ID : null,
       };
     });
   }
@@ -143,8 +146,11 @@ export class ShowcaseAccessRequestService {
       // assertActive가 이 계정의 advisory lock을 잡아 같은 계정의 동시 요청을 직렬화한다(동시 이중 요청 방지).
       await this.accountLifecycle.assertActive(client, accountId);
       const staff = await client.query(
-        `SELECT 1 FROM merchant_members WHERE account_id = $1 AND role = 'STAFF' AND status = 'ACTIVE'`,
-        [accountId],
+        `SELECT 1 FROM merchant_members WHERE account_id = $1 AND role = 'STAFF' AND status = 'ACTIVE'
+           AND (merchant_id = $2 OR EXISTS (
+             SELECT 1 FROM showcase_guest_trials trial WHERE trial.account_id = $1
+               AND trial.merchant_id = merchant_members.merchant_id AND trial.ended_at IS NULL))`,
+        [accountId, SHOWCASE_PRACTICE_MERCHANT_ID],
       );
       if (staff.rowCount) throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_ALREADY_GRANTED');
       const existing = await client.query<RequestRow>(
@@ -206,7 +212,7 @@ export class ShowcaseAccessRequestService {
       if (row.status !== 'PENDING') throw new ShowcaseAccessRequestError('SHOWCASE_ACCESS_ALREADY_DECIDED');
       if (decision === 'APPROVED') {
         await grantShowcaseStaffTx(client, {
-          accountId: row.account_id, merchantId: SHOWCASE_MERCHANT_ID, accountLifecycle: this.accountLifecycle,
+          accountId: row.account_id, merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, accountLifecycle: this.accountLifecycle,
         });
       }
       await client.query(

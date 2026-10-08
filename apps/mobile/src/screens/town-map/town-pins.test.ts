@@ -17,9 +17,9 @@ const merchant = (id: string, name: string, demo = false): TownMapMerchant => ({
 const now = '2026-09-29T00:00:00Z';
 
 test('a pin is read as "name, stamp state": received, not yet, or not known', () => {
-  assert.equal(pinLabel('가상 점포 A', 'visited'), '가상 점포 A, 도장 받음');
-  assert.equal(pinLabel('가상 점포 A', 'none'), '가상 점포 A, 도장 아직 없음');
-  assert.equal(pinLabel('가상 점포 A', 'unknown'), '가상 점포 A, 도장 상태 확인 안 됨');
+  assert.equal(pinLabel('더까까주까월계역점', 'visited'), '더까까주까월계역점, 도장 받음');
+  assert.equal(pinLabel('더까까주까월계역점', 'none'), '더까까주까월계역점, 도장 아직 없음');
+  assert.equal(pinLabel('더까까주까월계역점', 'unknown'), '더까까주까월계역점, 도장 상태 확인 안 됨');
 });
 
 test('visited shops come from the collection visits, matched by merchant id and never by name', () => {
@@ -72,7 +72,7 @@ test('a counted visit reaches the goal and the sheet says the collectible is bei
 });
 
 test('every placed pin has its own building and the glyph the passport stamp would show', () => {
-  const shops = Array.from({ length: 5 }, (_, index) => merchant(`shop-${index}`, `가상 점포 ${String.fromCharCode(65 + index)}`));
+  const shops = Array.from({ length: 5 }, (_, index) => merchant(`shop-${index}`, `가게 ${String.fromCharCode(65 + index)}`));
   const { placed } = buildTownPins(shops, { visits: [], collectibles: [] }, now);
   assert.equal(placed.length, 5);
   assert.equal(new Set(placed.map((pin) => pin.slot)).size, 5);
@@ -93,8 +93,8 @@ test('pins keep the API list order, and the shops that do not fit are listed in 
 
 test('the demo shops keep their fixed buildings among real ones', () => {
   const shops = [
-    merchant('real-1', '진짜 가게 1'), merchant('showcase-local-merchant-c', '가상 점포 C', true),
-    merchant('showcase-local-merchant', '가상 점포 A', true), merchant('showcase-local-merchant-b', '가상 점포 B', true),
+    merchant('real-1', '진짜 가게 1'), merchant('showcase-wolgye-MA010120220812445724', '하다식당', true),
+    merchant('showcase-wolgye-MA010120220813334279', '더까까주까월계역점', true), merchant('showcase-wolgye-MA010120220809686086', '갱스터떡볶이인덕대점', true),
   ];
   const { placed } = buildTownPins(shops, { visits: [], collectibles: [] }, now);
   for (const [id, slot] of Object.entries(SHOWCASE_ANCHORS)) assert.equal(placed.find((pin) => pin.merchantId === id)?.slot, slot, id);

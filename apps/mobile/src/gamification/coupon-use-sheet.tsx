@@ -224,7 +224,7 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
                 )}
               </View>
               <Text style={styles.qrHint}>직원이 확인하면 자동으로 사용 완료로 바뀌어요.</Text>
-              {variant === 'showcase' ? <Text style={styles.showcaseLine}>가상 점포 체험 쿠폰 · 실제 매장 혜택 아님</Text> : null}
+              {variant === 'showcase' ? <Text style={styles.showcaseLine}>가상 체험 쿠폰 · 실제 매장 혜택 아님</Text> : null}
             </>
           )}
         </ScrollView>

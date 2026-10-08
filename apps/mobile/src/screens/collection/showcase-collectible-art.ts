@@ -7,9 +7,9 @@ export function collectibleArtSize(viewportWidth: number, pageInset: number, car
 export function showcaseCollectibleArtKey(packageId: string | null | undefined, merchantId: string): ShowcaseCollectibleArtKey | undefined {
   if (packageId !== 'kr.masscom.wolgye.demo') return undefined;
   switch (merchantId) {
-    case 'showcase-local-merchant': return 'a';
-    case 'showcase-local-merchant-b': return 'b';
-    case 'showcase-local-merchant-c': return 'c';
+    case 'showcase-wolgye-MA010120220813334279': return 'b';
+    case 'showcase-wolgye-MA010120220809686086': return 'b';
+    case 'showcase-wolgye-MA010120220812445724': return 'c';
     default: return undefined;
   }
 }

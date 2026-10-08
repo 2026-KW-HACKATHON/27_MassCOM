@@ -13,8 +13,8 @@ test('a pending row shows the dashed code and the Korea-time it was requested', 
   assert.equal(pendingRowText(pending({ createdAt: '2026-10-01T15:00:00.000Z' })), 'ABCD-EFGH · 00:00');
 });
 
-test('the approve confirm text names the exact grant, store A staff', () => {
-  assert.match(ADMIN_CONFIRM_TEXT, /가상 점포 A 직원 권한/);
+test('the approve confirm text names the exact private practice-store staff grant', () => {
+  assert.match(ADMIN_CONFIRM_TEXT, /비공개 체험 점주 가게 직원 권한/);
   assert.match(ADMIN_CONFIRM_TEXT, /수락할까요\?$/);
 });
 

@@ -59,8 +59,8 @@ export function shortMerchantGoal(goal: MerchantGoal): string {
 }
 
 /**
- * Text inside a round stamp when the merchant has no illustration. Demo stores all start with "가상", so the front of the name
- * told them apart poorly: use the last word when it is at most two characters ("가상 점포 A" -> "A"), else its first two.
+ * Text inside a round stamp when the merchant has no illustration. Use the last word when it is at most two characters
+ * ("월계 국밥" -> "국밥"), else its first two.
  */
 export function stampGlyph(name: string): string {
   const last = name.trim().split(/\s+/).at(-1) ?? '';

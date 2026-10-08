@@ -1,18 +1,41 @@
 # HANDOFF
 
-**2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (현재 worktree, 미커밋·미배포)**
+기준 시각: 2026-10-09 KST. 배경음 수정 브랜치 `fix/bgm-start`에 PR #433 반영 main `c7632b35`를 병합 중인 작업 트리의 현재 상태를 기록한다. 날짜별 이전 기록은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
+
+## 1. 기준 커밋과 작업 위치
+
+- 병합 대상 main SHA: `c7632b35`(사용자 지정 PR #433 반영). 현재 worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `6af6ab47`, MERGE_HEAD `c7632b35`다. 앱 전역 BGM은 D-103, T9 가상 점포 은퇴는 D-101, PR #429 제작기 후속은 D-102를 따른다.
+- 사용자 요청으로 파일만 수정했다. Git add·commit·stash·merge·rebase·push를 실행하지 않았다. 커밋·통합은 오케스트레이터가 맡는다. 이전 T9 작업의 `gh pr list --head feat/showcase-real-only --state all` 조회 결과는 0건이었다. 이번 문서 충돌 해결에서는 원격 PR·CI를 조회하지 않았다. 파일에서 충돌을 제거해도 index는 미병합 상태로 남는다.
+
+## 2. 현재 통합 상태
+
+- BGM은 네이티브 첫 렌더 뒤 지연 준비, 웹의 신뢰된 입력과 자산 준비 뒤 앱 전역 loop를 재생한다. 뽑기 intro→loop·꺼짐·전경·로그아웃·정리와 웹 재생 성공까지 입력 리스너 유지/재시도를 보존한다(D-103).
+
+**이전 BGM·T9 이력 — 아래 위치·SHA·검증 결과는 당시 기록이며 현재 병합 상태와 구분한다.**
+
+**앞선 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (당시 미커밋·미배포)**
 
 - 위치: `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 실제 HEAD `570b5e58`. 아래 앱 시작 배경음 복구는 이 HEAD에 커밋됐다. 이번 수정은 로드 전 입력을 소비하지 않고, 실제 재생 성공까지 신뢰된 입력 리스너를 유지/재등록한다. expo-audio 거절 상태 전달·동기 입력 재생·BGM 꺼짐/로그아웃/unmount 정리와 별도 효과음 로더를 유지한다.
 - 모바일2162/2162·대상43/43·typecheck·lint·CI 연결103개 파일·운영 문서 PASS. npm test는 sandbox tsx IPC EPERM으로 BLOCKED이며 같은 glob의 Node loader로 검증했다. 기존 lint 경고1개. 최신 근거는 [TEST_STATUS](TEST_STATUS.md) 최상단과 `/tmp/bgm-review-*.log`다. API·실제 Safari/Chrome autoplay·각 Android variant 청음·빌드·배포는 NOT_RUN이다.
 - 사용자 지시대로 Git add·commit·stash·merge·rebase·push를 실행하지 않았고 index는 비어 있다. 다음 로컬 검토 명령은 `git diff --check`, `git diff`. 아래 수치는 이전 작업의 이력이다.
 
-**2026-10-09 앱 시작 배경음 복구 (현재 worktree, 미커밋·미배포)**
+**앞선 2026-10-09 앱 시작 배경음 복구 (당시 미커밋·미배포)**
 
 - 위치: `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 기준 main/HEAD `8aa8b724`. 소유자 보고 "음악이 처음엔 안 나오고 뽑기 한 후부터 재생됨"을 공통 sound controller에서 수정했다. 네이티브 첫 렌더 뒤 지연 loop·웹 첫 입력 loop·뽑기 intro→loop를 유지하며 D-084의 초점 의존은 D-103으로 대체했다.
 - 모바일 전체 대체 실행 2156/2156·대상 37/37·타입·린트·접근성·릴리스 지갑 표면·CI 연결 103개 파일·운영 문서 PASS. `npm test`는 sandbox tsx IPC `EPERM`으로 BLOCKED다. API 672/672는 기존 측정값이며 이번 재실행은 없다. [TEST_STATUS](TEST_STATUS.md) 최상단과 `/tmp/bgm-*.log`를 따른다.
 - Git add·commit·stash·merge·rebase·push는 수행하지 않았고 staging은 비어 있다. PR을 생성/조회하지 않았다. 웹 첫 화면 실측·실제 autoplay/청음·운영/시연 Android 각각의 설치/실기·배포는 NOT_RUN이다. 다음 로컬 명령은 `git diff --check`, `git diff`이며 실제 청음 수용은 별도다. 아래 PR #429 작업은 직전 이력이다.
 
-**2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 (미커밋)**
+**이전 T9 기준 커밋과 작업 위치**
+
+- 병합 대상 main SHA: `8aa8b724`(PR #429 반영). 현재 worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/t9-real`, 브랜치 `feat/showcase-real-only`, HEAD `65699443`, MERGE_HEAD `8aa8b724`다. 이전 T9 통합 기준은 main `a8ed0dd1`(PR #418·#424·#426 반영), 초기 구현 기준은 `c0449f1b`, 후속 리뷰 기준은 `04f9ea2a`였다.
+
+- T3 목적형 혜택·T4 코스·T8 월계 공공자료 점포와 PR #418 점주 제작기를 보존한 T9(D-101)에 PR #429의 회전·움직임 분리·Flame 오라·옆면(D-102)을 함께 보존한다.
+- T9의 고객 공개 점포는 월계 공공자료 30곳뿐이다. 새 DB에는 비공개 체험 점주 가게를 포함해 점포/캠페인 31행·목표 93행이 생긴다. 기존 A/B/C는 삭제하지 않고 숨긴다.
+- 더까까주까월계역점 한 곳만 5회 프리즘이고 나머지 29곳은 골드다. 새 코스는 더까까주까월계역점 → 갱스터떡볶이인덕대점 → 하다식당이다. D-101과 TEST_STATUS T9가 정본이다.
+
+**이전 PR #429·통합 이력 — 아래 위치·SHA·검증 결과는 당시 기록이며 현재 BGM·T9 병합 상태와 구분한다.**
+
+**앞선 2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 기록 (당시 미커밋)**
 
 - 위치: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`. PR #430 반영 main `a1a3eef3` 병합의 충돌 파일을 수정 중이며 Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지 및 접근성 이름을 함께 보존한다.
 - README·PROJECT_STATE의 현재 전체 합계는 사용자 요청대로 `__API__`·`__MOB__`를 유지한다. 이번 병합의 모바일 대체 단위 2148/2148와 typecheck·lint·운영 제출 준비·접근성·CI 연결 103개 파일은 PASS, `npm test`는 tsx IPC `EPERM`으로 BLOCKED다. 아래 PR #429와 Issue #412 수치는 각각 이전 작업의 기록이다. 이번 작업에서는 파일만 수정하며 Git add·commit·stash·merge·rebase·push와 배포·실기는 실행하지 않는다.
@@ -26,19 +49,18 @@
 - 이전 검증: 모바일2112/2112·typecheck·lint, API typecheck, 접근성·release 지갑 표면·CI 연결·운영 문서 검사 PASS. API625건 중457 PASS·168 소켓 BLOCKED, 사이트331건 중325 PASS·6 소켓 BLOCKED. 상세 명령·사이트 결과·로그는 [TEST_STATUS](TEST_STATUS.md)의 PR #429 CI 수정 절을 따른다. `npm test`의 tsx IPC 차단은 `node --import tsx --test 'src/**/*.test.ts'`로 우회했다.
 - 다음 명령: 소켓을 허용하는 CI에서 `npm test --prefix apps/api`와 `node --test tests/site/collectible-*.test.mjs tests/site/merchant-copy-no-newcomer.test.mjs`를 재실행한다. 운영 배포·Android 실제 설치본은 NOT_RUN이며 이번 수정만으로 실기 안전성을 확정하지 않는다.
 
-**2026-10-09 새 점주 제작기 후속 전달**
+**앞선 2026-10-09 새 점주 제작기 후속 전달**
 
 브랜치 `feat/collectible-reeded-edge`는 #418 병합 뒤 최신 main `a8ed0dd1` 기준의 별도 PR이다. main squash 트리와 앞서 통합한 `f2a29439`는 동일하다. 실버 테두리·기본 스티커 제거, 큰 편집 화면·붓 경도/확대, 흑백·회전/움직임 분리·단일 재생, 강도별 재질·Flame 오라, 고정 후면 실시간 조명과 얇은 옆면 홈을 담는다. [캡처·저장·성능](evidence/coin-edge-2026-10-09/README.md), [시험](TEST_STATUS.md)을 확인한다. 로컬 합성 게시·재읽기와 독립 리뷰를 수행했다. 최악 조건 새 각도50ms 초과는 남아 있어 추가 성능 검수가 필요하다. 운영 배포·Android 실기는 실행하지 않았다. 기존API/웹 동시 배포·1/3/5 보상 조건을 유지한다.
 
-기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
-## 1. 기준 커밋과 작업 위치
+**이전 BGM 리뷰 작업 위치**
 
 - 기준 main 커밋 SHA: `8aa8b724`(PR #429 병합 반영). 작업 위치는 `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `570b5e58`다. 앱 시작 BGM 복구는 HEAD에 커밋됐고 이번 웹 입력 리뷰 수정은 미커밋이며 Git index는 비어 있고 미병합 파일은 없다. 앞선 `feat/collectible-reeded-edge`·`integ/t3b-t4-t8` 검증은 [TEST_STATUS](TEST_STATUS.md)의 이력이다.
 - 이 세션은 파일 수정만 수행한다. add·commit·stash·rebase·push·merge는 실행하지 않는다. 제출 기준선은 마감 시점의 실제 최신 main과 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)·`SUBMISSION_EVIDENCE.json`에서 별도 확정한다.
 
-## 2. 현재 통합 상태
+**이전 통합 상태와 병합 이력**
 
-- T8 시연 seed는 공공자료 점포 30곳과 A/B/C를 합쳐 33곳이다. 공공자료 점포 이름이 보이는 곳의 개별 고지와 접근성 이름을 유지한다. 운영 DB·서버·설치본·공개 `/play/`에는 배포하지 않았다. 이 병합 작업에서 Git add/commit/push/merge는 실행하지 않는다.
+- T9 이전 T8 시연 seed는 공공자료 점포 30곳과 A/B/C를 합쳐 33곳이었다. 현재 고객 공개 점포는 위 T9의 30곳이며 A/B/C는 은퇴 상태다. 공공자료 점포 이름이 보이는 곳의 개별 고지와 접근성 이름을 유지한다. 운영 DB·서버·설치본·공개 `/play/`에는 배포하지 않았다. 이 병합 작업에서 Git add/commit/push/merge는 실행하지 않는다.
 - T8 리뷰 고지 후속 이력: 원래 브랜치 `feat/showcase-wolgye-stores`, HEAD `29afaf46` 위 미커밋 변경의 기록. 고객 가게명 카드·행·지도·추천·홈과 수집/보상/공유의 공공자료 시연 고지를 공통 ID helper로 표시하고 접근성 이름에도 넣었다. 모바일 동일 glob Node loader 2105/2105·typecheck·lint·접근성·지갑 표면 PASS. `npm test` 자체는 sandbox IPC `EPERM`으로 BLOCKED(동일 시험의 Node loader 결과와 구분). 정확한 범위·제한은 [TEST_STATUS](TEST_STATUS.md)의 T8 리뷰 절에 있다. 사용자 지시로 add/commit/stash/rebase/push 없음. 다음 검토 명령은 `git diff --check`, `git diff`; 배포·새 설치본 검증은 하지 않았다.
 - T8 원래 기준 main: `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`(PR #425 병합). 작업 브랜치 `feat/showcase-wolgye-stores`는 이 기준에서 시작해 월계동 공공 상가정보 점포 30곳을 showcase seed에 더했다([D-100](DECISIONS.md)). 현재 통합 상태는 1절의 브랜치와 worktree에서 확인한다.
 - T3 혜택([D-094](DECISIONS.md), migration 0069)과 T4 코스([D-093](DECISIONS.md), migration 0072)를 함께 보존한다. 적용 순서는 0068 → 0069 → 0072 → 0075다. 0072의 감사 CHECK는 먼저 적용된 목적·혜택 action과 코스 action을 모두 허용해야 한다.
@@ -60,19 +82,18 @@
 
 ## 3. 공개 서버와 설치본
 
-- 운영 API·웹은 main `687427c2`(PR #408 병합 커밋)로 배포돼 있고 migration은 68건이다. 직전 `08f125b4` 재배포는 `scripts/deploy-lightsail.sh`로 했고 `backward_compatible=yes`, API 코드 변경 없음이었다. 그 앞의 `09dfceb0` 배포에서 원장이 43→68건(마지막 `0067_room_guestbook.sql`)이 됐고 API·웹 이미지 healthy, Caddy 재생성, retention 첫 실행 success였다([`09dfceb0` 배포 증거](evidence/production-deployment-09dfceb-2026-10-08.json)). `08f125b4`와 `687427c2` 재배포는 제공된 실행 기록이며 별도 증거 JSON은 아직 없다.
-- 시연 API는 `2d483ed`(migration 68건, 마지막 `0067_room_guestbook.sql`)다([시연 배포 증거](evidence/showcase-deployment-2d483ed-2026-10-08.json)). 시연 웹 `/play/`는 소스 `5ca98955`, entry `entry-858be2c61591f08ea88654ceed5f67ec.js`(`lang="ko"`)다. 이전 번들(`9f5ebfa6`, entry `entry-bf096d15e2c9fd7c9a6b8bc41de15c48.js`)에서 `/opt/masscom-showcase/web/releases/5ca98955…`로 `current`를 전환하고 edge Caddy를 재시작했으며 공개 서빙을 확인했다(제공 기록). 운영 api·www·시연 health 200을 유지했고 서버 API·DB 변경은 없다.
-- 설치본: 운영 `android-v0.1.0-test.13`(`MassCOM-operating-android-5ca9895.apk`, SHA-256 `45dc8a37d56b545bf4ef2da133bde48795dfadb2d965d122151d4310aeb5c53b`, 약 324MB, package `kr.masscom.wolgye`, [증거](evidence/operating-android-test13-2026-10-08.json))와 시연 `showcase-android-v0.1.0-preview.22`(`MassCOM-showcase-android-5ca9895.apk`, SHA-256 `a384cfee5b1fdacd0c7128d2232c2673f6bb422a1047e223acc1397cceff932f`, 약 330MB, package `kr.masscom.wolgye.demo`, [증거](evidence/showcase-preview22-release-2026-10-08.json))가 게시됐다. 두 APK 모두 `RECORD_AUDIO`가 없고 내부 versionName/Code는 `0.1.0-test.2`/`2`, target 커밋은 `5ca98955`다. **두 APK의 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산)다.** 확인 전에는 "일치"로 적지 않는다. 이전 설치본 test.12·Preview 21(소스 `9f5ebfa6`)의 증거는 [test.12](evidence/operating-android-test12-2026-10-08.json)·[Preview 21](evidence/showcase-preview21-release-2026-10-08.json)에 남아 있다. 실제 설치·실기 수용은 별도다.
-- 라이브 `/open`은 test.13·Preview 22를 가리킨다(2026-10-08 확인). 그 전에는 test.12·Preview 21이었다.
-- #402의 상점 동의 오류 단추·문구는 test.13·Preview 22와 `/play/`(`5ca98955`)에 들어 있다. 시연·설치본에는 지도 키가 없어 목록 기반 탐색으로 동작한다.
-- 시연·운영 서버 안 실제 DB 복원 리허설이 각각 PASS다. 운영은 첫 실제 복원 증거(P03)이며 복제본 migration 43→68건·`account_consents` 5=5 보존 후 복제본·임시 dump를 삭제했다([운영 리허설](evidence/production-restore-rehearsal-2026-10-08.json)).
-- 알려진 라이브 결함(배포 동결로 미수정): `www.masscom.kr/api/web/v1/*`가 404다. `infra/lightsail/Caddyfile`의 `@webSession`에 이 경로가 없어 API로 가지 않았다(가게 실세계 프로필 편집기의 영업시간·사진·위치 저장이 막힘). 설정·시험은 `fix/caddy-web-v1-routes`에서 고쳐 PR #413으로 main에 병합했고 웹/Caddy 배포 전까지 라이브는 그대로 404다.
-- 배포 동결(소유자 결정 A): Issue #409·#410의 코드는 게시·배포하지 않았다. 위 공개 상태(운영 `687427c2`, test.13, Preview 22, `/play/` `5ca98955`)가 그대로다. 이 코드는 다음 빌드부터 사용자에게 닿는다.
-- Issue #412 T1의 API 코드도 배포하지 않았다(소유자 결정 A). 서버에 올라간 API는 위 운영 `687427c2`·시연 `2d483ed` 그대로다.
+- 이번 세션은 서버·운영 DB·공개 웹·APK에 적용하지 않았다. 기존 기록의 운영 API/웹 `687427c2`, 시연 API `2d483ed`, `/play/` 소스 `5ca98955`, test.13·Preview 22는 이전 공개본이고 이번에 새로 조회하지 않았다.
+- 자동 시험·로컬 disposable DB는 배포·설치·기기 수용 근거가 아니다. 공개 버전은 `docs/CURRENT_RELEASE.json`과 배포 증거에서 별도로 확인한다.
 
 ## 4. 이번 작업의 범위
 
-- 현재 범위는 PR #429의 회전·움직임 분리, Flame 오라·옆면(D-102)와 main의 T3 PR 2 캠페인 혜택/쿠폰(D-094, 0069), T4 A 가게 사이 코스(D-093, 0072), T8 시연 점포(D-100), PR #418 점주 제작기(D-096~D-099)를 함께 보존하는 충돌 해결이다. 관리자 API·웹, 고객 가게 상세, 감사 시험과 문서에서 두 기능을 함께 유지한다. 0072 감사 CHECK가 앞선 0069 혜택 action을 누락하지 않도록 검사한다.
+- 이번 실행은 README·HANDOFF·PROJECT_STATE·TEST_STATUS 문서 충돌만 해결한다. DECISIONS의 D-001~D-103은 중복 없이 번호순임을 확인하며 내용은 유지한다. 아래는 함께 보존한 T9와 앞선 구현 범위다.
+- A/B/C 의존성: API seed·campaign/goal·badge offer·수집품·QA seed·직원/승인자·guest clone·course, 모바일 map/art/owner/tour/copy, 정적 `/preview/`, 모바일 `/play/`, APK/uptime/local QA probe, 현재 문서와 시험을 매핑했다.
+- 기존 A/B/C merchant `PAUSED`·`published_at=NULL`, 캠페인 `ENDED`·비공개, 기존 멤버십 회수. 방문·보상·획득 코인·쿠폰·게시본은 그대로다. 새 seed는 실점포 30곳과 숨은 연습 가게만 생성한다.
+- 공개된 옛 코스 단계는 불변이라 옛 코스를 종료하고 새 UUID `f81f04e0-bca8-4e36-a4e6-a812de5a7b80`로 코스를 만든다. ENDED/PAUSED 코스는 취소되지 않은 unlock이 있는 계정의 지난 코스 목록·상세·획득 장면에서 계속 읽으며 추천·신규 unlock에서는 제외한다(D-093/D-101).
+- 점주 모드는 본인 `trialMerchantId`를 우선하고 승인된 `practiceMerchantId`만 fallback으로 사용한다. 공개 점포 목록을 점주 후보로 쓰지 않는다. 연습 가게 `trial-showcase-practice`는 고객 목록·추천·상세·지도·코스·추첨 풀·코인 카탈로그에 나오지 않는다. 배지 혜택·쿠폰 API 표시 이름은 `시연 혜택`이며 내부 점포 연결은 유지한다. 공공자료 점포는 오래된 멤버십이 있어도 관리 권한을 거절한다.
+
+- 함께 보존하는 앞선 통합 범위는 PR #429의 회전·움직임 분리, Flame 오라·옆면(D-102)와 main의 T3 PR 2 캠페인 혜택/쿠폰(D-094, 0069), T4 A 가게 사이 코스(D-093, 0072), T8 시연 점포(D-100), PR #418 점주 제작기(D-096~D-099)를 함께 보존하는 충돌 해결이다. 관리자 API·웹, 고객 가게 상세, 감사 시험과 문서에서 두 기능을 함께 유지한다. 0072 감사 CHECK가 앞선 0069 혜택 action을 누락하지 않도록 검사한다.
 - **T8 월계동 시연 점포(2026-10-09):** 원본 487곳에서 월계역 기준 가장 가까운 30곳을 선택했다. 중분류별 6/6/6/5/3/2/2곳, 거리 약 28–823m다. `is_demo = true`와 안정 ID `showcase-wolgye-<SEMAS id>`로 표시하며, `merchant.story`에 D-100의 고정 비참여 고지를 넣는다. 영업시간·메뉴·가격·점포 소개 등 확인되지 않은 정보는 만들지 않았고 코인 그림은 기존 A/B/C 템플릿을 분류별로 재사용한다. 출처는 소상공인시장진흥공단 상가(상권)정보 2026-06-30이며, 영업 여부와 LOCALDATA는 교차 확인하지 않았다.
 - PR #418은 AI 초안·준비 이미지 스튜디오, 4단계 사진 편집, 1/3/5 고정 방문 보상, 프리즘을 포함한 네 기본 등급, v2 고정 뒷면 12종과 회전 속도·두께 48을 더했다. 점주 캠페인 연장 경로는 제거됐고 관리자 연장은 유지한다. 기존 발행본은 보존한다([D-096~D-099](DECISIONS.md), [화면·검증](evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)).
 
@@ -93,34 +114,37 @@
 
 ## 5. 시연 배포 순서
 
-- 시연 전용 DB 복원 리허설 PASS(107개 테이블 행 수·migration 목록 일치), 배포 전 백업, 25개 migration 적용으로 원장 68건을 기록했다. API·`/play/` 공개 전환과 Preview 20 게시도 완료했다.
-- 라이브 `/open`은 #405 병합 커밋 `08f125b4`의 운영 웹 재배포로 test.12·Preview 21 링크가 됐고, #408 병합 커밋 `687427c2`의 운영 웹 재배포로 test.13·Preview 22 링크가 됐다. 실제 설치본의 동의·체험 수용은 후속 확인으로 남긴다.
-- 이번 `/play/` 번들(`5ca98955`) 전환은 새 릴리스 디렉터리에 번들을 두고 `current`를 바꾼 뒤 edge Caddy를 재시작하는 순서였다. 다음 번들 전환과 설치본 게시 순서·실패 대응은 [운영 절차](OPERATIONS_RUNBOOK.md)를 따른다. 웹 export 전에는 `npm ci --prefix apps/mobile`로 패치를 적용해야 한다.
+- 배포는 이번 범위가 아니다. 후속 담당자는 백업 → migration → 같은 API/웹 배포 창 → host seed → 고객 목록 정확히 30곳·연습/은퇴 가게 없음·기존 코인/쿠폰 조회 → 직원·승인자·게스트/D-091 검증 순서로 진행한다.
+- 기존 A/B/C 직원 권한은 회수된다. Google 신원·활성 세션·계정·시연 DB 검사 뒤 공식 직원/승인 절차로 연습 가게 권한을 다시 부여한다. 문서만 보고 신원을 추정해 권한을 주지 않는다.
+- 실제 두 variant 설치·실기·TalkBack·브라우저 화면 확인과 별개로 결과를 기록한다.
 
 ## 6. 운영 배포 조건
 
-- PR #418의 API와 웹 편집기 자산은 같은 배포 창에 전환하고 함께 롤백한다. 새 API는 프리즘이 빠진 구 편집기 게시를 거절하고, 구 API는 새 편집기의 네 등급 중 방문 보상 연결 등급만 저장한다. 기본 등급 누락 시 `COLLECTIBLE_DEFAULT_GRADE_MISSING`과 "편집기를 새로고침한 뒤 다시 게시해 주세요"를 안내하고 구 탭을 새로고침해 네 등급 게시본을 확인한다([D-096](DECISIONS.md)). 두께 25~48 게시본은 업데이트한 고객 앱과 함께 배포해야 한다([D-099](DECISIONS.md)).
-
-- 운영 DB 실데이터의 서버 안 실제 복원과 복제본 migration 리허설은 PASS다. 원본 107개 테이블 행 수, 복제본 43→68건·1.8초, `account_consents` 5=5·공개 점포 0을 확인했다. 이 증거로 P03 복원 관문을 충족했다.
-- 운영 서버는 `backward_compatible=no` 증거와 `scripts/deploy-lightsail.sh --deploy`로 `09dfceb0`(PR #404 병합) 배포를 완료했다. 배포 전 백업 `/opt/masscom/backups/database-before-09dfceb0b39b.dump.*`는 186,604바이트·mode 600이며 `DEPLOYED_COMMIT`이 새 SHA를 가리킨다([증거](evidence/production-deployment-09dfceb-2026-10-08.json)). 원장 변경 릴리스이므로 구 API 자동 복귀는 금지된다.
-- 이후 `08f125b4` 재배포는 API 코드 변경과 migration이 없어 `backward_compatible=yes`로 기록했고 원장은 68건 그대로다. PR #408(`5ca98955`)은 앱·웹 번들 변경만 담아 서버 API·DB를 바꾸지 않는다.
+- T9는 시연 seed와 전용 namespace 권한·시연 표면만 바꾼다. 운영 seed·DB·기능·리워드·지갑·보상 정책 변경은 없다.
+- PR #418의 API/웹 제작기 동시 전환·롤백과 두께 25~48 새 고객 앱 조건(D-096~D-099)은 여전히 적용된다. 시연에서는 전체 점포 관리 API를 연결하지 않고 접근 요청 승인 API만 유지한다.
 
 ## 7. 마이그레이션과 롤백 경계
 
-- 이 통합의 파일 적용 순서는 `0068_campaign_purposes.sql` → `0069_campaign_benefits.sql` → `0072_courses.sql` → `0075_nft_series_uncapped.sql`이다. 0069는 T3 혜택 감사 action 두 개를 추가한다. 0072가 같은 감사 CHECK를 다시 작성하므로 목적·혜택·코스 action 합집합 23개를 보존해야 한다. 네 파일 모두 운영/시연 DB 적용은 이번 통합에서 확인하지 않았다.
-
-- 새 원장에 거래가 기록된 뒤에는 이를 모르는 구 API로 자동 복귀하지 않는다. 이번 비호환 릴리스의 배포 증거는 `backward_compatible=no`로 기록하고 실패 시 쓰기를 멈춘 뒤 새 원장을 이해하는 버전으로 전진 복구한다.
-- 릴리스 전후 백업·원장 수·쓰기 중지 조건은 [운영 절차](OPERATIONS_RUNBOOK.md)와 실제 복원 시험에서 검증한다.
-- migration `0068_campaign_purposes.sql`(Issue #412 T3 PR 1)은 새 표·함수·트리거와 감사 CHECK 확장(`CAMPAIGN_PURPOSE_SET`, 기존 16개 전체 유지)만 더하고 잠금 대기는 5초다. `backward_compatible=yes`라 이전 API 이미지로 되돌려도 기존 쓰기는 그대로 허용된다. 아직 서버에 적용하지 않았다(운영·시연 원장은 68건 그대로, 마지막 `0067_room_guestbook.sql`). **배포 순서: 0068을 새 API 이미지보다 먼저 적용한다.** 방문 발급·재발급·확정·재생 경로가 `campaign_purposes`를 읽으므로 표가 없는 DB에 새 이미지가 먼저 뜨면 방문 확정이 실패한다(`scripts/deploy-lightsail.sh`는 `migrate` 뒤에 `api`를 올리므로 순서가 맞다). 혜택(PR 2)이 생기기 전에는 목적형 캠페인을 공개하지 않는다([D-092](DECISIONS.md)).
+- 새 T9 SQL migration은 없다. 통합 기준의 `0068` → `0069` → `0072` → `0075` 순서를 보존한다. 목적·혜택·코스 감사 action 합집합 23개와 기존 NFT 상한 해제 경계(D-095)는 그대로다.
+- 제공된 전용 시험 DB에 먼저 migration을 적용했다. URL·비밀번호는 출력하거나 문서에 적지 않았다. hosted 전용 시험은 새 disposable PostgreSQL 컨테이너 세 개에서 순차 실행했다.
+- 운영/시연 서버 DB 변경과 복원은 이번에 실행하지 않았다. 은퇴 점포를 자동 재공개하는 구 seed로 되돌리면 고객 목록이 다시 오염될 수 있다.
 
 ## 8. 개인정보 재동의와 버전 결합
 
-- 새 API의 개인정보 안내 버전은 `privacy-2026-10-07`이다. API만 먼저 공개하면 test.10/Preview 19의 동의 화면에서 `outdated`로 막힐 수 있다(`apps/mobile/src/privacy/consent-flow.ts`).
-- 시연 API와 운영 API는 배포됐고 Preview 22·test.13이 게시됐다(이전 Preview 21·test.12). 라이브 `/open`은 새 링크를 가리킨다. 구 설치본의 재동의 확인은 별도 수용 항목이다.
+- 동의 문구·버전·Google audience·package·서명 키는 이번에 바꾸지 않았다. 가게명·주소·좌표는 D-100 출처/비참여 고지를 유지하고 방문·코인은 가상임을 표시한다.
+- 새로운 실제 영업·메뉴·가격·영업시간·제휴 사실은 만들지 않는다. 공공자료 영업 여부와 LOCALDATA 교차 확인은 NOT_RUN이다.
 
 ## 9. 자동 검증 상태
 
-- 현재 PR #429와 main `a1a3eef3` 병합의 지정 검사: 모바일 typecheck·lint·동일 glob Node loader 단위 시험 2148/2148·운영 제출 준비·모바일 접근성·CI 연결 103개 파일 `PASS`, `npm test`는 tsx IPC `EPERM`으로 `BLOCKED`다([TEST_STATUS](TEST_STATUS.md) 최신 항목). 아래 2132/2132·26/26 등의 수치는 앞선 별도 통합 브랜치 결과이며 이번 병합의 전체 통과 수치가 아니다.
+- 이번 BGM과 main `c7632b35` 병합 문서 검사: `bash tests/bootstrap/operations_submission_readiness_test.sh`(A01·A02·A03)·`bash tests/ci/ci_wiring_test.sh`(103개 파일)·`git diff --check` PASS. 합계 줄 일치·D-001~D-103 번호순/중복 없음·14절·BGM→T9 이력 순서·충돌 표식 없음과 Git index·HEAD·MERGE_HEAD 불변을 확인했다. 상세는 [TEST_STATUS](TEST_STATUS.md) 최상단에 기록한다. 전체 API·모바일·PostgreSQL·빌드·실기·배포·원격 PR/CI 확인은 이번 실행에서 NOT_RUN이며 현재 합계 자리표시자는 오케스트레이터가 채운다.
+- 앞선 T9와 main `8aa8b724` 병합 문서 충돌 해결: `bash tests/bootstrap/operations_submission_readiness_test.sh`(A01·A02·A03)·`bash tests/ci/ci_wiring_test.sh`(103개 파일)·`git diff --check` PASS. 합계 줄 일치·D-101/D-102 번호순/중복 없음·14절·충돌 표식 없음과 Git index·HEAD·MERGE_HEAD 불변을 확인했다. 전체 API·모바일·PostgreSQL·빌드·실기·배포는 이번 실행에서 NOT_RUN이며 현재 합계 자리표시자는 오케스트레이터가 채운다. 아래는 각각 앞선 작업의 검증 이력이다.
+- HEAD `04f9ea2a` 후속 리뷰 실측: API 단위 672/672·모바일 2138/2138·API/모바일 typecheck·모바일 lint·API build PASS. 전체 PostgreSQL 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP, 별도 hosted 3/3 PASS다. CI 연결·운영 문서·gate·diff PASS. 명령·환경·단언 추가와 첫 실행 실패 수정은 TEST_STATUS T9 후속 절에 있다.
+- 초기 T9 사이트 측정은 645건 중 644 PASS·Chrome 1 환경 BLOCKED이며 접근성/지갑 검사도 당시 PASS다. 사이트·브라우저·실기는 이번 후속 작업에서 재측정하지 않았다.
+- `bash tests/release/verify_showcase_apk_test.sh`·`bash tests/ops/uptime_probe_test.sh` PASS. 릴리스 준비 검사에는 30개 정확 ID·중복·은퇴/운영 점포 혼입 거절 회귀를 더했다. APK를 빌드하지 않았다.
+- 필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN`. T9 자동 시험의 PASS를 기존 실기/출시 관문으로 옮기지 않았다.
+- site Chrome 테마 시험은 DevTools 이전 SIGABRT이며 환경 원인으로 따로 기록한다. 시험은 삭제/skip하지 않는다. LSP/AST 도구가 없어 독립 소스 검토·타입·실행 시험으로 확인했다.
+
+- 앞선 PR #429와 main `a1a3eef3` 병합 당시 지정 검사: 모바일 typecheck·lint·동일 glob Node loader 단위 시험 2148/2148·운영 제출 준비·모바일 접근성·CI 연결 103개 파일 `PASS`, `npm test`는 tsx IPC `EPERM`으로 `BLOCKED`다([TEST_STATUS](TEST_STATUS.md) 최신 항목). 아래 2132/2132·26/26 등의 수치는 앞선 별도 통합 브랜치 결과이며 이번 병합의 전체 통과 수치가 아니다.
 
 - 앞선 별도 통합 브랜치의 main `a8ed0dd1` 병합 충돌 파일 검증: API typecheck `PASS`; 모바일 typecheck·lint와 대체 단위 2132/2132 `PASS`. `npm test`는 tsx IPC `listen EPERM`으로 `BLOCKED`다. 공공자료 고지·고정 뒷면 대상 26/26, CI 연결 101개 파일, 운영 제출 준비(migration 72건), 모바일 접근성은 `PASS`. 소켓 없는 API 직접 확인에서 점주 혜택 상태·AI art 권한과 점주 연장 POST 35회의 제한기 이전 404가 `PASS`다. 지정 사이트 선택 350건 중 344 PASS / 6 소켓 환경 BLOCKED(18건 묶음 12/18, 나머지 332/332 PASS)이고 혜택 웹 6/6, 제작기·현황·문구 67/67은 별도 PASS다. 추적 파일 충돌 표시 검사·점주 JavaScript 문법·`git diff --check` PASS. README·PROJECT_STATE의 당시 전체 API·모바일 합계는 그 병합의 전체 통과 수치가 없어 `__API__`·`__MOB__`로 두었다. 자세한 명령은 [TEST_STATUS](TEST_STATUS.md)의 해당 이력에 있다. API 전체 단위·build, PostgreSQL 통합·실기·배포는 그 검증에서 `NOT_RUN`이었다.
 
@@ -149,34 +173,19 @@
 
 ## 10. 수동 수용과 미실행 항목
 
-- T3 PR 2 관리자/점주 실제 브라우저, 고객/직원 실제 휴대전화 수령→사용/취소, production/showcase 각각 설치·수용·TalkBack는 NOT_RUN. 가짜 DOM·파서·PG 시험을 실기 완료로 확대하지 않는다. 기존 Chrome 시연 테마는 SIGABRT 두 번으로 BLOCKED(BLOCKERS의 최소 재현).
-
-- 실제 Preview 22/test.13 설치·개인정보 재동의·점주 역할·NFT 발행은 이 문서 갱신으로 `PASS`가 되지 않는다. 두 APK의 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산)다. 운영 DB 복원 리허설과 운영 배포는 각각 별도 증거로 PASS이고, 수정된 `/play/` 번들의 공개 재측정도 [재측정 기록](evidence/submission-2026-10-08-recheck/README.md)으로 PASS다.
-- 사용자 판정 필요: Issue #409의 웹 history 수정(`history.get(nextIndex)`) 뒤로는, 깊은 흐름을 지난 뒤 홈 탭을 누르면 브라우저 기록이 가장 앞선 홈 항목까지 되감긴다. 그 뒤 브라우저 뒤로 가기를 한 번 더 누르면 `/play/`를 벗어난다. 수정 전에는 뒤로 가기가 직전 화면으로 돌아갔다. 새 동작은 네이티브/React Navigation과 같지만 사용자가 알아챌 수 있다. 배포하지 않았으므로(결정 A) 다음 빌드 전에 소유자가 유지할지 정한다.
-- Issue #412 T1은 사용자 판정이 필요한 항목이 없다(화면·동작 변경 없음). 운영·시연 서버에서의 실제 부팅은 하지 않았고(배포 동결) DB·비밀값 없이 빌드한 서버를 띄워 `/health`만 확인했다.
-- 사용자 판정 필요(Issue #412): 짝 찾기 결과판의 코인 줄(가게 이름·다음 수집품 안내·도감에서 보기) 배치와 글자 크기는 실제 화면에서 확인하지 않았다(`NOT_RUN`). 배포하지 않았으므로(결정 A) 다음 빌드 전에 확인한다.
-- 사용자 판정 필요(Issue #412): 동의 화면의 요약 문구와 "전체 동의"(법률 검토 별개), 첫 코인 제안 화면, 가게 카드·상세의 새 표시는 실제 기기 렌더링을 보지 못했다(소스 시험과 웹 export 열람까지). 첫 화면의 실제 네트워크 바이트·시간 측정과 설치본·이미지·음원 용량 분석은 `NOT_RUN`이다.
-- Issue #412에서 소유자 몫으로 남은 항목: ① 매일 백업 타이머 설치 승인(운영 `sudo bash infra/lightsail/host-jobs/install.sh masscom-backup`, 시연 `sudo bash infra/showcase-host/host-jobs/install.sh masscom-showcase-backup`), ② 가동 점검의 쓰기 점검 예약 여부(체험 자리를 쓰며 지금은 수동 전용, 실제 시연 서버에 대해 `NOT_RUN`), ③ 서버 밖 백업 보관 위치·비용, ④ `deploy-lightsail.sh` 배포 후 관문에 백업 첫 실행 성공을 넣는 후속(시험이 무거워 따로 한다), ⑤ 서버 백업으로 잰 복원 시간(RTO)은 없음(`NOT_RUN`).
-- 사용자 판정 필요(Issue #412 T2c): 점진적 공개의 단계 기준(두 번째 가게·인정된 방문 3회·배지 3단계·마일리지 200 이상·쓰지 않은 뽑기권)과 입구가 열리는 순서가 처음 온 사람에게 맞는지, 점주 "1인 2역"(한 기기에서 역할 전환)과 단계 카드 문구가 읽기 좋은지는 실제 기기·시연 웹에서 확인하지 못했다(`NOT_RUN`). 배포하지 않았으므로(결정 A) 다음 빌드 전에 확인한다.
-- `NOT_RUN` 또는 소유자 몫으로 남은 항목: 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설(사람), 대회 최종 제출(소유자 승인 필요).
-- 로컬 자동 시험, 서명된 빌드, 서버 배포, 다운로드, 실기 수용, 최종 제출은 각각 다른 증거로 기록한다.
-- 사용자 판정 필요(Issue #412 T3 PR 1): 점원 화면의 "이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)"와 고객 방문 완료 카드의 중립 한 줄, 가게 상세의 "이번 캠페인" 블록, 관리자 양식의 목적별 입력 칸은 실제 기기·브라우저 렌더링을 보지 못했다(`NOT_RUN`, 소스·가짜 DOM 시험까지). 점주가 보는 "처음 확인된 방문/다시 확인된 방문" 어감도 점주 반응 확인이 필요하다. 이 작업은 배포하지 않았다(결정 A).
+- 운영/시연 배포, 라이브 기존 DB 재시드, 새 APK·서명·설치·두 variant 실기, 실제 Google 직원/승인자 재부여, D-091 실제 기기 넘김, TalkBack, 현장 도보·영업 확인, Play 제출은 NOT_RUN이다.
+- 실제 AI 과금·새 그림 생성·온체인 발행은 하지 않았다. 테스트 fixture와 public-data seed를 실제 점주 참여로 해석하지 않는다.
 
 ## 11. 남은 이슈와 PR 확인
 
-- 현재 미병합 파일 목록은 `git status --short`를 정본으로 한다. 과거 T3 별도 worktree의 미커밋 파일 목록은 현재 통합 브랜치의 파일 목록이 아니다.
-
-- #206의 전체 체험 수용과 #380·#394의 남은 범위는 실제 Issue 상태와 증거를 재확인한다. 과거 기록의 열린 PR 목록을 현재 목록으로 사용하지 않는다.
-- PR 상태는 `gh pr list --state all` 및 개별 `gh pr view <번호> --json state,mergedAt,headRefOid`로 확인한다.
-- [PR #402](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/402)(팀원 PragmoB, 뽑기 `CONSENT_REQUIRED`를 "동의 확인하기"로 연결)는 `a742e32d`로 병합됐다. 최신 main과 문서 충돌을 풀고 `INTERNAL_ERROR` 문구를 일반 재시도 안내로 바꾸고 동의 문구 연결을 시험으로 고정했으며 모바일 1,878/1,878·gate 통과, 독립 리뷰 승인이다. test.13·Preview 22와 `/play/`(`5ca98955`)에 포함됐다. 남은 🟡: 개발용 DEMO 계정의 동의 화면 "로그아웃"이 DEMO 상태를 벗어나지 못함, 동의·미설정 거절 뒤 뽑기 대기 기록 유지(같은 요청 ID 복구).
-- 재측정이 새로 본 낮은 결함 4건은 `5ca98955`에서 고쳤다(위 4절, 결함 [근거](evidence/submission-2026-10-08-recheck/README.md)). 이 수정의 남은 🟡는 여섯 가지다. (1) 패치 조건이 해시(`#`)로 진입한 세션에서 기록이 늘 수 있다(앱은 해시를 만들지 않음). (2) expo-router 원본의 음수 인덱스 비교 결함으로 하위 화면→홈 탭 등에서 뒤로 가기 1회 헛누름이 가능하다(이탈은 아님). (3) 새 시험이 소스 문자열 위주다. (4) 탭 바 없는 하위 화면으로 push할 때 전환 중 탭 바가 먼저 사라진다(Android 외관). (5) 라이트 모드 비선택 칩 테두리 대비가 낮다(1.14:1). (6) 웹 export 전에 `npm ci --prefix apps/mobile`(patch-package)이 필요하다. 이 가운데 (1)(2)(5)는 Issue #409의 `a3033a80`에서 고쳤다.
-- Issue #412 T1의 남은 정리: 위치 인자 `createApiServer`를 흉내 내는 시험 전용 덮개(`apps/api/src/server-test-support.ts`, `http-test-support.ts`의 `positionalArgs`)는 쓰는 시험이 없어지면 지운다. `postgres/`·`showcase/`의 `BEGIN`/`COMMIT` 묶음을 `withTransaction` 도우미로 모으는 일은 미뤘다([D-088](DECISIONS.md)).
-- Issue #412의 남은 주의점: 첫 코인 제안은 공개 범위를 재조회한 뒤 저장하기까지의 왕복 한 번 사이에 다른 기기에서 공개 범위를 바꾸면 방금 놓은 코인이 바뀐 범위에 보일 수 있다(서버 `saveStudio`가 공개 범위를 조건으로 받지 않음, D-086). 시연 두 가지 모드(서버 변경 필요), 점주 시연 "1인 2역" 안내, 글자·터치 최소 크기 정리는 이번 변경에 없다.
-- Issue #412 T2c의 남은 주의점: 앱을 열고 저장소를 읽기 전 첫 한두 프레임은 첫 코인 단계로 그려질 수 있다(읽은 뒤 바로 바로잡힌다). `setDisclosureOverride`는 서버 시연 모드(T3/T4)용 훅이며 아직 어느 화면도 부르지 않는다. `FoundationScreen`의 `initialRole`·`showcaseTour`·`onExit`은 점주 "빈 공간 투어"가 쓰고 있어 남겼고, 지갑 연결 단계(`wallet`)는 호출하는 곳이 없어 후속 정리 대상이다.
+- 현재 Git diff만 있으며 staging/commit/PR은 오케스트레이터가 맡는다. 신규 PR은 만들지 않았다. D-103 BGM과 기존 Issue #412/T3/T4/T8/T9, PR #418·#429·#433 변경은 보존했다.
+- 최종 검토는 `git diff --check`, `git diff --stat`, `git diff`, `gh pr list --state all`로 실제 상태를 확인한다. 전용 namespace 이외 운영 권한/가게가 변하지 않았는지 확인한다.
+- 모든 기존 단언 변경의 이유·새 대상은 TEST_STATUS T9 표에 기록한다. 기존 staff 전환의 공식 재부여와 시연 캠페인 공개/가게 비공개 구분은 인수인계의 운영 주의점이다.
 
 ## 12. 다음 실행 명령
 
-1. `git status -sb`와 `git log -1 --oneline`으로 PR #429 브랜치·HEAD·미병합 파일을 확인한다. add·commit·stash·rebase·push·merge는 이번 작업에서 금지된다.
+
+1. `git status -sb`와 `git log -1 --oneline`으로 BGM `fix/bgm-start` 브랜치·HEAD `6af6ab47`·병합 대상 main `c7632b35`·미병합 index를 확인한다. add·commit·stash·rebase·push·merge는 이번 작업에서 금지된다.
 2. `cd apps/api && npm run typecheck && npm test`; `cd apps/mobile && npm run typecheck && npm run lint` 뒤 모바일 단위 시험을 실행한다. `npm test`가 막히면 `node --import tsx --test 'src/**/*.test.ts'`를 쓴다.
 3. 저장소 루트에서 `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/ci/ci_wiring_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`를 실행한다. README·PROJECT_STATE의 합계 자리표시자는 이번 작업에서 유지한다. 숫자만 바꾸는 운영 문서 변이 검사는 이 상태에서 실패할 수 있음을 별도로 기록한다.
 4. migration 파일 순서와 0072 감사 CHECK의 전체 action을 확인하고 `git diff --check` 및 텍스트 충돌 표시 검사를 한다. PostgreSQL 통합과 실제 기기·브라우저·배포의 실행 여부는 [TEST_STATUS](TEST_STATUS.md)에 구분해서 기록한다.
@@ -184,22 +193,26 @@
 PR 제목·본문 검사:
 
 ```bash
+git status --short --branch
+git diff --check
+git diff --stat
+gh pr list --state all
+bash tests/bootstrap/verify_operations_docs_test.sh
+bash tools/gate.sh
 PR_TITLE='한국어 PR 제목'
 PR_BODY='변경 내용과 실제 검증 결과를 설명하는 한국어 본문'
 bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
-bash tests/bootstrap/check_pr_korean_test.sh  # checker 자체 회귀 시험
 ```
+
+`bash tests/bootstrap/check_pr_korean_test.sh`는 checker 자체 회귀 시험이며 실제 제목·본문 검사를 대신하지 않는다. 이번 세션에서는 Git write 명령을 실행하지 않는다. 재검증 명령·환경·제한은 TEST_STATUS 최상단의 현재 병합 항목과 아래 BGM·T9 이력에 있다.
 
 ## 13. 승인·보안 경계
 
-- 운영 키 생성·메인넷·사용자 자산 이동·Google Play 공개·대회 최종 제출은 별도 승인 경계다. 개인키·복구 문구·비밀번호는 기록하지 않는다.
-- 운영 DB 첫 실제 복원과 복제본 데이터 보존, 배포 전 백업과 `09dfceb0` 실제 배포 결과는 각각 증거로 PASS다.
-- braces·node-forge 의존성 보안 예외는 2026-10-31에 만료된다. 만료 전에 재검토한다.
+- 이번 사용자 직접 요청 범위의 파일 수정·검증만 실행했다. Git add·commit·stash·merge·rebase·push 금지는 유지했다.
+- 키·권한·과금·운영 데이터·메인넷·Play·최종 제출의 기존 경계를 유지한다. 개인키·복구 문구·서명 키를 생성/조회하지 않았다.
+- 직원 부여는 세션·Google subject와 정확한 연습 가게·시연 DB 검사에 따른다. UI 역할 선택이나 `demo:true`만으로 권한을 만들지 않는다.
 
 ## 14. 이력과 변경 규칙
 
-- 이 세션은 파일만 수정하고 Git add·commit·stash·merge·rebase·push는 실행하지 않는다. 뒤에 커밋할 때는 한국어 의도 제목과 필요한 Lore trailer를 사용하며 AI 공동 작성자 서명은 넣지 않는다.
-- T8 데이터 갱신: selector는 현재 `data_date=2026-06-30`만 허용한다. 새 스냅샷 사용 전에는 날짜 guard·attribution·상세 날짜 고지를 함께 검토해 바꾸고, 검토한 전체 JSON에 `node scripts/build-showcase-wolgye-stores.mjs <full JSON>`을 실행한다. 선택 결과·빠지거나 추가되는 상호와 기존 ID의 변경 메타데이터를 확인해 seed를 갱신한다. 이 스크립트는 기존 seed를 자동으로 교체하지 않는다. ID 데이터가 충돌하면 덮어쓰지 않고 롤백한다. 공개·운영 DB를 직접 갱신하지 않는다.
-
-- 2026-09-22부터 2026-10-07까지의 날짜별 인수인계 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 그대로 보존한다. 과거 기록의 “현재”, “열린 PR”, “다음 명령”은 작성 당시의 상태다.
-- 다음 중단 전 이 14절의 기준 SHA·브랜치·PR·공개 버전·검증 상태·다음 명령만 실제 근거에 맞춰 갱신한다.
+- 이전 날짜별 인수인계는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존한다. 오래된 33곳·A/B/C·설치본 증거는 당시 상태이며 새 배포 증거가 아니다.
+- 다음 중단 전 14절의 SHA·브랜치·PR·공개 버전·검증 결과·다음 명령을 실제 근거에 맞춰 갱신한다. TEST_STATUS 현재 측정 합계와 README·PROJECT_STATE 동일 합계 줄을 함께 고친다.
