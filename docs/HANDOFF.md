@@ -1,3 +1,7 @@
+# HANDOFF
+
+2026-10-09 CI 병렬화(PR #443)는 API·PostgreSQL 2샤드·모바일·웹/운영/문서·계약/Worker로 기존 검사를 나누고 필수 `bootstrap-contract` 집계를 유지한다. 상세 변경과 당시 검증은 [TEST_STATUS](TEST_STATUS.md)에 보존한다. 실제 GitHub 실행 시간과 actionlint는 이 로컬 병합에서 확인하지 않았다.
+
 ## 1. 기준 커밋과 작업 위치
 
 기준 시각: 2026-10-09 KST
