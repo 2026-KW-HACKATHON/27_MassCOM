@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { canOpenDeveloperMerchantRoute, canOpenMerchantArtRoute, canOpenShowcaseTour, canShowTestVisitSection, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
+import { canOpenDeveloperMerchantRoute, canOpenMerchantArtRoute, canShowTestVisitSection, consumeMerchantReturn, rememberMerchantReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry } from './showcase-entry';
 
 test('the showcase app and the local development build open role selection before a role is chosen (#294 review finding 5)', () => {
   for (const packageId of ['kr.masscom.wolgye.demo', 'kr.masscom.wolgye.dev']) {
@@ -55,12 +55,6 @@ test('a local QA development build also reaches the merchant gate once a role is
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', 'merchant', false), 'customer');
   // The operating package must never reach role selection or the merchant gate, with or without a role.
   assert.equal(showcaseEntryDestination('kr.masscom.wolgye', undefined, true), 'customer');
-});
-
-test('the empty five-space tour is available only to the installed showcase app', () => {
-  assert.equal(canOpenShowcaseTour('kr.masscom.wolgye.demo'), true);
-  assert.equal(canOpenShowcaseTour('kr.masscom.wolgye'), false);
-  assert.equal(canOpenShowcaseTour('kr.masscom.wolgye.dev'), false);
 });
 
 test('merchant return survives one navigation remount and cannot replay for another account', () => {

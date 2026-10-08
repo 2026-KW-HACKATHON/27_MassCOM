@@ -26,6 +26,7 @@ import { ShowcaseMerchantScreen } from '@/screens/showcase-merchant';
 import { SocialPushProvider } from '@/social/push-runtime';
 import { ContextTabBar } from '@/navigation/context-tab-bar';
 import { TabAppearanceProvider } from '@/navigation/tab-appearance-provider';
+import { DiscoveryProvider } from '@/discovery/discovery-provider';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { NotificationSessionBridge } from '@/notifications/session-bridge';
@@ -52,7 +53,8 @@ function Routes() {
     router.push({ pathname: '/mail/[mailId]', params: { mailId } });
   }, [auth.accountId, auth.credential, router]);
   useEffect(() => {
-    if (auth.state.status !== 'signedIn') return;
+    // The development build signs in with a demo credential, and the 1-person-2-roles handoff returns through here too.
+    if (auth.state.status !== 'signedIn' && auth.state.status !== 'demo') return;
     const target = consumeInternalAuthReturn();
     if (target) router.replace(target);
     // A friend link opened while signed out continues at the friends tab, which asks about the code or says why it cannot be used
@@ -90,8 +92,6 @@ function Routes() {
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="foundation-preview" options={{ title: 'UI 시안 미리보기' }} />
-        <Stack.Screen name="showcase-tour" options={{ title: '체험용 다섯 공간' }} />
         <Stack.Screen name="merchants/[merchantId]" options={{ headerShown: false }} />
         <Stack.Screen name="friends/[friendshipId]" options={{ headerShown: false }} />
         <Stack.Screen name="friends/[friendshipId]/studio" options={{ headerShown: false }} />
@@ -138,7 +138,18 @@ export default function RootLayout() {
 
 function AccountAppearance() {
   const auth = useAuthSession();
-  return <TabAppearanceProvider accountId={auth.accountId}><AuthenticatedRoot /></TabAppearanceProvider>;
+  // Above the stack and the showcase merchant screen: every BackHeader/AppHeader profile strip, inside or outside (tabs), reads the
+  // same discovery answers. It asks nothing until a strip gains focus, so the consent screen makes no request.
+  return <TabAppearanceProvider accountId={auth.accountId}>
+    <DiscoveryProvider
+      apiUrl={publicApiConfig.available ? publicApiConfig.apiUrl : undefined}
+      accountId={auth.accountId}
+      credential={auth.credential}
+      onSessionInvalid={auth.invalidateSession}
+    >
+      <AuthenticatedRoot />
+    </DiscoveryProvider>
+  </TabAppearanceProvider>;
 }
 
 function AuthenticatedRoot() {

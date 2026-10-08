@@ -124,14 +124,23 @@ DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-re
 | RPC chain/contract 불일치 | Worker `PAUSED/MANUAL_REVIEW`, 전송 금지. code는 있지만 인터페이스가 다른 계약은 `CONTRACT_INTERFACE_MISMATCH` | chain ID·contract code·MINTER role·계약 주소 재검증 |
 | RPC 연결 불가 | 조치 불필요. Worker가 `RPC_UNAVAILABLE`로 물러나 작업은 `RETRYABLE`, 전송 시도 소모 없음 | `SELECT status, last_error_code, attempt_count FROM mint_jobs WHERE status = 'RETRYABLE'`로 확인, RPC 복구 뒤 다음 실행에서 자동 재개 |
 | 서비스 민터 설정 오류 | `MINTER_KEYSTORE_DECRYPT_FAILED`·`MINTER_ADDRESS_MISMATCH`·`MINTER_ROLE_MISSING`으로 기동·발행 중지. signed transaction의 recovered sender 불일치는 `MINTER_SIGNER_MISMATCH`로 기록 전 차단 | keystore 파일과 전체 상위 경로의 소유자·권한, 비밀번호 파일, 민터 주소, 계약 역할을 확인. 비밀번호나 키를 로그·티켓에 붙이지 않음 |
+| 상시 Worker 컨테이너(`mint-worker`)가 unhealthy이거나 접수가 쌓임 | `docker compose … --profile nft-live ps mint-worker`가 unhealthy, 하트비트(`/tmp/mint-worker.heartbeat`)가 3분 넘게 갱신되지 않음, 로그에 `MINT_WORKER_ITERATION_FAILED`(오류 이름·코드와 `retryInMs`)가 반복됨. **하트비트·healthy는 루프가 살아 있다는 뜻이지 발행이 성공한다는 뜻이 아니다.** 작업 단위 실패(RPC 중단, `MINT_PAUSED`, `MINTER_BALANCE_LOW`)는 작업을 재시도 대기로 돌리고 반복은 정상으로 끝나므로, 아무것도 발행되지 않는 동안에도 healthy일 수 있다. 실제 신호는 대기열이다: `SELECT count(*), min(available_at) FROM outbox_events WHERE status IN ('PENDING', 'LEASED')`가 줄지 않고 `min(available_at)`이 계속 과거로 벌어지면 막힌 것이다(로그의 `MINT_WORKER_JOB_HANDLED`도 처리했거나 재시도 대기로 돌렸다는 뜻일 뿐이다) | 오류 코드에 맞는 이 표의 다른 행을 따른다(DB·RPC 장애는 복구되면 컨테이너가 알아서 재시도하므로 재시작이 필요 없다). `MINT_WORKER_LOOP_FAILED`는 설정·keystore 오류(`MINTER_KEYSTORE_*`, 환경변수 누락)로 컨테이너가 종료 코드 1로 멈춘 것이고, `MINT_WORKER_CRASHED`는 잡히지 않은 예외로 종료한 것이다. **compose가 `restart: unless-stopped`라서 설정 오류는 Docker 백오프로 계속 다시 떠 크래시 루프가 된다.** 원인을 고치기 전에 멈추려면 `docker compose … --profile nft-live stop mint-worker`를 쓴다(최대 60초, 처리 중인 한 건을 끝내려 시도하며 못 끝내면 임대 만료로 복구). 원인을 고친 뒤 다시 켠다. 켜는 절차와 조건은 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker" |
 | 같은 민터의 발행이 모두 멈춤 | 여러 작업의 `last_error_code`가 `MINTER_NONCE_BLOCKED`로 이어짐. Worker 오류 로그에 막고 있는 거래 hash가 남음 | 그 hash를 explorer에서 확인. 채굴됐으면 다음 주기에 풀림. 수수료 부족 등으로 영영 전송될 수 없으면 그 작업이 `RECEIPT_TIMEOUT`으로 닫힐 때까지 기다리거나 운영자가 해당 작업을 검토 상태로 닫는다. 새 nonce로 덮어쓰는 거래를 수동으로 보내지 않는다 |
-| 보낸 거래의 receipt가 오래 안 나옴 | 전송 5회 상한과 별개로 결과 확인을 계속하다가 제출 뒤 24시간(`receiptTimeoutMs`)이 지나면 `MANUAL_REVIEW`(`RECEIPT_TIMEOUT`) | 거래 hash를 explorer에서 확인. 성공이면 Worker가 재임대 시 추가 전송 없이 확정, 누락·대체됐으면 운영자가 판단 |
+| 보낸 거래의 receipt가 오래 안 나옴 | 작업의 `last_error_code`가 `RECEIPT_NOT_READY`(조회는 됐지만 영수증이나 확인 깊이가 아직 없음)이면 체인이 아직 거기까지 안 온 것이고, `RECEIPT_LOOKUP_FAILED`(마지막 조회가 RPC 오류, 요청 하나는 10초에서 끊김)이면 RPC 쪽 문제다. 둘 다 같은 재시도 경로이고 코드는 원인 구분용 기록이다. 전송 5회 상한과 별개로 결과 확인을 계속하다가 제출 뒤 `receiptTimeoutMs`가 지나면 `MANUAL_REVIEW`(`RECEIPT_TIMEOUT`). 기본은 24시간(`start:once`)이지만 상시 Worker 컨테이너는 `CHAIN_RECEIPT_TIMEOUT_MS=600000`, 즉 **10분**이다 | 거래 hash를 explorer에서 확인. 성공이면 Worker가 재임대 시 추가 전송 없이 확정, 누락·대체됐으면 운영자가 판단 |
 | 전송 직후 중지로 거래 revert | Worker가 중지·잔액·RPC를 다시 확인해 일시 조건이면 revert된 거래 hash를 지우고 `RETRYABLE`. 조건이 이미 풀렸으면 `MINT_TRANSACTION_REVERTED`로 `MANUAL_REVIEW` | 수동 검토 작업은 reward key가 체인에 없음을 확인한 뒤 재대기열 여부를 결정 |
 | 발행 중지(pause) | PAUSER가 계약을 중지하면 Worker는 `MINT_PAUSED`로 물러남. 이미 제출된 거래의 확인·완료는 계속됨 | 원인 해소 뒤 admin이 `unpause`, 다음 실행에서 각 작업이 정확히 1개 발행 |
 | 민터 잔액 부족 | 잔액이 `MINTER_MIN_BALANCE_WEI` 이하이면 `MINTER_BALANCE_LOW`로 물러남. 보상권·Outbox 유지, 전송 시도 소모 없음 | 승인된 예산·시험 faucet으로 충전 뒤 다음 실행에서 자동 재개, 기존 reward key부터 조회 |
 | DB 장애 | API 변경 요청 실패, 완료 화면 금지. Worker는 체인에 아무것도 전송하지 않고 오류로 종료 | DB 일관성·migration·Outbox lease 확인 뒤 Worker 재실행 |
 | 전송 응답 유실 | 새 키 발급 금지 | reward key·기존 transaction·event 대조 |
 | 확정 전 재조직 | 완료 처리 금지 | 필요한 confirmation과 canonical block hash 확인 |
+
+### 상시 Worker(`nft-live`)를 켜기 전에 배포 절차를 보강할 것(후속, `NOT_RUN`)
+
+`scripts/deploy-lightsail.sh`는 `mint-worker`를 멈추거나 다시 빌드하지 않는다(배포 스크립트 동작은 이번에 바꾸지 않았다). `nft-live`를 켜기 전에 다음을 먼저 정한다.
+
+1. **migration 전에 `mint-worker`를 멈춘다.** 이전 스키마를 기대하는 Worker가 migrate 중에 DB를 쓰지 않게 `docker compose … --profile nft-live stop mint-worker`를 migrate 앞에 넣고, 배포가 끝난 뒤 다시 켠다.
+2. **배포 때 `mint-worker` 이미지를 다시 빌드한다.** 스크립트는 `build api production-web`만 하므로 Worker 이미지가 새 릴리스 코드와 어긋난다.
+3. `COMPOSE_PROFILES=nft-live`는 `runtime.env`에 넣지 않는다(모든 compose 명령이 발행을 켠다). 프로파일은 명령마다 `--profile nft-live`로만 켠다.
 
 ## 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 원본 (Issue #412)
 

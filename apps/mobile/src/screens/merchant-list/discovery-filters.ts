@@ -6,7 +6,7 @@ import { merchantCategories, type MerchantCategory } from '@/merchant/merchant-c
 import { buildMerchantGoals, buildStampSlots } from '../collection/collection-stamps';
 import type { TownMapCollection } from '../town-map/town-pins';
 
-// 탐색 목록의 필터 칩(Issue #331)이 쓰는 순수 규칙. 화면(discovery-chips.tsx, index.tsx)은 이 결과를 그리기만 한다.
+// 탐색 목록의 필터 칩(Issue #331)이 쓰는 순수 규칙. 화면(index.tsx)은 이 결과를 그리기만 한다.
 
 const progressLabels: Record<ProgressFilter, string> = {
   oneLeft: '보상까지 1번',

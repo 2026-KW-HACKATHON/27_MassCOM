@@ -32,7 +32,7 @@ export function makeShopStyles(palette: AppColors, world: WorldTheme) {
     cellName: { color: world.cardInk, fontSize: 12, fontWeight: '700', textAlign: 'center' },
     cellNameUnowned: { color: world.cardMuted },
     avatarChip: { marginTop: -2, paddingHorizontal: 8, paddingVertical: 1, borderRadius: 999, backgroundColor: palette.primaryContainer },
-    avatarChipText: { color: palette.onPrimaryContainer, fontSize: 10, fontWeight: '900' },
+    avatarChipText: { color: palette.onPrimaryContainer, fontSize: 12, fontWeight: '900' },
     successMessage: { padding: 12, borderRadius: 12, color: palette.onPrimaryContainer, backgroundColor: palette.primaryContainer, fontSize: 13, lineHeight: 20 },
     errorMessage: { padding: 12, borderRadius: 12, color: palette.onErrorContainer, backgroundColor: palette.errorContainer, fontSize: 13, lineHeight: 20 },
     historyRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },

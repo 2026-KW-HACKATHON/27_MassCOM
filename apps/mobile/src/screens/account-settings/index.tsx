@@ -2,7 +2,7 @@ import { getAppPackageId } from '@/config/app-identity';
 import { Button, Host } from '@expo/ui';
 import { Link } from 'expo-router';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
+import { Alert, Image, Linking, Platform, Pressable, StyleSheet, Text, TextInput, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -11,7 +11,8 @@ import type { StoredAuthSessionV1 } from '@/auth/session-store';
 import { guestTrialAccountLabel, guestTrialRestartLabel, guestTrialRestartConfirmation } from '@/auth/guest-trial-copy';
 import { accountContextLabel } from '@/config/app-context';
 import { canOpenMerchantDemo, demoRuntimeConfig } from '@/config/demo-runtime';
-import { canOpenShowcaseTour, showShowcaseRoleEntry } from '@/navigation/showcase-entry';
+import { showShowcaseRoleEntry } from '@/navigation/showcase-entry';
+import { useDiscovery } from '@/discovery/discovery-provider';
 import {
   AccountDeletionApiClient,
   AccountDeletionApiError,
@@ -45,6 +46,7 @@ import { worldForScheme } from '@/theme/world';
 import { FloatingCard } from '@/ui/floating-card';
 import { mascotArt } from '@/ui/mascot-art';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { spaceToggles } from '@/ui/space-toggles';
 import { Stagger } from '@/ui/stagger';
 
 import { makeAccountSettingsStyles } from './styles';
@@ -84,6 +86,12 @@ export function AccountSettingsScreen({
   const world = worldForScheme(scheme);
   const styles = StyleSheet.create(makeAccountSettingsStyles(palette, world, StyleSheet.hairlineWidth));
   const soundSettings = useUiSoundSettings();
+  const discovery = useDiscovery();
+  const [optInBusy, setOptInBusy] = useState(false);
+  async function chooseOptIn(next: { social?: boolean; play?: boolean }) {
+    setOptInBusy(true);
+    try { await discovery.setOptIn(next); } finally { setOptInBusy(false); }
+  }
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
   const capability = deletionCapability(credential, destructiveReauthentication);
   const client = useMemo(
@@ -366,8 +374,17 @@ export function AccountSettingsScreen({
       </FloatingCard>
 
       <FloatingCard style={styles.groupCard}>
-        <Text style={styles.sectionTitle}>친구</Text>
-        <Text selectable style={styles.intro}>친구 코드를 주고받고 순위를 봐요.</Text>
+        <Text accessibilityRole="header" style={styles.sectionTitle}>더 즐기기</Text>
+        <Text selectable style={styles.intro}>
+          {discovery.forced ? '체험 모드라서 모든 기능이 열려 있어요.' : '필요할 때 켜서 쓰는 기능이에요. 켜고 꺼도 기록과 보유 재화는 그대로예요.'}
+        </Text>
+        <OptInRow styles={styles} label="친구·쪽지" note="친구 코드, 쪽지, 식사 초대를 홈 단추와 우편 아이콘으로 바로 열어요."
+          checked={discovery.optIn.social} disabled={optInBusy || discovery.forced || !discovery.ready} onToggle={() => void chooseOptIn({ social: !discovery.optIn.social })} />
+        <OptInRow styles={styles} label="놀이" note="도감에서 동네 놀이를 바로 열어요. 놀이 탭은 그대로 있어요."
+          checked={discovery.optIn.play} disabled={optInBusy || discovery.forced || !discovery.ready} onToggle={() => void chooseOptIn({ play: !discovery.optIn.play })} />
+        <View accessibilityLiveRegion="polite">
+          {discovery.error ? <Text selectable style={styles.error}>{discovery.error}</Text> : null}
+        </View>
         <Link href={'/notifications' as never} asChild>
           <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
             <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>알림함·푸시 설정 →</Text>
@@ -393,30 +410,6 @@ export function AccountSettingsScreen({
           <Link href="/merchant" asChild>
             <Pressable accessibilityRole="button" accessibilityHint="설정된 DEMO 점주·직원 계정에서만 사용할 수 있습니다." style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
               <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>점주용 방문 확인 →</Text>
-            </Pressable>
-          </Link>
-        </FloatingCard>
-      ) : null}
-
-      {__DEV__ ? (
-        <FloatingCard style={styles.groupCard}>
-          <Text style={styles.sectionTitle}>개발용 UI 시안</Text>
-          <Text selectable style={styles.intro}>가상 점포·방문 화면의 배치 시안입니다. 실제 이용 내역이나 혜택이 아닙니다.</Text>
-          <Link href="/foundation-preview" asChild>
-            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
-              <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>역할 선택 시안 보기 →</Text>
-            </Pressable>
-          </Link>
-        </FloatingCard>
-      ) : null}
-
-      {canOpenShowcaseTour(getAppPackageId()) ? (
-        <FloatingCard style={styles.groupCard}>
-          <Text style={styles.sectionTitle}>체험용 화면</Text>
-          <Text selectable style={styles.intro}>아래 다섯 공간은 빈 화면 시안이며 실제 방문·수집품은 도감에서 확인합니다.</Text>
-          <Link href="/showcase-tour" asChild>
-            <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.secondaryLink, { borderColor: palette.primary }])}>
-              <Text style={[styles.secondaryLinkText, { color: palette.primary }]}>다섯 공간 둘러보기 →</Text>
             </Pressable>
           </Link>
         </FloatingCard>
@@ -600,6 +593,33 @@ function shortAccountId(accountId: string): string {
 }
 
 type SettingsStyles = ReturnType<typeof makeAccountSettingsStyles>;
+
+function OptInRow({ label, note, checked, disabled, onToggle, styles }: {
+  label: string; note: string; checked: boolean; disabled: boolean; onToggle: () => void; styles: SettingsStyles;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      accessibilityHint={note}
+      accessibilityState={{ checked, disabled }}
+      // react-native-web ignores accessibilityState, so web needs aria-checked to expose the state.
+      aria-checked={checked}
+      disabled={disabled}
+      onPress={onToggle}
+      {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => { if (!disabled) onToggle(); }) } : {})}
+      style={[styles.optInRow, disabled && styles.disabled]}
+    >
+      <View style={styles.optInCopy}>
+        <Text style={styles.cardTitle}>{label}</Text>
+        <Text style={styles.cardBody}>{note}</Text>
+      </View>
+      <View accessible={false} importantForAccessibility="no-hide-descendants" style={[styles.optInState, checked && styles.optInStateOn]}>
+        <Text style={[styles.optInStateText, checked && styles.optInStateTextOn]}>{checked ? '켜짐' : '꺼짐'}</Text>
+      </View>
+    </Pressable>
+  );
+}
 
 function InfoCard({ title, body, styles }: { title: string; body: string; styles: SettingsStyles }) {
   return (

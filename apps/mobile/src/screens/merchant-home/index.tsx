@@ -7,6 +7,7 @@ import type { AccountCredential } from '@/auth/account-credential';
 import { MerchantArtEntryCard } from '@/screens/merchant-art/entry-card';
 import { StaffClaimScreen } from '@/screens/merchant-claim/staff';
 import type { VisitSelection } from '@/screens/merchant-claim/issued-visit';
+import { navigationLandmark } from '@/navigation/floating-tab-bar';
 import { colorsForScheme } from '@/theme/palette';
 import { MerchantStatusScreen } from './status';
 
@@ -23,6 +24,8 @@ type Props = {
   credential: AccountCredential;
   onSessionInvalid: () => void | Promise<void>;
   onReturnToRole: () => void;
+  /** 시연 1인 2역: 같은 계정으로 손님 역할 화면을 연다. */
+  onBrowseAsCustomer?: () => void;
   onTour: () => void;
   onAdmin?: () => void;
   onNotifications?: () => void;
@@ -96,7 +99,7 @@ export function MerchantHomeScreen(props: Props) {
     </View>
 
     <View style={{ flex: 1, display: tab === 'visit' ? 'flex' : 'none' }} accessibilityElementsHidden={tab !== 'visit'} importantForAccessibility={tab === 'visit' ? 'auto' : 'no-hide-descendants'}>
-      <StaffClaimScreen apiUrl={props.apiUrl} accountId={props.accountId} merchantId={props.merchantId} merchantName={props.merchantName} credential={props.credential} onSessionInvalid={props.onSessionInvalid} active={tab === 'visit'} onVisitReversal={showVisitReversal} />
+      <StaffClaimScreen apiUrl={props.apiUrl} accountId={props.accountId} merchantId={props.merchantId} merchantName={props.merchantName} credential={props.credential} onSessionInvalid={props.onSessionInvalid} active={tab === 'visit'} onVisitReversal={showVisitReversal} onBrowseAsCustomer={props.onBrowseAsCustomer} />
     </View>
     {tab === 'status' ? <MerchantStatusScreen apiUrl={props.apiUrl} merchantId={props.merchantId} credential={props.credential} onSessionInvalid={props.onSessionInvalid} selectedVisit={selectedVisit} /> : null}
     {tab === 'decorate' ? <ScrollView contentContainerStyle={{ gap: 16, padding: 20, paddingBottom: 28 }}>
@@ -112,6 +115,8 @@ export function MerchantHomeScreen(props: Props) {
       </View>
     </ScrollView> : null}
 
+    {/* 웹 내비게이션 랜드마크: role이 accessibilityRole보다 앞서므로 탭 목록은 안쪽 View가 맡는다. */}
+    <View {...navigationLandmark}>
     <View accessibilityRole="tablist" style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: colors.separator, paddingBottom: Math.max(insets.bottom, 8), backgroundColor: colors.background }}>
       {([
         { id: 'visit', icon: '◎', label: '방문 확인' },
@@ -121,6 +126,7 @@ export function MerchantHomeScreen(props: Props) {
         <Text accessible={false} style={{ color: tab === item.id ? colors.primary : colors.secondaryLabel, fontSize: 22 }}>{item.icon}</Text>
         <Text style={{ color: tab === item.id ? colors.primary : colors.secondaryLabel, fontSize: 12, fontWeight: '800' }}>{item.label}</Text>
       </Pressable>)}
+    </View>
     </View>
   </View>;
 }

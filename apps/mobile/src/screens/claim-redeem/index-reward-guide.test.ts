@@ -31,8 +31,9 @@ test('the success card shows the real earned delta, the held balance and the nex
   assert.match(guide, /campaignGoals\?\.claimSlotId === redeemed\.claimSlotId && campaignGoals\.status === 'ready' \? campaignGoals\.goals : undefined/);
   assert.doesNotMatch(guide, /progressCounted/);
   const card = between('{redeemed ? (', '</SkyScrollView>');
-  assert.match(card, /\{currentRewardContext\?\.mileageLine \? <Text style=\{styles\.successHighlight\}>\{currentRewardContext\.mileageLine\}<\/Text> : null\}/);
-  assert.match(card, /mileageBalanceLine\(rewardBalance\)/);
+  // #412: 적립·보유 줄은 코인 공개(축하 화면)가 끝난 뒤에만 보인다(revealDone). 데이터와 호출은 그대로다.
+  assert.match(card, /\{revealDone && currentRewardContext\?\.mileageLine \? <Text style=\{styles\.successHighlight\}>\{currentRewardContext\.mileageLine\}<\/Text> : null\}/);
+  assert.match(card, /\{revealDone && rewardBalance !== null \? <Text style=\{styles\.successBody\}>\{mileageBalanceLine\(rewardBalance\)\}<\/Text> : null\}/);
   assert.match(card, /\{rewardGuide\?\.nextGradeLine \? <Text style=\{styles\.successBody\}>\{rewardGuide\.nextGradeLine\}<\/Text> : null\}/);
   // 새 줄은 기존 안내 줄(진행 횟수·진행 안내·새 보상권) 뒤, 버튼 앞에 놓인다.
   assert.ok(card.indexOf('progressNote(redeemed.visit)') < card.indexOf('currentRewardContext?.mileageLine'));
@@ -154,4 +155,16 @@ test('the highlighted mileage line stays readable on the success card and the sh
     assert.ok(contrast(styles.successHighlight.color as string, styles.successCard.backgroundColor as string) >= 4.5);
     assert.ok((styles.collectionButton.minHeight as number) >= uiMetrics.minTouch);
   }
+});
+
+test('#412 the mileage lines wait for the coin reveal: a claim with a celebration shows them only after it closes, a replay shows them at once', () => {
+  assert.match(screen, /const \[celebratedSlot, setCelebratedSlot\] = useState<string>\(\);/);
+  // 축하가 열리면 그 방문을 기억한다: 열리기 전(배지 조회 중)에는 줄이 없고, 닫히면 곧바로 보인다.
+  assert.match(screen, /if \(celebration\?\.claimSlotId && celebration\.claimSlotId !== celebratedSlot\) setCelebratedSlot\(celebration\.claimSlotId\);/);
+  assert.match(screen, /const revealDone = redeemed !== undefined && !celebration && \(redeemed\.replayed \|\| celebratedSlot === redeemed\.claimSlotId\);/);
+  // 상점 요약 호출과 축하 화면에 넘기는 마일리지 값은 그대로다.
+  assert.match(screen, /void loadRewardContext\(result, mileageBefore\);/);
+  assert.match(screen, /mileageDelta: currentRewardContext\?\.mileageDelta,\s*mileageBalance: currentRewardContext\?\.balance \?\? undefined,/);
+  const card = between('{redeemed ? (', '</SkyScrollView>');
+  assert.ok(card.indexOf('새 보상권') < card.indexOf('revealDone && currentRewardContext'));
 });

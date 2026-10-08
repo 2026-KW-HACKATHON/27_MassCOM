@@ -17,8 +17,11 @@ import { isApprovedGuestTrialOrigin } from '@/config/guest-trial-origin';
 import { isGuestTrialAvailable } from './guest-trial-availability';
 import { getPublicApiConfig } from '@/config/public-api';
 import { resolveRuntimeIdentity } from '@/config/showcase-identity';
+import { clearDemoHandoff } from '@/navigation/demo-handoff';
 import { consumeMerchantReturn } from '@/navigation/showcase-entry';
 import { clearPendingFriendLink } from '@/friends/pending-friend-link';
+import { purgeForeignDisclosureRecords } from '@/discovery/disclosure-record';
+import { listDisclosureKeys, removeDisclosureKeys } from '@/discovery/disclosure-storage';
 import { purgeForeignCollectionPrefs } from '@/screens/collection/collection-prefs';
 import { listCollectionPrefKeys, removeCollectionPrefKeys } from '@/screens/collection/collection-prefs-storage';
 import { appVariantForPackage, beginSocialPushBindingRevocation, revokeSocialPushBindings } from '@/social/push-runtime';
@@ -184,6 +187,13 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       removeStoredKeys: removeCollectionPrefKeys,
       isStillCurrent: () => latestAccountIdRef.current === accountId,
     });
+    // 처음 온 사람 안내(Issue #412)의 선택·도달 단계도 기기에는 계정별로 남기므로 같은 방식으로 다른 계정 몫을 지운다.
+    void purgeForeignDisclosureRecords({
+      accountId,
+      listStoredKeys: listDisclosureKeys,
+      removeStoredKeys: removeDisclosureKeys,
+      isStillCurrent: () => latestAccountIdRef.current === accountId,
+    });
   }, [accountId]);
 
   const value = useMemo<AuthSessionContextValue>(() => ({
@@ -211,6 +221,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
         throw new Error('AUTH_CONFIGURATION_REQUIRED');
       }
       clearPendingFriendLink();
+      clearDemoHandoff();
       consumeMerchantReturn();
       if (accountId) await clearClaimPendingIntent(platformSecureStore, accountId);
       await controllerRef.current.restartGuestTrial();
@@ -218,6 +229,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     async logout() {
       // A friend link opened under this account must not be offered to whoever signs in next.
       clearPendingFriendLink();
+      clearDemoHandoff();
       const previousAccountId = accountId;
       const previousCredential = credential;
       if (previousAccountId) await clearClaimPendingIntent(platformSecureStore, previousAccountId);
@@ -239,6 +251,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
     },
     async switchAccount() {
       clearPendingFriendLink();
+      clearDemoHandoff();
       const previousAccountId = accountId;
       const previousCredential = credential;
       if (previousAccountId) await clearClaimPendingIntent(platformSecureStore, previousAccountId);
@@ -255,6 +268,7 @@ export function AuthSessionProvider({ children }: PropsWithChildren) {
       const current = controller.getState();
       if (current.status !== 'signedIn' || current.session.sessionToken !== session.sessionToken) return;
       clearPendingFriendLink();
+      clearDemoHandoff();
       const previousAccountId = accountId;
       const previousCredential = credential;
       if (previousAccountId) await clearClaimPendingIntent(platformSecureStore, previousAccountId);

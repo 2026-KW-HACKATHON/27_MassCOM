@@ -28,6 +28,9 @@ const moduleWithLoad = Module as unknown as { _load: ModuleLoader };
 const originalLoad = moduleWithLoad._load;
 const secureStorage = new Map<string, string>();
 const asyncStorage = new Map<string, string>();
+// The disclosure records the device holds (Issue #412) and the ones the provider asked to remove.
+let storedDisclosureKeys: string[] = [];
+const removedDisclosureKeys: string[] = [];
 
 let hookStates: unknown[] = [];
 let hookIndex = 0;
@@ -37,6 +40,7 @@ let providerModule: typeof import('./auth-provider');
 let storageModule: typeof import('../social/push-runtime-storage');
 let pushRuntimeModule: typeof import('../social/push-runtime');
 let friendLinkModule: typeof import('../friends/pending-friend-link');
+let demoHandoffModule: typeof import('../navigation/demo-handoff');
 const platform = { OS: 'web' };
 let pushTokenListener: ((token: unknown) => void) | undefined;
 let notificationResponseListener: ((response: unknown) => void) | undefined;
@@ -253,18 +257,25 @@ before(async () => {
     if (request === '@/wallet/account-scope') return { purgeForeignWalletSessions: async () => undefined };
     if (request === '@/screens/collection/collection-prefs') return { purgeForeignCollectionPrefs: async () => undefined };
     if (request === '@/screens/collection/collection-prefs-storage') return { listCollectionPrefKeys: async () => [], removeCollectionPrefKeys: async () => undefined };
+    if (request === '@/discovery/disclosure-storage') {
+      return { listDisclosureKeys: async () => storedDisclosureKeys, removeDisclosureKeys: async (keys: string[]) => { removedDisclosureKeys.push(...keys); } };
+    }
     return originalLoad(request, parent, isMain);
   };
   providerModule = await import('./auth-provider') as typeof import('./auth-provider');
   storageModule = await import('../social/push-runtime-storage') as typeof import('../social/push-runtime-storage');
   pushRuntimeModule = await import('../social/push-runtime') as typeof import('../social/push-runtime');
   friendLinkModule = await import('../friends/pending-friend-link') as typeof import('../friends/pending-friend-link');
+  demoHandoffModule = await import('../navigation/demo-handoff') as typeof import('../navigation/demo-handoff');
 });
 
 beforeEach(() => {
   resetRenderer();
   secureStorage.clear();
   asyncStorage.clear();
+  storedDisclosureKeys = [];
+  removedDisclosureKeys.length = 0;
+  demoHandoffModule.clearDemoHandoff();
   discoveryState.restore(null);
   platform.OS = 'web';
   pushTokenListener = undefined;
@@ -428,4 +439,37 @@ test('account switch reaches local session cleanup when notification deletion ne
   const value = await renderUntilSignedIn();
   await assert.rejects(value.switchAccount());
   assert.equal(readAuthSession(), undefined);
+});
+
+// The 1-person-2-roles handoff (Issue #412) is bound to the account that made it and cleared on every way out of that account.
+for (const leave of ['logout', 'switchAccount', 'invalidateSession', 'restartGuestTrial'] as const) {
+  test(`a waiting demo handoff is dropped on ${leave}, so whoever signs in next cannot pick it up`, async () => {
+    seedAuthSession(oldSession);
+    installProviderFetch();
+    const value = await renderUntilSignedIn();
+    const expiresAt = new Date(Date.now() + 120_000).toISOString();
+    demoHandoffModule.setDemoHandoff({ kind: 'claim', accountId: oldSession.accountId, token: 'claim-token', expiresAt });
+    await Promise.resolve(value[leave]()).catch(() => undefined);
+    assert.equal(demoHandoffModule.takeDemoHandoff('claim', oldSession.accountId), undefined, 'not even the same account gets it back');
+  });
+}
+
+test('a stale invalidation from an account that already left does not drop the current account\'s handoff', async () => {
+  seedAuthSession(oldSession);
+  installProviderFetch();
+  const oldValue = await renderUntilSignedIn();
+  await oldValue.restartGuestTrial();
+  const expiresAt = new Date(Date.now() + 120_000).toISOString();
+  demoHandoffModule.setDemoHandoff({ kind: 'claim', accountId: newSession.accountId, token: 'for-new', expiresAt });
+  await oldValue.invalidateSession();
+  assert.equal(demoHandoffModule.takeDemoHandoff('claim', newSession.accountId), 'for-new');
+});
+
+test('signing in removes the disclosure records other accounts left on this device and keeps the current one', async () => {
+  seedAuthSession(oldSession);
+  installProviderFetch();
+  storedDisclosureKeys = ['masscom.disclosure.v1:old-account', 'masscom.disclosure.v1:someone-else', 'masscom.disclosure.v1:signed-out'];
+  await renderUntilSignedIn();
+  await waitFor(() => removedDisclosureKeys.length === 2);
+  assert.deepEqual([...removedDisclosureKeys].sort(), ['masscom.disclosure.v1:signed-out', 'masscom.disclosure.v1:someone-else']);
 });
