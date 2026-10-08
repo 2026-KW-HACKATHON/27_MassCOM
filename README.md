@@ -105,7 +105,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 코스(Issue #412 T4 A)는 서로 다른 가게 2–4곳에서 받은 코인을 모아 팀이 정한 장면을 여는 기능입니다. 방문 상황에 맞춘 코스를 팀이 구성하고 각 점주의 참여 동의 참조를 기록합니다. 완료는 서버가 보상권으로 확인하고, 리롤은 진행을 지우지 않으며 취소된 방문은 다시 미완료가 됩니다. 완성 재화·쿠폰은 없습니다. 현재 이용할 수 없는 가게는 단계 완료에서 제외하고, 중지·종료된 코스의 장면은 이미 연 사용자에게도 숨깁니다. 코드만 구현했고 배포하지 않았습니다([D-093](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 T4 브랜치 `feat/cross-store-courses`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 __API__/__API__ · 모바일 __MOB__/__MOB__. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, Issue #412 T4 브랜치 `feat/cross-store-courses`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 652/652 · 모바일 2110/2110. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
 
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
 
