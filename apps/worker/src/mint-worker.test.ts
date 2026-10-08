@@ -220,6 +220,18 @@ test('M05 rejects a successful receipt whose mint event does not match the job',
   assert.equal(repository.calls.some((call) => call.startsWith('finalized:')), false);
 });
 
+test('an exhausted legacy series goes straight to manual review without retrying', async () => {
+  const repository = new FakeRepository();
+  const gateway = new FakeGateway();
+  gateway.submitError = new ChainConfigurationError('SERIES_SUPPLY_EXCEEDED');
+  const worker = new MintWorker(repository, gateway);
+
+  assert.equal(await worker.runOnce('worker-1'), true);
+  assert.equal(workCalls(repository).at(-1), 'review:SERIES_SUPPLY_EXCEEDED');
+  assert.equal(repository.calls.some((call) => call.startsWith('retryable:')), false);
+  assert.deepEqual(gateway.calls, ['validate', 'find', 'assertCanSubmit', 'submit']);
+});
+
 test('recovers an existing reward key when a duplicate submitted transaction reverts', async () => {
   const repository = new FakeRepository();
   const gateway = new FakeGateway();

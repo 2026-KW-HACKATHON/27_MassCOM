@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, PR #418 브랜치 `feat/merchant-dual-studio`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 623/623 · 모바일 2097/2097. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, PR #418 브랜치 `feat/merchant-dual-studio`에 PR #424·#426 반영 main `0801c1ce`를 병합한 기준): API 단위 623/623 · 모바일 2097/2097. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. README와 같은 합계를 유지한다. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 
@@ -21,6 +21,8 @@ PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efe
 PR #425 병합 전 검증 기록(2026-10-08 KST, Issue #412 T3 브랜치 `feat/purpose-campaigns`에 PR #420·#423 반영 main `8841efea`를 병합한 기준): API 단위 615/615 · 모바일 2093/2093. 두 수치 모두 병합 후 이 브랜치에서 측정했습니다(main 대비 API 18건·모바일 16건 증가, PostgreSQL 통합은 543건 중 540 pass / 0 fail / 3 skip). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했습니다.
 
 README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
+
+NFT 시리즈 발행 상한 해제는 [D-095](DECISIONS.md)·[PR #424](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/424)의 미배포 변경이다. 기존 Base Sepolia 상한 1 시리즈는 실증 전용이며 운영 발행에는 쓰지 않는다. 기존 계약에 운영용 새 시리즈를 만들 때는 `createSeries(bytes32,string,uint64)`의 세 번째 인자에 `18446744073709551615`를 넣고, 새 계약에서는 `createSeries(bytes32,string)`을 쓴다. DB migration 0075의 NULL 상한 행은 새 API가 모든 인스턴스에 배포된 뒤에만 넣는다.
 
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
@@ -586,7 +588,7 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 | 수준 | 해당 항목 |
 | --- | --- |
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, upload-key 운영 AAB 서명·W08·source marker·16KB 정적 검사 |
-| 시험망 검증 완료 | Base Sepolia 계약 배포, admin/minter/pauser role, cap 1 series, Worker service minter 발행 1건, receipt/event/owner/locked/metadata, 재실행 무작업 PASS |
+| 시험망 검증 완료 | Base Sepolia 계약 배포, admin/minter/pauser role, cap 1 실증 전용 series(운영 발행 금지), Worker service minter 발행 1건, receipt/event/owner/locked/metadata, 재실행 무작업 PASS |
 | 운영 실기 미검증 | 외부 HTTPS·첫 Google 로그인·private GitHub APK·4KB/16KB·App Links는 PASS. D02, fresh reauthentication, O01, Play는 `NOT_RUN` |
 | 사용자 승인·입력 대기 | Foundry keystore 숨김 비밀번호, W04·W05용 지갑 환경(B-010·B-011), Play App Signing 인증서 client. 호스팅·도메인·OAuth·faucet·upload AAB는 해소 |
 
@@ -614,7 +616,7 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 - 공개 음식점·캠페인, 점포별 OWNER/STAFF 권한, 1인 일회용 방문 코드
 - QR slot 소비·방문·KST 일일 진행·첫/3/5회 고정 보상권 원자 처리
 - 방문·앱 수집품·실제 NFT를 분리한 도감과 이유가 보이는 다음 가게 추천
-- OpenZeppelin ERC-721/ERC-5192 계약의 역할·누적 상한·reward key·영구 잠금
+- OpenZeppelin ERC-721/ERC-5192 계약의 역할·reward key(누적 상한은 D-095로 해제)·영구 잠금
 - 보상권·고정 수령인 mint job·Outbox 원자 생성과 동일 요청 20개 수렴
 - Worker의 `SKIP LOCKED` lease·heartbeat, 제출 attempt, 체인 이벤트, NFT 자산, cursor 저장
 - 전송 전 chain/contract/MINTER 검사와 receipt·계약·수령인·series·reward key·owner·locked 대조

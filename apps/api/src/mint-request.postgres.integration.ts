@@ -134,17 +134,21 @@ test('W07 M01 M07 mint request atomically freezes recipient and replays one job'
     (error: unknown) => error instanceof MintRequestError && error.code === 'WALLET_BINDING_CHANGED',
   );
 
-  await assert.rejects(
-    service.requestMint({
-      accountId: 'customer-2',
-      entitlementId: '20000000-0000-4000-8000-000000000003',
-      walletBindingId: secondBinding.bindingId,
-      bindingVersion: secondBinding.bindingVersion,
-      consentVersion: 'nft-mint-v1',
-      idempotencyKey: 'mint-request-capacity',
-    }),
-    (error: unknown) => error instanceof MintRequestError && error.code === 'CAPACITY_UNAVAILABLE',
+  // 시리즈에는 수량 상한이 없다(0075). 같은 시리즈에 이미 작업이 있어도 다른 고객의 신청은 접수된다.
+  const second = await service.requestMint({
+    accountId: 'customer-2',
+    entitlementId: '20000000-0000-4000-8000-000000000003',
+    walletBindingId: secondBinding.bindingId,
+    bindingVersion: secondBinding.bindingVersion,
+    consentVersion: 'nft-mint-v1',
+    idempotencyKey: 'mint-request-uncapped',
+  });
+  assert.equal(second.status, 'QUEUED');
+  assert.equal(second.replayed, false);
+  const sameSeriesJobs = await pool.query<{ count: number }>(
+    `SELECT count(*)::integer AS count FROM mint_jobs WHERE nft_series_id = 's-0000000000000000000000000000a001'`,
   );
+  assert.equal(sameSeriesJobs.rows[0]!.count, 2);
 });
 
 async function seedMintFixture(pool: Pool): Promise<void> {
@@ -197,17 +201,17 @@ async function seedMintFixture(pool: Pool): Promise<void> {
   await pool.query(
     `INSERT INTO nft_series (
        id, campaign_id, target_visit_count, chain_id, contract_address,
-       contract_address_normalized, series_key, max_ever_minted, status
+       contract_address_normalized, series_key, status
      ) VALUES (
        's-0000000000000000000000000000a001', 'campaign-a', 1, 84532,
        '0x7000000000000000000000000000000000000007',
        '0x7000000000000000000000000000000000000007',
-       decode(repeat('33', 32), 'hex'), 1, 'ACTIVE'
+       decode(repeat('33', 32), 'hex'), 'ACTIVE'
      ), (
        's-0000000000000000000000000000a003', 'campaign-a', 3, 84532,
        '0x7000000000000000000000000000000000000007',
        '0x7000000000000000000000000000000000000007',
-       decode(repeat('44', 32), 'hex'), 10, 'ACTIVE'
+       decode(repeat('44', 32), 'hex'), 'ACTIVE'
      )`,
   );
 }
