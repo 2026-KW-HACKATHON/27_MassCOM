@@ -46,6 +46,29 @@
 초기 모바일의 기존 소스 문자열 검사와 로컬 큰 파일·현재 배포 상태 검사는 Windows 체크아웃 CRLF 때문에 실패했다. 해당 작업 파일의 줄바꿈만 LF로 맞췄으며 커밋 내용 차이는 없다. 최초 전체2182/2182와 최신 main 통합 후2196/2196, 최종 gate가 각각 통과했다. 전체 PostgreSQL은 전용 로컬 클러스터·테스트 DB에서 실행하며 운영 DB에 접근하지 않는다. DB 기본 시간대는 UTC, 보상 날짜는 서비스의 KST 규칙으로 별도 검증한다.
 
 **이하 이전 작업 이력 — 아래 숫자·환경·제한은 각 실행 당시 기록이다.**
+## 2026-10-09 CI 병렬 작업 분리 (소유자 직접 요청, 미커밋)
+
+환경: macOS 제한 sandbox, `.worktrees/ci`, 브랜치 `ci/parallel-jobs`, 기준 HEAD `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`. 15분 직렬 CI를 검사 범위 그대로 병렬화했다. 사용자 제공 측정(API·worker 묶음 377초, 모바일 약 5분, AWS 웹 62초, 수집품 웹 60초, Anvil 24초)을 바탕으로 캐시가 준비되고 6개 runner가 동시에 배정되면 약 5~6분을 예상한다. 실제 GitHub 소요 시간과 6분 목표 달성은 `NOT_RUN`이다.
+
+| 새 작업 | 기존 검사 배치·의존성 |
+| --- | --- |
+| `api` | API 단위 커버리지·요약, typecheck·build·audit. API 의존성만 설치, DB 없음. |
+| `api-postgres` (0·1) | API PostgreSQL 통합 시험을 전체 경로 정렬 뒤 0부터의 index modulo 2로 32개씩 분배(현재 64개). 각각 API 의존성·독립 PostgreSQL 서비스·마이그레이션, `--test-concurrency=1`, `fail-fast: false`. |
+| `mobile` | 앱 시험·typecheck·lint·audit, 접근성 semantics·지갑 표면, AAB 서명/평가/manifest/Keychain, 내장 API·시연 APK/Keychain 검사, 운영·시연 Android 및 시연 웹 export, 자산·boot·지갑 SDK 경계 검사. 모바일 의존성만 설치. |
+| `web-ops-docs` | 비밀값·큰 파일·CI 연결·한국어 PR/검사기·충돌·bootstrap·운영/제출 문서, 포털/배포/약관/시연/토큰/운영 웹·수집품·상업/코스 웹, AWS/Caddy·브라우저 테마·로컬/호스트 격리·증거·Base Sepolia 사전검사·개인정보 로그. 개인정보 검사기의 TypeScript 로딩 때문에 API 의존성만 설치. checkout `fetch-depth: 0`·base SHA fallback 보존. 새 CI 회귀 시험도 실행. |
+| `contracts-worker` | Foundry 버전·fmt·build·test·lint, worker PostgreSQL·단위·typecheck·build·audit, 웹 인증 rollback, DB 백업/복원 드릴, Anvil, 시연 호스트 전용 PostgreSQL 격리/복원. API·worker 의존성 설치, 독립 PostgreSQL 서비스; worker PostgreSQL 스크립트가 API 마이그레이션을 먼저 실행. |
+| `bootstrap-contract` | 기존 필수 상태 이름 유지. 모든 작업을 `needs`로 기다리고 `always()`로 실행, failure·cancelled·skipped 중 하나라도 있으면 실패. |
+
+기존 run step 38개는 내용·step env·조건을 그대로 각각 한 작업에 옮겼다. 기존 설치 및 API·worker 묶음은 위처럼 분리했으며 API PostgreSQL glob runner만 동일 시험의 샤드 runner로 대체했다. runner별 설치·마이그레이션은 격리를 위해 반복하지만 검사 범위는 중복 추가하거나 삭제하지 않았다. checkout/setup-node action SHA, Node 버전, PostgreSQL 이미지·health check·DB 환경, npm 캐시를 보존했다. push는 이미 `main`만 대상으로 하므로 trigger 변경은 없다. 기존 YAML 파서의 검증을 약화시키거나 수정하지 않았다. 앱·API·공개 동작과 README 사용법은 바뀌지 않아 README 변경은 없다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| CI 연결 | `PASS` | `bash tests/ci/ci_wiring_test.sh`, 시험 파일 104개 연결. |
+| CI YAML 참조 회귀 | `PASS` | `rg -n 'ci[.]yml' tests`로 대상을 찾고 `bash tests/bootstrap/verify_bootstrap_test.sh`, `bash tests/bootstrap/check_large_files_test.sh`, `bash tests/bootstrap/check_privacy_test.sh` 실행. 초기 TypeScript 미설치 실패는 `npm ci --prefix apps/api --offline --cache /Users/choi/.npm`으로 의존성을 설치한 뒤 해소. |
+| 샤드·최종 집계 회귀 | `PASS` | `node --test tests/ci/parallel_jobs.test.mjs`, 2/2. 실제 YAML run block을 stub runner로 실행해 64개 파일 누락·중복 없음, 각 샤드의 정렬·직렬 flag를 검증. 5개 dependency 각각 failure·cancelled·skipped를 주입한 15가지 경우에서 gate 실패 확인. 변경 전 단일 작업 YAML에서는 두 시험 모두 실패(RED), 변경 후 PASS(GREEN). |
+| YAML·명령 보존·문법 | `PASS` | Python3 PyYAML `BaseLoader` 파싱, 기준 workflow와 38개 run step 완전 동일·유일 배치 및 분리된 기존 API/worker 명령 보존 비교, 서비스·action SHA·캐시·full history 확인. 모든 run block `bash -n`, `node --check tests/ci/parallel_jobs.test.mjs`, `git diff --check`. |
+| actionlint | `NOT_RUN` | 설치되어 있지 않음(`command -v actionlint`). 새 의존성 설치 없음. |
+| 전체 CI·실제 소요 시간 | `NOT_RUN` | API/모바일 전체·DB·Docker·Foundry·export 재실행과 원격 CI 실행은 이번 workflow 검증 범위 밖. runner 대기·cold cache·샤드별 시험 시간 차이가 6분 목표에 영향을 줄 수 있음. Git add·commit·stash·merge·rebase·push 실행 없음. |
 ## 2026-10-09 PR #439 통합·점주 결과 바로가기 수정 (파일 수정만·미배포)
 
 환경: macOS 제한 sandbox, `.worktrees/i439`, 브랜치 `integ/pr439`, HEAD main `b37063c0`, MERGE_HEAD PR #439 `e7395c96`, Git index 미병합. main의 T9 은퇴 점포 필터·BGM·#435 등록 후속·공공자료 고지와 #439의 홈/도감 다음 행동·가게 코인 보기·점주 결과 이동을 합쳤다. 홈 다음 행동에 은퇴 점포 코인권이 다시 나타날 수 있어 기존 `visibleHomeMerchantItems` 필터를 재사용했다. 추가 회귀 시험은 수정 전 첫 방문 대신 은퇴 코인권을 골라 실패하고 수정 뒤 통과했다. 점주 최근 결과 바로가기는 같은 점포에서 쿠폰을 사용한 직후에도 새로 조회하게 하고 회귀 시험을 추가했다. 기존 시험을 약화하지 않았다.
