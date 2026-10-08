@@ -10,6 +10,7 @@ import {
   type IssuedClaimSlot,
   type RedeemedClaimSlot,
 } from '../claim-slot-service.js';
+import { benefitStateFor, windowStatusAt } from '../campaign-purpose-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { isStaffAccountClaim, staffProgressExcludedReason } from '../reversal-rules.js';
 import {
@@ -18,6 +19,7 @@ import {
   pickShowcaseVisitDate,
 } from '../showcase/all-access.js';
 import { isPermittedShowcaseDatabaseName } from '../showcase/local-seed.js';
+import { timeWindowsFromRow } from './campaign-purpose.js';
 import { grantReachedGoals } from './visit-rewards.js';
 import { hashCustomerIdentityToken, isCustomerIdentityToken } from './customer-identity.js';
 import { requireActiveMerchantMember } from './merchant-membership.js';
@@ -58,6 +60,7 @@ type ClaimSlotRow = {
   merchant_id: string;
   status: 'ISSUED' | 'CLAIMED' | 'EXPIRED' | 'REVOKED';
   created_by_account_id: string;
+  created_at: Date;
 };
 
 type ClaimSlotPreviewRow = {
@@ -77,6 +80,7 @@ type AccessAndDuplicateRow = {
 type IssuedClaimSlotRow = {
   id: string;
   token_version: number;
+  created_at: Date;
 };
 
 type CampaignRow = {
@@ -84,6 +88,8 @@ type CampaignRow = {
   title: string;
   merchant_name: string;
   merchant_is_demo: boolean;
+  // 목적 행이 없거나 시간대 조건이 없는 목적이면 null이다(옛 캠페인은 항상 null).
+  time_windows: unknown;
 };
 
 type VisitEventRow = {
@@ -113,6 +119,8 @@ type RedeemedReplayRow = {
   progress_counted: boolean;
   progress_visit_count: number;
   staff_account_claim: boolean;
+  slot_created_at: Date;
+  time_windows: unknown;
 };
 
 const defaultOptions: ClaimSlotServiceOptions = {
@@ -238,6 +246,11 @@ export class PostgresClaimSlotService implements ClaimSlotService {
       }
       // 이미 수령한 QR의 멱등 조회는 점포 숨김 뒤에도 복구하지만, 새 발급은 활성 점포에서만 한다.
       if (staffGrant.merchantStatus !== 'ACTIVE') throw new ClaimSlotError('CLAIM_MERCHANT_INACTIVE');
+      // 점주 목적형 캠페인의 시간대 조건: 이 코드가 만들어지는 시각(created_at)이 시간대 안인지 점원에게 알린다. 방문 발급을 막지 않는다(D1).
+      const windowStatus = windowStatusAt(
+        issuedAt,
+        timeWindowsFromRow((await findActiveCampaign(client, input.merchantId, issuedAt))?.time_windows),
+      );
       const access = await client.query<AccessAndDuplicateRow>(
         `SELECT
            EXISTS (
@@ -309,6 +322,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         token,
         tokenVersion: 1,
         expiresAt: expiresAt.toISOString(),
+        windowStatus,
       };
       await client.query('COMMIT');
     } catch (error) {
@@ -363,7 +377,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
                AND member.account_id = $6
                AND member.status = 'ACTIVE'
            )
-         RETURNING slot.id, slot.token_version`,
+         RETURNING slot.id, slot.token_version, slot.created_at`,
         [
           hashValue(token),
           expiresAt,
@@ -388,11 +402,16 @@ export class PostgresClaimSlotService implements ClaimSlotService {
         }
         throw new ClaimSlotError('CLAIM_SLOT_NOT_REISSUABLE');
       }
+      // 재발급해도 시간대 기준은 처음 발급한 시각(created_at)이다. 점원 화면의 안내가 재발급·복구 뒤에도 같게 유지된다.
       issued = {
         claimSlotId: input.claimSlotId,
         token,
         tokenVersion: updated.rows[0]!.token_version,
         expiresAt: expiresAt.toISOString(),
+        windowStatus: windowStatusAt(
+          updated.rows[0]!.created_at,
+          timeWindowsFromRow((await findActiveCampaign(client, input.merchantId, requestedAt))?.time_windows),
+        ),
       };
       await client.query('COMMIT');
     } catch (error) {
@@ -472,7 +491,7 @@ export class PostgresClaimSlotService implements ClaimSlotService {
          WHERE token_hash = $1
            AND customer_account_id = $2
            AND status = 'ISSUED'
-         RETURNING id, merchant_id, status, created_by_account_id`,
+         RETURNING id, merchant_id, status, created_by_account_id, created_at`,
         [hashValue(input.token), input.accountId, redeemedAt],
       );
       const slot = result.rows[0];
@@ -660,6 +679,8 @@ export class PostgresClaimSlotService implements ClaimSlotService {
           ...(staffAccountClaim ? { progressExcludedReason: staffProgressExcludedReason } : {}),
         },
         grantedRewards,
+        // 혜택 기준 시각은 점원이 코드를 발급·확정한 시각(slot.created_at)이다. 고객이 스캔한 시각이 아니다.
+        benefit: { state: benefitStateFor(windowStatusAt(slot.created_at, timeWindowsFromRow(campaign.time_windows))) },
       };
     } catch (error) {
       if (transactionActive) {
@@ -815,9 +836,10 @@ async function findActiveCampaign(
 ): Promise<CampaignRow | undefined> {
   const result = await client.query<CampaignRow>(
     `SELECT campaign.id, campaign.title, merchant.name AS merchant_name,
-            merchant.is_demo AS merchant_is_demo
+            merchant.is_demo AS merchant_is_demo, purpose.time_windows
      FROM campaigns AS campaign
      JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
+     LEFT JOIN campaign_purposes AS purpose ON purpose.campaign_id = campaign.id
      WHERE campaign.merchant_id = $1
        AND campaign.status = 'ACTIVE'
        AND campaign.is_public = true
@@ -845,6 +867,8 @@ async function findRedeemedClaim(
             visit.business_date::text,
             visit.progress_counted,
             (visit.progress_excluded_reason IS NOT NULL) AS staff_account_claim,
+            slot.created_at AS slot_created_at,
+            purpose.time_windows,
             (
               SELECT count(*)::integer
               FROM visit_events AS progress_visit
@@ -860,6 +884,7 @@ async function findRedeemedClaim(
       AND visit.customer_account_id = slot.customer_account_id
       AND visit.status = 'VALID'
      JOIN campaigns AS campaign ON campaign.id = visit.campaign_id
+     LEFT JOIN campaign_purposes AS purpose ON purpose.campaign_id = visit.campaign_id
      JOIN merchants AS merchant ON merchant.id = slot.merchant_id
      WHERE slot.token_hash = $1
        AND slot.customer_account_id = $2
@@ -900,6 +925,7 @@ async function findRedeemedClaim(
       status: 'GRANTED' as const,
       claimExpiresAt: reward.claim_expires_at.toISOString(),
     })),
+    benefit: { state: benefitStateFor(windowStatusAt(replay.slot_created_at, timeWindowsFromRow(replay.time_windows))) },
   };
 }
 

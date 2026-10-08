@@ -1,8 +1,18 @@
+import type { BenefitState, WindowStatus } from './campaign-purpose-rules.js';
+
+// 점주 목적형 캠페인의 시간대 조건(Issue #412, D-092)에서 이 방문 코드를 확정한 시각이 시간대 안인지.
+// 방문 인정은 시간대와 무관하다(D1): 밖이어도 방문·코인·진행은 그대로 세고 혜택만 없다. 시간대 조건이 없으면 NONE이다.
+export type ClaimWindowStatus = WindowStatus;
+// 고객이 방문을 확정했을 때의 혜택 상태. 지금은 시간대 조건만 본다(ELIGIBLE = 시간대 안, NONE = 조건 없음).
+export type ClaimBenefit = { state: BenefitState };
+
 export type IssuedClaimSlot = {
   claimSlotId: string;
   token: string;
   tokenVersion: number;
   expiresAt: string;
+  // 추가 필드: 시연 테스트 방문(issueShowcaseTestSlot)에는 없다. 옛 클라이언트는 모르는 필드를 무시한다.
+  windowStatus?: ClaimWindowStatus;
 };
 
 export type ExistingClaimSlot = Omit<IssuedClaimSlot, 'token'> & { replayed: true };
@@ -30,6 +40,8 @@ export type RedeemedClaimSlot = {
     status: 'GRANTED';
     claimExpiresAt: string;
   }[];
+  // 추가 필드(Issue #412). 기준 시각은 점원이 코드를 발급·확정한 시각(claim_slots.created_at)이다.
+  benefit?: ClaimBenefit;
 };
 
 export type ClaimSlotPreview = {

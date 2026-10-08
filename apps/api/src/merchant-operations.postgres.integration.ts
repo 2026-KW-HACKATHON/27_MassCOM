@@ -130,10 +130,18 @@ test('CSV uses counted KST visits, excludes identities and neutralizes formulas'
   const result = await service.exportVisits({ accountId: 'owner-a', merchantId: 'csv-a', fromDate: '2026-10-05', toDate: '2026-10-05' });
   assert.equal(result.count, 1);
   assert.ok(result.csv.startsWith('\uFEFF'));
-  assert.match(result.csv, /2026-10-05.*재방문/);
+  assert.match(result.csv, /2026-10-05.*다시 확인된 방문/);
   assert.match(result.csv, /'=HYPERLINK/);
   assert.doesNotMatch(result.csv, /customer-secret|customer-other|남의 캠페인/);
   assert.equal(result.csv.trimEnd().split('\r\n').length, 2);
+  // #412 / D-092: 방문구분은 MassCOM에서 처음 확인된 방문인지(앱 기록 기준)이고 생애 첫 손님이라고 말하지 않는다.
+  assert.match(result.csv, /방문구분\(MassCOM 확인 기준\)/);
+  const both = await service.exportVisits({ accountId: 'owner-a', merchantId: 'csv-a', fromDate: '2026-10-04', toDate: '2026-10-05' });
+  const rows = both.csv.trimEnd().split('\r\n').slice(1);
+  assert.equal(rows.length, 2);
+  assert.match(rows[0]!, /2026-10-04.*,"처음 확인된 방문",/);
+  assert.match(rows[1]!, /2026-10-05.*,"다시 확인된 방문",/);
+  assert.doesNotMatch(both.csv, /첫 방문|재방문|신규 고객|첫 손님/);
 });
 
 test('deletion lock wins over queued owner and target-staff writes without restoring raw audit identity', { skip }, async t => {
