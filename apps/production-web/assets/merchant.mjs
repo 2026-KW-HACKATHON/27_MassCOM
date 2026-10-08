@@ -1,5 +1,6 @@
 import { clearCollectibleDrafts } from './collectible-assist.mjs';
 import { campaignEndingNotice } from './commercial-operation.mjs';
+import { campaignBenefitsStatusText } from './campaign-benefit-status.mjs';
 import { profileReadOnlyReason, serializeMerchantProfile } from './merchant-profile.mjs';
 import { mountRealWorldMerchant } from './real-world-merchant.mjs';
 
@@ -332,6 +333,7 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
   configure(merchants);
   const campaignSelect = doc.getElementById('merchant-extension-campaign');
   const campaignStatus = doc.getElementById('merchant-extension-status');
+  const benefitStatus = doc.getElementById('merchant-benefit-status');
   const current = doc.getElementById('merchant-extension-current');
   const staffList = doc.getElementById('merchant-staff-list');
   const staffStatus = doc.getElementById('merchant-staff-status');
@@ -344,6 +346,7 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
     campaignSelect?.replaceChildren(); staffList?.replaceChildren();
     if (current) current.textContent = '';
     if (campaignStatus) campaignStatus.textContent = '';
+    if (benefitStatus) benefitStatus.textContent = '';
     if (staffStatus) staffStatus.textContent = '';
     if (!select.value) return;
     const merchantId = select.value;
@@ -361,6 +364,7 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
         campaignSelect.append(option);
       }
       showCampaign();
+      void loadBenefit(generation);
       for (const member of staff.staff) {
         const item = doc.createElement('li');
         const label = doc.createElement('span'); label.textContent = `직원 ${member.accountId}`;
@@ -408,10 +412,28 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
       ? `현재 종료: ${old.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. ${days}일 연장 후 예상 종료: ${next.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. 확정 시각은 서버 기준입니다.`
       : '연장할 캠페인이 없습니다.';
   };
+  const loadBenefit = async generation => {
+    if (!benefitStatus) return;
+    const merchantId = select.value;
+    const campaignId = campaignSelect?.value;
+    if (!merchantId || !campaignId) { benefitStatus.textContent = '확인할 캠페인이 없습니다.'; return; }
+    benefitStatus.textContent = '혜택 현황을 불러오는 중이에요.';
+    try {
+      const result = await request(fetcher,
+        `${operationsBase(merchantId)}/campaigns/${encodeURIComponent(campaignId)}/benefit-status`);
+      if (active(generation) && select.value === merchantId && campaignSelect.value === campaignId) {
+        benefitStatus.textContent = campaignBenefitsStatusText(result);
+      }
+    } catch {
+      if (active(generation) && select.value === merchantId && campaignSelect.value === campaignId) {
+        benefitStatus.textContent = '혜택 현황을 불러오지 못했습니다.';
+      }
+    }
+  };
   state.configure = members => { configure(members); if (!panel.hidden) void refresh(); };
   if (!panel.hidden) void refresh();
   select.addEventListener('change', () => { void refresh(); });
-  campaignSelect?.addEventListener('change', showCampaign);
+  campaignSelect?.addEventListener('change', () => { showCampaign(); void loadBenefit(state.generation); });
   doc.getElementById('merchant-extension-form')?.elements?.days?.addEventListener?.('change', showCampaign);
   doc.getElementById('merchant-extension-form')?.addEventListener('submit', async event => {
     event.preventDefault();

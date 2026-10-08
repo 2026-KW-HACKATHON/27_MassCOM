@@ -22,7 +22,9 @@ type Props = {
   createIdentity: () => Promise<CustomerIdentity>;
   revokeIdentity: (token: string) => Promise<void>;
   loadBadgeBook: () => Promise<BadgeBook>;
+  loadCoupon?: () => Promise<Coupon | undefined>;
   onBadgeBook: (book: BadgeBook) => void;
+  onCoupon?: (coupon: Coupon | undefined) => void;
   onClose: () => void;
 };
 
@@ -41,7 +43,7 @@ export function CouponUseSheet(props: Props) {
   );
 }
 
-function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, loadBadgeBook, onBadgeBook, onClose }: Props & { coupon: Coupon }) {
+function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, loadBadgeBook, loadCoupon, onBadgeBook, onCoupon, onClose }: Props & { coupon: Coupon }) {
   const { styles, palette, medal } = useGamificationTheme();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -58,7 +60,8 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
   const identityRequestPending = useRef(false);
   const reportedStatus = useRef<Coupon['status'] | undefined>(undefined);
   const heading = useRef<Text>(null);
-  const done = coupon.status !== 'ISSUED' || Date.parse(coupon.expiresAt) <= now;
+  const notYetUsable = coupon.usableFrom !== undefined && Date.parse(coupon.usableFrom) > now;
+  const done = coupon.status !== 'ISSUED' || Date.parse(coupon.expiresAt) <= now || notYetUsable;
   const identityValid = identity !== undefined && !isCustomerIdentityExpired(identity.expiresAt, now);
 
   // Only touches state after the request settles, so the mount effect can start it directly.
@@ -108,9 +111,11 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
       try {
-        const book = await loadBadgeBook();
+        const book = loadCoupon ? undefined : await loadBadgeBook();
+        const benefitCoupon = loadCoupon ? await loadCoupon() : undefined;
         if (!active) return;
-        const current = couponForUse(initial, book);
+        const current = book ? couponForUse(initial, book) : benefitCoupon?.merchantId === initial.merchantId
+          ? benefitCoupon : { ...initial, status: 'VOIDED' as const };
         if (current.status !== 'ISSUED' || Date.parse(current.expiresAt) <= Date.now()) {
           gate.cancel();
           const token = latestToken.current;
@@ -123,10 +128,12 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
         setRefreshError(false);
         if (current.status !== 'ISSUED' && current.status !== reportedStatus.current) {
           reportedStatus.current = current.status;
-          onBadgeBook(book);
+          if (book) onBadgeBook(book);
+          else onCoupon?.(benefitCoupon);
           if (current.status === 'REDEEMED') void successHaptic();
         }
-        if (current.status === 'ISSUED' && Date.parse(current.expiresAt) > Date.now() && !latestToken.current && !identityRequestPending.current) {
+        if (current.status === 'ISSUED' && Date.parse(current.expiresAt) > Date.now() &&
+          (!current.usableFrom || Date.parse(current.usableFrom) <= Date.now()) && !latestToken.current && !identityRequestPending.current) {
           void requestIdentity(gate.start());
         }
       } catch {
@@ -147,14 +154,14 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
   }, []);
 
   useEffect(() => {
-    if (!identity || done) return;
+    if ((!identity && !notYetUsable) || (done && !notYetUsable)) return;
     const timer = setInterval(() => {
       const current = Date.now();
       setNow(current);
-      if (isCustomerIdentityExpired(identity.expiresAt, current)) clearInterval(timer);
+      if (identity && isCustomerIdentityExpired(identity.expiresAt, current)) clearInterval(timer);
     }, 1000);
     return () => clearInterval(timer);
-  }, [identity, done]);
+  }, [identity, done, notYetUsable]);
 
   return (
     <View style={styles.backdrop}>
@@ -186,6 +193,8 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
             <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 더 이상 사용할 수 없어요. 방문 기록이 바뀌었거나 운영팀이 무효로 했어요.</Text>
           ) : coupon.status === 'EXPIRED' || Date.parse(coupon.expiresAt) <= now ? (
             <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 사용 기간이 끝났어요.</Text>
+          ) : notYetUsable ? (
+            <Text accessibilityLiveRegion="polite" style={styles.qrHint}>이 쿠폰은 {new Date(coupon.usableFrom!).toLocaleDateString('ko-KR')}부터 사용할 수 있어요.</Text>
           ) : (
             <>
               {!fresh ? <Text accessibilityLiveRegion="polite" style={styles.qrHint}>{refreshError ? '최신 쿠폰 상태를 확인하지 못했습니다. 연결 후 다시 열어 주세요.' : '최신 쿠폰 상태 확인 중…'}</Text> : null}

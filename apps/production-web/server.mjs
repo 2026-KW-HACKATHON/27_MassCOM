@@ -20,6 +20,7 @@ const files = new Map([
 ]);
 for (const prefix of ['/assets/', '/app/assets/', '/admin/assets/', '/merchant/assets/']) {
   files.set(`${prefix}commercial-operation.mjs`, ['assets/commercial-operation.mjs', 'text/javascript; charset=utf-8']);
+  files.set(`${prefix}campaign-benefit-status.mjs`, ['assets/campaign-benefit-status.mjs', 'text/javascript; charset=utf-8']);
   files.set(`${prefix}merchant-profile.mjs`, ['assets/merchant-profile.mjs', 'text/javascript; charset=utf-8']);
   files.set(`${prefix}install-qr.png`, ['assets/install-qr.png', 'image/png']);
   files.set(`${prefix}real-world-merchant.mjs`, ['assets/real-world-merchant.mjs', 'text/javascript; charset=utf-8']);

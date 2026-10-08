@@ -1,5 +1,6 @@
 import { campaignTiming, extendedCampaignEnd, orderedCampaigns } from './commercial-operation.mjs';
 import { mountRealWorldAdmin } from './real-world-merchant.mjs';
+import { benefitStatusRecords, campaignBenefitsStatusText } from './campaign-benefit-status.mjs';
 
 const endpoint = '/api/web/admin/merchants';
 const deletionEndpoint = '/api/web/admin/account-deletion-intakes';
@@ -128,6 +129,33 @@ export function rewardOfferPayload(data) {
     consentDocumentRef, consent };
 }
 
+export function campaignBenefitPayload(data) {
+  const title = String(data.get('title') ?? '').trim();
+  if (!title || [...title].length > 40) throw localError('혜택 이름은 1~40자로 입력해 주세요.');
+  const detail = String(data.get('detail') ?? '').replace(/\s*\p{Cc}+\s*/gu, ' ').trim();
+  if ([...detail].length > 120) throw localError('혜택 설명은 120자까지 입력해 주세요.');
+  const integer = (name, min, max, label) => {
+    const raw = String(data.get(name) ?? '');
+    const value = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value) || value < min || value > max) {
+      throw localError(`${label}은 ${min.toLocaleString('ko-KR')}~${max.toLocaleString('ko-KR')} 사이 정수로 입력해 주세요.`);
+    }
+    return value;
+  };
+  const validDays = integer('validDays', 1, 60, '유효 기간');
+  const unitExtraCostWon = integer('unitExtraCostWon', 1, 1_000_000, '1장당 추가 원가');
+  const maxUses = integer('maxUses', 1, 10_000, '발급 상한');
+  const consent = {};
+  for (const [key, field] of consentFields) {
+    if (data.get(field) !== 'on') throw localError('점주 동의 5항목을 모두 확인해 주세요.');
+    consent[key] = true;
+  }
+  const consentDocumentRef = String(data.get('consentDocumentRef') ?? '').trim();
+  const problem = documentReferenceProblem(consentDocumentRef);
+  if (problem) throw localError(problem);
+  return { title, detail, validDays, unitExtraCostWon, maxUses, consentDocumentRef, consent };
+}
+
 const milestoneLabels = { 1: '첫 번째 상자', 2: '두 번째 상자', 3: '황금 상자' };
 const campaignStatusLabels = { ACTIVE: '공개 중', PAUSED: '중지됨', ENDED: '종료', DRAFT: '비공개 초안' };
 const demotionReasons = [
@@ -177,6 +205,30 @@ async function jsonRequest(fetcher, path, method = 'GET', body) {
     throw error;
   }
   return response.json();
+}
+
+export async function loadAdminBenefit(fetcher, doc, requestId = adminRequests.get(doc)) {
+  const select = doc.getElementById('admin-benefit-campaign');
+  const status = doc.getElementById('admin-benefit-status');
+  const form = doc.getElementById('admin-benefit-form');
+  const pause = doc.getElementById('admin-benefit-pause');
+  if (!select || !status || !form || !pause) return;
+  form.hidden = true;
+  pause.hidden = true;
+  if (!select.value) { status.textContent = '확인할 캠페인이 없습니다.'; return; }
+  const campaignId = select.value;
+  status.textContent = '혜택 현황을 불러오는 중이에요.';
+  try {
+    const result = await jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(campaignId)}/benefit-status`);
+    if (adminRequests.get(doc) !== requestId || select.value !== campaignId) return;
+    const benefits = benefitStatusRecords(result);
+    status.textContent = campaignBenefitsStatusText(result);
+    form.hidden = benefits.some(benefit => benefit.status === 'ACTIVE');
+    if (!form.hidden) form.reset();
+    pause.hidden = !form.hidden;
+  } catch {
+    if (adminRequests.get(doc) === requestId && select.value === campaignId) status.textContent = '혜택 현황을 불러오지 못했습니다.';
+  }
 }
 
 const funnelTotals = [
@@ -889,6 +941,8 @@ export async function loadAdmin(fetcher, doc) {
   const offerList = doc.getElementById('admin-offers');
   const campaignList = doc.getElementById('admin-campaigns');
   const campaignSummary = doc.getElementById('admin-campaign-summary');
+  const benefitSelect = doc.getElementById('admin-benefit-campaign');
+  const benefitCampaignIds = new Set();
   let campaignLoaded = !campaignList;
   const funnelStatus = doc.getElementById('admin-funnel-status');
   const funnelTotalsNode = doc.getElementById('admin-funnel-totals');
@@ -905,6 +959,12 @@ export async function loadAdmin(fetcher, doc) {
   offerList?.replaceChildren();
   offerMerchant?.replaceChildren();
   campaignList?.replaceChildren();
+  const previousBenefitCampaign = benefitSelect?.value;
+  benefitSelect?.replaceChildren();
+  const benefitForm = doc.getElementById('admin-benefit-form');
+  if (benefitForm) benefitForm.hidden = true;
+  const benefitPause = doc.getElementById('admin-benefit-pause');
+  if (benefitPause) benefitPause.hidden = true;
   if (campaignSummary) { campaignSummary.textContent = ''; campaignSummary.hidden = true; }
   funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
   playMetricRequests.set(doc, (playMetricRequests.get(doc) ?? 0) + 1);
@@ -1287,6 +1347,13 @@ export async function loadAdmin(fetcher, doc) {
           item.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안 · 정원 ${draft.enrollmentCapacity}명${period}${purposeLabel(draft.purpose)}`;
           if (typeof draft.id === 'string' && draft.id) {
             item.append(campaignButton(fetcher, doc, act, draft, 'publish', '공개'));
+            if (benefitSelect) {
+              const option = doc.createElement('option');
+              option.value = draft.id;
+              option.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안`;
+              benefitSelect.append(option);
+              benefitCampaignIds.add(draft.id);
+            }
           }
           draftList.append(item);
         }
@@ -1333,7 +1400,16 @@ export async function loadAdmin(fetcher, doc) {
             row.append(campaignExtensionButton(fetcher, doc, item, 90, published.generatedAt, current, status, extensionState));
           }
           campaignList.append(row);
+          if (benefitSelect) {
+            const option = doc.createElement('option');
+            option.value = item.id;
+            option.textContent = `${item.merchantName} · ${item.title}`;
+            benefitSelect.append(option);
+            benefitCampaignIds.add(item.id);
+          }
         }
+        if (benefitSelect && benefitCampaignIds.has(previousBenefitCampaign)) benefitSelect.value = previousBenefitCampaign;
+        await loadAdminBenefit(fetcher, doc, requestId);
         campaignLoaded = true;
       } catch (error) {
         if (adminRequests.get(doc) !== requestId) return;
@@ -1554,7 +1630,41 @@ export function bindAdmin(fetcher, doc) {
       }
     } finally { offerSaving = false; button.disabled = false; }
   });
+  bindAdminBenefits(fetcher, doc);
   return loadAdmin(fetcher, doc);
+}
+
+export function bindAdminBenefits(fetcher, doc) {
+  const benefitSelect = doc.getElementById('admin-benefit-campaign');
+  benefitSelect?.addEventListener('change', () => { void loadAdminBenefit(fetcher, doc); });
+  const benefitForm = doc.getElementById('admin-benefit-form');
+  let benefitSaving = false;
+  benefitForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (benefitSaving || !benefitSelect?.value) return;
+    const button = benefitForm.querySelector('button[type="submit"]');
+    benefitSaving = true;
+    button.disabled = true;
+    try {
+      const FormDataOf = doc.defaultView?.FormData ?? FormData;
+      await jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(benefitSelect.value)}/benefit`, 'POST',
+        campaignBenefitPayload(new FormDataOf(benefitForm)));
+      benefitForm.reset();
+      await loadAdminBenefit(fetcher, doc);
+    } catch (error) {
+      doc.getElementById('admin-benefit-status').textContent = error.local === true ? error.message : '캠페인 혜택을 등록하지 못했습니다.';
+    } finally { benefitSaving = false; button.disabled = false; }
+  });
+  const benefitPause = doc.getElementById('admin-benefit-pause');
+  benefitPause?.addEventListener('click', async () => {
+    if (!benefitSelect?.value || !confirmed(doc, '새 캠페인 혜택 쿠폰 발급을 중지할까요? 이미 발급한 쿠폰은 그대로 쓸 수 있어요.')) return;
+    benefitPause.disabled = true;
+    try {
+      await jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(benefitSelect.value)}/benefit/pause`, 'POST', {});
+      await loadAdminBenefit(fetcher, doc);
+    } catch { doc.getElementById('admin-benefit-status').textContent = '혜택 발급을 중지하지 못했습니다.'; }
+    finally { benefitPause.disabled = false; }
+  });
 }
 
 if (typeof document !== 'undefined') void bindAdmin(fetch, document);

@@ -19,7 +19,7 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
   const {
     merchantAccess, claimSlots, customerIdentities, badges, reversals, merchantOverview, visitorFeedback,
-    webAuth, staffRegistration, authLoginLimiter, collectibleProjects, merchantProfile,
+    webAuth, staffRegistration, authLoginLimiter, collectibleProjects, merchantProfile, campaignBenefits,
   } = deps;
   const { trustProxyClientIp } = deps;
   const { webWwwEnabled } = deps;
@@ -50,6 +50,13 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
       throw new RequestError(403, 'MERCHANT_CSRF_FORBIDDEN');
     }
     const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+    const benefitStatusMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/campaigns\/([^/]+)\/benefit-status$/);
+    if (benefitStatusMatch && request.method === 'GET') {
+      if (!campaignBenefits) throw new RequestError(503, 'CAMPAIGN_BENEFITS_NOT_CONFIGURED');
+      sendJson(response, 200, await campaignBenefits.getBenefitStatus({ accountId,
+        merchantId: decodePathParameter(benefitStatusMatch[1]!), campaignId: decodePathParameter(benefitStatusMatch[2]!) }));
+      return true;
+    }
     const operationMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(campaigns|staff|visits\.csv)(?:\/([^/]+)(?:\/(extend))?)?$/);
     if (operationMatch) {
       if (!merchantOperations) throw new RequestError(503, 'MERCHANT_OPERATIONS_NOT_CONFIGURED');

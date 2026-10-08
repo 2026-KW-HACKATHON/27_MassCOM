@@ -1,5 +1,16 @@
 # MassCOM API
 
+## 캠페인 혜택과 추가 원가 상한 (Issue #412 T3 PR 2, D-094)
+
+Migration `0069_campaign_benefits.sql`은 점주 동의를 받은 캠페인 혜택과 쿠폰 표를 추가한다. 잠금 대기는 5초, 기존 캠페인·API에는 추가만 하며 `backward_compatible=yes`다. 방문 확정 거래는 바꾸지 않고 고객이 별도로 수령한다. 배포하지 않았다(소유자 결정 A).
+
+- 관리자: `POST /api/web/admin/campaigns/:id/benefit`는 `title`, `detail`, `validDays`, `unitExtraCostWon`, `maxUses`, `consentDocumentRef`, `consent` 다섯 true 항목을 받는다. `POST …/benefit/pause`는 빈 JSON만 받는다. `GET …/benefit-status`는 현재 `benefit`과 과거 중지 혜택을 포함한 `benefits`를 돌려준다.
+- 점주: `GET /api/web/merchant/merchants/:mid/campaigns/:cid/benefit-status`는 해당 점포 활성 OWNER만 읽을 수 있다. 원가 집계는 관리자와 같은 모양이다.
+- 고객: `GET /me/campaign-benefits`는 수령 대상과 본인 쿠폰만 반환한다. `POST /me/campaign-benefits/:id/claim`는 빈 본문 또는 `{}`만 받고 새 수령 201/재생 200과 `{coupon,replayed}`를 반환한다. `CAP_REACHED`·`BENEFIT_PAUSED`는 409, `BENEFIT_NOT_ELIGIBLE`은 403, 잘못된 UUID·없는 혜택은 404다. 고객 응답에 비용 금액은 없다.
+- 쿠폰: 기존 직원 식별 토큰 조회·사용 경로에 세 번째 쿠폰 유형을 더한다. `usableFrom` 이전 사용은 `COUPON_NOT_YET_USABLE`(409), 직원 본인 사용은 `COUPON_SELF_REDEEM`이다. 발급 상한·중지가 기존 쿠폰을 무효화하지 않는다. 방문 취소는 해당 방문 쿠폰을 무효화하고 한도를 반환한다. 삭제는 고객·사용·무효 처리자 세 열을 가명화하고 행을 남긴다.
+
+원가는 매출·이익이 아니다. 상태 질의 한 번으로 발급·사용·미만료·만료 미사용·추가 발급량을 얻고 bigint로 추가 원가 부담·최대 노출·이미 약속한 최대 비용을 계산한다. `0069`가 감사 action 19개 전체를 이어받으며 courses 브랜치의 `0072`도 두 혜택 action을 보존해야 한다. 상세 규칙은 [D-094](../../docs/DECISIONS.md), 측정은 [TEST_STATUS](../../docs/TEST_STATUS.md)다.
+
 ## 첨부 고객 UI 연결 (Issue #399)
 
 Migration0062–0067은 방 공개 범위·가구 원장·개별 코인 리롤·프로필 소개·대표 코인 출처·방문 취소 파생 철회·방명록을 추가한다. 기존 방문 권리/코인/친구/놀이 이력은 유지한다. 개인정보 안내 버전은 `privacy-2026-10-07`로 앱/웹과 일치시킨다. Migration0068(Issue #412, D-092)은 점주 목적형 캠페인 부속 표 `campaign_purposes`와 시간대 검사 함수, 공개 뒤 조건 변경을 막는 트리거, 감사 action `CAMPAIGN_PURPOSE_SET`을 더한다. 추가만 하므로 목적 행이 없는 기존 캠페인은 그대로 동작하고 `backward_compatible=yes`다.

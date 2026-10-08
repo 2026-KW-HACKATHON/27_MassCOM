@@ -7,6 +7,7 @@ import type { AdminFunnelReader } from './admin-funnel.js';
 import type { AuthSessionService } from './auth-session.js';
 import type { BadgeRewardService } from './badge-rewards.js';
 import type { CampaignEnrollmentService } from './campaign-enrollment.js';
+import type { CampaignBenefitService } from './campaign-benefits.js';
 import type { ClaimSlotService } from './claim-slot-service.js';
 import type { CoinEconomyService } from './coin-economy.js';
 import type { CollectibleProjectService } from './collectible-project.js';
@@ -89,6 +90,7 @@ export type ApiDeps = {
   accountDeletions?: AccountDeletionService | undefined;
   requireReauthentication?: ReauthenticationGuard | undefined;
   campaignEnrollments?: CampaignEnrollmentService | undefined;
+  campaignBenefits?: CampaignBenefitService | undefined;
   authSessions?: AuthSessionService | undefined;
   authLoginLimiter?: AuthLoginLimiter | undefined;
   trustProxyClientIp?: boolean | undefined;
