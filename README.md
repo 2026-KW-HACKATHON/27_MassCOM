@@ -103,7 +103,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-08 KST, Issue #412 T1 브랜치 `refactor/api-deps-routes`를 #415·#421 반영 main 위로 옮긴 기준): API 단위 597/597 · 모바일 1992/1992. API 수치는 이 브랜치에서 측정했고(구조 정리로 시험 30건 증가), 모바일 수치는 Issue #412 `feat/first-use-v2`(#415) 기준 그대로입니다. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-08 KST, Issue #412 T2c 브랜치 `feat/first-use-v2c`를 PR #420 반영 main `48a14811` 위로 옮긴 기준): API 단위 597/597 · 모바일 2077/2077. API 수치는 main(PR #422)에서 측정했고 PR #420은 `apps/worker`만, T2c는 `apps/api`를 바꾸지 않았으며 모바일 수치는 이 브랜치에서 측정했습니다. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
 

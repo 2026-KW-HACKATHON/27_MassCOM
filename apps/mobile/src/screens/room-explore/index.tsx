@@ -4,6 +4,7 @@ import { Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View,
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { useDiscovery } from '@/discovery/discovery-provider';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { clothingArtForId } from '@/shop/wardrobe';
@@ -26,6 +27,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const recheckConsent = useConsentRecheck();
+  const { setOptIn } = useDiscovery();
   const palette = colorsForScheme(useColorScheme());
   const { width } = useWindowDimensions();
   const sceneWidth = Math.min(Math.max(width - 64, 220), 460);
@@ -138,6 +140,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
         if (live(request) && caught instanceof RoomApiError && caught.code === 'FRIEND_NEIGHBOR_NOT_FOUND') setRoom(null);
         throw caught;
       }
+      void setOptIn({ social: true });
       if (!live(request)) return;
       setRoom((current) => current?.roomId === roomId ? { ...current, friendshipId: added.friend.friendshipId } : current);
       setNeighbors((current) => current.map((entry) => entry.roomId === roomId ? { ...entry, friendshipId: added.friend.friendshipId } : entry));

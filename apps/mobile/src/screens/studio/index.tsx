@@ -619,7 +619,7 @@ const makeStyles = (palette: AppColors) => StyleSheet.create({
   sceneFrame: { alignItems: 'center', borderRadius: 6, overflow: 'hidden' },
   avatarList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   avatarOption: { width: 91, minHeight: 103, alignItems: 'center', justifyContent: 'center', padding: 5, borderWidth: 1, borderColor: '#DBE3EC', borderRadius: 6, backgroundColor: '#FFFFFF' },
-  avatarImage: { width: 62, height: 62 }, avatarName: { color: '#263A52', fontSize: 11, fontWeight: '700', textAlign: 'center' },
+  avatarImage: { width: 62, height: 62 }, avatarName: { color: '#263A52', fontSize: 12, fontWeight: '700', textAlign: 'center' },
   clothingOption: { width: 91, minHeight: 84, alignItems: 'center', justifyContent: 'center', padding: 5, borderWidth: 1, borderColor: '#DBE3EC', borderRadius: 6, backgroundColor: '#FFFFFF' },
   clothingBadge: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   noClothingBadge: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F5F9', borderColor: '#DCE5EF', borderWidth: 1 },

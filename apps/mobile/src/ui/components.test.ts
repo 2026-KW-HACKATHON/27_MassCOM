@@ -66,9 +66,22 @@ test('the profile strip keeps identity, mileage, mail and settings one tap away'
   const strip = read('profile-strip.tsx');
   assert.match(header, /<ProfileStrip avatarArt=\{avatarArt\} avatarClothing=\{avatarClothing\} avatarContent=\{avatarContent\} \/>/);
   for (const route of ['/profile', '/shop', '/mail', '/settings']) assert.ok(strip.includes(`href="${route}"`), route);
-  assert.match(strip, /getFriends\(\)/);
-  assert.match(strip, /getShop\(\)/);
-  assert.match(strip, /getSocial\(\)/);
+  // The three reads (friends, shop, social) moved into the discovery provider, one set per focus for the whole app.
+  assert.doesNotMatch(strip, /getFriends\(\)|getShop\(\)|getSocial\(\)|createFriendsApiClient|createSocialApiClient/);
+  const calls = read('../discovery/discovery-calls.ts');
+  assert.match(calls, /friends\.getFriends\(\)/);
+  assert.match(calls, /shop\.getShop\(\)/);
+  assert.match(calls, /social\.getSocial\(\)/);
+  // Mileage chip from the first coin; mail icon only with unread mail or the friends/mail opt-in.
+  assert.match(strip, /\{atLeast\(stage, 'after-first'\) \? <Link href="\/shop" asChild>/);
+  assert.match(strip, /\{mailEntryVisible\(optIn, data\.unread\) \? <Link href="\/mail" asChild>/);
+  // 44dp touch floor, and the identity moves to a row of its own (full text) at large type and in a narrow, zoomed-in window.
+  assert.match(strip, /mileage: \{[^}]*minHeight: uiMetrics\.minTouchCompact/);
+  assert.match(strip, /import \{ isLargeText, isNarrow \} from '\.\/large-text';/);
+  assert.match(strip, /const wrap = isLargeText\(fontScale\) \|\| isNarrow\(width\);/);
+  assert.match(strip, /\[styles\.row, wrap && \{ flexWrap: 'wrap' \}\]/);
+  assert.match(strip, /wrap && \{ flexBasis: '100%' \}/);
+  assert.equal((strip.match(/numberOfLines=\{wrap \? undefined : 1\}/g) ?? []).length, 2, 'nickname and intro');
   const home = readSource('screens/home/index.tsx');
   assert.match(home, /<AppHeader title="홈"/);
   assert.match(home, /showFriendsEntry showMailEntry/);
@@ -450,6 +463,7 @@ test('the account screen keeps deletion, logout and the development preview rule
   const settings = readSource('screens/account-settings/index.tsx');
   assert.match(settings, /deletionCapability\(credential, destructiveReauthentication\)/);
   assert.match(settings, /runSessionAction\('logout'\)/);
-  assert.match(settings, /__DEV__\s*\?\s*\(/);
+  // The development UI preview and the empty five-space tour were removed with their routes (Issue #412), so Settings no longer links them.
+  assert.doesNotMatch(settings, /__DEV__|foundation-preview|showcase-tour/);
   assert.match(settings, /<FloatingCard/);
 });

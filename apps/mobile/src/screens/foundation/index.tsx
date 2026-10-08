@@ -19,8 +19,6 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 type Role = 'customer' | 'merchant';
 type Props = {
   initialRole?: Role;
-  isFocused?: boolean;
-  onConnectWallet?: () => void;
   onChooseRole?: (role: Role) => void;
   showcaseTour?: boolean;
   onExit?: () => void;
@@ -28,7 +26,7 @@ type Props = {
 };
 const pages = Array.from({ length: PAGE_COUNT }, (_, index) => index);
 
-export function FoundationScreen({ initialRole, isFocused = true, onConnectWallet, onChooseRole, showcaseTour = false, onExit, authActions }: Props) {
+export function FoundationScreen({ initialRole, onChooseRole, showcaseTour = false, onExit, authActions }: Props) {
   const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const colors = foundationColors[scheme];
   const world = worldForScheme(scheme);
@@ -37,7 +35,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
   const [stage, setStage] = useState<'role' | 'wallet' | 'shell'>(initialRole ? 'shell' : 'role');
 
   useEffect(() => {
-    if (!isFocused || Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (stage === 'role') return false;
       if (showcaseTour && onExit) {
@@ -49,7 +47,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
       return true;
     });
     return () => subscription.remove();
-  }, [isFocused, onExit, showcaseTour, stage]);
+  }, [onExit, showcaseTour, stage]);
 
   function choose(nextRole: Role) {
     if (onChooseRole) {
@@ -120,7 +118,7 @@ export function FoundationScreen({ initialRole, isFocused = true, onConnectWalle
                   <Text style={[styles.description, { color: colors.muted }]}>지금 연결하지 않아도 괜찮아요.</Text>
                 </View>
                 <View style={styles.walletActions}>
-                  <Pressable accessibilityRole="button" onPress={() => { setStage('shell'); onConnectWallet?.(); }} style={({ pressed }) => [styles.primary, { backgroundColor: colors.accent, opacity: pressed ? 0.75 : 1 }]}>
+                  <Pressable accessibilityRole="button" onPress={() => setStage('shell')} style={({ pressed }) => [styles.primary, { backgroundColor: colors.accent, opacity: pressed ? 0.75 : 1 }]}>
                     <Text style={[styles.actionLabel, { color: colors.onAccent }]}>외부지갑 연결하기</Text>
                   </Pressable>
                   <Pressable accessibilityRole="button" onPress={() => setStage('shell')} style={styles.secondary}>
@@ -271,10 +269,10 @@ const styles = StyleSheet.create({
   secondary: { minHeight: 48, padding: 12, alignItems: 'center', justifyContent: 'center' }, actionLabel: { fontSize: 16, fontWeight: '600' },
   pagerRoot: { flex: 1 }, shellHeader: { minHeight: 76, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', gap: 8 },
   back: { minWidth: 48, minHeight: 48, justifyContent: 'center' }, shellTitle: { fontSize: 18, fontWeight: '600' },
-  demo: { borderRadius: 7, paddingVertical: 4, paddingHorizontal: 7 }, demoText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  demo: { borderRadius: 7, paddingVertical: 4, paddingHorizontal: 7 }, demoText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5 },
   pageCount: { marginLeft: 'auto', fontSize: 12, fontVariant: ['tabular-nums'] },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 10 },
   tabTrack: { flexDirection: 'row', position: 'relative' }, tab: { flex: 1, minHeight: 62, alignItems: 'center', justifyContent: 'center', gap: 5 },
-  tabLabel: { fontSize: 10, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  tabLabel: { fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   indicator: { position: 'absolute', top: 0, bottom: 0, paddingHorizontal: 5 }, pill: { flex: 1, borderRadius: 20 },
 });

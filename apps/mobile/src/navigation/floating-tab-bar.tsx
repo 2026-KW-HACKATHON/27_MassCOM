@@ -7,6 +7,7 @@ import { lightHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound } from '@/sound/ui-sounds';
 import { uiMetrics } from '@/theme/ui-metrics';
+import { isNarrow } from '@/ui/large-text';
 import { worldForScheme } from '@/theme/world';
 import { TabGlyph } from './tab-glyph';
 import { barHeightFor } from './tab-bar-style';
@@ -16,7 +17,7 @@ import { useTabAppearance } from './tab-appearance-provider';
 type GlyphName = ComponentProps<typeof TabGlyph>['name'];
 const glyphByRoute: Record<string, GlyphName> = {
   shop: 'shop', collection: 'collection', index: 'home', search: 'map', 'play-tab': 'play',
-  'shop-again': 'shop', map: 'map', claim: 'claim', friends: 'friends',
+  map: 'map', claim: 'claim', friends: 'friends',
 };
 
 /** 웹 내비게이션 랜드마크(웹만: 안드로이드 TalkBack에 정지 지점이 하나 더 생기지 않게 한다). */
@@ -78,15 +79,17 @@ export function TabSlot({ name, label, accessibilityLabel, selected, filled, col
   colors: ReturnType<typeof tabAppearanceColors>; onPress: () => void;
 }) {
   const enabled = useMotionEnabled();
+  // 브라우저 확대로 창이 300dp 아래가 되면 글자는 빼고 아이콘만 둔다(접근성 이름은 라벨로 남는다).
+  const narrow = isNarrow(useWindowDimensions().width);
   const scale = useSharedValue(1);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.get() }] }));
-  return <Pressable accessibilityRole="tab" accessibilityLabel={accessibilityLabel} accessibilityState={{ selected }} aria-selected={selected}
+  return <Pressable accessibilityRole="tab" accessibilityLabel={accessibilityLabel ?? label} accessibilityState={{ selected }} aria-selected={selected}
     onPress={onPress} onPressIn={() => { if (enabled) scale.set(withTiming(.94, { duration: 90 })); }}
     onPressOut={() => { scale.set(withSpring(1)); }} style={styles.slot}>
     <Animated.View style={[styles.selection, { backgroundColor: selected ? colors.selected : 'transparent' }, animated]}>
       <TabGlyph name={name} size={25} color={selected ? colors.active : colors.inactive} filled={filled} />
-      <Text maxFontSizeMultiplier={1.5} numberOfLines={1} style={{ color: selected ? colors.active : colors.inactive,
-        fontSize: 12, fontWeight: selected ? '800' : '500' }}>{label}</Text>
+      {narrow ? null : <Text maxFontSizeMultiplier={1.5} numberOfLines={1} style={{ color: selected ? colors.active : colors.inactive,
+        fontSize: 12, fontWeight: selected ? '800' : '500' }}>{label}</Text>}
     </Animated.View>
   </Pressable>;
 }
