@@ -72,11 +72,31 @@ test('종료 신호를 받으면 처리 중인 한 건을 끝낼 시간을 주�
 test('민터 키는 저장소·이미지 밖의 폴더를 읽기 전용으로만 마운트하고 없는 폴더를 만들지 않는다', () => {
   const service = worker();
   assert.equal(service.volumes.length, 1);
-  assert.deepEqual(service.volumes[0], {
-    type: 'bind', source: '/srv/minter', target: '/run/minter', read_only: true, bind: { create_host_path: false },
-  });
+  const volume = service.volumes[0];
+  assert.equal(volume.type, 'bind');
+  assert.equal(volume.source, '/srv/minter');
+  assert.equal(volume.target, '/run/minter');
+  assert.equal(volume.read_only, true);
+  // Compose 버전마다 `config` 출력이 다르다: 2.29·2.38은 `create_host_path: false`를 빼고 `bind: {}`로 내보내고 5.x는
+  // 그대로 내보낸다. 실제 동작은 모두 같아서(없는 호스트 폴더는 "bind source path does not exist"로 거절) 출력의 값은
+  // `true`만 아니면 되고, 이 줄이 지워지지 않았다는 보장은 compose.yml 원문에서 확인한다.
+  assert.notEqual(volume.bind?.create_host_path, true);
   assert.equal(service.environment.MINTER_KEYSTORE_PATH, '/run/minter/keystore.json');
   assert.equal(service.environment.MINTER_KEYSTORE_PASSWORD_FILE, '/run/minter/password');
+});
+
+test('compose.yml 원문에서 Worker의 키 폴더 bind는 읽기 전용이고 없는 폴더를 만들지 않는다고 적혀 있다', () => {
+  const source = readFileSync(composeFile, 'utf8').replace(/\r\n/g, '\n');
+  const start = source.indexOf('\n  mint-worker:\n');
+  assert.ok(start >= 0, 'mint-worker 서비스를 찾을 수 없다');
+  const rest = source.slice(start + 1);
+  const next = rest.slice(1).search(/\n  [a-z0-9-]+:\n/);
+  const block = next < 0 ? rest : rest.slice(0, next + 1);
+  const volumes = block.slice(block.indexOf('    volumes:'), block.indexOf('    depends_on:'));
+  assert.match(volumes, /type: bind/);
+  assert.match(volumes, /target: \/run\/minter/);
+  assert.match(volumes, /read_only: true/);
+  assert.match(volumes, /create_host_path: false/);
 });
 
 test('Worker 환경에는 개인키·복구 문구·잠금 해제 계정 변수가 없고 메타데이터 출처는 운영 값으로 고정된다', () => {
