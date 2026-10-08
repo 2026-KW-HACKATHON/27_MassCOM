@@ -19,7 +19,7 @@ const dayFormatter = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', 
 type RoomRow = { id: string; account_id: string; visible: boolean; visibility: RoomVisibility };
 type StampRow = { id: string; kind: RoomStampKind; created_at: Date; author_account_id: string;
   message?: string | null; author_nickname?: string | null };
-type GuestbookRow = { id: string; room_id: string; author_account_id: string; message: string; created_at: Date;
+type GuestbookRow = { id: string; room_id: string; author_account_id: string; message: string; message_hash: Buffer; created_at: Date;
   owner_read_at: Date | null; credited_mileage: number; author_nickname: string | null;
   author_avatar: string | null; author_clothing: string | null };
 const guestbookSelect = `SELECT entry.*,profile.nickname AS author_nickname,avatar.avatar_item_id AS author_avatar,
@@ -68,7 +68,7 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
     });
   }
 
-  async randomRoom(input: { accountId: string; excludeRoomId?: string }): Promise<PublicRoom | null> {
+  async randomRoom(input: { accountId: string; excludeRoomId?: string; supportsPublic?: boolean }): Promise<PublicRoom | null> {
     if (input.excludeRoomId !== undefined && !uuidPattern.test(input.excludeRoomId)) throw new RoomCommunityError('ROOM_NOT_FOUND');
     return this.transaction(async client => {
       if (!(await this.hasConsent(client, input.accountId))) {
@@ -77,7 +77,8 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
       }
       // ponytail: random sort is acceptable for the current small opt-in population; indexed sampling if it grows.
       const candidates = (await client.query<RoomRow>(`SELECT room.id,room.account_id,room.visible,room.visibility FROM public_rooms room
-        WHERE room.visibility<>'PRIVATE' AND room.account_id<>$1 AND room.id<>coalesce($2::uuid,'00000000-0000-0000-0000-000000000000'::uuid)
+        WHERE room.visibility<>'PRIVATE' AND ($5::boolean OR room.visibility<>'PUBLIC')
+          AND room.account_id<>$1 AND room.id<>coalesce($2::uuid,'00000000-0000-0000-0000-000000000000'::uuid)
           AND EXISTS(SELECT 1 FROM account_consents c WHERE c.account_id=room.account_id
             AND c.terms_version=$3 AND c.privacy_version=$4)
           AND NOT EXISTS(SELECT 1 FROM friend_blocks b WHERE
@@ -85,7 +86,8 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
           AND NOT EXISTS(SELECT 1 FROM room_blocks b WHERE
             (b.blocker_account_id=$1 AND b.blocked_account_id=room.account_id) OR
             (b.blocker_account_id=room.account_id AND b.blocked_account_id=$1))
-        ORDER BY random()`, [input.accountId, input.excludeRoomId ?? null, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION])).rows;
+        ORDER BY random()`, [input.accountId, input.excludeRoomId ?? null, CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION,
+          input.supportsPublic !== false])).rows;
       for (const candidate of candidates) {
         if (await canViewRoom(client, input.accountId, candidate.account_id, candidate.visibility))
           return this.checkedRoom(client, input.accountId, candidate.id);
@@ -170,6 +172,7 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
   async postGuestbook(input: { accountId: string; roomId: string; requestId: string; message: string }): Promise<GuestbookPost> {
     const message = parseGuestbookMessage(input.message);
     if (message === null) throw new RoomCommunityError('ROOM_MESSAGE_INVALID');
+    const messageHash = this.options.accountLifecycle.referenceHash(`guestbook-message:${message}`);
     if (typeof input.requestId !== 'string' || !/^[A-Za-z0-9._:-]{1,100}$/.test(input.requestId))
       throw new RoomCommunityError('ROOM_REQUEST_INVALID');
     return this.transaction(async client => {
@@ -179,17 +182,21 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
       const existing = (await client.query<GuestbookRow>(`${guestbookSelect}
         WHERE entry.author_account_id=$1 AND entry.request_id=$2`, [input.accountId,input.requestId])).rows[0];
       if (existing) {
-        if (existing.room_id !== room.id || existing.message !== message) throw new RoomCommunityError('ROOM_REQUEST_CONFLICT');
+        if (existing.room_id !== room.id || !existing.message_hash.equals(messageHash))
+          throw new RoomCommunityError('ROOM_REQUEST_CONFLICT');
         return { entry: this.guestbookView(existing,input.accountId,false), creditedMileage: existing.credited_mileage,
           rewardRemainingToday: Math.max(0,25 - await this.guestbookMileageToday(client,input.accountId,day)), replayed: true };
       }
+      const count = (await client.query<{ n: number }>(`SELECT count(*)::integer AS n FROM room_guestbook_entries
+        WHERE author_account_id=$1 AND room_id=$2 AND business_date=$3`, [input.accountId,room.id,day])).rows[0]!.n;
+      if (count >= 10) throw new RoomCommunityError('ROOM_GUESTBOOK_DAILY_LIMIT');
       const prior = await client.query(`SELECT 1 FROM room_guestbook_entries
         WHERE author_account_id=$1 AND room_id=$2 AND business_date=$3 LIMIT 1`, [input.accountId,room.id,day]);
       const creditedToday = await this.guestbookMileageToday(client,input.accountId,day);
       const amount = guestbookMileageRule(!prior.rowCount,creditedToday);
       const id = randomUUID(), now = this.now();
-      await client.query(`INSERT INTO room_guestbook_entries(id,room_id,author_account_id,request_id,message,business_date,created_at,credited_mileage)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [id,room.id,input.accountId,input.requestId,message,day,now,amount]);
+      await client.query(`INSERT INTO room_guestbook_entries(id,room_id,author_account_id,request_id,message,message_hash,business_date,created_at,credited_mileage)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [id,room.id,input.accountId,input.requestId,message,messageHash,day,now,amount]);
       if (amount) await client.query(`INSERT INTO mileage_credits(id,account_id,amount,reason,source_id,business_date,created_at)
         VALUES($1,$2,$3,'ROOM_GUESTBOOK',$4,$5,$6)`, [randomUUID(),input.accountId,amount,id,day,now]);
       const entry = (await client.query<GuestbookRow>(`${guestbookSelect} WHERE entry.id=$1`, [id])).rows[0]!;
@@ -249,10 +256,15 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
         JOIN public_rooms room ON room.id=entry.room_id WHERE entry.id=$1`, [input.entryId])).rows[0];
       if (!entry || (input.accountId !== entry.author_account_id && input.accountId !== entry.owner_id))
         throw new RoomCommunityError('ROOM_GUESTBOOK_NOT_FOUND');
-      await this.options.accountLifecycle.assertAllActive(client,[input.accountId,entry.author_account_id,entry.owner_id]);
+      try { await this.options.accountLifecycle.assertAllActive(client,[input.accountId,entry.author_account_id,entry.owner_id]); }
+      catch (error) {
+        if (!(error instanceof AccountLifecycleError)) throw error;
+        await this.options.accountLifecycle.assertActive(client,input.accountId);
+        throw new RoomCommunityError('ROOM_GUESTBOOK_NOT_FOUND');
+      }
       // Authors and owners can remove their own content even after room privacy/block changes.
       // Keep the reward eligibility record after user removal/moderation.
-      await client.query('UPDATE room_guestbook_entries SET hidden_at=coalesce(hidden_at,$2) WHERE id=$1', [entry.id,this.now()]);
+      await client.query("UPDATE room_guestbook_entries SET hidden_at=coalesce(hidden_at,$2),message='' WHERE id=$1", [entry.id,this.now()]);
     });
   }
 
@@ -291,8 +303,12 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
     let before: { at: string; id: string } | null = null;
     if (cursor !== undefined) {
       try {
-        const value = JSON.parse(Buffer.from(cursor,'base64url').toString('utf8')) as { at: string; id: string };
-        if (typeof value.at !== 'string' || !Number.isFinite(Date.parse(value.at)) || !uuidPattern.test(value.id)) throw new Error();
+        if (!/^[A-Za-z0-9_-]+$/.test(cursor)) throw new Error();
+        const decoded = Buffer.from(cursor,'base64url');
+        if (decoded.toString('base64url') !== cursor) throw new Error();
+        const value = JSON.parse(decoded.toString('utf8')) as { at: string; id: string };
+        if (typeof value.at !== 'string' || !/^(?!0000-)\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(value.at) ||
+          new Date(value.at).toISOString() !== value.at || !uuidPattern.test(value.id)) throw new Error();
         before = value;
       } catch { throw new RoomCommunityError('ROOM_REQUEST_INVALID'); }
     }
@@ -451,14 +467,15 @@ export class PostgresRoomCommunityService implements RoomCommunityService {
           (blocked.blocked_account_id=$4 AND blocked.blocker_account_id=stamp.author_account_id))
       )) ORDER BY stamp.created_at DESC,stamp.id DESC LIMIT 20`,
     [room.id,CURRENT_TERMS_VERSION,CURRENT_PRIVACY_VERSION,viewer])).rows;
-    const sharedMerchants = room.account_id === viewer ? [] : await sharedRoomMerchants(client, viewer, room.account_id);
+    const friendshipId = room.account_id === viewer ? null : (await client.query<{ id: string }>(`SELECT id FROM friendships WHERE
+      (account_low=$1 AND account_high=$2) OR (account_low=$2 AND account_high=$1)`, [viewer,room.account_id])).rows[0]?.id ?? null;
+    const sharedMerchants = room.account_id === viewer || (room.visibility === 'PUBLIC' && !friendshipId)
+      ? [] : await sharedRoomMerchants(client, viewer, room.account_id);
     const visits = (await client.query<{ count: number; mine: boolean }>(`SELECT count(DISTINCT visitor_account_id)::integer AS count,
       coalesce(bool_or(visitor_account_id=$2),false) AS mine FROM room_visits WHERE room_id=$1`, [room.id, viewer])).rows[0]!;
     const returnVisitAvailable = room.account_id !== viewer && Boolean((await client.query(`SELECT 1 FROM room_visits
       WHERE visitor_account_id=$1 AND room_id IN (SELECT id FROM public_rooms WHERE account_id=$2) LIMIT 1`,
     [room.account_id, viewer])).rowCount);
-    const friendshipId = room.account_id === viewer ? null : (await client.query<{ id: string }>(`SELECT id FROM friendships WHERE
-      (account_low=$1 AND account_high=$2) OR (account_low=$2 AND account_high=$1)`, [viewer,room.account_id])).rows[0]?.id ?? null;
     return { roomId: room.id, mine: room.account_id === viewer, visibility: room.visibility, studio,
       stamps: stamps.map(stamp => this.stampView(stamp, viewer)), sharedMerchants,
       visitorCount: visits.count, hasVisited: visits.mine, returnVisitAvailable, friendshipId };

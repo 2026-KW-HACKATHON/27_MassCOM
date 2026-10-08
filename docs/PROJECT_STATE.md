@@ -1,5 +1,13 @@
 # 프로젝트 상태
 
+## 2026-10-09 PR #440 리뷰 지적9건 수정 (미커밋·미배포)
+
+현재 자동 시험 합계(2026-10-09 KST, PR #440 리뷰 수정, `feat/friend-actions-guestbook` HEAD `2a541d73` 위 작업 파일): API 단위 681/681 · 모바일 2197/2197. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
+현재 worktree `.worktrees/pr440`, 브랜치 `feat/friend-actions-guestbook`, HEAD `2a541d73` 위 파일 수정이다. body 없는 DELETE, 새 앱 `X-MassCOM-Room-Visibility: v2`와 구 앱 PUBLIC 표시 호환·무작위 후보 제외, 방명록 작성자 본인 방 공개 동의와 신규 친구 하루20회, 비친구 전체 공개 방 공통 가게 비공개, 글 작성자·방당 하루10건, 삭제·신고 잠금 순서, 확장 CHECK NOT VALID·신고 FK 인덱스, 본문 제거·키 비교값 중복 방지·cursor 오류를 고쳤다. 친구 그림 버튼·날짜 선택기·첫 글5P·별도25P를 보존한다.
+
+배포 분류는 `backward_compatible=no`이며 운영 test.14·시연 Preview 24와 한 유지보수 창의 stop-migrate-start를 따른다. 구 API+새 스키마의 삭제 FK와 새 API+구 스키마의 없는 테이블 조회가 근거다. 동의 상승에 따른 구 설치본 접근 제한은 이번 사용자 요청에서 승인됐으며 파서 오류나 데이터 손상을 허용하지 않는다. Git add·commit·stash·merge·rebase·push와 배포는 실행하지 않았다. 지정 검사 결과는 API681/681·모바일2197/2197·PostgreSQL597 PASS/기존3 SKIP/FAIL0·법률 페이지12/12, 두 앱 타입·모바일 lint·API 빌드·CI 연결103개·운영 문서·gate PASS다. 실측과 남은 실기 검증은 [TEST_STATUS](TEST_STATUS.md), 상세 전환은 [D-104](DECISIONS.md)·[HANDOFF](HANDOFF.md)를 따른다. 아래 팀원 최초 검증과 배경음/T9 이력은 당시 환경의 기록이다.
+
 ## 2026-10-09 Issue #436 친구 행동·글 방명록 (PR 준비·미배포)
 
 `feat/friend-actions-guestbook`은 PR #433 반영 `c7632b35`에서 시작했다. 후속 fetch에서 PR #434 반영 `origin/main` `3645c4c7`을 확인했으며 통합과 최종 PR 전달을 진행한다. 아래 기존 전체 합계와 제출·배포 기준은 이번 로컬 결과로 덮어쓰지 않는다.
@@ -10,7 +18,6 @@
 
 **이하 이전 작업 이력 — 각 ‘현재’·합계·브랜치 상태는 당시 기준이며 Issue #436의 최신 판정을 뜻하지 않는다.**
 
-현재 자동 시험 합계(2026-10-09 KST, 배경음 수정 브랜치 `fix/bgm-start`에 PR #433 반영 main `c7632b35`를 병합한 기준): API 단위 674/674 · 모바일 2168/2168. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 ## 2026-10-09 배경음 수정 브랜치에 T9 반영 main 병합 문서 충돌 해결 (파일 수정만·미배포)
 

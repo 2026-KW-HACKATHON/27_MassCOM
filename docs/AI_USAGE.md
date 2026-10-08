@@ -506,3 +506,9 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 - Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
 - 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.
+## 2026-10-09 — PR #440 리뷰 지적9건 후속 수정
+
+- 소유자의 이번 직접 요청에 따라 Codex가 `feat/friend-actions-guestbook` HEAD `2a541d73` 위 파일을 수정했다. 역할을 나눠 HTTP·구 파서 호환, 작성자 친구 추가 동의와 하루 상한, 방명록·삭제·migration을 구현했으며 별도 읽기 전용 검토가 보안·혼합 버전·잠금 경합을 확인했다. 이전 Codex 중지 기록은 일반 정책으로 유지하고 이번 지시를 이 작업의 범위 한정 근거로 기록한다.
+- 기존 친구 그림 버튼·날짜 선택기·보상 규칙을 보존한다. 구 설치본 visibility 협상, 본인 방 공개에 따른 친구 추가 허용, KST 하루 상한, 비친구 공통 가게 비공개, 본문 제거·중복 방지, cursor·계정 수명 오류, migration 제약·인덱스·삭제 잠금 순서를 고쳤다. 새 의존성과 새 skip을 넣지 않는다.
+- 지정 전용 테스트 DB URL은 환경 변수로만 읽고 출력하지 않았다. 단위·PostgreSQL·타입·lint·CI 연결·운영 문서·법률 페이지·gate의 실제 실행 근거는 [TEST_STATUS](TEST_STATUS.md)의 PR #440 후속 항목에 남긴다. API/앱 공개 배포·새 APK·서명·설치·실기·원격 CI 완료를 대신하지 않는다.
+- Git add·commit·stash·merge·rebase·push는 실행하지 않았다. 운영 test.14·시연 Preview 24와 함께 `backward_compatible=no`의 stop-migrate-start 전환이 필요하며 배포 자체는 이번 작업에 포함하지 않는다.

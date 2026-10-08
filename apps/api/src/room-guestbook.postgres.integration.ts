@@ -16,7 +16,8 @@ test('text guestbook rewards, privacy, unread acknowledgement, moderation and au
   if (!connectionString || !decodeURIComponent(new URL(connectionString).pathname).endsWith('_test')) throw new Error('dedicated test DB required');
   const pool = new Pool({ connectionString }); t.after(() => pool.end());
   await runMigrations(pool);
-  await pool.query(`TRUNCATE public_rooms,room_blocks,friendships,friend_blocks,account_consents,account_deletion_requests,
+  await pool.query(`TRUNCATE public_rooms,room_blocks,friendships,friend_blocks,room_guestbook_friend_add_counts,
+    account_consents,account_deletion_requests,
     mileage_credits,friend_codes,explorer_profiles,platform_admins,auth_identities,merchants CASCADE`);
   let at = new Date('2026-10-08T14:59:00Z');
   const hmacSecret = 'guestbook-actions-test-secret-at-least-32-bytes';
@@ -31,6 +32,9 @@ test('text guestbook rewards, privacy, unread acknowledgement, moderation and au
   for (const account of ['writer','reader','other','owner','private-owner','admin',...Array.from({ length: 6 },(_,i) => `owner${i}`)]) await consent(account);
   const roomId = (await rooms.setVisibility({ accountId: 'owner',visibility: 'PUBLIC' })).roomId!;
   assert.equal((await rooms.getRoom({ accountId: 'reader',roomId })).visibility,'PUBLIC');
+  assert.equal((await rooms.randomRoom({ accountId: 'reader',supportsPublic: false }))?.roomId ?? null,null,
+    'legacy clients do not receive public rooms from random discovery');
+  assert.equal((await rooms.randomRoom({ accountId: 'reader',supportsPublic: true }))?.roomId,roomId);
   await assert.rejects(() => rooms.getRoom({ accountId: 'no-consent',roomId }),rejects('ROOM_NOT_FOUND'));
   const legacyRoom = (await rooms.setVisibility({ accountId: 'private-owner',visible: true })).roomId!;
   assert.equal((await rooms.getSettings('private-owner')).visibility,'NEIGHBORS');
@@ -61,6 +65,7 @@ test('text guestbook rewards, privacy, unread acknowledgement, moderation and au
   assert.deepEqual(Object.keys(profile).sort(),['avatar','avatarClothingId','earnedBadges','friendshipId','intro','medals','mine','nickname','stampCount','totalBadges']);
   assert.equal(profile.medals.length,3);
   assert.equal(profile.friendshipId,null);
+  await rooms.setVisibility({ accountId: 'writer',visibility: 'PUBLIC' });
   const added = await friends.addGuestbookAuthor({ accountId: 'reader',entryId: first.id });
   assert.equal(added.created,true);
   assert.equal((await friends.addGuestbookAuthor({ accountId: 'reader',entryId: first.id })).created,false);
@@ -86,6 +91,8 @@ test('text guestbook rewards, privacy, unread acknowledgement, moderation and au
   await assert.rejects(() => rooms.getGuestbookAuthor({ accountId: 'reader',entryId: first.id }),rejects('ROOM_GUESTBOOK_NOT_FOUND'));
   await pool.query('UPDATE account_consents SET privacy_version=$1 WHERE account_id=$2',[CURRENT_PRIVACY_VERSION,'writer']);
   await rooms.removeGuestbook({ accountId: 'owner',entryId: first.id });
+  assert.equal((await pool.query('SELECT message,hidden_at IS NOT NULL AS hidden FROM room_guestbook_entries WHERE id=$1',
+    [first.id])).rows[0].message,'','removal clears stored text while retaining the dedupe row');
   await assert.rejects(() => rooms.getGuestbookAuthor({ accountId: 'reader',entryId: first.id }),rejects('ROOM_GUESTBOOK_NOT_FOUND'));
   assert.equal((await rooms.postGuestbook({ ...request,requestId: 'after-removal' })).creditedMileage,0);
   const otherRooms: string[] = [];
@@ -95,8 +102,15 @@ test('text guestbook rewards, privacy, unread acknowledgement, moderation and au
   assert.equal((await pool.query("SELECT sum(amount)::integer AS n FROM mileage_credits WHERE account_id='writer' AND reason='ROOM_GUESTBOOK'")).rows[0].n,25);
   at = new Date('2026-10-08T15:00:00Z');
   assert.equal((await rooms.postGuestbook({ ...request,requestId: 'kst-next-day' })).creditedMileage,5);
-  assert.equal((await rooms.postGuestbook(request)).creditedMileage,5,'retry carries original grant without a second credit');
-  for (let i=0;i<24;i++) await rooms.postGuestbook({ ...request,requestId: `page-${i}`,message: `글 ${i}` });
+  const removedReplay = await rooms.postGuestbook(request);
+  assert.equal(removedReplay.creditedMileage,5,'retry carries original grant without a second credit');
+  assert.equal(removedReplay.entry.message,'','removed text is not re-exposed on replay');
+  await assert.rejects(() => rooms.postGuestbook({ ...request,message: 'changed after removal' }),
+    rejects('ROOM_REQUEST_CONFLICT'),'the erased message still has strict idempotency');
+  for (let i=0;i<24;i++) {
+    if (i===9 || i===19) at = new Date(at.getTime()+24*60*60*1000);
+    await rooms.postGuestbook({ ...request,requestId: `page-${i}`,message: `글 ${i}` });
+  }
   const ids = new Set<string>(); let cursor: string | undefined;
   do {
     const page = await rooms.getGuestbook({ accountId: 'reader',roomId,...(cursor ? { cursor } : {}) });
@@ -104,6 +118,26 @@ test('text guestbook rewards, privacy, unread acknowledgement, moderation and au
     cursor = page.nextCursor ?? undefined;
   } while (cursor);
   assert.equal(ids.size,28);
+  const validCursor = Buffer.from(JSON.stringify({ at: '2026-10-09T00:00:00.000Z',id: first.id })).toString('base64url');
+  const nonCanonicalCursor = `${validCursor.slice(0,-1)}1`;
+  assert.equal(Buffer.from(nonCanonicalCursor,'base64url').equals(Buffer.from(validCursor,'base64url')),true);
+  for (const invalid of ['@@@',`${validCursor}@@@`,`${validCursor} `,`${validCursor}=`,nonCanonicalCursor,
+    Buffer.from(JSON.stringify({ at: '0000-01-01T00:00:00.000Z',id: first.id })).toString('base64url'),
+    Buffer.from(JSON.stringify({ at: '2026-02-30T00:00:00.000Z',id: first.id })).toString('base64url'),
+    Buffer.from(JSON.stringify({ at: '2026-10-09',id: first.id })).toString('base64url')])
+    await assert.rejects(() => rooms.getGuestbook({ accountId: 'reader',roomId,cursor: invalid }),rejects('ROOM_REQUEST_INVALID'));
+  const daily = { ...request,requestId: 'daily-cap',message: 'cap' };
+  for (let i=0;i<4;i++) await rooms.postGuestbook({ ...daily,requestId: `${daily.requestId}-${i}` });
+  const racing = await Promise.allSettled([rooms.postGuestbook({ ...daily,requestId: 'race-a' }),
+    rooms.postGuestbook({ ...daily,requestId: 'race-b' })]);
+  assert.deepEqual(racing.map(result => result.status).sort(),['fulfilled','rejected']);
+  assert.equal(rejects('ROOM_GUESTBOOK_DAILY_LIMIT')((racing.find(result => result.status==='rejected') as PromiseRejectedResult).reason),true);
+  const capped = racing.find(result => result.status==='fulfilled') as PromiseFulfilledResult<Awaited<ReturnType<typeof rooms.postGuestbook>>>;
+  await rooms.removeGuestbook({ accountId: 'owner',entryId: capped.value.entry.id });
+  await assert.rejects(() => rooms.postGuestbook({ ...daily,requestId: 'after-hidden-cap' }),rejects('ROOM_GUESTBOOK_DAILY_LIMIT'));
+  const replayId = racing[0]!.status === 'fulfilled' ? 'race-a' : 'race-b';
+  assert.equal((await rooms.postGuestbook({ ...daily,requestId: replayId })).replayed,true,
+    'an existing request still replays at the daily cap');
   await pool.query("INSERT INTO auth_identities(provider,subject,account_id,created_at) VALUES('google','guestbook-admin','admin',now())");
   await pool.query("INSERT INTO platform_admins(account_id) VALUES('admin')");
   await rooms.reportGuestbook({ accountId: 'reader',entryId: repeated.entry.id });
@@ -111,6 +145,15 @@ test('text guestbook rewards, privacy, unread acknowledgement, moderation and au
   await rooms.moderateGuestbook({ actorAccountId: 'admin',entryId: repeated.entry.id });
   assert.deepEqual(await rooms.listGuestbookReports('admin'),[]);
   await assert.rejects(() => friends.addGuestbookAuthor({ accountId: 'other',entryId: repeated.entry.id }),rejects('ROOM_GUESTBOOK_NOT_FOUND'));
+  const referenceHash = lifecycle.referenceHash('writer');
+  await pool.query(`INSERT INTO account_deletion_requests(id,account_reference_hash,deleted_account_alias,status,policy_version,
+    cancelled_mint_jobs,pending_mint_jobs,retained_finalized_nfts,requested_at,completed_at,updated_at)
+    VALUES($1,$2,$3,'COMPLETED','test',0,0,0,$4,$4,$4)`,
+  [randomUUID(),referenceHash,`deleted:${referenceHash.toString('hex')}`,at]);
+  await assert.rejects(() => rooms.removeGuestbook({ accountId: 'owner',entryId: arrived.entry.id }),
+    rejects('ROOM_GUESTBOOK_NOT_FOUND'),'a live owner sees a deleted author as a missing entry');
+  await pool.query('DELETE FROM account_deletion_requests WHERE account_reference_hash=$1',[referenceHash]);
+  at = new Date(at.getTime()+24*60*60*1000);
   const deletion = new PostgresAccountDeletionService(pool,{ hmacSecret,policyVersion: 'test',now: () => at });
   const deleting = await Promise.allSettled([
     rooms.postGuestbook({ ...request,requestId: 'deletion-race' }),

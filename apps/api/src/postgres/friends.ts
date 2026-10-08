@@ -32,6 +32,7 @@ import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../account-conse
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // 코드 충돌은 32^8분의 1 확률이라 몇 번만 다시 뽑는다.
 const codeGenerationAttempts = 8;
+const guestbookFriendDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
 
 // /me/badges와 같은 "센 방문" 규칙(countedVisit*Sql)을 여러 계정에 한 번에 적용한다. 계정마다 값이 같아야 하므로
 // friends.postgres.integration.ts가 getBadges와 값을 직접 비교한다. 다만 친구 화면은 하루 지연이라 $2(어제, 한국 날짜)까지의
@@ -283,7 +284,21 @@ export class PostgresFriendService implements FriendService {
     const outcome = await this.transaction(async client => {
       const entry = await checkedGuestbookEntry(client,this.accountLifecycle,input.accountId,input.entryId);
       if (entry.author_account_id === input.accountId) throw new FriendError('FRIEND_SELF');
-      return this.insertFriendship(client,input.accountId,entry.author_account_id,this.now());
+      const authorRoom = (await client.query<{ visibility: string }>(
+        'SELECT visibility FROM public_rooms WHERE account_id=$1 FOR SHARE', [entry.author_account_id])).rows[0];
+      if (authorRoom?.visibility !== 'PUBLIC' && authorRoom?.visibility !== 'NEIGHBORS')
+        throw new FriendError('FRIEND_GUESTBOOK_NOT_FOUND');
+      const now = this.now();
+      const added = await this.insertFriendship(client,input.accountId,entry.author_account_id,now);
+      if (added.created) {
+        const counted = await client.query(`INSERT INTO room_guestbook_friend_add_counts(account_id,business_date,created_count)
+          VALUES($1,$2,1) ON CONFLICT(account_id,business_date) DO UPDATE
+          SET created_count=room_guestbook_friend_add_counts.created_count+1
+          WHERE room_guestbook_friend_add_counts.created_count<20 RETURNING created_count`,
+        [input.accountId,guestbookFriendDay.format(now)]);
+        if (!counted.rowCount) throw new FriendError('FRIEND_GUESTBOOK_DAILY_LIMIT');
+      }
+      return added;
     });
     const snapshot = await this.list(input.accountId);
     const friend = snapshot.friends.find(candidate => candidate.friendshipId === outcome.friendshipId);

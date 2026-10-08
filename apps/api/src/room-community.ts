@@ -50,7 +50,7 @@ export function roomVisitMileageRule(input: { firstVisitToday: boolean; eligible
 export interface RoomCommunityService {
   getSettings(accountId: string): Promise<RoomSettings>;
   setVisibility(input: { accountId: string; visible?: boolean; visibility?: RoomVisibility }): Promise<RoomSettings>;
-  randomRoom(input: { accountId: string; excludeRoomId?: string }): Promise<PublicRoom | null>;
+  randomRoom(input: { accountId: string; excludeRoomId?: string; supportsPublic?: boolean }): Promise<PublicRoom | null>;
   neighbors(accountId: string): Promise<PublicRoom[]>;
   visitors(accountId: string): Promise<RoomVisitor[]>;
   getRoom(input: { accountId: string; roomId: string }): Promise<PublicRoom>;

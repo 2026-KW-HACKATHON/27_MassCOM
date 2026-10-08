@@ -1,5 +1,27 @@
 # 테스트 상태
 
+## 2026-10-09 PR #440 리뷰 후속 수정 (파일 수정만·미배포)
+
+환경: macOS·Node.js v25.9.0, `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/pr440`, `feat/friend-actions-guestbook`, HEAD `2a541d736ba8f9eb272eed3725afbc36620e5d37` 위 작업 파일. 로컬 `origin/main`은 `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`이며 PR #440 OPEN·원격 head `380b3c43918a637c26b1dbcb9fa4d2b90b70d51a`를 읽기 전용 조회했다. 아래 수치는 이 환경의 실제 재실행이며 팀원의 Windows 검증이나 원격 CI와 구분한다.
+
+| 검사 | 상태 | 실제 명령·결과 |
+| --- | --- | --- |
+| 테스트 DB migration | PASS | 지정 전용 `_test` URL은 출력하지 않고 환경 변수로 읽었다. `DATABASE_URL="$TEST_DATABASE_URL" node --import tsx src/postgres/migrate-command.ts`, 73개 파일 적용. 제거 후 재시도 검증용 키 비교값이 추가되어 이 세션의 테스트용 0076 세 테이블만 다시 적용한 뒤 migration 두 번 실행도 PASS. 확장 CHECK 두 개 `convalidated=false`·신고 `entry_id` 인덱스 확인. `/private/tmp/pr440-review-migrate{,-final}.log` |
+| API 전체 단위 | PASS | `cd apps/api && npm test`: 681/681·FAIL/SKIP0. 기존 단언 보존, body 없는 DELETE·실제 HTTP 응답에 고정 구 파서 적용·cap 오류 상태 포함. `/private/tmp/pr440-review-api-unit.log` |
+| API 타입·빌드 | PASS | `npm run typecheck`, `npm run build`, exit0. 초기 동시 편집 중 시험 코드 타입 오류를 고친 뒤 새 실행 PASS. `/private/tmp/pr440-review-api-{typecheck,build}.log` |
+| 모바일 전체 단위 | PASS | `cd apps/mobile && npm test`: 2197/2197·FAIL/SKIP0. 대체 runner 없이 npm 진입점 통과. 제거된 본문은 작성자 자신의 반복 쓰기 응답에만 빈 값 허용하며 일반 페이지 parser는 계속 거절. `/private/tmp/pr440-review-mobile-unit{,-npm}.log` |
+| 모바일 타입·lint | PASS | `npm run typecheck`, `npm run lint`, exit0·오류0. 기존 무관한 `collectible-aura.test.ts:4` 미사용 import 경고1. `/private/tmp/pr440-review-mobile-{typecheck,lint}.log` |
+| PostgreSQL 전체 | PASS | `cd apps/api && npm run test:postgres`: 총600건·597 PASS·FAIL0·기존 hosted-container 3 SKIP·exit0, 311.6초. `/private/tmp/pr440-review-postgres-final.log`. 첫 전체 실행의 방명록 fixture가 독립 counter를 지우지 않아 `FRIEND_GUESTBOOK_DAILY_LIMIT`로 실패한 뒤 해당 table reset을 추가했다. 단언 변경 없이 친구→방명록·삭제 대상3/3 재검사와 전체 재실행 PASS. 최초 실패는 `/private/tmp/pr440-review-postgres-first.log`, 집중 회귀는 `/private/tmp/pr440-review-postgres-regression.log`에 보존했다. |
+| CI 연결 | PASS | `bash tests/ci/ci_wiring_test.sh`: 시험 파일103개 모두 연결. 새 앱/API 시험은 기존 package test glob으로 실행. `/private/tmp/pr440-review-ci.log` |
+| 법률 페이지 | PASS | `node --test tests/site/legal-pages.test.mjs`: 12/12·FAIL/SKIP0·exit0. 새 opt-in·하루 상한·본문 제거/중복 방지 보관 안내의 회귀 포함. `/private/tmp/pr440-review-legal.log` |
+| 운영 문서·로컬 gate | PASS | `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tools/gate.sh`, `git diff --check`·exit0. README·PROJECT_STATE 현재 합계 API681/681·모바일2197/2197 동일, 비밀·큰 파일·충돌·bootstrap·기존 배포 증거 일치 PASS. `/private/tmp/pr440-review-{operations,gate}.log`. HEAD·Git index 시작 값 일치. |
+| 독립 소스 검토 | PASS | 구현과 다른 읽기 전용 code-reviewer의 공개 범위·cap·삭제 경합·키 비교값·고정 구 parser 검토. 발견한 year0000 cursor를 거절하는 구현·PG 회귀로 수정했으며 후속 actionable 지적0. LSP/AST 도구는 사용 불가이며 타입·실행 시험과 구분한다. |
+| 배포·새 빌드·실기 | NOT_RUN | 운영/시연 배포·운영 DB·test.14/Preview24 APK 제작·서명·설치·각 variant 실기·브라우저/TalkBack·원격 CI. 공통 room API 수정은 두 앱에 적용되지만 각 실제 설치본 수용은 별도다. Git add·commit·stash·merge·rebase·push 없음. |
+
+`backward_compatible=no`의 근거와 운영 test.14·시연 Preview24를 묶은 stop-migrate-start는 [D-104](DECISIONS.md)와 [HANDOFF](HANDOFF.md)에 기록했다. 동의 상승에 따른 기존 앱 접근 제한은 승인됐지만 파서 실패·DB 손상은 허용하지 않는다. 잘못된 base64url·비정규 encoding·날짜 및 year0000 cursor를 `ROOM_REQUEST_INVALID`로 거절한다. 기존 pagination28건·친구/방 보상·삭제 데이터 경계 단언을 유지했고 새 cap에 맞춰 pagination fixture의 날짜만 나눴다. 제거한 글은 원문을 비우고 키 비교값과 dedupe/보상 행을 유지해 원문 재노출·변경 요청 재사용·추가 보상을 막는다. 새 skip·의존성·Git 이력 변경은 없다.
+
+**이하 이전 팀원 실행 이력 — 당시 환경·합계이며 이번 후속 실측을 대신하지 않는다.**
+
 ## 2026-10-09 Issue #436 친구 그림 버튼·날짜 선택기·글 방명록
 
 환경: Windows PowerShell, `C:/Hackerton/27_MassCOM-friend-actions`, `feat/friend-actions-guestbook`. 시작 기준은 PR #433 반영 `c7632b35`이고, 후속 fetch에서 확인한 PR #434 반영 `origin/main` `3645c4c7`의 통합은 진행 중이다. 아래는 통합 전 작업 트리의 실제 실행 결과이며 이전 작업의 합계를 재사용하지 않았다. 상세 재현·화면·데이터 경계는 [검증 증거](evidence/friend-actions-2026-10-09/README.md)에 있다.

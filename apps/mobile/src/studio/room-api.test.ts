@@ -27,6 +27,7 @@ test('settings and room visit follow server response and tolerate an empty rando
   const client = createRoomApiClient({ apiUrl: 'https://api.test/', credential: { kind: 'bearer', sessionToken: 'session' },
     fetcher: async (input, init) => {
       const url = String(input); calls.push(`${init?.method ?? 'GET'} ${url}`);
+      assert.equal(new Headers(init?.headers).get('X-MassCOM-Room-Visibility'), 'v2');
       if (url.endsWith('/me/room-publication')) return Response.json({ visible: true, roomId: 'mine' });
       if (url.includes('/rooms/random')) return Response.json(null);
       if (url.endsWith('/visits')) return Response.json({ roomId: 'room-1', creditedMileage: 0, visitsToday: 1 });
@@ -71,6 +72,9 @@ test('room API preserves consent and private-room status for recovery', async ()
   assert.match(roomErrorMessage(new RoomApiError(404, 'ROOM_NOT_FOUND')), /공개되어 있지/);
   assert.match(roomErrorMessage(new RoomApiError(409, 'ROOM_STAMP_LIMIT')), /오늘 이미/);
   assert.match(roomErrorMessage(new RoomApiError(404, 'FRIEND_NEIGHBOR_NOT_FOUND')), /더 이상 이웃/);
+  assert.match(roomErrorMessage(new RoomApiError(404, 'FRIEND_GUESTBOOK_NOT_FOUND')), /친구 연결을 허용하지/);
+  assert.match(roomErrorMessage(new RoomApiError(429, 'FRIEND_GUESTBOOK_DAILY_LIMIT')), /내일 다시/);
+  assert.match(roomErrorMessage(new RoomApiError(429, 'ROOM_GUESTBOOK_DAILY_LIMIT')), /오늘 이 방에/);
   assert.match(roomErrorMessage(new RoomApiError(409, 'FRIEND_LIMIT')), /친구 수가 가득/);
 });
 
@@ -128,6 +132,7 @@ test('guestbook parsing rejects mismatched rooms and duplicate IDs, and omits pr
   assert.throws(() => parseGuestbookPage({ ...page, roomId: 'other-room' }));
   assert.throws(() => parseGuestbookPage({ ...page, unreadCount: -1 }));
   assert.throws(() => parseGuestbookEntry({ ...entry, createdAt: 'invalid' }));
+  assert.throws(() => parseGuestbookEntry({ ...entry, message: '' }));
 });
 
 test('nonfriend author information exposes achievements without account or individual visit details', () => {
@@ -165,4 +170,19 @@ test('guestbook API uses server count, explicit read IDs and retry key independe
   ]);
   await assert.rejects(() => client.writeGuestbook('room-1', 'retry-2', ' '));
   assert.equal(calls.length, 4);
+});
+
+test('removed guestbook text is accepted only on the author’s replayed write response', async () => {
+  let response = { entry: { ...guestbookEntry, message: '', mine: true }, creditedMileage: 0,
+    rewardRemainingToday: 25, replayed: true };
+  const client = createRoomApiClient({ apiUrl: 'https://api.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json(response),
+  });
+  assert.equal((await client.writeGuestbook('room-1', 'retry-1', '안녕하세요')).entry.message, '');
+  response = { ...response, replayed: false };
+  await assert.rejects(() => client.writeGuestbook('room-1', 'retry-1', '안녕하세요'), /INVALID_GUESTBOOK_ENTRY/);
+  response = { ...response, replayed: true, entry: { ...response.entry, mine: false } };
+  await assert.rejects(() => client.writeGuestbook('room-1', 'retry-1', '안녕하세요'), /INVALID_GUESTBOOK_ENTRY/);
+  response = { ...response, entry: { ...response.entry, mine: true, createdAt: 'invalid' } };
+  await assert.rejects(() => client.writeGuestbook('room-1', 'retry-1', '안녕하세요'), /INVALID_GUESTBOOK_ENTRY/);
 });
