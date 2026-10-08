@@ -258,6 +258,8 @@ probe_web_routes() {
   done
   web_collection_probe_response "http://$address/api/web/collection" masscom.kr
   web_consent_probe_response "http://$address/api/web/consent" masscom.kr
+  # 가게 실세계 프로필 편집(/api/web/v1/*)도 Caddy가 API로 넘겨 JSON 401(no-store)을 받아야 한다. 404면 정적 서버로 빠진 것이다.
+  web_consent_probe_response "http://$address/api/web/v1/merchant/merchants/x/real-world-profile" masscom.kr
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://$address/merchants")"
   [[ "$status" == '200' ]]
   curl -fsS --max-time 8 "http://$operating_address/merchants" |

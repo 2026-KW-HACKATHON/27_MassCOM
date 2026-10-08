@@ -61,7 +61,7 @@
 	# 시연 웹 체험의 공유 주소(Issue #309). 시연 코드는 운영 출처에서 돌리지 않고 시연 API 출처로 넘긴다.
 	@demoEntry path /demo /demo/*
 	redir @demoEntry https://demo-api.masscom.kr/play/ 302
-	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/collectibles/* /api/web/badges /api/web/consent /api/web/admin/* /api/web/merchant/* /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
+	@webSession path /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/collectibles/* /api/web/badges /api/web/consent /api/web/admin/* /api/web/merchant/* /api/web/v1/* /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
 	handle @webSession {
 		reverse_proxy api:3000 {
 			header_up X-Forwarded-For {remote_host}
@@ -120,7 +120,7 @@
 		Referrer-Policy "no-referrer"
 		-Server
 	}
-	@privateSurface path /admin/* /merchant/* /api/web/admin/* /api/web/merchant/* /api/web/collectibles/* /api/web/consent /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
+	@privateSurface path /admin/* /merchant/* /api/web/admin/* /api/web/merchant/* /api/web/v1/* /api/web/collectibles/* /api/web/consent /api/web/account-deletion-intake /api/web/account-deletion-intake/cancel /api/web/account-deletion-status
 	header @privateSurface {
 		Cache-Control "no-store"
 		X-Robots-Tag "noindex, nofollow"

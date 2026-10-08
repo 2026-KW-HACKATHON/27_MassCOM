@@ -1,5 +1,26 @@
 # 테스트 상태
 
+## 2026-10-08 운영 웹 Caddy의 `/api/web/v1/*` 라우트 누락 수정 (Issue #412 후속 분리, 배포 동결)
+
+기준 main `b572184e`(PR #411 병합) 위의 작업 브랜치 `fix/caddy-web-v1-routes`다. 결함: `www.masscom.kr/api/web/v1/*`(가게 실세계 프로필 편집기의 영업시간·사진·위치 API)가 404를 돌려줬다. `infra/lightsail/Caddyfile`의 `@webSession`에 `/api/web/v1/*`가 없어 요청이 API로 가지 않고 `file_server`로 떨어졌고, `@privateSurface`에도 없어 캐시·색인 방지 헤더도 붙지 않았다. 설정과 시험은 고쳤다. 배포하지 않았다(소유자 결정 A). 웹/Caddy 배포 전까지 라이브는 계속 404다. 시연 호스트는 같은 Caddyfile을 쓰고 시연 API 호스트는 전부 `showcase-api`로 넘기므로 별도 수정이 없다.
+
+| 명령 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| `node --test tests/ops/verify_web_session_proxy_test.mjs` | PASS (2/2) | 실제 Caddy 2.10.2 컨테이너로 `/api/web/v1/{merchant,admin}/merchants/.../real-world-profile`을 시험한다: 쿠키 없으면 API의 401, 쿠키가 있으면 API까지 전달(GET·PUT), Caddy가 붙인 `no-store`와 `noindex`, apex·www 두 호스트. 옛 Caddyfile로 되돌리면 2건 모두 FAIL(404, 기대 401·200) |
+| `bash tests/ops/verify_lightsail_deployment_test.sh` | PASS | `@webSession`·`@privateSurface` 각각에서 `/api/web/v1/*`를 빼거나 `/x/api/web/v1/*`로 바꾼 복사본을 거절하고, 거절 사유가 해당 매처의 누락 메시지인지도 확인한다 |
+| `bash tests/ops/run_aws_web_smoke.sh` | PASS | API 없는 웹 전용 smoke에서 `/api/web/v1/{merchant,admin}/merchants/x/real-world-profile`이 502(404 아님)여야 한다. 옛 Caddyfile로는 404로 FAIL |
+| `bash tests/ops/deploy_lightsail_web_test.sh` | PASS | 웹 배포 후보 probe에 `/api/web/v1/merchant/merchants/x/real-world-profile`의 JSON 401(no-store) 확인이 들어 있음을 고정한다. 이 probe 자체는 실제 웹 배포 때만 실행된다(NOT_RUN) |
+| `node --test tests/ops/verify_aws_web_routes_test.mjs tests/site/legal-pages.test.mjs tests/site/real-world-merchant.test.mjs` | PASS (31/31) | 기존 단언을 약화하지 않았다 |
+| `node scripts/verify-lightsail-web.mjs` | PASS | |
+| `node --test tests/ops/verify_nft_metadata_proxy_test.mjs tests/ops/verify_showcase_edge_runtime_test.mjs tests/ops/verify_showcase_edge_routes_test.mjs tests/ops/verify_showcase_caddy_override_test.mjs` | PASS (5/5) | 같은 Caddyfile을 쓰는 다른 라우트 시험 회귀 확인 |
+| Caddyfile 문법 | PASS | Docker `caddy:2.10.2-alpine`의 `caddy validate`, 임시 `MASSCOM_*_DOMAIN` 환경변수 |
+| `bash tests/ci/ci_wiring_test.sh` | PASS | 시험 파일 86개 모두 실행됨 |
+| `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh` | PASS | 이 문서 갱신 뒤 실행 |
+| `bash tools/gate.sh` | PASS (exit 0) | 이 문서 갱신 뒤 실행 |
+| 라이브 `www.masscom.kr/api/web/v1/*` | NOT_RUN | 배포 동결로 재측정하지 않았다. 웹/Caddy 배포 뒤 쿠키 없는 요청이 JSON 401(no-store)이어야 한다 |
+
+독립 리뷰(Claude Sonnet 5.5)는 승인이고 🟡 세 건(매처 정규식 토큰 경계, 거절 사유 확인, smoke·배포 probe 추가)을 반영했다. 후속: `apps/api/src/real-world-http.ts`의 쓰기 요청에 계정별 쓰기 제한을 두는 일은 트랙 T6, [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)로 넘겼다. 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다.
+
 ## 2026-10-08 전면 평가 후속: 접근성·CI 연결·저장소 정리·심사자 문서 (Issue #409·#410, 배포 동결)
 
 기준 main `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합) 위의 작업 브랜치 `fix/eval-followup-1008`. 앱 코드는 Issue #409의 `a3033a80`과 Issue #410의 후속 변경이다. 코드·CI 검증 행은 이 작업에 전달된 기록이며 이번 문서 작업에서 다시 실행하지 않았다. 배포·게시는 하지 않았다(소유자 결정 A).

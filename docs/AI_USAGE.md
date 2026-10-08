@@ -11,6 +11,10 @@
 - PR 본문의 "독립 리뷰"는 AI 세션의 판정입니다. 사람이 코드를 따로 리뷰하는 일은 남아 있습니다.
 - 사람 검토가 남은 항목: 팀 전원의 핵심 흐름·AI 사용·한계 설명 확인, 사람의 발표 리허설, 최신 APK 실기·TalkBack(`NOT_RUN`), 현장 자료(`NOT_RUN`), 이용약관·개인정보처리방침 법률 검토, 대회 최종 제출 승인입니다.
 
+## 2026-10-08 운영 웹 Caddy `/api/web/v1/*` 라우트 누락 수정
+
+Claude Opus 5.5가 지휘와 범위 결정을, Claude Sonnet 5.5가 구현을 맡았다. 구현은 Caddyfile 두 줄, 실제 Caddy 컨테이너 시험·배포 검증기·웹 smoke·웹 배포 probe의 새 단언, 이 문서 갱신이다. 독립 리뷰는 구현과 다른 Claude Sonnet 5.5 세션이 맡아 승인했고 🟡 세 건을 반영했다. Codex는 쓰지 않았다(2026-10-08부터 소유자 지시로 이미지 생성 외에는 쓰지 않는다). 배포는 하지 않았다(소유자 결정 A). 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
+
 ## 2026-10-08 전면 평가 후속: 접근성·CI 연결·저장소 정리·심사자 문서 (Issue #409·#410)
 
 Claude Opus 5.5가 지휘·통합과 교차 평가를 맡았다. Claude Sonnet 5.5가 앱 코드, CI, 문서를 구현했다. 앱 코드는 웹 history 패치의 popstate 인덱스 보정(`a3033a80`의 해시 진입·헛누름 수정 위), 꾸미기 칩 접근성 이름의 ✓ 글리프 제거, 6개 화면 라디오·체크박스 16개의 `aria-checked`와 웹 Space 키 토글(공유 도우미 `apps/mobile/src/ui/space-toggles.ts`)이다. CI는 미연결 시험 6개 연결, `production-recovery` 이중 실행 제거, 새 가드 `tests/ci/ci_wiring_test.sh`이다. 문서는 README 재구성, 모순 7건 정리, 승인자 개인 주소의 역할명 치환, 폰 2대 실제 QR 시연 절이다. 코드·CI 교차 리뷰는 Claude Sonnet과 Claude Opus 두 모델이 맡았고 반드시 고칠 것은 0건이었으며 후속을 반영했다(꾸미기 칩 묶음의 `aria-pressed`, `spaceToggles`의 수정자 키·자식 이벤트 무시, 저장 중복 방지 가드 공유)는 Claude Sonnet 5.5가 반영했다). 문서 리뷰는 Claude Sonnet이 맡았고 지적을 반영했다. 자세한 기록은 PR 본문에 둔다.
