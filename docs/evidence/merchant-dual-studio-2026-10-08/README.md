@@ -6,7 +6,8 @@ Generated on 2026-10-08 KST from `27_MassCOM-latest` at `e06c97cd`.
 
 - Latest reproducible API base URL: `http://127.0.0.1:3309` (`start-api.ps1`). Browser captures use the earlier 3308 run recorded in `browser-db-result.json`.
 - Database: fresh `masscom_showcase_ci_<run>_test` database per run. The latest run name is recorded in `result.json`.
-- Credential pattern: `PGPASSWORD` is read from `C:\Hackerton\27_MassCOM\.omx\qa-postgres\db-password.txt` by `start-api.ps1`. Do not paste the password into chat, docs, PRs, or issue comments.
+- Credential pattern: `PGPASSWORD` is read from `.omx/qa-postgres/db-password.txt` under the checkout by `start-api.ps1`; set `MERCHANT_DUAL_STUDIO_QA_POSTGRES_ROOT` for a separate local PostgreSQL directory. Do not paste the password into chat, docs, PRs, or issue comments.
+- The QA generator reads its two PNG inputs from `MERCHANT_DUAL_STUDIO_QA_STORE_PHOTO` and `MERCHANT_DUAL_STUDIO_QA_SIGN_PHOTO`.
 - Start command: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File docs\evidence\merchant-dual-studio-2026-10-08\start-api.ps1`
 - Public discovery endpoints do not need login. Local demo-only staff/customer calls use `ALLOW_INSECURE_DEMO_ACCOUNT=true` and `x-account-id`; this is not a production auth bypass.
 

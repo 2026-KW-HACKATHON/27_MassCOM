@@ -85,12 +85,6 @@ export class PostgresMerchantOperations implements MerchantOperations {
     }, true);
   }
 
-  async extendCampaign(input: { accountId: string; merchantId: string; campaignId: string; days: 30 | 90;
-    expectedEndsAt: string; consentAccepted: boolean; requestId: string }): Promise<MerchantCampaignOption & { replayed: boolean }> {
-    void input;
-    throw new MerchantOperationError('MERCHANT_OPERATION_FORBIDDEN');
-  }
-
   async listStaff(accountId: string, merchantId: string): Promise<MerchantStaffMember[]> {
     return this.transaction(async client => {
       await this.owner(client, accountId, merchantId);

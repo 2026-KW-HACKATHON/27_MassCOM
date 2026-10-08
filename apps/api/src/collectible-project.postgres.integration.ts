@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { test, type TestContext } from 'node:test';
 import { Pool } from 'pg';
+import sharp from 'sharp';
 import { photoProject, tinyPng } from './collectible-project-test-support.js';
 import { CollectibleProjectError } from './collectible-project.js';
 import { MerchantAccessError } from './merchant-access.js';
@@ -106,6 +108,28 @@ test('claim inserts capture fixed standard grades once, never backfill, leave re
   await pool.query(`UPDATE reward_entitlements SET status='CANCELED' WHERE id=$1`,[entitlementId]);
   await assert.rejects(projects.getAcquired({accountId:'customer-new',entitlementId}),{code:'COLLECTIBLE_NOT_FOUND'});
   assert.equal((await pool.query('SELECT * FROM mint_jobs')).rowCount,0);
+});
+
+test('publish rejects amplified grade rows above 24 MiB before writing an immutable publication', async t => {
+  const { pool, projects, input } = await setup(t);
+  const frameBytes = await sharp(randomBytes(384 * 384 * 3), { raw: { width: 384, height: 384, channels: 3 } })
+    .png({ compressionLevel: 0 }).toBuffer();
+  const frameDataUrl = `data:image/png;base64,${frameBytes.toString('base64')}`;
+  const project = photoProject();
+  project.grades.push(...Array.from({ length: 11 }, (_, index) => ({
+    id: `extra-${index}`, name: `추가 ${index}`, kind: 'special' as const, enabled: true,
+  })));
+  for (const grade of project.grades) project.derived[grade.id] ??= { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng };
+  project.story = { type: 'event', frames: Array.from({ length: 5 }, () => ({
+    dataUrl: frameDataUrl, previewDataUrl: frameDataUrl, width: 384, height: 384,
+  })), cartoon: 0, strength: 50 };
+  const draft = await projects.create({ ...input, project });
+  await assert.rejects(projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' }),
+    { code: 'COLLECTIBLE_PUBLICATION_SIZE_LIMIT' });
+  assert.equal((await pool.query('SELECT count(*)::integer AS count FROM collectible_publications')).rows[0].count, 0);
+  assert.equal((await pool.query('SELECT count(*)::integer AS count FROM collectible_publication_grades')).rows[0].count, 0);
+  assert.equal((await pool.query('SELECT count(*)::integer AS count FROM campaign_collectible_publications')).rows[0].count, 0);
+  assert.equal((await projects.get({ ...input, projectId: draft.id })).status, 'DRAFT');
 });
 
 test('publication replacement waits for acquisition campaign lock; rollback leaves neither partial entitlement nor acquisition', async t => {

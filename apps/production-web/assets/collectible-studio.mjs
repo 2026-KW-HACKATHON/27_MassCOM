@@ -354,7 +354,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }
-    grid.querySelector('.ce-preview').hidden = currentStep < 3;
+    grid.querySelector('.ce-preview').hidden = currentStep === 1;
     previous.hidden = currentStep === 1; nextButton.hidden = currentStep === 4;
     fullPreview.hidden = currentStep !== 4; publish.hidden = currentStep !== 4;
     statusLine.prepend(noticeView); syncBackground(); setMenu(false);

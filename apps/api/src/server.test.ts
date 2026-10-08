@@ -5549,7 +5549,7 @@ test('notification API binds token to the resolved account and bearer session; r
   assert.deepEqual(calls, [['player','device','session-token'], ['player','device','fcm-token','android','session-token']]);
 });
 
-test('merchant self-service uses web session and CSRF, forwards campaign CAS, and returns a downloadable UTF-8 CSV', async (t) => {
+test('merchant self-service uses web session and CSRF, rejects removed extension before rate limiting, and returns a downloadable UTF-8 CSV', async (t) => {
   const calls: unknown[] = [];
   const args: Parameters<typeof startFixture> = [t];
   args[14] = intakeWebAuth('owner');
@@ -5559,7 +5559,6 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   const campaign = { id: 'campaign', title: '점포 캠페인', status: 'ACTIVE' as const, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-11-01T00:00:00Z', isPublic: true };
   args[37] = { merchantOperations: {
     listCampaigns: async (...input) => { calls.push(input); return [campaign]; },
-    extendCampaign: async input => { calls.push(input); return { ...campaign, replayed: false }; },
     listStaff: async () => [staff], approveStaff: async () => staff,
     updateStaffPermissions: async input => { calls.push(input); return staff; },
     revokeStaff: async input => { calls.push(input); },
@@ -5573,6 +5572,9 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST',
     headers: { ...headers, origin: 'https://untrusted.example' }, body })).status, 403);
   assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 404);
+  for (let attempt = 0; attempt < 120; attempt++) {
+    assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 404);
+  }
   assert.equal((await webRequest(base, root + '/staff/staff', { method: 'PATCH', headers,
     body: '{"confirmVisit":true,"redeemCoupon":false,"role":"OWNER"}' })).status, 400);
   const csv = await webRequest(base, root + '/visits.csv?from=2026-10-01&to=2026-10-05', { headers });

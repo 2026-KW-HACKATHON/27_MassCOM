@@ -45,10 +45,19 @@ test('게시 검증은 자동 방문 보상 매핑과 정확한 1·3·5회 활�
   project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
   assert.equal(validatePublish(project, [validCampaign]), '');
 
-  assert.match(validatePublish({ ...project, campaignId: '' }, [validCampaign]), /방문 보상이 아직 준비되지 않았어요/);
-  assert.match(validatePublish(project, [{ ...validCampaign, goals: [1, 3] }]), /방문 보상을 지금 게시할 수 없어요/);
+  assert.match(validatePublish({ ...project, campaignId: '' }, [validCampaign]), /게시할 캠페인을 하나로 정할 수 없어요/);
+  assert.match(validatePublish(project, [{ ...validCampaign, goals: [1, 3] }]), /게시할 캠페인을 하나로 정할 수 없어요/);
   assert.match(validatePublish({ ...project, rewardGrades: { 1: 'silver', 3: 'gold', 5: 'bronze' } }, [validCampaign]), /1회 브론즈·3회 실버·5회 골드/);
   assert.match(validatePublish({ ...project, grades: project.grades.map(grade => grade.id === 'bronze' ? { ...grade, enabled: false } : grade) }, [validCampaign]), /1회 브론즈·3회 실버·5회 골드/);
   assert.match(validatePublish({ ...project, grades: project.grades.filter(grade => grade.id !== 'prism') }, [validCampaign]), /브론즈·실버·골드·프리즘 네 기본 등급/);
   assert.match(validatePublish({ ...project, grades: project.grades.map(grade => grade.id === 'prism' ? { ...grade, enabled: false } : grade) }, [validCampaign]), /브론즈·실버·골드·프리즘 네 기본 등급/);
+});
+
+test('16등급 기존 초안은 저장할 수 있지만 기본 등급을 넣을 자리가 없으면 게시를 안내한다', () => {
+  const campaign = { id: 'campaign-a', status: 'ACTIVE', goals: [1, 3, 5] };
+  const project = createProject({ campaignId: campaign.id });
+  project.photo.originalDataUrl = 'data:image/png;base64,AAAA';
+  project.grades = [...project.grades.filter(grade => grade.id !== 'prism'), ...Array.from({ length: 13 }, (_, i) => ({ id: `extra-${i}`, name: `추가 ${i}`, kind: 'special', enabled: true }))];
+  assert.equal(project.grades.length, 16);
+  assert.equal(validatePublish(project, [campaign]), '기본 4등급을 위해 추가 등급을 하나 줄여 주세요');
 });

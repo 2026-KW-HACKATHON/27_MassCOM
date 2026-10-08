@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-08 KST, PR #418 브랜치 `feat/merchant-dual-studio`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 __API__/__API__ · 모바일 __MOB__/__MOB__. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, PR #418 브랜치 `feat/merchant-dual-studio`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 623/623 · 모바일 2097/2097. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. README와 같은 합계를 유지한다. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 

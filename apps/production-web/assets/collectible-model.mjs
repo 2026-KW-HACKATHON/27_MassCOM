@@ -109,29 +109,30 @@ export function standardVisitRewardGrades() {
 
 export function isStandardVisitCampaign(campaign) {
   return Boolean(campaign?.id) &&
-    (!campaign.status || campaign.status === 'ACTIVE') &&
+    campaign.status === 'ACTIVE' && campaign.isPublic !== false &&
+    (!campaign.startsAt || Date.parse(campaign.startsAt) <= Date.now()) &&
+    (!campaign.endsAt || Date.parse(campaign.endsAt) > Date.now()) &&
     Array.isArray(campaign.goals) &&
     campaign.goals.length === STANDARD_VISIT_GOALS.length &&
     [...campaign.goals].sort((a, b) => a - b).every((goal, index) => goal === STANDARD_VISIT_GOALS[index]);
 }
 
-export function applyStandardVisitRewards(project) {
-  project.rewardGrades = standardVisitRewardGrades();
-  // 제작·저장 등급은 네 기본 등급을 모두 유지한다. 방문 지급 조건은 위의 세 연결만 쓴다.
-  // 이전 초안의 비활성 기본 등급을 복구해도 이름·효과·특수등급 식별자는 바꾸지 않는다.
+export function applyStandardVisitRewards(project, { includeMissingDefaults = false } = {}) {
+  const missing = DEFAULT_GRADES.filter(({ id }) => !project.grades.some(grade => grade.id === id));
+  if (includeMissingDefaults && project.grades.length + missing.length <= 16) project.grades.push(...missing.map(grade => ({ ...grade })));
+  if (STANDARD_VISIT_REWARD_LABELS.every(({ gradeId }) => project.grades.some(grade => grade.id === gradeId))) project.rewardGrades = standardVisitRewardGrades();
+  // 기존 초안의 등급 집합은 보존하고 기본 등급의 비활성 상태만 복구한다.
   for (const preset of DEFAULT_GRADES) {
     const grade = project.grades.find(item => item.id === preset.id);
     if (grade) grade.enabled = true;
-    else project.grades.push({ ...preset });
   }
   return project;
 }
 
 /** 새 점포 수집품은 기존 방문 목표의 외형을 미리 연결한다. 저장한 프로젝트에는 적용하지 않는다. */
-export function createMerchantStarterProject({ merchantName = '', menuName = '', suggested = false, campaigns = [], preferredCampaignId = '' } = {}) {
+export function createMerchantStarterProject({ merchantName = '', menuName = '', suggested = false, campaigns = [] } = {}) {
   const eligible = campaigns.filter(isStandardVisitCampaign);
-  const campaignId = eligible.find(campaign => campaign.id === preferredCampaignId)?.id ??
-    (eligible.length === 1 ? eligible[0].id : '');
+  const campaignId = eligible.length === 1 ? eligible[0].id : '';
   const store = merchantName.trim() || '우리 가게';
   const menu = typeof menuName === 'string' ? menuName.trim().slice(0, 40) : '';
   const project = createProject({ name: `${menu || store} 방문 수집품`, campaignId });

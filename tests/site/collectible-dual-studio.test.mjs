@@ -132,8 +132,8 @@ test('늦게 끝난 AI state 응답은 dispose 이후 화면이나 저장값을 
   assert.equal(ui.host.querySelector('[data-action="ai-use"]'), null);
 });
 
-test('최근 가게 사진은 owner profile의 첫 번째 사진을 같은 출처 private image로 가져온다', async () => {
-  const api = withStudioRoutes(createFakeApi(), { profile: { photos: [{ id: 'newest' }, { id: 'older' }] } });
+test('최근 가게 사진은 owner profile의 첫 번째 STORE 사진을 같은 출처 private image로 가져온다', async () => {
+  const api = withStudioRoutes(createFakeApi(), { profile: { photos: [{ id: 'other', kind: 'MENU' }, { id: 'newest', kind: 'STORE' }, { id: 'older', kind: 'STORE' }] } });
   const fetched = [];
   globalThis.fetch = async (url, options) => {
     fetched.push({ url, credentials: options.credentials, hasSignal: Boolean(options.signal) });
@@ -159,6 +159,11 @@ test('웹 사진 입력은 20MiB와 48MP/12000px를 받고 저장용 4096px/3MiB
   assert.equal(normalized.width, 2);
   assert.equal(normalized.height, 2);
   assert.equal(dom.document.encodes[0].type, 'image/webp');
+
+  dom.document.encoders.delete('image/webp');
+  const jpeg = await preparePhotoFile({ type: 'image/png', size: photoFileLimits.storedBytes + 1, dataUrl: png('AAAA') });
+  assert.match(jpeg.dataUrl, /^data:image\/jpeg;base64,/);
+  assert.deepEqual(dom.document.encodes.slice(1, 3).map(item => [item.type, item.mime]), [['image/webp', 'image/png'], ['image/jpeg', 'image/jpeg']]);
 
   dom.document.encodedBytes = photoFileLimits.storedBytes + 1;
   await assert.rejects(

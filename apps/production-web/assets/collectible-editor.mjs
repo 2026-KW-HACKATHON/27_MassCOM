@@ -84,8 +84,9 @@ export async function preparePhotoFile(file) {
       if (!context) throw new Error('이 브라우저에서 사진을 줄이지 못했어요. 작은 사진을 선택해 주세요.');
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       for (const quality of [.92, .82, .7]) {
-        const encoded = canvas.toDataURL('image/webp', quality);
-        if (/^data:image\/(?:webp|png);base64,/.test(encoded) && decodedBytes(encoded) <= photoFileLimits.storedBytes) return { dataUrl: encoded, width: canvas.width, height: canvas.height, normalized: true };
+        let encoded = canvas.toDataURL('image/webp', quality);
+        if (!encoded.startsWith('data:image/webp;base64,')) encoded = canvas.toDataURL('image/jpeg', quality);
+        if (/^data:image\/(?:webp|jpeg);base64,/.test(encoded) && decodedBytes(encoded) <= photoFileLimits.storedBytes) return { dataUrl: encoded, width: canvas.width, height: canvas.height, normalized: true };
       }
     }
     throw new Error('사진을 저장 가능한 크기로 줄이지 못했어요. 작은 사진을 선택해 주세요. 기존 편집은 그대로 있어요.');
@@ -109,12 +110,13 @@ export function publishSizeProblem(revision) {
 export function validatePublish(project, campaigns) {
   if (!project.name.trim()) return '수집품 이름을 입력해 주세요.';
   if (!project.photo.originalDataUrl) return '대표 사진 한 장을 올려 주세요.';
-  if (!project.campaignId) return '방문 보상이 아직 준비되지 않았어요. 코인은 초안으로 저장할 수 있어요.';
+  if (!project.campaignId) return '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요';
+  if (project.grades.length + DEFAULT_GRADES.filter(({ id }) => !project.grades.some(grade => grade.id === id)).length > 16) return '기본 4등급을 위해 추가 등급을 하나 줄여 주세요';
   if (Object.keys(project.rewardGrades).length !== 3 || STANDARD_VISIT_REWARD_LABELS.some(({ count, gradeId }) => project.rewardGrades[count] !== gradeId || !project.grades.some(grade => grade.id === gradeId && grade.enabled))) return '방문 보상은 1회 브론즈·3회 실버·5회 골드로 자동 지급돼요. 보상 정보를 다시 확인해 주세요.';
   if (DEFAULT_GRADES.some(({ id }) => !project.grades.some(grade => grade.id === id && grade.enabled))) return '브론즈·실버·골드·프리즘 네 기본 등급을 모두 준비해 주세요.';
   if (Array.isArray(campaigns)) {
-    const campaign = campaigns.find(item => item.id === project.campaignId);
-    if (!campaign || !isStandardVisitCampaign(campaign)) return '방문 보상을 지금 게시할 수 없어요. 코인을 초안으로 저장하고 나중에 다시 시도해 주세요.';
+    const eligible = campaigns.filter(isStandardVisitCampaign);
+    if (eligible.length !== 1 || eligible[0].id !== project.campaignId) return '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요';
   }
   return validateStory(project.story);
 }
@@ -401,7 +403,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   function renderCampaignOptions() {
     project.campaignId = createMerchantStarterProject({ campaigns, preferredCampaignId: project.campaignId || preferredCampaignId }).campaignId;
     applyStandardVisitRewards(project);
-    view('campaign-status').textContent = project.campaignId ? '방문 보상은 자동으로 연결돼요.' : '방문 보상 준비 중 · 코인은 초안으로 저장할 수 있어요.';
+    view('campaign-status').textContent = project.campaignId ? '방문 보상은 자동으로 연결돼요.' : '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요';
   }
   async function refreshCampaigns({ quiet = false } = {}) {
     if (!loadCampaigns) return true;
@@ -799,7 +801,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
-      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl || !project.name.trim() ? 1 : project.story.type !== 'none' ? 3 : 4); if (project.story.type !== 'none') studio.selectExtraPanel('story'); notice(reason, true); return; } }
+      applyStandardVisitRewards(project, { includeMissingDefaults: true });
+      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl || !project.name.trim() ? 1 : project.story.type !== 'none' ? 3 : 4); if (project.story.type !== 'none') studio.selectExtraPanel('story'); notice(reason, true); return; }
+    }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
     // 복원·업그레이드 경로에 놓친 곳이 있어도 서버로 나가는 프로젝트는 항상 v2여야 한다(PR #293 P1 방어선).
     const revision = upgradeProject(cloneProject(project)), savedSerial = editSerial;
@@ -974,7 +978,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const profileBase = `/api/web/v1/merchant/merchants/${encodeURIComponent(merchantId)}`;
       const profile = await request(`${profileBase}/real-world-profile`);
       if (!active || sequence !== uploadSequence || project !== sourceProject) return;
-      const photo = profile.photos?.[0]; // Server returns uploads newest first.
+      const photo = profile.photos?.find(item => item.kind === 'STORE');
       if (!photo || typeof photo.id !== 'string' || !photo.id || photo.id.length > 100) throw new Error('등록한 가게 사진이 없어요. 준비한 이미지를 직접 선택해 주세요.');
       const response = await fetch(`${profileBase}/photos/${encodeURIComponent(photo.id)}/image`, { credentials: 'same-origin', signal });
       if (!response.ok) throw Object.assign(new Error(), { status: response.status });

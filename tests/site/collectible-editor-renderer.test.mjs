@@ -68,7 +68,7 @@ test('publication asks only for photo, name, and fixed standard visit reward map
   const project = createProject({ name: '우리 가게 간판' });
   assert.match(validatePublish(project), /대표 사진/);
   project.photo = { originalDataUrl: 'data:image/png;base64,source', width: 100, height: 100 };
-  assert.match(validatePublish(project), /방문 보상/);
+  assert.equal(validatePublish(project), '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요');
   project.campaignId = 'campaign'; assert.match(validatePublish(project), /방문 보상/);
   project.rewardGrades = { '1': 'custom' }; assert.match(validatePublish(project), /방문 보상/);
   project.rewardGrades = { '1': 'bronze', '3': 'silver', '5': 'gold' }; assert.equal(validatePublish(project), '');

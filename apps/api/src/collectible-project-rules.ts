@@ -1,6 +1,12 @@
 import { CollectibleProjectError, type CollectibleDetail, type CollectibleProject } from './collectible-project.js';
 
 const mb = 1024 * 1024;
+export const collectiblePublicationGradeRowsLimit = 24 * mb;
+export function assertCollectiblePublicationGradeRowsSize(rows: readonly { summary: string; detail: string }[]): void {
+  if (rows.reduce((total, row) => total + Buffer.byteLength(row.summary) + Buffer.byteLength(row.detail), 0) > collectiblePublicationGradeRowsLimit) {
+    throw new CollectibleProjectError('COLLECTIBLE_PUBLICATION_SIZE_LIMIT');
+  }
+}
 const imageMimes = ['image/png', 'image/jpeg', 'image/webp'];
 // 뒷면·각도·living 스프라이트는 픽셀 좌표로 자르고 배치하므로 JPEG의 EXIF Orientation 회전을 허용하지 않는다.
 // 편집기도 이 셋은 WebP/PNG로만 만든다.

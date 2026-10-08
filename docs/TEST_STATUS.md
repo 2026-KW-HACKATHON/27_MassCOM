@@ -1229,3 +1229,27 @@ Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되�
 - `PASS`: `cd apps/mobile && node --import tsx --test src/screens/collection/*.test.ts` — 199/199(신규 3개); `npx tsc --noEmit`; `npm run lint`; `git diff --check`. 환경: macOS 샌드박스, Node 25.9.0.
 - `BLOCKED`: 요청 명령 `cd apps/mobile && npx tsx --test 'src/screens/collection/*.test.ts'` — CLI의 IPC 파이프 생성에서 `listen EPERM`. Node 로더 실행으로 같은 전체 수집 화면 시험을 통과했다.
 - `NOT_RUN`: 운영·시연 실제 설치본 터치·회전·TalkBack·글자 확대. 재현: 외형 없는 보유 수집품(가게 그림 있음/없음)을 누르고 회전시켜 기본 뒷면과 목표별 등급을 확인한다.
+
+
+## 2026-10-09 PR #418 리뷰 지적 1~10 수정 (미커밋)
+
+- 환경: macOS restricted sandbox, `feat/merchant-dual-studio`, 시작 HEAD `e119f55e`(main `055d0523` 병합). 사용자 전용 scratch `_test` PostgreSQL의 public schema를 초기화하고 migration을 적용했다. DB URL은 출력·기록하지 않았다. staging·commit·stash·rebase·push는 실행하지 않았다.
+- `PASS`: API `npm run typecheck`, `npm test` 623/623, `npm run build`; 모바일 `npm test` 2097/2097, `npm run typecheck`, `npm run lint`. README·PROJECT_STATE의 합계를 같은 실측값으로 채웠다.
+- `BLOCKED` 포함: `node --test tests/site/*.test.mjs tests/site/*_test.mjs` 636건 중 635 PASS, 1 환경 BLOCKED(명령 종료 1). `verify_showcase_theme_test.mjs`의 headless Chrome 기동이 DevTools 전에 SIGABRT로 끝나며 단독 재현에서도 같다. assertion을 건너뛰지 않았으므로 실행기 출력에는 1 fail로 남는다. 수정한 캠페인 안내를 포함한 editor flow·renderer 별도 102/102 PASS.
+- `PASS`: `bash tests/ci/ci_wiring_test.sh`(98개 파일 연결), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/bootstrap/check_large_files_test.sh`, `bash tests/bootstrap/verify_bootstrap_test.sh`, conflict marker 원검사·회귀, evidence consistency 회귀, `node scripts/render-current-release.mjs --check`, `git diff --check`.
+- `BLOCKED`: `bash scripts/check-large-files.sh origin/main`, `bash tools/gate.sh`는 HEAD에 남은 삭제 예정 v1 PNG 24장 때문에 실패한다. 작업 트리 삭제는 83,818,124바이트(79.94 MiB), merged main에는 0장임을 확인했다. 가드의 `${failures}개`·`${checked}개` 출력만 locale 안전하게 고쳤으며 기준·상한·검사 대상은 바꾸지 않았다. gate가 이 지점에서 멈추는 뒤쪽 검사는 위와 같이 따로 실행했다. 삭제를 커밋한 뒤 재검증한다.
+- PostgreSQL 전체 결과: 544건 중 541 PASS / 0 FAIL / 기존 3 SKIP (`npm run test:postgres`, 전용 hosted seed 컨테이너 127.0.0.1:55435가 필요한 세 시험).
+- `NOT_RUN`: 운영 배포·운영 DB·실제 AI 과금·Android 두 variant 설치/실기·실제 WebKit에서 사진 입력·스크린샷 기반 시각 판정·Windows PowerShell launcher 실제 실행. JPEG fallback은 PNG를 반환하는 fake canvas로 검증했다. 기기·브라우저 실증과 자동 시험을 구분한다.
+
+변경·삭제한 기존 assertion과 이유:
+
+1. `tests/site/collectible-back-assets.test.mjs`: v1 version constant 1건과 v1 전용 manifest 개수·웹/앱 동일 바이트·기록 해시·원본 크기·서로 다른 이미지 assertion을 삭제했다. 존재하지 않아야 할 죽은 자산의 검사이기 때문이다. 3개 prefix의 12장 v1 HTTP 200/MIME 검사도 삭제했다. 임의 v1 파일 404는 실제 삭제한 `circle-bronze.png` 404로 바꿨다. 현재 v2의 12장 수·바이트·해시·512px·용량·유일성·서빙 검사는 유지했다.
+2. `apps/api/src/collectible-project-rules.test.ts`: 비활성 prism 게시 거절의 일반 INVALID_PROJECT를 DEFAULT_GRADE_MISSING으로 바꿨다. 거절을 유지하며 새 원인별 오류를 검증한다.
+3. `tests/site/collectible-merchant-starter.test.mjs`: 두 유효 캠페인에서 preferred ID로 고르는 결과를 빈 ID로 바꿨다. 선택기가 없으므로 진짜 모호함은 운영팀 안내로 처리해야 한다. `collectible-save.test.mjs`의 campaign ID 없음/목표 불일치 2건, `collectible-editor-flow.test.mjs`의 게시 전 재조회 실패, `collectible-editor-renderer.test.mjs`의 campaign ID 없음은 새 명확한 한국어 안내로 기대값을 바꿨다. 뒤의 두 assertion은 부분 regex에서 정확한 문자열 동일성으로 강화했다.
+4. `tests/site/collectible-model.test.mjs`: 기본 등급 복구 검사는 일반 초안 편집이 아니라 명시적 게시 준비 뒤에 적용하도록 옮겼다. 원래 네 등급 활성·사용자 이름·특수등급·효과·motion 보존 assertion은 유지하고 일반 편집 시 등급 집합 불변 검사와 16등급/유효 legacy 매핑 보존 검사를 더했다.
+7. `apps/api/src/real-world.postgres.integration.ts`: 공개 상세의 사진 ID 배열·thumbnail·owner preview의 첫 사진·customer gameContent의 첫 사진 4건을 main의 오래된 순서로 복구했다. owner 편집용 목록은 별도 최신순 assertion을 추가했고 공개 discovery thumbnail도 확인한다. `collectible-dual-studio.test.mjs`의 private-photo 선택 기대 URL은 유지하며 첫 항목에 MENU 사진을 넣어 첫 STORE 선택을 검증한다.
+8. `tests/site/collectible-studio-layout.test.mjs`: 2단계 preview hidden=true를 false로 바꾸고 sticker 도구를 여는 동안도 false임을 추가했다. 스티커 편집의 합성 결과를 보여 주는 요구를 검증한다.
+10. `apps/api/src/merchant-operations.postgres.integration.ts`: 삭제한 service.extendCampaign 호출의 FORBIDDEN 거절 assertion을 실제 HTTP 404/NOT_FOUND assertion으로 교체했다. 기존 audit count=0을 유지하고 campaign ends_at 불변을 더했다. `server.test.ts`는 삭제한 메서드 stub만 없애고 121회 404 후에도 실제 쓰기 제한기를 소모하지 않는 검사를 더했다.
+- 모바일 `play-content.test.ts`·`tmap-web-sdk.test.ts`는 기존 assertion을 모두 유지했다. timeout rejection assertion의 기대값은 그대로 두고 mock clock을 진행하기 전에 등록하도록 순서만 옮겼다. 현재 날짜·실제 10ms timer 경쟁 대신 고정 KST 날짜·mock timer를 사용했다. 새 사진 인코딩·오류 매핑·저장 cap의 기존 assertion은 삭제하지 않았고 새로운 경우만 추가했다.
+
+독립 읽기 전용 최종 리뷰: 리뷰 지적 1~10과 마지막 HTTP Host fixture·안내 문자열·쉘 변수 경계 수정을 재검토해 조치할 결함 없음. 이 리뷰는 위 실제 실행 결과를 대신하지 않는다. 검증 로그: `/private/tmp/pr418-api-unit.log`, `/private/tmp/pr418-api-postgres-final.log`, `/private/tmp/pr418-mobile-test-final.log`, `/private/tmp/pr418-site-final.log`.
