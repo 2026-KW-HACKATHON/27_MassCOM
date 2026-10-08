@@ -8,18 +8,18 @@ import {
   AccountDeletionError,
   type AccountDeletionService,
 } from './account-deletion.js';
-import { ConsentError, CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
-import { AuthSessionError, type AuthSessionService } from './auth-session.js';
-import { BadgeRewardError, type BadgeRewardService } from './badge-rewards.js';
+import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION, type ConsentService } from './account-consent.js';
+import type { AuthSessionService } from './auth-session.js';
+import type { BadgeRewardService } from './badge-rewards.js';
 import { OpenAiImageClient } from './ai-art-client.js';
 import { aiArtStartupLine, resolveAiArtConfigOrDisabled } from './ai-art-rules.js';
 import { isRewardMilestone } from './badge-rules.js';
-import { ClaimSlotError, type ClaimSlotService } from './claim-slot-service.js';
-import { CustomerIdentityError, type CustomerIdentityService } from './customer-identity.js';
-import { FriendError, type FriendService } from './friends.js';
-import { StoreTicketError, type StoreTicketService } from './store-tickets.js';
+import type { ClaimSlotService } from './claim-slot-service.js';
+import type { CustomerIdentityService } from './customer-identity.js';
+import type { FriendService } from './friends.js';
+import type { StoreTicketService } from './store-tickets.js';
 import { PostgresStoreTicketService } from './postgres/store-tickets.js';
-import { SocialError, socialErrorStatus, startNotificationsRunner, type SocialService } from './social.js';
+import { startNotificationsRunner, type SocialService } from './social.js';
 import { handleSocialHttp, SocialHttpError } from './social-http.js';
 import { PostgresSocialService } from './postgres/social.js';
 import { PostgresRealWorldService } from './postgres/real-world.js';
@@ -30,30 +30,26 @@ import { MapProvider } from './map-provider.js';
 import { RealWorldError } from './real-world-contract.js';
 import { handleRealWorldHttp } from './real-world-http.js';
 import { ExpoPushGateway } from './expo-push-gateway.js';
-import { PlayError, type PlayService, type Studio } from './play.js';
+import type { PlayService, Studio } from './play.js';
 import { ExperienceError, type CollectionExperienceService, type Equipment } from './collection-experience.js';
-import { MerchantOperationError, type MerchantOperations } from './merchant-operations.js';
+import type { MerchantOperations } from './merchant-operations.js';
 import { NotificationError, type NotificationService, type NotificationPreferences } from './notifications.js';
 import { PostgresCollectionExperienceService } from './postgres/collection-experience.js';
 import { PostgresMerchantOperations } from './postgres/merchant-operations.js';
 import { PostgresNotificationService, fcmConfigFromEnv } from './postgres/notifications.js';
 import { startNotificationScheduler } from './notification-scheduler.js';
 import { isGameKind, type GameAction } from './play-rules.js';
-import { GoogleIdTokenError, GoogleIdTokenVerifier } from './google-id-token.js';
+import { GoogleIdTokenVerifier } from './google-id-token.js';
 import { WebAuthError, WebAuthService, resolveWebAuthConfig, type WebAuthHandler } from './web-auth.js';
 import { WebSessionError, freshWebSessionMs } from './web-session.js';
-import { WebOriginError, resolveWebOrigin } from './web-origin.js';
-import {
-  AccountDeletionIntakeError,
-  type AccountDeletionIntakeService,
-  type AccountDeletionProcessingService,
+import { resolveWebOrigin } from './web-origin.js';
+import type {
+  AccountDeletionIntakeService,
+  AccountDeletionProcessingService,
 } from './account-deletion-intake.js';
-import {
-  CampaignEnrollmentError,
-  type CampaignEnrollmentService,
-} from './campaign-enrollment.js';
+import type { CampaignEnrollmentService } from './campaign-enrollment.js';
 import { parseNftMintingMode, type CollectionReader } from './collection.js';
-import { collectibleBodyLimit, CollectibleProjectError, type CollectibleProjectService } from './collectible-project.js';
+import { collectibleBodyLimit, type CollectibleProjectService } from './collectible-project.js';
 import {
   InMemoryChallengeStore,
   WalletChallengeError,
@@ -64,25 +60,27 @@ import {
   MerchantAccessError,
   type MerchantAccessControl,
 } from './merchant-access.js';
-import { MerchantArtError, type MerchantArtService } from './merchant-art.js';
+import type { MerchantArtService } from './merchant-art.js';
 import { MerchantProfileError, type MerchantProfileService } from './merchant-profile.js';
-import { MerchantOverviewError, type MerchantOverviewReader } from './merchant-overview-rules.js';
-import { MerchantDiscoveryError, isDetailViewSource, type CollectiblePreviewService, type MerchantDetailViewService } from './merchant-discovery.js';
+import type { MerchantOverviewReader } from './merchant-overview-rules.js';
+import { isDetailViewSource, type CollectiblePreviewService, type MerchantDetailViewService } from './merchant-discovery.js';
 import type { AdminFunnelReader } from './admin-funnel.js';
 import { DEFAULT_STAMP_V1_PNG } from './nft-default-stamp.js';
 import { matchNftMetadataRoute, type NftMetadataReader } from './nft-metadata.js';
 import type { MerchantCatalog } from './merchant-catalog.js';
 import {
-  MintRequestError, mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing, type MintRequestService,
+  mintConsentVersionFromEnv,
+  refuseMintRequestsWhilePreparing,
+  type MintRequestService,
 } from './mint-request-service.js';
-import { ReversalError, type ReversalService } from './reversal.js';
-import { MileageShopError, type MileageShopService } from './mileage-shop.js';
-import { CoinEconomyError, type CoinEconomyService, type PublishCoinPoolInput, type PublishCoinSeriesInput } from './coin-economy.js';
-import { RoomCommunityError, type RoomCommunityService } from './room-community.js';
-import { FurnitureError, type FurnitureService } from './furniture.js';
-import { GradeDrawError, type GradeDrawService } from './grade-draw.js';
+import type { ReversalService } from './reversal.js';
+import type { MileageShopService } from './mileage-shop.js';
+import type { CoinEconomyService, PublishCoinPoolInput, PublishCoinSeriesInput } from './coin-economy.js';
+import type { RoomCommunityService } from './room-community.js';
+import type { FurnitureService } from './furniture.js';
+import type { GradeDrawService } from './grade-draw.js';
 import { isMileageGrade } from './mileage-rules.js';
-import { VisitorFeedbackError, type VisitorFeedbackService } from './visitor-feedback.js';
+import type { VisitorFeedbackService } from './visitor-feedback.js';
 import {
   RecommendationService,
   type RecommendationReader,
@@ -111,8 +109,8 @@ import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresWebSessionStore } from './postgres/web-session.js';
 import { resolveShowcaseInviteConfig } from './showcase/invite-config.js';
 import { isPermittedShowcaseDatabaseName } from './showcase/local-seed.js';
-import { ShowcaseAccessRequestError, ShowcaseAccessRequestService } from './showcase/access-requests.js';
-import { GuestTrialError, ShowcaseGuestTrialService } from './showcase/guest-trials.js';
+import { ShowcaseAccessRequestService } from './showcase/access-requests.js';
+import { ShowcaseGuestTrialService } from './showcase/guest-trials.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresCollectibleProjectService } from './postgres/collectible-project.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
@@ -120,7 +118,7 @@ import { PostgresMerchantProfileService } from './postgres/merchant-profile.js';
 import { PostgresMerchantArtService } from './postgres/merchant-art.js';
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
-import { PostgresStaffRegistration, StaffRegistrationError } from './postgres/staff-registration.js';
+import { PostgresStaffRegistration } from './postgres/staff-registration.js';
 import { PostgresMintRequestService } from './postgres/mint-request-service.js';
 import { PostgresReversalService } from './postgres/reversal.js';
 import { PostgresMileageShopService } from './postgres/mileage-shop.js';
@@ -140,6 +138,7 @@ import {
   authLoginClientKey, optionalWebCookie, requireAccountId, requireAuthSessions, requireBearerToken, requireWebCookie,
 } from './http/request-auth.js';
 import { RequestError } from './http/request-error.js';
+import { respondWithError } from './http/error-response.js';
 import { sendBinary, sendJson, setCommonHeaders } from './http/response.js';
 
 // 토큰 메타데이터·가게 그림은 하루만 캐시한다: 운영자가 거부 목록으로 내리면 늦어도 하루 안에 사라진다(Issue #254).
@@ -2166,212 +2165,7 @@ export function createApiServer(
 
       sendJson(response, 404, { code: 'NOT_FOUND' });
     } catch (error) {
-      if (error instanceof RealWorldError) {
-        sendJson(response, error.status, { code: error.code, ...(error.retryable ? { retryable: true } : {}) });
-        return;
-      }
-      if (error instanceof ExperienceError) {
-        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'EXPERIENCE_FRIEND_NOT_FOUND' ? 404
-          : error.code === 'EXPERIENCE_LOCKED' ? 403 : 400, { code: error.code });
-        return;
-      }
-      if (error instanceof NotificationError) {
-        sendJson(response, error.code === 'NOT_FOUND' ? 404 : 400, { code: error.code });
-        return;
-      }
-      if (error instanceof MerchantOperationError) {
-        sendJson(response, error.code === 'MERCHANT_OPERATION_FORBIDDEN' ? 403
-          : error.code === 'MERCHANT_OPERATION_NOT_FOUND' || error.code === 'MERCHANT_OPERATION_STAFF_NOT_FOUND' ? 404
-          : error.code === 'MERCHANT_OPERATION_CONFLICT' ? 409 : 400, { code: error.code });
-        return;
-      }
-      if (error instanceof PlayError) {
-        const status = error.code === 'ACCOUNT_DELETED' ? 410
-          : error.code === 'PLAY_RUN_NOT_FOUND' || error.code === 'FRIEND_STUDIO_NOT_FOUND' ? 404
-          : error.code === 'PLAY_RATE_LIMITED' ? 429
-          : error.code === 'PLAY_RUN_EXPIRED' || error.code === 'STUDIO_VERSION_CONFLICT' ? 409 : 400;
-        sendJson(response, status, { code: error.code });
-        return;
-      }
-      if (error instanceof CoinEconomyError) {
-        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
-          : error.code === 'COIN_TICKET_NOT_FOUND' || error.code === 'COIN_REROLL_TICKET_NOT_FOUND'
-            || error.code === 'COIN_REROLL_SOURCE_NOT_FOUND' ? 404 : 409, { code: error.code }); return;
-      }
-      if (error instanceof GradeDrawError) {
-        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
-          : error.code === 'DRAW_RATE_LIMITED' ? 429 : 409, { code: error.code }); return;
-      }
-      if (error instanceof RoomCommunityError) {
-        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410
-          : error.code === 'ROOM_NOT_FOUND' || error.code === 'ROOM_STAMP_NOT_FOUND' ? 404
-          : error.code === 'ROOM_RATE_LIMITED' ? 429 : error.code === 'ROOM_CONSENT_REQUIRED' ? 403
-          : error.code === 'ROOM_STAMP_LIMIT' ? 409 : 400, { code: error.code }); return;
-      }
-      if (error instanceof FurnitureError) {
-        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410
-          : error.code === 'FURNITURE_UNAVAILABLE' ? 404
-          : error.code === 'FURNITURE_REQUEST_CONFLICT' || error.code === 'FURNITURE_INSUFFICIENT_MILEAGE' ? 409 : 400,
-        { code: error.code }); return;
-      }
-      if (error instanceof CollectibleProjectError) {
-        const status = error.code === 'COLLECTIBLE_INVALID_PROJECT' ? 400
-          : error.code === 'COLLECTIBLE_MEDIA_TOO_LARGE' ? 413
-          : error.code === 'COLLECTIBLE_PROJECT_NOT_FOUND' || error.code === 'COLLECTIBLE_NOT_FOUND' ? 404
-          : error.code === 'ACCOUNT_DELETED' ? 410 : 409;
-        sendJson(response, status, { code: error.code });
-        return;
-      }
-      if (error instanceof ClaimSlotError) {
-        sendJson(response, statusForClaimSlot(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof CustomerIdentityError) {
-        sendJson(response, error.code === 'ACCOUNT_DELETED' || error.code === 'CUSTOMER_IDENTITY_EXPIRED' ? 410 : 409, { code: error.code });
-        return;
-      }
-      if (error instanceof BadgeRewardError) {
-        sendJson(response, statusForBadgeReward(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof ReversalError) {
-        sendJson(response, statusForReversal(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof MileageShopError) {
-        if (error.retryAfterSeconds !== undefined) {
-          response.setHeader('Retry-After', String(error.retryAfterSeconds));
-        }
-        sendJson(response, statusForMileageShop(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof MerchantDiscoveryError) {
-        sendJson(response, 404, { code: error.code });
-        return;
-      }
-      if (error instanceof VisitorFeedbackError) {
-        sendJson(response, statusForVisitorFeedback(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof ConsentError) {
-        sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'CONSENT_VERSION_MISMATCH' ? 409 : 400,
-          { code: error.code });
-        return;
-      }
-      if (error instanceof FriendError) {
-        if (error.retryAfterSeconds !== undefined) {
-          response.setHeader('Retry-After', String(error.retryAfterSeconds));
-        }
-        sendJson(response, statusForFriend(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof StoreTicketError) {
-        sendJson(response, error.code === 'STORE_TICKET_NOT_FOUND' ? 404 : 400, { code: error.code });
-        return;
-      }
-      if (error instanceof SocialError || error instanceof SocialHttpError) {
-        if (error instanceof SocialError && error.retryAfterSeconds !== undefined) {
-          response.setHeader('Retry-After', String(error.retryAfterSeconds));
-        }
-        sendJson(response, error instanceof SocialHttpError ? error.status : socialErrorStatus(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof MerchantArtError) {
-        if (error.retryAfterSeconds !== undefined) {
-          response.setHeader('Retry-After', String(error.retryAfterSeconds));
-        }
-        sendJson(response, statusForMerchantArt(error.code), {
-          code: error.code,
-          ...(error.code === 'AI_ART_TRIAL_DISABLED' ? { message: '체험 가게에서는 AI 그림을 만들 수 없어요.' } : {}),
-        });
-        return;
-      }
-      if (error instanceof MerchantAccessError) {
-        sendJson(response, 403, { code: error.code });
-        return;
-      }
-      if (error instanceof MerchantProfileError) {
-        const status = error.code === 'MERCHANT_PROFILE_INVALID' ? 400
-          : error.code === 'MERCHANT_PROFILE_VERSION_CONFLICT' ? 409 : 403;
-        sendJson(response, status, { code: error.code });
-        return;
-      }
-      if (error instanceof MerchantOverviewError) {
-        sendJson(response, 404, { code: error.code });
-        return;
-      }
-      if (error instanceof AdminError) {
-        sendJson(response, statusForAdmin(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof StaffRegistrationError) {
-        const status = error.code === 'STAFF_FORBIDDEN' ? 403
-          : error.code === 'STAFF_MERCHANT_NOT_FOUND' || error.code === 'STAFF_NOT_FOUND' ? 404
-            : error.code === 'STAFF_CODE_INVALID' ? 400 : 409;
-        sendJson(response, status, { code: error.code });
-        return;
-      }
-      if (error instanceof GuestTrialError) {
-        sendJson(response, error.code === 'GUEST_TRIAL_IP_LIMIT' ? 429 : 503, { code: error.code });
-        return;
-      }
-      if (error instanceof ShowcaseAccessRequestError) {
-        const status = error.code === 'SHOWCASE_APPROVER_REQUIRED' || error.code === 'SHOWCASE_ACCESS_SELF_DECISION' ? 403
-          : error.code === 'SHOWCASE_ACCESS_REQUEST_NOT_FOUND' ? 404
-            : error.code === 'ACCOUNT_DELETED' ? 410 : 409;
-        sendJson(response, status, { code: error.code });
-        return;
-      }
-      if (error instanceof WalletChallengeError) {
-        sendJson(response, statusFor(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof MintRequestError) {
-        sendJson(response, statusForMintRequest(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof AuthSessionError) {
-        sendJson(response, statusForAuthSession(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof GoogleIdTokenError) {
-        sendJson(response, error.code === 'ID_TOKEN_KEY_SET_UNAVAILABLE' ? 503 : 401, {
-          code: error.code,
-        });
-        return;
-      }
-      if (error instanceof WebOriginError) {
-        sendJson(response, 403, { code: error.code });
-        return;
-      }
-      if (error instanceof WebAuthError || error instanceof WebSessionError) {
-        sendJson(response, error.code === 'WEB_AUTH_UPSTREAM_UNAVAILABLE' ? 503 : 401, {
-          code: error.code,
-          ...(error.code === 'WEB_AUTH_UPSTREAM_UNAVAILABLE'
-            ? { message: 'Google 연결을 확인할 수 없습니다. 운영 웹으로 돌아가 새 로그인을 시작해 주세요.', next: '/app/' }
-            : {}),
-        });
-        return;
-      }
-      if (error instanceof AccountDeletionError) {
-        sendJson(response, statusForAccountDeletion(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof AccountDeletionIntakeError) {
-        sendJson(response, statusForDeletionIntake(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof CampaignEnrollmentError) {
-        sendJson(response, statusForCampaignEnrollment(error.code), { code: error.code });
-        return;
-      }
-      if (error instanceof RequestError) {
-        sendJson(response, error.status, { code: error.code });
-        return;
-      }
-
-      console.error(safeErrorMetadata('api.unhandled', error));
-      sendJson(response, 500, { code: 'INTERNAL_ERROR' });
+      respondWithError(response, error);
     }
   });
 }
@@ -2390,68 +2184,6 @@ function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
     ...(body.neighborhood === undefined ? {} : { neighborhood: body.neighborhood as string | null }),
     ...(body.category === undefined ? {} : { category: body.category as string | null }),
   };
-}
-
-function statusForAuthSession(code: string): number {
-  if (code === 'IDENTITY_MISMATCH' || code === 'INVITE_REQUIRED') return 403;
-  return 401;
-}
-
-function statusForAccountDeletion(code: string): number {
-  if (code === 'REAUTHENTICATION_REQUIRED') return 401;
-  if (code === 'ACCOUNT_REQUIRED') return 401;
-  return 400;
-}
-
-function statusForDeletionIntake(code: string): number {
-  if (code === 'DELETION_NO_ACTIVE_REQUEST' || code === 'DELETION_RECEIPT_NOT_FOUND' || code === 'DELETION_INTAKE_NOT_FOUND') return 404;
-  if (code === 'DELETION_SELF_PROCESSING_REFUSED') return 403;
-  if (code === 'DELETION_REJECT_REASON_INVALID') return 400;
-  return 409;
-}
-
-function statusFor(code: string): number {
-  if (code === 'ACCOUNT_AUTH_NOT_CONFIGURED') return 503;
-  if (code === 'ACCOUNT_REQUIRED' || code === 'SIGNER_MISMATCH') return 401;
-  if (code === 'ACCOUNT_MISMATCH') return 403;
-  if (code === 'CHALLENGE_NOT_FOUND') return 404;
-  if (code === 'SIGNATURE_EXPIRED') return 410;
-  if (code === 'NONCE_ALREADY_USED' || code === 'NONCE_IN_PROGRESS') return 409;
-  if (code === 'WALLET_BINDING_NOT_FOUND') return 404;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  if (code === 'WALLET_ADDRESS_IN_USE' || code === 'WALLET_BINDING_CHANGED') return 409;
-  return 400;
-}
-
-function statusForClaimSlot(code: string): number {
-  if (code === 'CLAIM_TOKEN_EXPIRED' || code === 'CUSTOMER_IDENTITY_EXPIRED') return 410;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  if (code === 'SHOWCASE_MERCHANT_NOT_FOUND') return 404;
-  return 409;
-}
-
-function statusForBadgeReward(code: string): number {
-  if (code === 'COUPON_NOT_FOUND') return 404;
-  if (code === 'COUPON_SELF_REDEEM') return 403;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  return 409;
-}
-
-function statusForFriend(code: string): number {
-  if (code === 'FRIEND_CODE_NOT_FOUND' || code === 'FRIEND_NOT_FOUND' || code === 'FRIEND_NEIGHBOR_NOT_FOUND') return 404;
-  if (code === 'FRIEND_CODE_RATE_LIMITED') return 429;
-  if (code === 'FRIEND_NICKNAME_INVALID' || code === 'PROFILE_INTRO_INVALID') return 400;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  return 409;
-}
-
-function statusForMerchantArt(code: string): number {
-  if (code === 'AI_ART_ROUND_NOT_FOUND') return 404;
-  if (code === 'AI_ART_DAILY_LIMIT') return 429;
-  if (code === 'AI_ART_TRIAL_DISABLED') return 403;
-  if (code === 'AI_ART_NOT_CONFIGURED' || code === 'AI_ART_BUDGET_EXHAUSTED') return 503;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  return 409;
 }
 
 type CollectibleProjectRoute = { merchantId: string; kind: 'list' | 'create' | 'get' | 'save' | 'publish' | 'copy' | 'unpublish' | 'delete'; projectId?: string };
@@ -2536,31 +2268,6 @@ async function runReversalRoute(
   }
 }
 
-function statusForReversal(code: string): number {
-  if (code === 'INVALID_REVERSAL_REASON' || code === 'INVALID_REVERSAL_NOTE') return 400;
-  if (code === 'COUPON_SELF_UNDO') return 403;
-  if (code === 'VISIT_NOT_FOUND' || code === 'COUPON_NOT_FOUND') return 404;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  return 409;
-}
-
-function statusForMileageShop(code: string): number {
-  if (code === 'INVALID_REQUEST') return 400;
-  if (code === 'SHOP_INSUFFICIENT_MILEAGE') return 402;
-  if (code === 'SHOP_ITEM_NOT_OWNED' || code === 'SHOP_CLOTHING_NOT_OWNED') return 404;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  if (code === 'SHOP_RATE_LIMITED') return 429;
-  // SHOP_GRADE_COMPLETE, SHOP_STATE_CHANGED, SHOP_REQUEST_CONFLICT
-  return 409;
-}
-
-function statusForVisitorFeedback(code: string): number {
-  if (code === 'VISITOR_FEEDBACK_NOT_ELIGIBLE') return 403;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  // VISITOR_FEEDBACK_TAGS_INVALID, VISITOR_FEEDBACK_SUGGESTIONS_INVALID, VISITOR_FEEDBACK_NOTE_INVALID
-  return 400;
-}
-
 type MerchantArtRoute =
   | { kind: 'state' | 'create' | 'reset' }
   | { kind: 'get' | 'choose' | 'apply'; roundId: string };
@@ -2577,54 +2284,6 @@ function matchMerchantArtRoute(method: string | undefined, tail: string): Mercha
   const roundId = round[1]!;
   if (round[2] === undefined) return method === 'GET' ? { kind: 'get', roundId } : undefined;
   return method === 'POST' ? { kind: round[2] as 'choose' | 'apply', roundId } : undefined;
-}
-
-function statusForAdmin(code: AdminError['code']): number {
-  switch (code) {
-    case 'ADMIN_FORBIDDEN':
-    case 'ADMIN_SELF_ROLE_CHANGE':
-      return 403;
-    case 'ADMIN_MERCHANT_NOT_FOUND':
-    case 'ADMIN_IDENTITY_NOT_FOUND':
-    case 'ADMIN_COUPON_NOT_FOUND':
-    case 'ADMIN_MEMBER_NOT_FOUND':
-    case 'ADMIN_OFFER_NOT_FOUND':
-    case 'ADMIN_CAMPAIGN_NOT_FOUND':
-      return 404;
-    case 'ADMIN_VERSION_CONFLICT':
-    case 'ADMIN_PENDING_CLAIMS':
-    case 'ADMIN_COUPON_NOT_VOIDABLE':
-    case 'ADMIN_MERCHANT_NOT_READY':
-    case 'ADMIN_MERCHANT_ALREADY_ACTIVE':
-    case 'ADMIN_MERCHANT_NOT_ACTIVE':
-    case 'ADMIN_ALREADY_OWNER':
-    case 'ADMIN_OWNER_LIMIT':
-    case 'ADMIN_OFFER_MILESTONE_TAKEN':
-    case 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE':
-    case 'ADMIN_CAMPAIGN_NOT_PAUSABLE':
-    case 'ADMIN_CAMPAIGN_NOT_EXTENDABLE':
-    case 'ADMIN_CAMPAIGN_EXTENSION_LIMIT':
-    case 'ADMIN_CAMPAIGN_ACTIVE_EXISTS':
-      return 409;
-    default:
-      return 400;
-  }
-}
-
-function statusForMintRequest(code: string): number {
-  if (code === 'ENTITLEMENT_NOT_FOUND' || code === 'WALLET_BINDING_NOT_FOUND' || code === 'MINT_JOB_NOT_FOUND') {
-    return 404;
-  }
-  if (code === 'CONSENT_REQUIRED' || code === 'CONSENT_VERSION_OUTDATED' || code === 'IDEMPOTENCY_KEY_REQUIRED') return 400;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  return 409;
-}
-
-function statusForCampaignEnrollment(code: string): number {
-  if (code === 'CAMPAIGN_NOT_FOUND') return 404;
-  if (code === 'ACCOUNT_DELETED') return 410;
-  if (code === 'CAMPAIGN_FULL' || code === 'CAMPAIGN_NOT_AVAILABLE') return 409;
-  return 409;
 }
 
 const maxSessionTtlMs = 365 * 24 * 60 * 60 * 1000;
