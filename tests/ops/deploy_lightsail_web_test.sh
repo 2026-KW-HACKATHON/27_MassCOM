@@ -198,6 +198,7 @@ grep -q 'verify-showcase-edge-routes.mjs' "$scratch/remote.sh"
 grep -qF 'web_collection_probe_response "http://$address/api/web/collection" masscom.kr' "$scratch/remote.sh"
 grep -qF 'nft_metadata_probe_response "http://$address/nft-metadata/no-such/1.json"' "$scratch/remote.sh"
 grep -qF 'web_consent_probe_response "http://$address/api/web/consent" masscom.kr' "$scratch/remote.sh"
+grep -qF 'web_consent_probe_response "http://$address/api/web/v1/merchant/merchants/x/real-world-profile" masscom.kr' "$scratch/remote.sh"
 grep -q 'web_rollback' "$scratch/remote.sh"
 if grep -Eq 'compose_new (build|up).*\b(api|postgres|migrate)\b' "$scratch/remote.sh"; then
   echo 'web-only deploy script would modify API or database services' >&2

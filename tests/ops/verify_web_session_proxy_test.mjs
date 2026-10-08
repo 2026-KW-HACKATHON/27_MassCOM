@@ -39,6 +39,12 @@ createServer((request, response) => {
     response.removeHeader('Cache-Control');
     response.setHeader('X-Observed-Cookie', request.headers.cookie || '');
     response.writeHead(request.headers.cookie ? 200 : 401);
+  } else if (request.url.startsWith('/api/web/v1/')) {
+    // 가게 실세계 프로필 편집(/api/web/v1/{merchant,admin}/merchants/...). API 대역은 일부러 Cache-Control을 주지 않아,
+    // 응답의 no-store가 Caddy가 붙인 것임을 확인한다.
+    response.removeHeader('Cache-Control');
+    response.setHeader('X-Observed-Cookie', request.headers.cookie || '');
+    response.writeHead(request.headers.cookie ? 200 : 401);
   } else if (request.url === '/api/web/account-deletion-intake') {
     response.writeHead(202);
   } else if (request.url === '/api/web/account-deletion-intake/cancel' || request.url === '/api/web/account-deletion-status') {
@@ -156,6 +162,18 @@ test('Caddy forwards allowlisted browser-session routes, preserving redirects an
     assert.match(collectible.headers.get('cache-control') ?? '', /no-store/);
     assert.equal(collectible.headers.get('x-robots-tag'), 'noindex, nofollow');
     assert.equal((await fetch(`${url}/api/web/collectibles`, { headers: { cookie: 'web_session=fixture' } })).status, 404, '목록 경로는 프록시하지 않는다');
+    // 가게 실세계 프로필 편집 API(`/api/web/v1/*`)도 API로 넘기고 Caddy가 캐시·색인을 막는다. 정적 파일 서버로 빠지면 404다.
+    for (const channel of ['merchant', 'admin']) {
+      const path = `/api/web/v1/${channel}/merchants/merchant-1/real-world-profile`;
+      assert.equal((await fetch(`${url}${path}`)).status, 401, path);
+      for (const method of ['GET', 'PUT']) {
+        const profile = await fetch(`${url}${path}`, { method, headers: { cookie: 'web_session=fixture' } });
+        assert.equal(profile.status, 200, `${method} ${path}`);
+        assert.equal(profile.headers.get('x-observed-cookie'), 'web_session=fixture', `${method} ${path}`);
+        assert.match(profile.headers.get('cache-control') ?? '', /no-store/, `${method} ${path}`);
+        assert.equal(profile.headers.get('x-robots-tag'), 'noindex, nofollow', `${method} ${path}`);
+      }
+    }
     assert.equal((await fetch(`${url}/api/web/consent/other`, { method: 'POST' })).status, 404);
     assert.equal((await fetch(`${url}/api/web/logout`, { method: 'POST' })).status, 204);
     const intake = await fetch(`${url}/api/web/account-deletion-intake`, { method: 'POST' });
@@ -270,6 +288,15 @@ test('Caddy serves the same limited web surface for exact apex and www hosts', a
       assert.equal(collectible.headers['x-observed-cookie'], 'web_session=fixture', host);
       assert.match(collectible.headers['cache-control'] ?? '', /no-store/, host);
       assert.equal(collectible.headers['x-robots-tag'], 'noindex, nofollow', host);
+      for (const channel of ['merchant', 'admin']) {
+        const path = `/api/web/v1/${channel}/merchants/merchant-1/real-world-profile`;
+        const profile = await requestForHost(url, path, host, 'GET', { cookie: 'web_session=fixture' });
+        assert.equal(profile.status, 200, `${host}${path}`);
+        assert.equal(profile.headers['x-observed-host'], host, `${host}${path}`);
+        assert.equal(profile.headers['x-observed-cookie'], 'web_session=fixture', `${host}${path}`);
+        assert.equal(profile.headers['x-robots-tag'], 'noindex, nofollow', `${host}${path}`);
+        assert.match(profile.headers['cache-control'] ?? '', /no-store/, `${host}${path}`);
+      }
       const consent = await requestForHost(url, '/api/web/consent', host, 'POST', { cookie: 'web_session=fixture' });
       assert.equal(consent.status, 200, host);
       assert.equal(consent.headers['x-observed-host'], host, host);

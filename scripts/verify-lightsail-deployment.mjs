@@ -88,6 +88,12 @@ try {
     'Caddy must overwrite incoming client IP chains before proxying',
   );
   assert(!caddyfile.includes('postgres:5432'), 'Caddy must never proxy PostgreSQL');
+  for (const matcher of ['webSession', 'privateSurface']) {
+    assert(
+      new RegExp(`^\\s*@${matcher} path (?:[^\\n]* )?\\/api\\/web\\/v1\\/\\*(?: |$)`, 'm').test(caddyfile),
+      `Caddy @${matcher} must cover /api/web/v1/* (store real-world profile editor)`,
+    );
+  }
   validateMerchantArtCaddy(caddyfile);
 
   const dockerfile = readFileSync(dockerfilePath, 'utf8');

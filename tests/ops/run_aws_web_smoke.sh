@@ -55,7 +55,7 @@ for path in /HANDOFF.md /TEST_STATUS.md /evidence/showcase-host-local-2026-09-24
 done
 
 # The explicit browser-session routes reach the absent API in this web-only smoke.
-for path in /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/badges; do
+for path in /api/web/auth/start /api/web/auth/callback /api/web/logout /api/web/collection /api/web/badges /api/web/v1/merchant/merchants/x/real-world-profile /api/web/v1/admin/merchants/x/real-world-profile; do
   status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:8089$path")"
   [[ "$status" == '502' ]] || { echo "$path unexpectedly returned $status" >&2; exit 1; }
 done
