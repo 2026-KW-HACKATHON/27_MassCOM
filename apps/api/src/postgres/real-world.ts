@@ -11,6 +11,7 @@ import { RealWorldError } from '../real-world-contract.js';
 import { businessStateAt } from '../real-world-hours.js';
 import { validatePoint, validateRealWorldProfile } from '../real-world-rules.js';
 import type { PostgresAccountLifecycle } from './account-lifecycle.js';
+import { parsePurposeSummary, purposeSummarySql } from './campaign-purpose.js';
 
 type MerchantRow = {
   id: string; name: string; road_address: string; category: string | null; is_demo: boolean;
@@ -21,7 +22,7 @@ type MerchantRow = {
 };
 type CampaignRow = { id: string; title: string; starts_at: Date; ends_at: Date; status: string;
   enrolled_count: number; enrollment_capacity: number; collectible_available: boolean;
-  goals: { targetVisitCount: 1 | 3 | 5; displayName: string }[] };
+  goals: { targetVisitCount: 1 | 3 | 5; displayName: string }[]; purpose: unknown };
 type PhotoRow = { id: string; digest: string; mime_type: PhotoUploadInput['mimeType']; width: number; height: number;
   kind: MerchantPhoto['kind']; caption: string | null; updated_at: Date };
 type ReportRow = { id: string; merchant_id: string; kind: MerchantReport['kind']; note: string;
@@ -62,9 +63,10 @@ function campaignAt(row: CampaignRow | undefined, now: Date): CampaignSummary | 
   const state = row.status === 'ENDED' || row.ends_at <= now ? 'ENDED'
     : row.status === 'PAUSED' ? 'PAUSED' : row.starts_at > now ? 'SCHEDULED' : 'ACTIVE';
   const enrollment = state !== 'ACTIVE' ? 'CLOSED' : row.enrolled_count >= row.enrollment_capacity ? 'FULL' : 'OPEN';
+  const purpose = parsePurposeSummary(row.purpose);
   return { id: row.id, title: row.title, startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
     state, enrollment, rewardAvailability: state !== 'ACTIVE' ? 'NOT_RUNNING' : !row.collectible_available ? 'UNKNOWN'
-      : 'AVAILABLE', goals: row.goals ?? [] };
+      : 'AVAILABLE', goals: row.goals ?? [], ...(purpose ? { purpose } : {}) };
 }
 
 function distance(origin: Point, destination: Point): number {
@@ -116,7 +118,7 @@ export class PostgresRealWorldService {
     const result = await this.pool.query<PhotoRow & { merchant_id: string }>(
       `SELECT merchant_id, id, digest, mime_type, width, height, kind, caption, updated_at
        FROM merchant_real_world_photos WHERE merchant_id = ANY($1::text[]) AND deleted_at IS NULL
-       ORDER BY created_at DESC, id DESC`, [merchantIds]);
+       ORDER BY created_at, id`, [merchantIds]);
     const byMerchant = new Map<string, MerchantPhoto[]>();
     for (const row of result.rows) byMerchant.set(row.merchant_id, [...byMerchant.get(row.merchant_id) ?? [], toPhoto(row)]);
     return byMerchant;
@@ -137,7 +139,8 @@ export class PostgresRealWorldService {
               ) AS collectible_available,
               coalesce((SELECT jsonb_agg(jsonb_build_object('targetVisitCount', g.target_visit_count,
                 'displayName', g.display_name) ORDER BY g.target_visit_count)
-                FROM campaign_goals g WHERE g.campaign_id = c.id), '[]'::jsonb) AS goals
+                FROM campaign_goals g WHERE g.campaign_id = c.id), '[]'::jsonb) AS goals,
+              ${purposeSummarySql('c.id')} AS purpose
        FROM campaigns c WHERE c.merchant_id = ANY($1::text[]) AND c.is_public
          AND c.status IN ('ACTIVE', 'PAUSED', 'ENDED')
        ORDER BY c.merchant_id, (c.status = 'ACTIVE' AND c.starts_at <= $2 AND c.ends_at > $2) DESC,
@@ -314,7 +317,7 @@ export class PostgresRealWorldService {
     const campaigns = await this.campaigns([merchant.id], at, client);
     return { schemaVersion: 1, asOf: at.toISOString(), merchantId: merchant.id, version: merchant.version,
       profile, photos: publicPhotos,
-      preview: this.detail(merchant, at, campaigns.get(merchant.id) ?? null, publicPhotos), readiness: [
+      preview: this.detail(merchant, at, campaigns.get(merchant.id) ?? null, [...publicPhotos].reverse()), readiness: [
         { key: 'location', ready: profile.location !== null, label: '확인된 위치', field: 'location' },
         { key: 'schedule', ready: profile.schedule !== null, label: '영업시간', field: 'schedule' },
         { key: 'menu', ready: profile.menuItems.length > 0, label: '메뉴', field: 'menuItems' },

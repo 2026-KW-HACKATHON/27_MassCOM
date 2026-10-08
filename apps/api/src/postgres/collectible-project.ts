@@ -5,7 +5,7 @@ import {
   CollectibleProjectError, type CollectibleArtwork, type CollectibleDetail, type CollectibleProject, type CollectibleProjectService,
   type CollectibleCampaign, type CollectibleProjectSummary, type CollectibleProjectView, type CollectibleUnpublishResult,
 } from '../collectible-project.js';
-import { collectibleSnapshot, upgradeCollectibleProject, validateCollectibleProject } from '../collectible-project-rules.js';
+import { assertCollectiblePublicationGradeRowsSize, collectibleSnapshot, upgradeCollectibleProject, validateCollectibleProject } from '../collectible-project-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 
@@ -34,12 +34,11 @@ export function isStandardVisitGoalSet(goals: readonly number[]): boolean {
 export function standardizeStandardVisitPublicationProject(project: unknown): CollectibleProject {
   const draft = upgradeCollectibleProject(project);
   draft.rewardGrades = { ...standardVisitRewardGrades };
-  const result = validateCollectibleProject(draft, true);
-  for (const gradeId of standardVisitPublicationGradeIds) {
-    if (!result.grades.some(grade => grade.id === gradeId && grade.enabled)) {
-      throw new CollectibleProjectError('COLLECTIBLE_INVALID_PROJECT');
-    }
+  if (Array.isArray(draft.grades) && standardVisitPublicationGradeIds.some(gradeId =>
+    !draft.grades.some(grade => grade?.id === gradeId && grade.enabled))) {
+    throw new CollectibleProjectError('COLLECTIBLE_DEFAULT_GRADE_MISSING');
   }
+  const result = validateCollectibleProject(draft, true);
   for (const gradeId of publicationGradeIds(result)) {
     if (!Object.hasOwn(result.derived, gradeId)) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
     if (result.living.items.some(item => item.gradeIds.includes(gradeId)) && !result.derived[gradeId]?.living) {
@@ -128,12 +127,14 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
          WHERE goal.campaign_id = $1 AND campaign.merchant_id = $2`, [input.campaignId, input.merchantId]);
       if (!isStandardVisitGoalSet(goals.rows.map(goal => goal.target_visit_count))) throw new CollectibleProjectError('COLLECTIBLE_CAMPAIGN_UNAVAILABLE');
       const publicationId = randomUUID();
-      const grades: { gradeId: string; summary: CollectibleArtwork; detail: Omit<CollectibleDetail, keyof CollectibleArtwork> }[] = [];
+      const grades: { gradeId: string; summary: string; detail: string }[] = [];
       for (const gradeId of publicationGradeIds(project)) {
         const { projectId, publicationId: _publication, gradeId: _grade, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
           collectibleSnapshot(project, row.id, publicationId, gradeId);
-        grades.push({ gradeId, summary: { projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }, detail });
+        grades.push({ gradeId, summary: JSON.stringify({ projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }),
+          detail: JSON.stringify(detail) });
       }
+      assertCollectiblePublicationGradeRowsSize(grades);
       // Claim capture holds FOR KEY SHARE on a linked campaign; this FOR UPDATE serializes the link replacement with it.
       const campaign = await client.query<{ id: string }>(
         `SELECT id FROM campaigns WHERE id = $1 AND merchant_id = $2 AND status = 'ACTIVE' AND is_public
@@ -146,7 +147,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
       for (const grade of grades) {
         await client.query(
           `INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1,$2,$3::jsonb,$4::jsonb)`,
-          [publicationId, grade.gradeId, JSON.stringify(grade.summary), JSON.stringify(grade.detail)]);
+          [publicationId, grade.gradeId, grade.summary, grade.detail]);
       }
       await client.query(
         `INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1,$2)

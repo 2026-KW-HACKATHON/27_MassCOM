@@ -6,7 +6,7 @@
 
 제작기에서 재생·전체 미리보기는 등급의 기존 동작과 함께 코인도 회전한다. 회전 속도는0.25~3배이며 재생 중 변경해도 각도를 이어 간다. 정지는 현재 각도, 재개는 멈춘 각도, 다시 보기는 처음부터다. 수동 각도는 회전을 멈추고 적용한다. 정지한 옆면·뒷면에서 앞면 스티커를 드래그할 수 없으며 정면 보기 후 편집한다. 움직임 줄이기를 켜면 재생을 눌러도 회전하지 않는다. 회전 탭의 속도·각도 설정과 움직임 탭의 등장/반사/흔들림 템플릿은 서로 다른 저장 항목이다.
 
-프로젝트와 등급별 불변 게시·획득 상세에 선택 필드 `rotationSpeed`를 보존한다. API는 유한한0.25~3 숫자를 검사하며 구 저장본·업그레이드에는 새 필드를 강제로 넣지 않는다. 앱은 누락·잘못된 선택 값을1배로 읽고 기존 rotate 동작의 각속도에 적용한다. 기존 once/loop 시간·다른 동작·1/3/5 지급 조건·이미지 형식과 크기 한도는 유지한다. 웹의 기존75ms/도와 앱90ms/도 기준은 유지하여 같은 배율의 절대 회전 시간은 플랫폼 사이에 다르다. [캡처·시험·재현](evidence/rotation-playback-2026-10-08/README.md).
+프로젝트와 등급별 불변 게시·획득 상세에 선택 필드 `rotationSpeed`를 보존한다. API는 유한한0.25~3 숫자를 검사하며 구 저장본·업그레이드에는 새 필드를 강제로 넣지 않는다. 앱은 누락·잘못된 선택 값을1배로 읽고 기존 rotate 동작의 각속도에 적용한다. 기존 once/loop 시간·다른 동작·1/3/5 지급 조건·이미지 형식과 크기 한도는 유지한다. 이번 새 후속에서는 실제 재생의 회전을 웹·앱 모두75ms/도×선택 배율로 계산한다. 모든 움직임 템플릿에서도 회전하며 정지·숨김·움직임 줄이기에서 시계를 멈춘다. 이전 rotate helper의90ms/도는 과거 계약 시험에만 남는다. [캡처·시험·재현](evidence/rotation-playback-2026-10-08/README.md).
 
 ## 2026-10-08 방문 보상·사진 편집 현재 계약 (PR #418)
 
@@ -33,7 +33,7 @@
 
 ## 프리즘·추가 등급과 용량 (2026-10-08 최신 후속)
 
-기본 제작·발행 등급은 브론즈·실버·골드·프리즘 네 개다. 방문 지급은 1회 브론즈·3회 실버·5회 골드로 유지하며 프리즘 지급 조건을 임의로 추가하지 않는다. 게시할 때 네 기본 등급과 모든 활성 특수등급의 정면·뒷면·프레임을 저장한다. 추가 등급은 고유 ID와 이름을 보존하며 총16개(기본4+특수12) 상한을 유지한다. 프리즘은 기본 음각·양각에도 청록·분홍·보라의 각도별 색 이동과 같은 계열 테두리를 사용한다. 프리즘 후면3종은 음각 문양을 유지해 built-in 이미지 생성으로 색을 개선했다. 현재 웹·앱 뒷면12종은 동일한512px WebP767,082바이트(749.1KiB)로 원본41,909,062바이트보다98.17% 작다. v1PNG와 기존 게시본은 보존하고 모바일 번들은 v2만 사용한다. [최신 색감·용량·확장·검증](evidence/prism-collectibles-2026-10-08/README.md).
+기본 제작·발행 등급은 브론즈·실버·골드·프리즘 네 개다. 방문 지급은 1회 브론즈·3회 실버·5회 골드로 유지하며 프리즘 지급 조건을 임의로 추가하지 않는다. 게시할 때 네 기본 등급과 모든 활성 특수등급의 정면·뒷면·프레임을 저장한다. 추가 등급은 고유 ID와 이름을 보존하며 총16개(기본4+특수12) 상한을 유지한다. 프리즘은 기본 음각·양각에도 청록·분홍·보라의 각도별 색 이동과 같은 계열 테두리를 사용한다. 프리즘 후면3종은 음각 문양을 유지해 built-in 이미지 생성으로 색을 개선했다. 현재 웹·앱 뒷면12종은 동일한512px WebP767,082바이트(749.1KiB)로 원본41,909,062바이트보다98.17% 작다. 사용하지 않는 v1PNG는 최신 개발자 변경에서 제거했고 기존 게시본은 보존한다. 모바일 번들은 v2만 사용한다. [최신 색감·용량·확장·검증](evidence/prism-collectibles-2026-10-08/README.md).
 
 전체 UTF-8 JSON8MiB·등급별 회전 스프라이트1MiB·뒷면256KiB 상한을 유지한다. 모든 활성 등급을 포함한 본문 전체가 통과할 때까지448→384→320→256px로 줄이며 등급을 자동 삭제하지 않는다. 그래도 크면 초안·기존 게시본을 보존하고 게시 오류를 안내한다. 모르는 등급은 현재 브론즈 외형으로 대체한다. 고유 신규 재질은 웹·앱 재질과 모양3종의 versioned 후면 카탈로그에 등록해야 한다.
 
@@ -43,7 +43,7 @@
 
 아래 `back` 스키마와 과거 뒷면 편집 구현 기록은 저장된 프로젝트 호환을 위한 이력이다. 새 게시본에는 고정 이미지로 만든 `backImageDataUrl`(512px·256KiB 이내)을 넣고, 기존 발행본의 저장된 뒷면은 보존한다. 이미지 없는 구 수집품의 웹·앱 fallback도 같은 고정 파일을 쓴다. v1은 생성 원본 이력이며 현재 런타임은 압축v2WebP다. [현재12종·프리즘 프롬프트·검수](evidence/prism-collectibles-2026-10-08/README.md), [v1원본 이력](evidence/fixed-collectible-backs-2026-10-08/README.md).
 
-2026-10-09 후속은 정면처럼 후면도 회전 각도에 따라 조명과 반짝임을 다시 계산한다. 후면 고정 이미지는 그대로 쓰고, 브론즈·실버·골드·프리즘의 핵심 색과 프리즘 foil/glint만 런타임 합성한다. 프리즘이 아닌 테두리는 `baseColor` 하나로 칠하지 않고 현재 등급 금속색 gradient를 사용한다. 이 기준은 실버 앞면 림이 브론즈색처럼 보이던 원인을 막기 위한 계약이다. 옆면은 모양별 고정 reeded edge를 쓰며 144칸 기준으로 간격이 2px보다 작아지는 홈은 생략한다. 얇은 코인에서는 홈 강도를 줄이고, 앞면 투명 영역으로 홈이 비쳐 보이지 않게 앞면 영역을 빼고 그린다. 이 후속의 최종 브라우저 캡처·CI·실기기 판정은 아직 TEST_STATUS에서 `TBD`로 추적한다.
+2026-10-09 후속은 정면처럼 후면도 회전 각도에 따라 조명과 반짝임을 다시 계산한다. 후면 고정 이미지는 그대로 쓰고, 브론즈·실버·골드·프리즘의 핵심 색과 프리즘 foil/glint만 런타임 합성한다. 프리즘이 아닌 테두리는 `baseColor` 하나로 칠하지 않고 현재 등급 금속색 gradient를 사용한다. 이 기준은 실버 앞면 림이 브론즈색처럼 보이던 원인을 막기 위한 계약이다. 옆면은 모양별 고정 reeded edge를 쓰며 144칸 기준으로 간격이 2px보다 작아지는 홈은 생략한다. 얇은 코인에서는 홈 강도를 줄이고, 앞면 투명 영역으로 홈이 비쳐 보이지 않게 앞면 영역을 빼고 그린다. 실버 테두리·오라·회전 분리·얇은 옆면의 [캡처·저장·성능 실측](evidence/coin-edge-2026-10-09/README.md)과 [TEST_STATUS](TEST_STATUS.md)를 함께 확인한다.
 
 ## 근거와 작업 범위
 
@@ -221,9 +221,10 @@ Android 고객 구현은 `apps/mobile/src/commerce/collectible-artwork.ts`, `com
 | `POST /:projectId/delete` | `{ expectedVersion }` | 200 `{ projectId, deleted: true, unlinkedCampaignId }` (초안은 행 삭제, 게시본은 게시 중지 + 비공개 원본 비움) |
 
 - 저장·생성·복사 응답의 `project`는 서버가 정리한 값이다: 모든 이미지의 메타데이터 제거(바이트가 달라짐), MP3는 태그 제거와 프레임 기준 `durationSeconds`. 편집기는 응답의 `project`를 새 기준값으로 삼아야 "저장하지 않은 변경" 비교가 어긋나지 않는다.
+- 게시 등급 행 전체의 JSON 직렬화 크기는 24 MiB 이하이며 초과하면 413 `COLLECTIBLE_PUBLICATION_SIZE_LIMIT`이다. 기본 네 등급 누락은 409 `COLLECTIBLE_DEFAULT_GRADE_MISSING`과 "편집기를 새로고침한 뒤 다시 게시해 주세요"로 안내한다. API와 웹 자산은 D-096에 따라 같은 배포 창에서 전환한다.
 - 본문 상한 8 MiB(413 `BODY_TOO_LARGE`). 점포당 미디어가 남은 발행본은 100개까지다(409 `COLLECTIBLE_PUBLICATION_LIMIT`; 게시본은 이미 받은 고객을 위해 남아 삭제·게시 중지로 줄지 않고, 운영자 미디어 제거만 자리를 비운다). 생성·저장·복사·게시는 점포마다 1분 20번(429 `COLLECTIBLE_RATE_LIMITED`, `Retry-After` 초).
 - 이미지: PNG/JPEG/WebP data URL만. 원본 사진 3 MiB·4096 px, 장면 원본 512 KiB·4096 px(최대 5장), 완성 `imageDataUrl`·`baseDataUrl` 1 MiB·512 px, `effectMasks` 256 KiB·512 px, `thumbnailDataUrl` 128 KiB·160 px, 장면 `previewDataUrl` 512 KiB·512 px. 애니메이션 WebP 거절. 음성: MP3(ID3/APE 태그 뒤 MPEG Layer III 프레임만, 30.5초 초과 413 `COLLECTIBLE_MEDIA_TOO_LARGE`), WebM/Ogg(브라우저 녹음의 Opus만, 서버가 길이를 다시 계산해 30.5초 초과 413. Ogg는 태그를 비우고, WebM은 Tags·Attachments·Chapters·제목이 있으면 400).
-- 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_PUBLICATION_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_FOUND`(404), `MERCHANT_NOT_FOUND`(404), `MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED`(503), `VIEW_SOURCE_INVALID`(400), `VIEW_RATE_LIMITED`(429, `Retry-After` 초), `ADMIN_FUNNEL_NOT_CONFIGURED`(503), `FUNNEL_DAYS_INVALID`(400), `AI_ART_NOT_CONFIGURED`(503), `AI_ART_DAILY_LIMIT`(429), `AI_ART_BUDGET_EXHAUSTED`(503), `AI_ART_TRIAL_DISABLED`(403), `AI_ART_ROUND_IN_PROGRESS`(409), `AI_ART_MODERATION_BLOCKED`(409), `AI_ART_UPSTREAM_UNAVAILABLE`(503), `AI_ART_TIMEOUT`(503), `AI_ART_INTERRUPTED`(409).
+- 오류 코드 전체(상태): `INVALID_REQUEST`(400, 본문 키), `COLLECTIBLE_INVALID_PROJECT`(400), `COLLECTIBLE_MEDIA_TOO_LARGE`(413), `COLLECTIBLE_PUBLICATION_SIZE_LIMIT`(413), `BODY_TOO_LARGE`(413), `COLLECTIBLE_PROJECT_NOT_FOUND`(404), `COLLECTIBLE_DEFAULT_GRADE_MISSING`·`COLLECTIBLE_VERSION_CONFLICT`·`COLLECTIBLE_PUBLISHED_IMMUTABLE`·`COLLECTIBLE_CAMPAIGN_UNAVAILABLE`·`COLLECTIBLE_NOT_READY`·`COLLECTIBLE_PROJECT_LIMIT`·`COLLECTIBLE_PUBLICATION_LIMIT`·`COLLECTIBLE_NOT_PUBLISHED`(409), `COLLECTIBLE_RATE_LIMITED`(429), `MERCHANT_ACCESS_DENIED`(403), `ACCOUNT_DELETED`(410), `COLLECTIBLE_PROJECTS_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_CONFIGURED`(503), `COLLECTIBLE_PREVIEW_NOT_FOUND`(404), `MERCHANT_NOT_FOUND`(404), `MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED`(503), `VIEW_SOURCE_INVALID`(400), `VIEW_RATE_LIMITED`(429, `Retry-After` 초), `ADMIN_FUNNEL_NOT_CONFIGURED`(503), `FUNNEL_DAYS_INVALID`(400), `AI_ART_NOT_CONFIGURED`(503), `AI_ART_DAILY_LIMIT`(429), `AI_ART_BUDGET_EXHAUSTED`(503), `AI_ART_TRIAL_DISABLED`(403), `AI_ART_ROUND_IN_PROGRESS`(409), `AI_ART_MODERATION_BLOCKED`(409), `AI_ART_UPSTREAM_UNAVAILABLE`(503), `AI_ART_TIMEOUT`(503), `AI_ART_INTERRUPTED`(409).
 - 새 탐색·집계 경로의 오류: 공개 `GET /merchants/:merchantId/collectible-preview`는 서비스 미설정 또는 공개 중인 수집품이 없을 때 각각 `COLLECTIBLE_PREVIEW_NOT_CONFIGURED`·`COLLECTIBLE_PREVIEW_NOT_FOUND`를 반환한다. 공개 `POST /merchants/:merchantId/views`는 서비스 미설정, 잘못된 `source`, 요청 제한, 공개 목록에서 찾을 수 없는 가게에 각각 `MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED`·`VIEW_SOURCE_INVALID`·`VIEW_RATE_LIMITED`·`MERCHANT_NOT_FOUND`를 반환한다. 운영자 `GET /api/web/admin/funnel`은 서비스 미설정 또는 7~90일 밖의 `days`에 각각 `ADMIN_FUNNEL_NOT_CONFIGURED`·`FUNNEL_DAYS_INVALID`를 반환한다.
 
 ### 웹 제작기의 연결 (PR #257 인수 후속, 2026-10-01)

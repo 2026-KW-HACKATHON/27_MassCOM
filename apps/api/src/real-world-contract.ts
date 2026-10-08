@@ -29,11 +29,20 @@ export type RealWorldProfile = {
   location: OwnedLocation | null; schedule: BusinessSchedule | null; todayOverride: BusinessOverride | null;
   menuItems: MenuItem[]; visitInstructions: string; contact: { phone: string | null; website: string | null };
 };
+// 점주가 정한 캠페인 목적(Issue #412, D-092). 추가 필드라 목적이 없는 캠페인과 옛 서버는 이 값을 보내지 않고, 옛 앱은 무시한다.
+// 목적에 맞는 칸만 온다: REVISIT은 revisit*·nextStepText, OFF_PEAK은 timeWindows(한국 시간, ISO 요일 1~7, 시작 포함·끝 제외).
+export type CampaignPurposeSummary = {
+  kind: 'NEW_CUSTOMERS' | 'REVISIT' | 'OFF_PEAK';
+  featuredMenuName?: string;
+  revisitMinDays?: number; revisitWindowDays?: number; nextStepText?: string;
+  timeWindows?: { days: number[]; start: string; end: string }[];
+};
 export type CampaignSummary = {
   id: string; title: string; startsAt: string; endsAt: string;
   state: 'SCHEDULED' | 'ACTIVE' | 'PAUSED' | 'ENDED'; enrollment: 'OPEN' | 'FULL' | 'CLOSED';
   rewardAvailability: 'AVAILABLE' | 'EXHAUSTED' | 'NOT_RUNNING' | 'UNKNOWN';
   goals: { targetVisitCount: 1 | 3 | 5; displayName: string }[];
+  purpose?: CampaignPurposeSummary;
 };
 export type DistanceOrigin = 'MAP_CENTER' | 'MANUAL' | 'CURRENT_LOCATION';
 export type MerchantSummary = {

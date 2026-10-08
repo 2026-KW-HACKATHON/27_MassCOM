@@ -52,6 +52,9 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
     const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
     const operationMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(campaigns|staff|visits\.csv)(?:\/([^/]+)(?:\/(extend))?)?$/);
     if (operationMatch) {
+      if (operationMatch[2] === 'campaigns' && operationMatch[3] && operationMatch[4] === 'extend' && request.method === 'POST') {
+        throw new RequestError(404, 'NOT_FOUND');
+      }
       if (!merchantOperations) throw new RequestError(503, 'MERCHANT_OPERATIONS_NOT_CONFIGURED');
       if (request.method !== 'GET' || operationMatch[2] === 'visits.csv') {
         const decision = merchantOperationLimiter.consume(accountId);
@@ -65,8 +68,6 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
       const target = operationMatch[3] && decodePathParameter(operationMatch[3]);
       if (kind === 'campaigns' && !target && request.method === 'GET') {
         sendJson(response, 200, { campaigns: await merchantOperations.listCampaigns(accountId, merchantId) });
-      } else if (kind === 'campaigns' && target && operationMatch[4] === 'extend' && request.method === 'POST') {
-        throw new RequestError(404, 'NOT_FOUND');
       } else if (kind === 'staff' && !target && request.method === 'GET') {
         sendJson(response, 200, { staff: await merchantOperations.listStaff(accountId, merchantId) });
       } else if (kind === 'staff' && target === 'approve' && request.method === 'POST') {

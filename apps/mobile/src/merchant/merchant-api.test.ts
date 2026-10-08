@@ -150,3 +150,13 @@ test('old catalogs without visitorTags parse with an empty list (#334)', async (
   const client = createMerchantApiClient('https://api.example.test', async () => Response.json(merchantPayload));
   assert.deepEqual((await client.listMerchants())[0]?.visitorTags, []);
 });
+
+test('a public campaign with an optional purpose parses, and the existing enum fields are unchanged (#412)', async () => {
+  const withPurpose = { merchants: [{ ...merchantPayload.merchants[0], campaign: { ...merchantPayload.merchants[0]!.campaign,
+    purpose: { kind: 'REVISIT', revisitMinDays: 1, revisitWindowDays: 14, nextStepText: '다음에 또 만나요' } } }] };
+  const parsed = await createMerchantApiClient('https://api.example.test', async () => Response.json(withPurpose)).listMerchants();
+  assert.equal(parsed[0]?.campaign.enrollmentStatus, 'OPEN');
+  assert.equal(parsed[0]?.campaign.rewardGoals.length, 3);
+  const legacy = await createMerchantApiClient('https://api.example.test', async () => Response.json(merchantPayload)).listMerchants();
+  assert.equal('purpose' in (legacy[0]?.campaign ?? {}), false);
+});

@@ -50,7 +50,7 @@ test('새 시즌·특수등급을 추가해도 기존 효과와 보상 연결은
   assert.deepEqual(effectsForGrade(project, 'prism'), []);
 });
 
-test('표준 방문 연결은 네 기본 등급을 복구하고 특수등급·편집 설정을 보존한다', () => {
+test('표준 방문 연결은 초안 등급을 보존하고 게시 준비에서만 빠진 기본 등급을 복구한다', () => {
   const project = createProject();
   project.grades = project.grades.filter(grade => grade.id !== 'prism');
   project.grades[0].name = '우리 가게 브론즈';
@@ -62,6 +62,8 @@ test('표준 방문 연결은 네 기본 등급을 복구하고 특수등급·�
 
   assert.equal(applyStandardVisitRewards(project), project);
   assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+  assert.equal(project.grades.some(grade => grade.id === 'prism'), false, '일반 초안 편집은 기존 등급 집합을 보존한다');
+  applyStandardVisitRewards(project, { includeMissingDefaults: true });
   for (const id of ['bronze', 'silver', 'gold', 'prism']) assert.equal(project.grades.find(grade => grade.id === id)?.enabled, true, id);
   assert.equal(project.grades.find(grade => grade.id === 'bronze').name, '우리 가게 브론즈');
   assert.equal(project.grades.find(grade => grade.id === 'winter-special').name, '겨울 기념');
@@ -69,6 +71,20 @@ test('표준 방문 연결은 네 기본 등급을 복구하고 특수등급·�
   const repaired = cloneProject(project);
   applyStandardVisitRewards(project);
   assert.deepEqual(project, repaired, '복구를 반복해도 등급이나 보상 연결이 늘지 않는다');
+});
+
+test('보상 연결 등급이 빠진 16등급 초안은 기존의 유효한 매핑을 보존한다', () => {
+  const project = createProject();
+  project.grades = [...project.grades.filter(grade => grade.id !== 'bronze'), ...Array.from({ length: 13 }, (_, i) => createGrade(`추가 ${i}`, { id: `extra-${i}` }))];
+  project.rewardGrades = { 1: 'extra-0', 3: 'silver', 5: 'gold' };
+  const original = cloneProject(project);
+  applyStandardVisitRewards(project);
+  assert.equal(project.grades.length, 16);
+  assert.deepEqual(project.rewardGrades, original.rewardGrades);
+  assert.deepEqual(project.grades, original.grades);
+  applyStandardVisitRewards(project, { includeMissingDefaults: true });
+  assert.deepEqual(project.grades, original.grades, '자리가 없으면 기본 등급 일부만 덧붙이지 않는다');
+  assert.deepEqual(project.rewardGrades, original.rewardGrades);
 });
 
 test('복수 등급 효과 토글과 미리보기 선택을 독립적으로 처리한다', () => {

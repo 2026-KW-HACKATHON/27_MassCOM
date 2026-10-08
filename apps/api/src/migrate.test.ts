@@ -39,10 +39,10 @@ test('각 migration의 첫 SQL 전에 10초 잠금 제한을 설정하고 커밋
   assert.ok(released);
 });
 
-test('0032, 0034, 0036 and 0043 set their lock timeout with SET LOCAL inside the per-file transaction the runner opens', async () => {
+test('0032, 0034, 0036, 0043 and 0068 set their lock timeout with SET LOCAL inside the per-file transaction the runner opens', async () => {
   const { readFile } = await import('node:fs/promises');
   for (const file of ['0032_store_go_live.sql', '0034_photo_collectible_projects.sql', '0036_nft_metadata.sql',
-    '0043_campaign_extended_audit.sql']) {
+    '0043_campaign_extended_audit.sql', '0068_campaign_purposes.sql']) {
     const sql = await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8');
     const statements = sql.split(/\r?\n/).filter(line => line.trim() && !line.trim().startsWith('--'));
     assert.equal(statements[0], "SET LOCAL lock_timeout = '5s';", file);

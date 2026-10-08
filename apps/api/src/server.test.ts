@@ -5549,7 +5549,7 @@ test('notification API binds token to the resolved account and bearer session; r
   assert.deepEqual(calls, [['player','device','session-token'], ['player','device','fcm-token','android','session-token']]);
 });
 
-test('merchant self-service uses web session and CSRF, forwards campaign CAS, and returns a downloadable UTF-8 CSV', async (t) => {
+test('merchant self-service uses web session and CSRF, rejects removed extension before rate limiting, and returns a downloadable UTF-8 CSV', async (t) => {
   const calls: unknown[] = [];
   const args: Parameters<typeof startFixture> = [t];
   args[14] = intakeWebAuth('owner');
@@ -5559,7 +5559,6 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   const campaign = { id: 'campaign', title: '점포 캠페인', status: 'ACTIVE' as const, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-11-01T00:00:00Z', isPublic: true };
   args[37] = { merchantOperations: {
     listCampaigns: async (...input) => { calls.push(input); return [campaign]; },
-    extendCampaign: async input => { calls.push(input); return { ...campaign, replayed: false }; },
     listStaff: async () => [staff], approveStaff: async () => staff,
     updateStaffPermissions: async input => { calls.push(input); return staff; },
     revokeStaff: async input => { calls.push(input); },
@@ -5573,6 +5572,9 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST',
     headers: { ...headers, origin: 'https://untrusted.example' }, body })).status, 403);
   assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 404);
+  for (let attempt = 0; attempt < 120; attempt++) {
+    assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 404);
+  }
   assert.equal((await webRequest(base, root + '/staff/staff', { method: 'PATCH', headers,
     body: '{"confirmVisit":true,"redeemCoupon":false,"role":"OWNER"}' })).status, 400);
   const csv = await webRequest(base, root + '/visits.csv?from=2026-10-01&to=2026-10-05', { headers });
@@ -5606,4 +5608,122 @@ test('coupon-only staff can scan customer QR while visit issuance remains forbid
   const issued = await webRequest(base, '/merchant/merchants/shop/claim-slots', {
     method: 'POST', headers, body: JSON.stringify({ customerIdentityToken: 'test-identity', merchantReference: 'order' }) });
   assert.equal(issued.status,403);
+});
+
+test('#412 claim issue and redeem routes pass the added window fields through, and old shapes stay as they were', async (t) => {
+  const access: MerchantAccessFixture = { requirePermission: async input => (
+    { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] }) };
+  const redeemed = (extra: Record<string, unknown>) => ({
+    claimSlotId: 'claim-slot-1', merchantId: 'merchant-visible', merchantName: '데모 식당', campaignTitle: '시간대 캠페인',
+    status: 'CLAIMED', replayed: false,
+    visit: { visitEventId: 'visit-event-1', campaignId: 'campaign-visible', businessDate: '2026-10-05',
+      verificationLevel: 'MERCHANT_CONFIRMED', progressCounted: true, progressVisitCount: 1 },
+    grantedRewards: [], ...extra,
+  }) as RedeemedClaimSlot;
+  let windowStatus: string | undefined = 'OUTSIDE_WINDOW';
+  let benefit: { state: string } | undefined = { state: 'OUTSIDE_WINDOW' };
+  const claims = claimSlotFixture({
+    issue: (async () => ({ claimSlotId: 'claim-slot-1', token: 'claim-token', tokenVersion: 1,
+      expiresAt: '2026-10-05T08:15:00.000Z', ...(windowStatus ? { windowStatus } : {}) })) as ClaimSlotFixture['issue'],
+    redeem: async () => redeemed(benefit ? { benefit } : {}),
+  });
+  const base = await startFixture(t, developmentHeaderAccountResolver, undefined, access, claims);
+  const issue = () => fetch(`${base}/merchant/merchants/merchant-visible/claim-slots`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-account-id': 'merchant-staff-1' },
+    body: JSON.stringify({ customerAccountId: 'customer-1', merchantReference: 'demo-order-1' }),
+  });
+  const redeem = () => fetch(`${base}/claim-slots/redeem`, {
+    method: 'POST', headers: { 'content-type': 'application/json', 'x-account-id': 'customer-1' }, body: JSON.stringify({ token: 'claim-token' }),
+  });
+
+  assert.deepEqual(await (await issue()).json(), { claimSlotId: 'claim-slot-1', token: 'claim-token', tokenVersion: 1,
+    expiresAt: '2026-10-05T08:15:00.000Z', windowStatus: 'OUTSIDE_WINDOW' });
+  const outside = await (await redeem()).json() as RedeemedClaimSlot;
+  assert.deepEqual(outside.benefit, { state: 'OUTSIDE_WINDOW' });
+  assert.equal(outside.visit.progressCounted, true);
+  for (const state of ['ELIGIBLE', 'NONE']) {
+    benefit = { state };
+    assert.deepEqual(((await (await redeem()).json()) as RedeemedClaimSlot).benefit, { state });
+  }
+  // 옛 서비스처럼 필드가 없으면 응답에도 없다(서버가 값을 꾸미지 않는다).
+  windowStatus = undefined;
+  benefit = undefined;
+  assert.deepEqual(await (await issue()).json(), { claimSlotId: 'claim-slot-1', token: 'claim-token', tokenVersion: 1,
+    expiresAt: '2026-10-05T08:15:00.000Z' });
+  assert.equal('benefit' in ((await (await redeem()).json()) as object), false);
+});
+
+test('#412 merchant web claim issue and reissue keep the window status next to the QR', async (t) => {
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'staff-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'staff-account';
+    }, logout: async () => {},
+  };
+  const staff = { mine: async () => [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] } as unknown as
+    Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => (
+    { merchantId: input.merchantId, role: 'STAFF', permissions: ['CONFIRM_VISIT'] }) };
+  const claims = claimSlotFixture({
+    issue: (async () => ({ claimSlotId: 'slot-1', token: 'claim-token', tokenVersion: 1,
+      expiresAt: '2026-10-05T08:15:00.000Z', windowStatus: 'OUTSIDE_WINDOW' })) as ClaimSlotFixture['issue'],
+    reissue: (async (input: { claimSlotId: string }) => ({ claimSlotId: input.claimSlotId, token: 'next-token', tokenVersion: 2,
+      expiresAt: '2026-10-05T08:30:00.000Z', windowStatus: 'OUTSIDE_WINDOW' })) as ClaimSlotFixture['reissue'],
+  });
+  const base = await startFixture(t, undefined, undefined, access, claims, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, { resolve: async () => ({ expiresAt: '2026-10-05T08:00:00.000Z' }) } as unknown as CustomerIdentityService);
+  const headers = { cookie: 'web_session=staff-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const prefix = '/api/web/merchant/merchants/real-merchant';
+  const issued = await (await webRequest(base, `${prefix}/claim-slots`, { method: 'POST', headers,
+    body: JSON.stringify({ customerIdentityToken: 'customer-qr', merchantReference: 'sale-1', useConfirmed: true }) })).json();
+  assert.equal(issued.windowStatus, 'OUTSIDE_WINDOW');
+  assert.match(issued.qrSvgDataUrl, /^data:image\/svg\+xml;base64,/);
+  const reissued = await (await webRequest(base, `${prefix}/claim-slots/slot-1/reissue`, { method: 'POST', headers,
+    body: JSON.stringify({ expectedTokenVersion: 1 }) })).json();
+  assert.equal(reissued.windowStatus, 'OUTSIDE_WINDOW');
+  assert.equal(reissued.tokenVersion, 2);
+});
+
+test('#412 admin campaign draft accepts an optional purpose object, still refuses other keys, and maps purpose refusals to 400', async (t) => {
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async () => 'admin-account', logout: async () => {},
+  };
+  const writes: unknown[][] = [];
+  let refusal: AdminError | undefined;
+  const admin = { isAdmin: async () => true,
+    createCampaignDraft: async (...args: unknown[]) => {
+      writes.push(args);
+      if (refusal) throw refusal;
+      return { id: 'draft-1' };
+    },
+  } as unknown as PostgresAdminService;
+  const base = await startFixture(t, undefined, undefined, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false, webAuth, false, admin);
+  const headers = { cookie: 'web_session=valid-cookie', origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const path = '/api/web/admin/campaign-drafts';
+  const body = { merchantId: 'real-1', title: '한산한 시간', startsAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-11-01T00:00:00.000Z',
+    enrollmentCapacity: 15, rewardGoals: [
+      { targetVisitCount: 1, displayName: '첫 방문' }, { targetVisitCount: 3, displayName: '세 번째' }, { targetVisitCount: 5, displayName: '다섯 번째' },
+    ] };
+  const purpose = { purpose: 'OFF_PEAK', featuredMenuName: '라떼', timeWindows: [{ days: [1, 2, 3, 4, 5], start: '14:00', end: '17:00' }] };
+  const post = (payload: unknown) => webRequest(base, path, { method: 'POST', headers, body: JSON.stringify(payload) });
+
+  assert.equal((await post({ ...body, purpose })).status, 201);
+  assert.deepEqual(writes, [['admin-account', { ...body, purpose }]]);
+  // purpose가 없으면 service가 받는 입력에도 purpose 키가 없다(옛 요청과 같다).
+  assert.equal((await post(body)).status, 201);
+  assert.equal('purpose' in (writes[1]![1] as object), false);
+  // 목적 안에 모르는 칸이 있든 최상위에 모르는 키가 있든 service가 판정한다/요청 단계에서 거절한다.
+  assert.equal((await post({ ...body, purposeKind: 'OFF_PEAK' })).status, 400);
+  assert.equal((await post({ ...body, purpose, benefit: { title: '무료' } })).status, 400);
+  assert.equal(writes.length, 2);
+  for (const code of ['ADMIN_PURPOSE_INVALID', 'ADMIN_PURPOSE_MENU_UNKNOWN'] as const) {
+    refusal = new AdminError(code);
+    const refused = await post({ ...body, purpose });
+    assert.equal(refused.status, 400, code);
+    assert.deepEqual(await refused.json(), { code });
+  }
 });

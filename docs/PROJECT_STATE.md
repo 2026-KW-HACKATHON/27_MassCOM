@@ -1,6 +1,8 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. README와 같은 합계를 유지한다. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
+현재 자동 시험 합계(2026-10-09 KST, PR #418 브랜치 `feat/merchant-dual-studio`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 623/623 · 모바일 2097/2097. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
+PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. README와 같은 합계를 유지한다. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 
 ## 2026-10-08 점주 웹 제작기와 가상 가게 QA (PR #418, Issue #416·#417)
 
@@ -15,6 +17,23 @@
 원격 main `e06c97cd`에서 분기했다. 제작기 홈의 AI 초안·준비 이미지 두 경로, 최신 등록 사진 가져오기, 20MiB·48MP·12,000px 입력 제한과 3MiB·4,096px 저장 정규화, 웹 세션 AI art API, 최신 사진 대표 정렬을 구현했다. API 569/569·타입·빌드, 사이트 384/384, 별도 PostgreSQL 통합 1/1이 통과했다. Docker가 없는 Windows에서 Caddy 컨테이너 시험 두 개는 실행하지 못했다.
 
 합성 fixture에서 두 경로와 초안 저장을 브라우저로 확인했다. 별도 실제 PostgreSQL/API에 등록한 `QA 가상 월계 달빛빵집`이 최신 고객 앱의 탐색·상세에 표시되고 이름·주소·최신 이미지·1/3/5 코인 캠페인이 연결됨을 확인했다. [캡처와 재현 기록](evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)에 환경을 구분했다. 실제 AI 과금·공개 배포·APK 갱신은 하지 않았다. 운영 계정은 승인된 점포가 없고, 라이브 `/api/web/v1/*`는 PR #413 배포 전까지 404라 운영 종단 QA가 남는다.
+
+PR #425 병합 전 검증 기록(2026-10-08 KST, Issue #412 T3 브랜치 `feat/purpose-campaigns`에 PR #420·#423 반영 main `8841efea`를 병합한 기준): API 단위 615/615 · 모바일 2093/2093. 두 수치 모두 병합 후 이 브랜치에서 측정했습니다(main 대비 API 18건·모바일 16건 증가, PostgreSQL 통합은 543건 중 540 pass / 0 fail / 3 skip). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했습니다.
+
+README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
+
+## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
+
+기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`의 작업이다. 점주가 캠페인으로 풀 문제를 세 목적(MassCOM에서 처음 확인되는 방문 늘리기·다시 방문하게 하기·한산한 시간대 채우기) 중 하나로 고르게 하고, 시간대 조건을 서버가 판정하게 했다. 결정은 [D-092](DECISIONS.md)다.
+
+- **데이터.** migration `0068_campaign_purposes.sql`(추가만, 잠금 대기 5초, `backward_compatible=yes`): `campaign_purposes` 부속 표, 시간대 jsonb 검사 함수, 공개 뒤 조건 변경을 막는 트리거(`intro_*`만 예외), 감사 action `CAMPAIGN_PURPOSE_SET`(기존 16개 전체 유지, 17개). 목적 행이 없는 기존 캠페인은 지금과 똑같이 동작한다.
+- **관리자.** `POST /api/web/admin/campaign-drafts`가 선택 입력 `purpose`를 받아 캠페인·목표·목적·감사를 한 거래로 쓴다. 관리자 웹 초안 양식에 목적 선택이 있고 목적별 칸만 보인다. 순수 규칙은 `apps/api/src/campaign-purpose-rules.ts`다.
+- **방문 확정(민감 경로).** 시간대 밖에서 한 방문도 방문·코인·보상권은 그대로 센다(D1). 발급·재발급 응답에 `windowStatus`, 확정 응답에 `benefit.state`를 더했고 기준 시각은 점원이 코드를 만든 `claim_slots.created_at`이지만 유효 시간(15분)이 지난 뒤 확정·재발급하면 그 시각이다. 직원 본인·같은 날 두 번째처럼 진행에 세어지지 않은 방문은 항상 `NONE`이다. 혜택 자체와 시간대 밖 처리는 뒤 PR이다. 모바일·점포 웹 점원 화면은 "이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)", 고객 방문 완료 카드는 세어진 방문일 때만 중립 한 줄을 보인다. 가게 상세는 "이번 캠페인: 한산한 시간대 방문 · 평일 14:00–17:00" 같은 조건만 보이고 혜택은 약속하지 않는다. 혜택(PR 2)이 생기기 전에는 목적형 캠페인을 공개하지 않는다.
+- **표기.** 점주가 보는 "첫 방문/재방문"을 "처음 확인된 방문/다시 확인된 방문"으로 바꿨다(점포 웹 카드, 모바일 가게 현황, 방문 CSV 머리글 `방문구분(MassCOM 확인 기준)`). API 필드 이름과 집계는 그대로이고, 점주 화면·CSV·안내 문서에 "신규 고객"·"첫 손님"이 없음을 소스 시험이 지킨다.
+
+검증: API 단위 615/615, PostgreSQL 543건 중 540 pass / 0 fail / 3 skip, 모바일 2093/2093과 lint·typecheck, 사이트 578/578, 게이트·CI 연결·운영 문서 검사 통과, 변이 점검 8건 모두 시험 실패([TEST_STATUS](TEST_STATUS.md)). 서버·설치본은 바뀌지 않았고 배포하지 않았다(소유자 결정 A).
+
+남은 것: 혜택·쿠폰과 비용 상한, 결과 카드, 설문, 파일럿 설정 패널과 안내물은 뒤 PR이다. `intro_*`의 쓰기 경로(점주 확인 참조 번호)도 설정 패널 PR에서 만든다. 개인정보 처리방침·동의 문구의 "첫 방문/재방문" 설명은 버전과 동의 재수집이 따라오므로 소유자 승인 전까지 바꾸지 않았다(D-092).
 
 ## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
 

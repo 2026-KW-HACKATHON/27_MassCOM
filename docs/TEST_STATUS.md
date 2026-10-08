@@ -90,6 +90,47 @@ PASS: 웹 수집품 회귀290/290, 최신 뒷면 정지 드래그 방어 회귀1
 | 실제 고객 앱의 가상 가게 | PASS(로컬 DB) | 최신 development Expo 웹 export를 QA API 3308에 연결하여 탐색 목록과 상세의 `QA 가상 월계 달빛빵집`, 주소, 최신 대표 이미지, 1·3·5 목표 및 보상 가능을 확인했다. `07`·`08` 캡처와 `browser-db-result.json`이 같은 DB 실행을 기록한다 |
 | QA 재실행·환경 한계 | PASS / NOT_RUN | 포트 중복으로 다른 API를 검증하지 않도록 시작 전 검사 추가. 3309의 fresh DB `masscom_showcase_ci_202610082fea38_test`에서 최종 스크립트 PASS. production web·proxy 시험은 138 중 136 통과, Caddy 컨테이너 두 시험은 `docker ENOENT`로 실행하지 못함 |
 
+## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
+
+기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`. 점주가 캠페인 목적(처음 확인되는 방문·다시 방문·한산한 시간대)을 고르게 하는 migration `0068_campaign_purposes.sql`, 시간대 판정 순수 규칙, 방문 확정 경로(`claim-slot-service.ts`, 민감 경로)의 시간대 상태 필드 추가, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 점주 화면의 "첫 방문/재방문" 표기 정정을 담았다([D-092](DECISIONS.md)). 방문 삽입·진행 계산·`grantReachedGoals`·잠금·취소는 바꾸지 않았다. 배포·게시는 하지 않았다(소유자 결정 A).
+
+**교차 리뷰 반영(같은 PR의 두 번째 커밋).** Claude Sonnet·Opus 리뷰가 🔴 0으로 승인하며 남긴 🟠 3건과 🟡를 고쳤다. (1) `campaign_purposes_terms_guard`가 UPDATE에서 `campaign_id` 변경을 거절한다(초안 행을 공개된 캠페인으로 옮기는 틈, 0068은 미병합이라 제자리 수정). (2) 혜택 시간대 기준이 `확정(재발급) 시각 < created_at + ttlMs`일 때만 `created_at`이고 그 뒤에는 확정(재발급) 시각이다(`benefitJudgedAt`). 재생은 저장된 `claimed_at`을 쓴다. (3) 직원 본인·같은 날 두 번째처럼 진행에 세어지지 않은 방문은 `benefit.state`가 `NONE`이고 모바일 고객 한 줄도 세어진 방문에만 붙는다. 관리자 웹은 양식이 복원한 목적 칸을 바인딩 때 한 번 맞춘다. 혜택이 아직 없으므로 점원·고객·가게 상세 문구에서 "혜택"이라는 말을 뺐다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| API 단위 시험·typecheck | PASS | `npm run typecheck --prefix apps/api && npm test --prefix apps/api` 615/615(이 작업 전 597). 새 시험 18건: 순수 규칙 15건(`campaign-purpose-rules.test.ts`: 시작 포함·끝 제외, 한국 요일·자정 넘김·1970 이전·연말, `24:00`, 잘못된 입력 전부, 기준 시각 `benefitJudgedAt`의 유효 시간 경계), 경로 3건(`server.test.ts`: 발급·재발급·확정 응답의 추가 필드 통과, 옛 모양 유지, 관리자 초안 `purpose`와 400 매핑) |
+| PostgreSQL 통합 시험 | PASS | 새 DB `masscom_t3afix_test`(컨테이너 `masscom-pg-test` 55432)에 migration을 한 번 적용하고 `npm run test:postgres`(전체 60개 파일, `--test-concurrency=1`): 543건 중 540 pass / 0 fail / 3 skip(이 작업 전 527건 중 524 pass). skip 3건은 전용 hosted seed 컨테이너가 필요한 시험이다(이전 기록과 같다). 새 시험 16건(`campaign-purpose.postgres.integration.ts`; 리뷰 반영으로 3건 추가: 목적 행을 다른 캠페인(공개된 캠페인·다른 초안)으로 옮기는 UPDATE 거절, 유효 시간이 지난 재발급·확정은 사용 시각 기준·유효 시간 안은 만든 시각 기준과 경계 `created_at + 15분` 정각·재생이 저장된 `claimed_at`을 씀, 직원 본인 적립과 같은 날 두 번째 방문의 `benefit.state`가 `NONE`이고 재생도 같음): 초안·목적·감사 두 줄의 한 거래와 잘못된 목적의 무기록, 목적 저장 실패 시 캠페인·목표·감사 롤백, 표의 CHECK 전부(시간대 jsonb 18가지 등), 공개 뒤 조건 변경·삭제·추가 거절과 `intro_*`만 허용, 공개와 수정의 경합, 실제 `publishCampaign` 흐름, 목적 없는 캠페인의 발급·확정 응답과 건수가 그대로임, 발급이 시간대 안이고 시간대가 끝난 뒤 스캔하면 `ELIGIBLE`, 시간대 밖이면 `OUTSIDE_WINDOW`이면서 방문·진행·보상권이 안쪽 방문과 같음, 요일·한국 자정·`24:00` 경계, 재발급·재생의 기준 시각, 공개 목록·가게 상세의 `purpose` 유무 |
+| 모바일 단위 시험·typecheck·lint | PASS | `npm test`·`npm run typecheck`·`npm run lint --prefix apps/mobile` 2093/2093(main 2077에서 16건 증가, 병합 전 T3는 2008/2008), lint 경고·오류 없음. 새 시험 16건: 해석기가 `windowStatus`·`benefit`을 모르는 값·없는 값에서 버리고 방문 화면은 그대로 열림(`commerce-api.test.ts` 3건), 안내 문구와 화면 연결(`benefit-window.test.ts` 4건: 세어지지 않은 방문에는 고객 한 줄이 붙지 않아 진행 안내와 어긋나지 않음 포함), 가게 상세 목적 블록(`campaign-purpose.test.ts` 7건), 상세·목록 해석기가 `purpose`를 통과·생략(2건) |
+| 운영 웹·관리자 웹 시험 | PASS | `node --test tests/site/*.test.mjs tests/site/*_test.mjs` 578/578(이 작업 전 563). 새 시험 15건: 관리자 목적 선택(`campaign-purpose-admin.test.mjs` 12건: 목적이 없으면 요청이 그대로, 요일 정렬·`00:00`→`24:00`, 모든 입력 오류 메시지, 양식의 라벨·숨김 속성·시간대 3줄, 목적별 칸 표시, 바인딩 때 복원된 목적 칸 표시, 목록 문구), 점포 웹이 시간대 밖 코드에만 안내를 붙임(`verify_production_web_test.mjs` 1건), 점주 화면·CSV·안내 문서에 "신규 고객"·"첫 손님"이 없음과 새 표기(`merchant-copy-no-newcomer.test.mjs` 2건). 두 새 파일은 `.github/workflows/ci.yml`에 연결했다(`tests/ci/ci_wiring_test.sh` 92개 파일 모두 연결) |
+| 문서·게이트 | PASS | `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tools/gate.sh`, `bash tests/ci/ci_wiring_test.sh`, 모바일 접근성 semantics, 출시 지갑 표면(`function open()`) 검사 통과 |
+| 변이 점검 | PASS | 시험이 정말 잡는지 코드를 일부러 깨 봤고 모두 실패를 확인한 뒤 되돌렸다. 확정의 혜택 기준을 `claim_slots.created_at` 대신 고객 확정 시각으로 → PostgreSQL 시험 4건 실패(시간대 끝난 뒤 스캔, 경계, 한국 자정, 재발급). 끝 시각을 포함으로(`<` → `<=`) → 순수 규칙 시험 2건과 PostgreSQL 시험 2건 실패. 리뷰 반영 뒤 다시 깨 봤다(PostgreSQL 시험 파일): 확정 판정을 `created_at`만으로 → 유효 시간 시험 실패, 재생 판정을 `created_at`만으로 → 같은 시험 실패, 재발급 판정을 `created_at`만으로 → 같은 시험 실패, 확정에서 `progress_counted` 확인을 뺌 → 세지 않는 방문 시험 실패, 재생에서 뺌 → 같은 시험 실패, 트리거의 `campaign_id` 이동 거절을 뺌(새 DB) → 이동 시험 2건 실패. 모두 되돌렸다 |
+
+**바뀐 기존 단언(의도된 사양 변경, 모두 이 작업이 만든 필드·표기에 한정).**
+
+| 파일 | 변경 |
+| --- | --- |
+| `apps/api/src/claim-slot.postgres.integration.ts` | 첫 발급 응답의 `deepEqual`에 `windowStatus: 'NONE'`을 더했다(목적 없는 옛 캠페인의 새 필드) |
+| `apps/api/src/visit-reward.postgres.integration.ts` | 첫 확정 응답의 `deepEqual`에 `benefit: { state: 'NONE' }`을 더했다 |
+| `apps/api/src/admin-store-go-live.postgres.integration.ts` | 감사 action CHECK의 허용 개수 16→17, 허용 목록에 `CAMPAIGN_PURPOSE_SET` 추가, 시험 이름 "sixteen"→"seventeen … with 0043 and 0068" |
+| `apps/api/src/migrate.test.ts` | 잠금 대기 `SET LOCAL` 검사 파일 목록에 `0068_campaign_purposes.sql` 추가 |
+| `apps/api/src/merchant-operations.postgres.integration.ts` | CSV 값 `/재방문/` → `/다시 확인된 방문/`, 머리글 `방문구분(MassCOM 확인 기준)`와 첫 확인 값 `처음 확인된 방문` 단언 추가 |
+| `apps/mobile/src/merchant-insights/api.test.ts` | 카드 이름 `이번 주 첫 방문`·`이번 주 재방문` → `이번 주 처음 확인된 방문`·`이번 주 다시 확인된 방문` |
+| `tests/site/merchant-actions-overview.test.mjs` | 카드 이름 `이번 주 첫 방문 / 재방문` → `이번 주 처음 확인된 방문 / 다시 확인된 방문`, 설명 단언 추가 |
+| `tests/site/verify_production_web_test.mjs` | 가게 현황 카드 이름 목록의 같은 항목 |
+
+리뷰 반영 커밋이 바꾼 단언(혜택이 아직 없어 문구를 중립으로 바꾸고, 목적 행 이동 거절의 메시지가 바뀐 데 따른 것).
+
+| 파일 | 변경 |
+| --- | --- |
+| `apps/api/src/campaign-purpose.postgres.integration.ts` | 공개된 캠페인의 목적 행을 다른 캠페인으로 옮기는 UPDATE의 기대 메시지 `/immutable/` → `/moved/`(이동은 상태 검사보다 먼저 거절한다) |
+| `apps/mobile/src/commerce/benefit-window.ts`·`.test.ts` | 점원 문구 "지금은 혜택 시간대가 아니에요(방문은 인정돼요)" → "이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)", 고객 문구 "혜택 시간대" → "점주가 정한 캠페인 시간대". 고객 한 줄은 `visit.progressCounted`가 true일 때만 |
+| `apps/mobile/src/merchant/campaign-purpose.test.ts` | 가게 상세 줄: 시간대 캠페인 "점주가 정한 시간대 캠페인이에요. …", 재방문 "점주가 정한 재방문 기간은 …일 뒤부터 …일 안이에요." |
+| `tests/site/campaign-purpose-admin.test.mjs`·`tests/site/verify_production_web_test.mjs` | 점포 웹 점원 문구 단언을 새 문장으로(모바일과 같은 문장인지 확인하는 단언 포함) |
+
+`tests/site/commercial-merchant-operations.test.mjs`는 CSV 머리글·값을 단언하지 않아 바뀔 것이 없었다. 새 시험이 그 자리를 채운다.
+
+**확인하지 않은 것.** 운영 배포, 실제 점주·직원 계정과 실제 휴대전화에서 시간대 안내가 보이는 화면, 관리자 양식을 실제 브라우저에서 눌러 보는 일은 `NOT_RUN`이다(가짜 DOM과 소스 시험으로만 확인했다). 점주·고객 문구의 어감은 사람 판정이 필요하다. 이 작업의 시험은 방문 확정 경로의 교차 리뷰를 대신하지 않는다.
+
 ## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
 
 기준 main `48a14811`(PR #420 병합) 위의 작업 브랜치 `feat/first-use-v2c`이며 앱 코드와 문서만 바뀌었다. API·DB·migration은 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행했다.
@@ -1200,3 +1241,27 @@ Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되�
 - `PASS`: `cd apps/mobile && node --import tsx --test src/screens/collection/*.test.ts` — 199/199(신규 3개); `npx tsc --noEmit`; `npm run lint`; `git diff --check`. 환경: macOS 샌드박스, Node 25.9.0.
 - `BLOCKED`: 요청 명령 `cd apps/mobile && npx tsx --test 'src/screens/collection/*.test.ts'` — CLI의 IPC 파이프 생성에서 `listen EPERM`. Node 로더 실행으로 같은 전체 수집 화면 시험을 통과했다.
 - `NOT_RUN`: 운영·시연 실제 설치본 터치·회전·TalkBack·글자 확대. 재현: 외형 없는 보유 수집품(가게 그림 있음/없음)을 누르고 회전시켜 기본 뒷면과 목표별 등급을 확인한다.
+
+
+## 2026-10-09 PR #418 리뷰 지적 1~10 수정 (미커밋)
+
+- 환경: macOS restricted sandbox, `feat/merchant-dual-studio`, 시작 HEAD `e119f55e`(main `055d0523` 병합). 사용자 전용 scratch `_test` PostgreSQL의 public schema를 초기화하고 migration을 적용했다. DB URL은 출력·기록하지 않았다. staging·commit·stash·rebase·push는 실행하지 않았다.
+- `PASS`: API `npm run typecheck`, `npm test` 623/623, `npm run build`; 모바일 `npm test` 2097/2097, `npm run typecheck`, `npm run lint`. README·PROJECT_STATE의 합계를 같은 실측값으로 채웠다.
+- `BLOCKED` 포함: `node --test tests/site/*.test.mjs tests/site/*_test.mjs` 636건 중 635 PASS, 1 환경 BLOCKED(명령 종료 1). `verify_showcase_theme_test.mjs`의 headless Chrome 기동이 DevTools 전에 SIGABRT로 끝나며 단독 재현에서도 같다. assertion을 건너뛰지 않았으므로 실행기 출력에는 1 fail로 남는다. 수정한 캠페인 안내를 포함한 editor flow·renderer 별도 102/102 PASS.
+- `PASS`: `bash tests/ci/ci_wiring_test.sh`(98개 파일 연결), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/bootstrap/check_large_files_test.sh`, `bash tests/bootstrap/verify_bootstrap_test.sh`, conflict marker 원검사·회귀, evidence consistency 회귀, `node scripts/render-current-release.mjs --check`, `git diff --check`.
+- `BLOCKED`: `bash scripts/check-large-files.sh origin/main`, `bash tools/gate.sh`는 HEAD에 남은 삭제 예정 v1 PNG 24장 때문에 실패한다. 작업 트리 삭제는 83,818,124바이트(79.94 MiB), merged main에는 0장임을 확인했다. 가드의 `${failures}개`·`${checked}개` 출력만 locale 안전하게 고쳤으며 기준·상한·검사 대상은 바꾸지 않았다. gate가 이 지점에서 멈추는 뒤쪽 검사는 위와 같이 따로 실행했다. 삭제를 커밋한 뒤 재검증한다.
+- PostgreSQL 전체 결과: 544건 중 541 PASS / 0 FAIL / 기존 3 SKIP (`npm run test:postgres`, 전용 hosted seed 컨테이너 127.0.0.1:55435가 필요한 세 시험).
+- `NOT_RUN`: 운영 배포·운영 DB·실제 AI 과금·Android 두 variant 설치/실기·실제 WebKit에서 사진 입력·스크린샷 기반 시각 판정·Windows PowerShell launcher 실제 실행. JPEG fallback은 PNG를 반환하는 fake canvas로 검증했다. 기기·브라우저 실증과 자동 시험을 구분한다.
+
+변경·삭제한 기존 assertion과 이유:
+
+1. `tests/site/collectible-back-assets.test.mjs`: v1 version constant 1건과 v1 전용 manifest 개수·웹/앱 동일 바이트·기록 해시·원본 크기·서로 다른 이미지 assertion을 삭제했다. 존재하지 않아야 할 죽은 자산의 검사이기 때문이다. 3개 prefix의 12장 v1 HTTP 200/MIME 검사도 삭제했다. 임의 v1 파일 404는 실제 삭제한 `circle-bronze.png` 404로 바꿨다. 현재 v2의 12장 수·바이트·해시·512px·용량·유일성·서빙 검사는 유지했다.
+2. `apps/api/src/collectible-project-rules.test.ts`: 비활성 prism 게시 거절의 일반 INVALID_PROJECT를 DEFAULT_GRADE_MISSING으로 바꿨다. 거절을 유지하며 새 원인별 오류를 검증한다.
+3. `tests/site/collectible-merchant-starter.test.mjs`: 두 유효 캠페인에서 preferred ID로 고르는 결과를 빈 ID로 바꿨다. 선택기가 없으므로 진짜 모호함은 운영팀 안내로 처리해야 한다. `collectible-save.test.mjs`의 campaign ID 없음/목표 불일치 2건, `collectible-editor-flow.test.mjs`의 게시 전 재조회 실패, `collectible-editor-renderer.test.mjs`의 campaign ID 없음은 새 명확한 한국어 안내로 기대값을 바꿨다. 뒤의 두 assertion은 부분 regex에서 정확한 문자열 동일성으로 강화했다.
+4. `tests/site/collectible-model.test.mjs`: 기본 등급 복구 검사는 일반 초안 편집이 아니라 명시적 게시 준비 뒤에 적용하도록 옮겼다. 원래 네 등급 활성·사용자 이름·특수등급·효과·motion 보존 assertion은 유지하고 일반 편집 시 등급 집합 불변 검사와 16등급/유효 legacy 매핑 보존 검사를 더했다.
+7. `apps/api/src/real-world.postgres.integration.ts`: 공개 상세의 사진 ID 배열·thumbnail·owner preview의 첫 사진·customer gameContent의 첫 사진 4건을 main의 오래된 순서로 복구했다. owner 편집용 목록은 별도 최신순 assertion을 추가했고 공개 discovery thumbnail도 확인한다. `collectible-dual-studio.test.mjs`의 private-photo 선택 기대 URL은 유지하며 첫 항목에 MENU 사진을 넣어 첫 STORE 선택을 검증한다.
+8. `tests/site/collectible-studio-layout.test.mjs`: 2단계 preview hidden=true를 false로 바꾸고 sticker 도구를 여는 동안도 false임을 추가했다. 스티커 편집의 합성 결과를 보여 주는 요구를 검증한다.
+10. `apps/api/src/merchant-operations.postgres.integration.ts`: 삭제한 service.extendCampaign 호출의 FORBIDDEN 거절 assertion을 실제 HTTP 404/NOT_FOUND assertion으로 교체했다. 기존 audit count=0을 유지하고 campaign ends_at 불변을 더했다. `server.test.ts`는 삭제한 메서드 stub만 없애고 121회 404 후에도 실제 쓰기 제한기를 소모하지 않는 검사를 더했다.
+- 모바일 `play-content.test.ts`·`tmap-web-sdk.test.ts`는 기존 assertion을 모두 유지했다. timeout rejection assertion의 기대값은 그대로 두고 mock clock을 진행하기 전에 등록하도록 순서만 옮겼다. 현재 날짜·실제 10ms timer 경쟁 대신 고정 KST 날짜·mock timer를 사용했다. 새 사진 인코딩·오류 매핑·저장 cap의 기존 assertion은 삭제하지 않았고 새로운 경우만 추가했다.
+
+독립 읽기 전용 최종 리뷰: 리뷰 지적 1~10과 마지막 HTTP Host fixture·안내 문자열·쉘 변수 경계 수정을 재검토해 조치할 결함 없음. 이 리뷰는 위 실제 실행 결과를 대신하지 않는다. 검증 로그: `/private/tmp/pr418-api-unit.log`, `/private/tmp/pr418-api-postgres-final.log`, `/private/tmp/pr418-mobile-test-final.log`, `/private/tmp/pr418-site-final.log`.

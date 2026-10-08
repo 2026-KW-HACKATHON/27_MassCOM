@@ -7,8 +7,6 @@ import {
   COLLECTIBLE_BACK_EXTENSION,
   COLLECTIBLE_BACK_FILES,
   COLLECTIBLE_BACK_GRADES,
-  COLLECTIBLE_BACK_LEGACY_FILES,
-  COLLECTIBLE_BACK_LEGACY_VERSION,
   COLLECTIBLE_BACK_SHAPES,
   COLLECTIBLE_BACK_VERSION,
   fixedCollectibleBack,
@@ -29,7 +27,6 @@ function webpDimensions(bytes) {
 
 test('fixed back mapping defines twelve unique immutable versioned shape and grade combinations', () => {
   assert.equal(COLLECTIBLE_BACK_VERSION, 'v2');
-  assert.equal(COLLECTIBLE_BACK_LEGACY_VERSION, 'v1');
   assert.equal(COLLECTIBLE_BACK_EXTENSION, 'webp');
   assert.deepEqual(COLLECTIBLE_BACK_SHAPES, ['circle', 'stamp', 'serrated']);
   assert.deepEqual(COLLECTIBLE_BACK_GRADES, ['bronze', 'silver', 'gold', 'prism']);
@@ -42,24 +39,6 @@ test('fixed back mapping defines twelve unique immutable versioned shape and gra
   assert.equal(fixedCollectibleBack('serrated', 'special').path, '/app/assets/collectible-backs/v2/serrated-bronze.webp');
   assert.equal(fixedCollectibleBack('gear', 'silver').path, '/app/assets/collectible-backs/v2/serrated-silver.webp');
   assert.equal(fixedCollectibleBack('stamp', 'festival-gold', '프리즘').path, '/app/assets/collectible-backs/v2/stamp-bronze.webp', '사용자 등급 이름을 재질로 추측하지 않는다');
-});
-
-test('확정 v1 뒷면의 웹·앱 파일은 같은 바이트이며 기록된 해시와 일치한다', async () => {
-  const manifest = JSON.parse(await readFile(new URL('../../docs/evidence/fixed-collectible-backs-2026-10-08/assets.json', import.meta.url), 'utf8'));
-  assert.equal(manifest.length, 12);
-  const digests = new Set();
-  for (const file of COLLECTIBLE_BACK_LEGACY_FILES) {
-    const [web, mobile] = await Promise.all([
-      readFile(new URL(`../../apps/production-web/assets/collectible-backs/v1/${file}`, import.meta.url)),
-      readFile(new URL(`../../apps/mobile/assets/images/collectibles/backs/v1/${file}`, import.meta.url)),
-    ]);
-    assert.equal(web.compare(mobile), 0, `${file}: 웹과 앱의 디자인이 같다`);
-    const digest = createHash('sha256').update(web).digest('hex');
-    assert.equal(digest, manifest.find(asset => asset.file === file)?.sha256, `${file}: v1 확정 디자인을 교체하지 않는다`);
-    assert.ok(web.readUInt32BE(16) >= 512 && web.readUInt32BE(20) >= 512, `${file}: 게시 크기 이상의 원본`);
-    digests.add(digest);
-  }
-  assert.equal(digests.size, 12, '모양·재질별 이미지가 서로 다르다');
 });
 
 test('현재 v2 WebP 뒷면은 웹·앱 파일이 같은 바이트이고 모바일 번들 용량 한도 안에 있다', async () => {
@@ -91,7 +70,7 @@ test('현재 v2 WebP 뒷면은 웹·앱 파일이 같은 바이트이고 모바�
   assert.equal(digests.size, 12, '모양·재질별 v2 이미지가 서로 다르다');
 });
 
-test('all twelve current fixed back WebPs, legacy PNGs, and their mapping module are served from the three explicit web prefixes', async () => {
+test('all twelve current fixed back WebPs and their mapping module are served from the three explicit web prefixes', async () => {
   const server = createProductionServer();
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   try {
@@ -107,12 +86,7 @@ test('all twelve current fixed back WebPs, legacy PNGs, and their mapping module
         assert.equal(new TextDecoder().decode(bytes.slice(0, 4)), 'RIFF', path);
         assert.equal(new TextDecoder().decode(bytes.slice(8, 12)), 'WEBP', path);
       }
-      for (const file of COLLECTIBLE_BACK_LEGACY_FILES) {
-        const path = `${prefix}collectible-backs/v1/${file}`;
-        const response = await fetch(`${base}${path}`);
-        assert.equal(response.status, 200, path); assert.equal(response.headers.get('content-type'), 'image/png');
-      }
-      assert.equal((await fetch(`${base}${prefix}collectible-backs/v1/circle-special.png`)).status, 404, '임의 파일 이름은 제공하지 않는다');
+      assert.equal((await fetch(`${base}${prefix}collectible-backs/v1/circle-bronze.png`)).status, 404, '삭제한 v1 자산은 제공하지 않는다');
       assert.equal((await fetch(`${base}${prefix}collectible-backs/v2/circle-bronze.png`)).status, 404, '확정 확장자만 제공한다');
       assert.equal((await fetch(`${base}${prefix}collectible-backs/v3/circle-bronze.webp`)).status, 404, '미확정 버전은 제공하지 않는다');
     }

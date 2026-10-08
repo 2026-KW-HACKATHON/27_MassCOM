@@ -341,10 +341,15 @@ test('discovery keeps same-name branches, unlocated stores and ended campaigns d
       ($4,'rw-photo-latest',$5,'image/webp',10,10,'STORE','같은 시각 높은 ID','2026-10-07T00:00:00Z','2026-10-07T00:00:00Z')`,
   [olderDigest, sameTimeLowId, sameTimeLowDigest, sameTimeHighId, sameTimeHighDigest]);
   const latestDetail = await service.merchant('rw-photo-latest');
+  const oldestId = '11111111-1111-4111-8111-111111111111';
   assert.deepEqual(latestDetail.photos.map(item => item.id), [
-    sameTimeHighId, sameTimeLowId, '11111111-1111-4111-8111-111111111111',
+    oldestId, sameTimeLowId, sameTimeHighId,
   ]);
-  assert.equal(latestDetail.thumbnail?.id, sameTimeHighId);
-  assert.equal((await service.profile('rw-photo-owner', 'rw-photo-latest')).preview?.photos[0]?.id, sameTimeHighId);
-  assert.equal((await service.gameContent(['rw-photo-latest']))[0]?.photos[0]?.id, sameTimeHighId);
+  assert.equal(latestDetail.thumbnail?.id, oldestId);
+  const ownerPhotos = await service.profile('rw-photo-owner', 'rw-photo-latest');
+  assert.deepEqual(ownerPhotos.photos.map(item => item.id), [sameTimeHighId, sameTimeLowId, oldestId]);
+  assert.equal(ownerPhotos.preview?.photos[0]?.id, oldestId);
+  assert.equal((await service.gameContent(['rw-photo-latest']))[0]?.photos[0]?.id, oldestId);
+  const discovery = await service.search({ ...query, query: '최신 사진 가게' });
+  assert.equal(discovery.merchants.find(item => item.id === 'rw-photo-latest')?.thumbnail?.id, oldestId);
 });

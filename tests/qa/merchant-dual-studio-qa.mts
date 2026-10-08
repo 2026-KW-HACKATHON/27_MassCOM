@@ -6,6 +6,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:net';
+import { join, resolve } from 'node:path';
 
 import pg from '../../apps/api/node_modules/pg/lib/index.js';
 import { runMigrations } from '../../apps/api/src/postgres/migrate.ts';
@@ -18,17 +19,14 @@ const { Pool } = pg;
 
 const repoRoot = new URL('../../', import.meta.url);
 const repoRootPath = fileURLToPath(repoRoot);
-const originalRoot = new URL('../27_MassCOM/', repoRoot);
 const evidenceRoot = new URL('../../docs/evidence/merchant-dual-studio-2026-10-08/', import.meta.url);
-const pgRoot = new URL('.omx/qa-postgres/', originalRoot);
-const pgData = new URL('data/', pgRoot);
-const pgCtl = new URL('pgsql/bin/pg_ctl.exe', pgRoot);
-const passwordFile = new URL('db-password.txt', pgRoot);
-const pgCtlPath = fileURLToPath(pgCtl);
-const pgDataPath = fileURLToPath(pgData);
+const pgRoot = resolve(repoRootPath, process.env.MERCHANT_DUAL_STUDIO_QA_POSTGRES_ROOT ?? '.omx/qa-postgres');
+const pgDataPath = join(pgRoot, 'data');
+const pgCtlPath = join(pgRoot, 'pgsql', 'bin', process.platform === 'win32' ? 'pg_ctl.exe' : 'pg_ctl');
+const passwordFile = join(pgRoot, 'db-password.txt');
 const latestPhotoPaths = [
-  'C:\\Users\\hellt\\Downloads\\KakaoTalk_20260930_095528344.png',
-  'C:\\Users\\hellt\\Downloads\\KakaoTalk_20260930_095528344_01.png',
+  process.env.MERCHANT_DUAL_STUDIO_QA_STORE_PHOTO,
+  process.env.MERCHANT_DUAL_STUDIO_QA_SIGN_PHOTO,
 ] as const;
 
 const qaStaffAccountId = 'qa-wolgye-dalbit-staff-20261008';
@@ -58,7 +56,7 @@ function run(command, args, options = {}) {
 }
 
 async function ensureLocalPostgres() {
-  if (!existsSync(pgCtl) || !existsSync(pgData) || !existsSync(passwordFile)) {
+  if (!existsSync(pgCtlPath) || !existsSync(pgDataPath) || !existsSync(passwordFile)) {
     throw new Error('QA_POSTGRES_NOT_FOUND');
   }
   Reflect.set(process.env, 'PGPASSWORD', (await readFile(passwordFile, 'utf8')).trim());
@@ -66,7 +64,7 @@ async function ensureLocalPostgres() {
   if (status.status === 0) return 'already-running';
   const started = spawnSync(
     pgCtlPath,
-    ['start', '-D', pgDataPath, '-l', fileURLToPath(new URL('postgres.log', pgRoot)), '-w'],
+    ['start', '-D', pgDataPath, '-l', join(pgRoot, 'postgres.log'), '-w'],
     { stdio: 'ignore' },
   );
   if (started.status !== 0) throw new Error('QA_POSTGRES_START_FAILED');
@@ -196,6 +194,7 @@ async function seedQaMerchant(pool) {
 }
 
 async function seedLatestPhotos(pool) {
+  if (latestPhotoPaths.some(path => !path)) throw new Error('QA_PHOTOS_NOT_CONFIGURED: set MERCHANT_DUAL_STUDIO_QA_STORE_PHOTO and MERCHANT_DUAL_STUDIO_QA_SIGN_PHOTO');
   const media = new PostgresRealWorldMediaStore(pool);
   const captions = [
     '첨부 최신 이미지: 월계 마스코트 사장님 제작 도구 4단계 시안',
@@ -204,7 +203,7 @@ async function seedLatestPhotos(pool) {
   const kinds = ['STORE', 'SIGN'];
   const saved = [];
   for (const [index, path] of latestPhotoPaths.entries()) {
-    const bytes = await readFile(path);
+    const bytes = await readFile(resolve(repoRootPath, path!));
     const image = await media.save(bytes, 'image/png');
     saved.push({
       ...image,
@@ -274,6 +273,7 @@ async function verifyDatabase(pool) {
 }
 
 async function startApi() {
+  // Local demo QA only: this bypass permits synthetic staff/customer requests.
   const secret = randomBytes(32).toString('hex');
   const env = {
     ...process.env,
@@ -424,7 +424,7 @@ async function main() {
       },
     };
     await writeFile(new URL('result.json', evidenceRoot), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8');
-    await writeFile(new URL('start-api.ps1', evidenceRoot), `\$ErrorActionPreference = 'Stop'\nSet-Location -LiteralPath 'C:\\Hackerton\\27_MassCOM-latest'\nSet-Item -Path Env:PGPASSWORD -Value ([IO.File]::ReadAllText('C:\\Hackerton\\27_MassCOM\\.omx\\qa-postgres\\db-password.txt').Trim())\n\$env:DATABASE_URL = '${databaseUrl}'\n\$env:PORT = '${apiPort}'\n\$env:API_BIND_HOST = '127.0.0.1'\n\$env:ALLOW_INSECURE_DEMO_ACCOUNT = 'true'\n\$env:NFT_MINTING_MODE = 'PREPARING'\n\$taskPreviewBytes = New-Object byte[] 32\n[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes(\$taskPreviewBytes)\n\$taskPreviewHmac = [BitConverter]::ToString(\$taskPreviewBytes) -replace '-', ''\nSet-Item -Path Env:ACCOUNT_DELETION_HMAC_SECRET -Value \$taskPreviewHmac\nSet-Item -Path Env:MERCHANT_REFERENCE_HMAC_SECRET -Value \$taskPreviewHmac\nRemove-Item Env:SHOWCASE_MODE -ErrorAction SilentlyContinue\nRemove-Item Env:GOOGLE_OAUTH_CLIENT_IDS -ErrorAction SilentlyContinue\nRemove-Item Env:EXPO_PUSH_ACCESS_TOKEN -ErrorAction SilentlyContinue\n& '.\\apps\\api\\node_modules\\.bin\\tsx.cmd' apps/api/src/server.ts\nexit \$LASTEXITCODE\n`, 'utf8');
+    await writeFile(new URL('start-api.ps1', evidenceRoot), `\$ErrorActionPreference = 'Stop'\n\$repoRoot = (Resolve-Path (Join-Path \$PSScriptRoot '..\\..\\..')).Path\nSet-Location -LiteralPath \$repoRoot\n\$pgRoot = if (\$env:MERCHANT_DUAL_STUDIO_QA_POSTGRES_ROOT) { \$env:MERCHANT_DUAL_STUDIO_QA_POSTGRES_ROOT } else { Join-Path \$repoRoot '.omx\\qa-postgres' }\nSet-Item -Path Env:PGPASSWORD -Value ([IO.File]::ReadAllText((Join-Path \$pgRoot 'db-password.txt')).Trim())\n\$env:DATABASE_URL = '${databaseUrl}'\n\$env:PORT = '${apiPort}'\n\$env:API_BIND_HOST = '127.0.0.1'\n# Local demo QA only: synthetic account headers must never be enabled in production.\n\$env:ALLOW_INSECURE_DEMO_ACCOUNT = 'true'\n\$env:NFT_MINTING_MODE = 'PREPARING'\n\$taskPreviewBytes = New-Object byte[] 32\n[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes(\$taskPreviewBytes)\n\$taskPreviewHmac = [BitConverter]::ToString(\$taskPreviewBytes) -replace '-', ''\nSet-Item -Path Env:ACCOUNT_DELETION_HMAC_SECRET -Value \$taskPreviewHmac\nSet-Item -Path Env:MERCHANT_REFERENCE_HMAC_SECRET -Value \$taskPreviewHmac\nRemove-Item Env:SHOWCASE_MODE -ErrorAction SilentlyContinue\nRemove-Item Env:GOOGLE_OAUTH_CLIENT_IDS -ErrorAction SilentlyContinue\nRemove-Item Env:EXPO_PUSH_ACCESS_TOKEN -ErrorAction SilentlyContinue\n& '.\\apps\\api\\node_modules\\.bin\\tsx.cmd' apps/api/src/server.ts\nexit \$LASTEXITCODE\n`, 'utf8');
     console.log(`QA_PASS ${databaseName} ${apiBaseUrl} ${qaMerchant.id}`);
   } finally {
     stopApi(api);

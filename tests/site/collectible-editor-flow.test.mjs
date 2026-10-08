@@ -954,7 +954,7 @@ test('게시 직전에 캠페인 목록을 다시 읽어 1·3·5회가 아닌 �
   await readyToPublish(ui);
   api.campaigns.splice(0, 1, { ...api.campaigns[0], goals: [1, 3] });
   await ui.click('publish');
-  assert.match(ui.notice, /방문 보상이 아직 준비되지 않았어요/);
+  assert.equal(ui.notice, '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요');
   assert.equal(posts(api).length, 0);
   assert.equal(ui.control('campaign'), null);
 });

@@ -235,11 +235,11 @@ test('두께 버튼도 되돌리기 한 번으로 돌아오고 숫자 표시가 
   assert.equal(ui.q('[data-view="notice"]').textContent, '되돌릴 편집이 아직 없어요.', '이미 고른 값을 다시 눌러도 기록이 늘지 않는다');
 });
 
-test('2단계는 미리보기를 숨기고 같은 사진 캔버스로 편집 도구 그룹을 하나씩 보인다', async () => {
+test('2단계는 스티커 결과 미리보기를 보이며 같은 사진 캔버스로 편집 도구 그룹을 하나씩 보인다', async () => {
   const ui = await mountStudio();
   await ui.act('step', '2');
   const crop = ui.q('[data-view="crop"]');
-  assert.equal(ui.q('.ce-preview').hidden, true, '사진 편집 단계는 완성 미리보기를 숨긴다');
+  assert.equal(ui.q('.ce-preview').hidden, false, '스티커를 편집하는 단계에서도 합성 결과를 보여 준다');
   assert.equal(ui.stepOf(crop), '2', '사진 편집도 같은 자르기·붓 캔버스를 쓴다');
   assert.equal(crop.closest('.ce-photo-editor')?.querySelector('[data-edit-panel="brush"][aria-pressed="true"]')?.dataset.editPanel, 'brush', '캔버스는 붓 편집 그룹 안에 있다');
   for (const node of [ui.q('[data-control="zoom"]'), ui.q('[data-action="crop-apply"]'), ui.q('[data-action="crop-reset"]'), ui.q('[data-action="auto-fit"]'), ui.choice('shape', 'circle'), ui.choice('shape', 'stamp'), ui.choice('shape', 'serrated')]) {
@@ -284,6 +284,7 @@ test('2단계는 미리보기를 숨기고 같은 사진 캔버스로 편집 도
   await ui.click(ui.q('[data-edit-panel="sticker"]'));
   assert.deepEqual(selectedPanels(), ['sticker']);
   assert.deepEqual(selectedOptions(), ['sticker']);
+  assert.equal(ui.q('.ce-preview').hidden, false, '스티커 도구가 열린 동안 합성 미리보기가 계속 보인다');
   assert.equal(ui.q('[data-control="sticker-kind"]').closest('details')?.open, true, '기존 스티커 세부 묶음은 열린 채 선택 그룹 안에 남는다');
   assert.equal(ui.q('[data-edit="brightness"]').closest('details')?.open, true, '기존 사진 보정 세부 묶음은 열린 채 선택 그룹 안에 남는다');
 });

@@ -813,6 +813,8 @@ test('캠페인 초안 입력은 기간·정원·목표 1·3·5를 검증한다'
   const parsed = campaignDraftPayload(values);
   assert.equal(parsed.enrollmentCapacity, 15);
   assert.deepEqual(parsed.rewardGoals.map(goal => goal.targetVisitCount), [1, 3, 5]);
+  // #412: 목적을 고르지 않으면 요청에 purpose 키가 없다(자세한 목적 입력은 campaign-purpose-admin.test.mjs).
+  assert.equal('purpose' in parsed, false);
   assert.equal(parsed.startsAt, new Date('2026-10-01T09:00').toISOString());
   values.set('endsAt', '2026-09-01T09:00');
   assert.throws(() => campaignDraftPayload(values), /종료 시각/);
@@ -1147,6 +1149,36 @@ test('점포 웹은 고객 QR 확인 후 명시적 사용 동의로만 방문 �
   listeners.get('pagehide')();
   assert.equal(nodes['merchant-claim-issued-qr'].hidden, true);
   assert.equal(nodes['merchant-claim-issued-qr'].src, '');
+});
+
+test('점포 웹은 캠페인 시간대 밖에서 만든 방문 코드에만 안내를 붙이고 방문 인정은 그대로라고 말한다(#412)', async () => {
+  const issueWith = async extra => {
+    const { nodes, doc } = merchantDocument();
+    const fetcher = async path => {
+      if (path === '/api/web/merchant/me') return { ok: true, json: async () => ({ merchants: [{ id: 'real-merchant', name: '실제 점포', role: 'STAFF' }] }) };
+      if (path === '/api/web/merchant/registration-merchants') return { ok: true, json: async () => ({ merchants: [] }) };
+      if (path.endsWith('/customer-identities/resolve')) return { ok: true, json: async () => ({ expiresAt: '2026-09-28T12:00:00.000Z' }) };
+      return { ok: true, status: 201, json: async () => ({ token: 'window-claim-token', claimSlotId: 'slot-1', tokenVersion: 1,
+        expiresAt: '2026-09-28T12:15:00.000Z', qrSvgDataUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=', ...extra }) };
+    };
+    await bindMerchant(fetcher, doc);
+    nodes['merchant-claim-merchant'].value = 'real-merchant';
+    nodes['merchant-claim-token'].value = 'customer-qr';
+    nodes['merchant-claim-reference'].value = 'sale-1';
+    await nodes['merchant-claim-resolve'].click();
+    nodes['merchant-claim-confirm'].checked = true;
+    await nodes['merchant-claim-form'].submit();
+    return nodes['merchant-claim-result'].textContent;
+  };
+  const note = '방문 확인 시점 기준으로 점주가 정한 캠페인 시간대 밖이에요. 방문과 수집품은 그대로 인정돼요.';
+  const outside = await issueWith({ windowStatus: 'OUTSIDE_WINDOW' });
+  assert.match(outside, /방문 코드: window-claim-token/);
+  assert.ok(outside.endsWith(` · ${note}`), outside);
+  for (const extra of [{ windowStatus: 'IN_WINDOW' }, { windowStatus: 'NONE' }, {}, { windowStatus: 'LATER_VALUE' }]) {
+    const text = await issueWith(extra);
+    assert.match(text, /방문 코드: window-claim-token/);
+    assert.doesNotMatch(text, /캠페인 시간대/, JSON.stringify(extra));
+  }
 });
 
 test('QR 그림 생성 실패는 원래 발급 코드를 남기고 직접 입력을 안내한다', async () => {
@@ -2714,7 +2746,7 @@ test('가게 현황은 구역이 열리면 첫 점포의 현황을 한 번 읽�
   assert.equal(fixture.overviewCalls()[0].options.credentials, 'same-origin');
   assert.equal(fixture.overviewCalls()[0].options.cache, 'no-store');
   assert.deepEqual(fixture.cards().map((card) => first(card, 'overview-card-label').textContent),
-    ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용', '재방문 고객(2일 이상)', '캠페인 상태', '고객 앱 공개', '이번 주 첫 방문 / 재방문', '이번 주 받은 수집품(등급별)', '쿠폰 발급·사용(이번 주)', '가게 상세 조회(이번 주)']);
+    ['오늘 방문', '이번 주 방문', '최근 7일', '누적 방문', '이번 주 쿠폰 사용', '재방문 고객(2일 이상)', '캠페인 상태', '고객 앱 공개', '이번 주 처음 확인된 방문 / 다시 확인된 방문', '이번 주 받은 수집품(등급별)', '쿠폰 발급·사용(이번 주)', '가게 상세 조회(이번 주)']);
   const value = (label) => first(fixture.cardOf(label), 'overview-card-value').textContent;
   assert.equal(value('오늘 방문'), '2건');
   assert.equal(value('이번 주 방문'), '4건');

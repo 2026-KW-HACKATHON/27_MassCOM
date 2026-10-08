@@ -34,6 +34,7 @@
 | B-030 | `node-forge` GHSA-86w9-cpqp-85rv(high)에 고친 버전이 없다(2026-10-02). Expo CLI 빌드 도구 경로에만 있어 D-066으로 2026-10-31까지 좁게 예외 처리했다 | 예외가 만료되면 모바일 CI가 다시 실패한다 | 고친 `node-forge`나 Expo CLI가 나오면 의존성을 올리고 `scripts/audit-exceptions.json`에서 예외를 지운다 | `OPEN` |
 | B-031 | 시연 Preview 15·운영 test.6 APK를 만들지 못했다(Issue #321, 2026-10-02): 에이전트가 서명 키스토어 위치를 몰라 소유자가 "운영 배포 먼저, APK는 나중에"를 골랐다. 서버(`a39b983`)는 이미 배포돼 새 기능(마일리지 상점·봉투 열기·시연 권한 요청 등)은 서버에만 있고 공개 설치본(운영 test.5·시연 Preview 14)에는 없다 | 새 앱 기능을 기기에서 확인할 수 없고 `/open`이 옛 APK를 안내한다 | 소유자가 서명 정보를 주거나 직접 빌드한 뒤 APK 게시·기기 확인·`/open` 갱신. 승인자 부트스트랩(사람이 로그인해 요청 코드 생성)과 Issue #322(시연 seed 수집품)도 남았다. **(2026-10-03 갱신: APK는 test.6·Preview 15로 공개됐고 서버는 `b8d981d`로 재배포돼 #322가 시연에서 실기 확인됐으며 `/open`도 갱신됐다([증거](evidence/deployment-b8d981d-2026-10-03.json)). 남은 것은 승인자 부트스트랩뿐.)** | `OPEN` |
 | B-032 | `braces` GHSA-vfj7-8cjw-p6xm(high)에 고친 버전이 없다(2026-10-03, 3.0.3까지 해당). Expo CLI·Metro의 `metro-file-map` → `micromatch` 빌드 도구 경로에만 있어 D-070으로 2026-10-31까지 좁게 예외 처리했다 | 예외가 만료되면 모바일 CI가 다시 실패한다 | 고친 `braces`·`micromatch`나 Expo/Metro가 나오면 의존성을 올리고 `scripts/audit-exceptions.json`에서 예외를 지운다 | `OPEN` |
+| B-033 | 개인정보 처리방침(`docs/privacy.html` 48행 등)과 첫 로그인 동의 문구가 방문 CSV를 "인정 방문의 가명 고객 표시·한국 날짜·첫 방문/재방문·보상 현황"으로 설명하지만 실제 CSV(`apps/api/src/postgres/merchant-operations.ts`)는 `방문일(KST)`·`방문시각(KST)`(초 단위)·`캠페인`·`방문구분(MassCOM 확인 기준)`·`수집보상 건수`·`쿠폰 발급 건수`·`쿠폰 사용 건수`이고 가명 고객 열이 없다(Issue #412 T3 PR 1 리뷰). 방문 시각의 초 단위, 캠페인·쿠폰 건수, 라벨 문구가 방침에 적히지 않았다 | 방침 설명과 실제 내보내기가 어긋난다. 처리방침 문구를 바꾸면 버전(`privacy-2026-10-07`)과 동의 재수집이 따라와 소유자 승인 없이 바꾸지 않았다([D-092](DECISIONS.md)) | 트랙 T6의 방침 버전 갱신 때 방침과 동의 문구를 실제 CSV 항목에 맞춰 바로잡고 버전을 올린다 | `OPEN` |
 
 ## 사진 제작기 검증·운영 경계 (Issue #252)
 
@@ -49,3 +50,9 @@ B-028이 지적한 "시연 직원 부여는 감사 행이 없다"(`grant-staff.t
 
 - `BLOCKED` 환경: 이 sandbox에서 `cd apps/mobile && node ../../scripts/audit-ci.mjs`(종료 1, 결과를 읽지 못함)와 `npm audit --omit=dev --json`을 실행했지만 registry DNS 접근이 차단됐다(`ENOTFOUND registry.npmjs.org`; 재시도 0회·요청 상한 5초로 실행, 로그 `/private/tmp/343-round2-live-check.log`·`/private/tmp/343-round2-live-audit.json`). 네트워크가 가능한 환경에서 같은 명령으로 재검증한다.
 - 수정 1차의 전체 순회가 `expo`·`react-native` 이후 런타임 의존까지 검사하던 설계 문제는 두 단계 `levels` 검사로 해소했다. 제공된 실제 덤프(`/private/tmp/claude-501/audit-mobile.json`) 전체 재평가는 `PASS`(실패 0개·braces/node-forge 예외 2개), 관련 항목을 복사한 내장 fixture 회귀 시험도 `PASS`이며 실시간 audit 통과와는 구분한다.
+
+
+## 2026-10-09 PR #418 리뷰 수정 검증 제한
+
+- `BLOCKED`(현재 restricted macOS 환경): `node --test tests/site/verify_showcase_theme_test.mjs`는 Chrome이 DevTools 파일을 만들기 전에 `exit=null signal=SIGABRT`로 종료한다. 전체 사이트 시험과 단독 재실행에서 같은 환경 현상을 두 번 확인했다. 최소 재현은 위 단독 명령이며 로그는 `/private/tmp/pr418-site.log`·`/private/tmp/pr418-chrome-retry.log`다. 라이트·다크 계산 색/대비 assertion은 삭제하거나 건너뛰지 않았다. Chrome 기동이 가능한 환경에서 원래 명령을 다시 실행한다.
+- `BLOCKED`(미커밋 HEAD 검사의 한계): `bash scripts/check-large-files.sh origin/main`과 `bash tools/gate.sh`는 작업 트리에서 삭제한 v1 PNG 24장을 아직 남아 있는 HEAD blob으로 검사해 실패한다. 현재 작업 트리에는 두 v1 디렉터리가 없으며 24개 예외도 삭제했다. staging·commit 금지 지시를 지키기 위해 임의 커밋이나 가드 우회를 하지 않았다. 오케스트레이터가 삭제를 커밋한 뒤 두 명령을 다시 실행한다. 로그는 `/private/tmp/pr418-large-files.log`·`/private/tmp/pr418-gate.log`다.

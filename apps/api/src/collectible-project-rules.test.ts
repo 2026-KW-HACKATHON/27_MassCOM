@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { CollectibleProjectError } from './collectible-project.js';
-import { collectibleSnapshot, inspectWebmOpus, normalizeMp3, normalizeOggOpus, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
+import { assertCollectiblePublicationGradeRowsSize, collectiblePublicationGradeRowsLimit, collectibleSnapshot, inspectWebmOpus, normalizeMp3, normalizeOggOpus, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
 import { photoProject, tinyPng } from './collectible-project-test-support.js';
 import { isStandardVisitGoalSet, standardizeStandardVisitPublicationProject } from './postgres/collectible-project.js';
 
@@ -24,7 +24,22 @@ test('standard visit publication ignores crafted reward mappings and requires re
 
   const disabled = photoProject();
   disabled.grades.find(grade => grade.id === 'prism')!.enabled = false;
-  assert.throws(() => standardizeStandardVisitPublicationProject(disabled), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  assert.throws(() => standardizeStandardVisitPublicationProject(disabled), { code: 'COLLECTIBLE_DEFAULT_GRADE_MISSING' });
+
+  const missing = photoProject();
+  missing.grades = missing.grades.filter(grade => grade.id !== 'silver');
+  delete missing.derived.silver;
+  assert.throws(() => standardizeStandardVisitPublicationProject(missing), { code: 'COLLECTIBLE_DEFAULT_GRADE_MISSING' });
+
+  const fullDraft = photoProject();
+  fullDraft.grades = fullDraft.grades.filter(grade => grade.id !== 'silver');
+  delete fullDraft.derived.silver;
+  fullDraft.rewardGrades['3'] = 'custom';
+  fullDraft.grades.push(...Array.from({ length: 12 }, (_, index) => ({
+    id: `extra-${index}`, name: `추가 ${index}`, kind: 'special' as const, enabled: true,
+  })));
+  assert.equal(validateCollectibleProject(fullDraft).grades.length, 16);
+  assert.throws(() => standardizeStandardVisitPublicationProject(fullDraft), { code: 'COLLECTIBLE_DEFAULT_GRADE_MISSING' });
 
   const missingDerived = photoProject();
   delete missingDerived.derived.prism;
@@ -37,6 +52,14 @@ test('standard visit publication ignores crafted reward mappings and requires re
   const missingCustomLiving = photoProject();
   missingCustomLiving.living.items = [{ id: 'living-custom', kind: 'sway', target: 'region', gradeIds: ['custom'], amplitude: 20, pivot: { x: .5, y: .5 }, strokes: [{ x: .4, y: .4 }, { x: .6, y: .6 }] }];
   assert.throws(() => standardizeStandardVisitPublicationProject(missingCustomLiving), { code: 'COLLECTIBLE_NOT_READY' });
+});
+
+test('publication row size counts serialized UTF-8 copies across all grades', () => {
+  const half = JSON.stringify('x'.repeat(collectiblePublicationGradeRowsLimit / 2 - 4));
+  const rows = [{ summary: '""', detail: half }, { summary: '""', detail: half }];
+  assert.doesNotThrow(() => assertCollectiblePublicationGradeRowsSize(rows));
+  assert.throws(() => assertCollectiblePublicationGradeRowsSize([...rows, { summary: '"가"', detail: '' }]),
+    { code: 'COLLECTIBLE_PUBLICATION_SIZE_LIMIT' });
 });
 
 test('standard visit campaign goals must be exactly 1, 3 and 5', () => {

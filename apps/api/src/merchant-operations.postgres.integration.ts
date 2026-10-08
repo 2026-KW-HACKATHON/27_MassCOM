@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
 import { Pool } from 'pg';
 
+import { createApiServer } from './server.js';
+import { developmentHeaderAccountResolver } from './server-test-support.js';
 import { MerchantOperationError } from './merchant-operations.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
@@ -10,6 +13,9 @@ import { PostgresMerchantOperations } from './postgres/merchant-operations.js';
 import { requireActiveMerchantMember } from './postgres/merchant-membership.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { runMigrations } from './postgres/migrate.js';
+import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
+import type { WebAuthHandler } from './web-auth.js';
+import type { ApiDeps } from './api-deps.js';
 
 const testUrl = process.env.TEST_DATABASE_URL;
 const safe = testUrl && decodeURIComponent(new URL(testUrl).pathname.slice(1)).endsWith('_test');
@@ -17,24 +23,45 @@ const skip = safe ? false : 'requires a disposable _merchant_test database';
 const NOW = new Date('2026-10-07T03:00:00.000Z');
 const lifecycle = new PostgresAccountLifecycle({ hmacSecret: 'merchant-operation-test-secret-32-bytes' });
 
-test('owner cannot extend fixed visit reward campaigns from merchant operations', { skip }, async t => {
+test('removed owner extension returns 404 without changing campaign or creating an audit row', { skip }, async t => {
   const pool = new Pool({ connectionString: testUrl });
   t.after(() => pool.end());
   await runMigrations(pool);
   await pool.query('TRUNCATE merchants CASCADE');
-  await pool.query('TRUNCATE auth_identities CASCADE');
   await pool.query(`INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status)
-    VALUES ('ops-a', '가게 A', '', '서울', 0, 'ACTIVE'), ('ops-b', '가게 B', '', '서울', 0, 'ACTIVE')`);
-  await pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status) VALUES
-    ('ops-a','owner-a','OWNER','ACTIVE'),('ops-a','staff-a','STAFF','ACTIVE'),
-    ('ops-b','owner-b','OWNER','ACTIVE')`);
+    VALUES ('ops-a', '가게 A', '', '서울', 0, 'ACTIVE')`);
+  await pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)
+    VALUES ('ops-a', 'owner-a', 'OWNER', 'ACTIVE')`);
   await pool.query(`INSERT INTO campaigns (id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
-    VALUES ('ops-campaign','ops-a','=SUM(1,1)','2026-09-01T00:00:00Z','2026-10-31T00:00:00Z','ACTIVE',true,50)`);
-  const service = new PostgresMerchantOperations(pool, { accountLifecycle: lifecycle, now: () => NOW });
-  const input = { accountId: 'owner-a', merchantId: 'ops-a', campaignId: 'ops-campaign', days: 30 as const,
-    expectedEndsAt: '2026-10-31T00:00:00.000Z', consentAccepted: true, requestId: randomUUID() };
-  await assert.rejects(service.extendCampaign(input),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_FORBIDDEN');
+    VALUES ('ops-campaign', 'ops-a', '방문 보상', '2026-09-01T00:00:00Z', '2026-10-31T00:00:00Z', 'ACTIVE', true, 50)`);
+  const operations = new PostgresMerchantOperations(pool, { accountLifecycle: lifecycle, now: () => NOW });
+  const challenge = new WalletChallengeService({ store: new InMemoryChallengeStore(), domain: 'api.masscom.local',
+    uri: 'https://api.masscom.local/wallet/verify', chainId: 84532, ttlMs: 300_000 });
+  const server = createApiServer({ service: challenge, baseAccountResolver: developmentHeaderAccountResolver,
+    webAuth: { resolveSession: async () => 'owner-a' } as unknown as WebAuthHandler,
+    staffRegistration: {} as ApiDeps['staffRegistration'], experienceServices: { merchantOperations: operations } });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('server did not bind');
+  const url = `http://127.0.0.1:${address.port}/api/web/merchant/merchants/ops-a/campaigns`;
+  const request = (method: string, path: string, body?: string) => new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    const call = httpRequest(path, { method, headers: { Host: 'masscom.kr', cookie: 'web_session=valid-cookie',
+      origin: 'https://masscom.kr', 'content-type': 'application/json' } }, response => {
+      const chunks: Buffer[] = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => resolve({ status: response.statusCode!, body: JSON.parse(Buffer.concat(chunks).toString()) }));
+    });
+    call.on('error', reject);
+    call.end(body);
+  });
+  assert.equal((await request('GET', url)).status, 200);
+  const response = await request('POST', `${url}/ops-campaign/extend`,
+    JSON.stringify({ days: 30, expectedEndsAt: '2026-10-31T00:00:00.000Z', consentAccepted: true, requestId: randomUUID() }));
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, { code: 'NOT_FOUND' });
+  assert.equal((await pool.query(`SELECT ends_at FROM campaigns WHERE id = 'ops-campaign'`)).rows[0].ends_at.toISOString(),
+    '2026-10-31T00:00:00.000Z');
   assert.equal((await pool.query(`SELECT count(*)::integer AS count FROM merchant_campaign_extension_audit`)).rows[0].count, 0);
 });
 
@@ -121,10 +148,18 @@ test('CSV uses counted KST visits, excludes identities and neutralizes formulas'
   const result = await service.exportVisits({ accountId: 'owner-a', merchantId: 'csv-a', fromDate: '2026-10-05', toDate: '2026-10-05' });
   assert.equal(result.count, 1);
   assert.ok(result.csv.startsWith('\uFEFF'));
-  assert.match(result.csv, /2026-10-05.*재방문/);
+  assert.match(result.csv, /2026-10-05.*다시 확인된 방문/);
   assert.match(result.csv, /'=HYPERLINK/);
   assert.doesNotMatch(result.csv, /customer-secret|customer-other|남의 캠페인/);
   assert.equal(result.csv.trimEnd().split('\r\n').length, 2);
+  // #412 / D-092: 방문구분은 MassCOM에서 처음 확인된 방문인지(앱 기록 기준)이고 생애 첫 손님이라고 말하지 않는다.
+  assert.match(result.csv, /방문구분\(MassCOM 확인 기준\)/);
+  const both = await service.exportVisits({ accountId: 'owner-a', merchantId: 'csv-a', fromDate: '2026-10-04', toDate: '2026-10-05' });
+  const rows = both.csv.trimEnd().split('\r\n').slice(1);
+  assert.equal(rows.length, 2);
+  assert.match(rows[0]!, /2026-10-04.*,"처음 확인된 방문",/);
+  assert.match(rows[1]!, /2026-10-05.*,"다시 확인된 방문",/);
+  assert.doesNotMatch(both.csv, /첫 방문|재방문|신규 고객|첫 손님/);
 });
 
 test('deletion lock wins over queued owner and target-staff writes without restoring raw audit identity', { skip }, async t => {
