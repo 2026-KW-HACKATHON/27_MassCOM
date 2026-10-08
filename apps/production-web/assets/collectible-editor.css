@@ -119,7 +119,8 @@
 .collectible-editor canvas[data-view="story"] { aspect-ratio: 1.6; }
 .ce-photo-stage { padding: .8rem; border: 1px solid var(--ce-line); border-radius: 1rem; background: #fff; }
 .ce-photo-instruction { text-align: center; color: #2b5b99; font-size: .9rem; margin: 0 0 .7rem; }
-.ce-shape-choices, .ce-style-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ce-shape-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ce-style-choices { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ce-brush-choices { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ce-material-choices { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ce-zoom-row { display: flex; align-items: end; gap: .5rem; }
@@ -139,6 +140,7 @@
 .ce-style-incised { text-shadow: 1px 1px #fff4da, -2px -2px #694422; }
 .ce-style-raised { text-shadow: -1px -1px #fff4da, 3px 3px #694422; color: #eed4a4; }
 .ce-style-original { background: linear-gradient(135deg, #badeff, #e8f7ff); color: #185999; }
+.ce-style-monochrome { background: linear-gradient(135deg, #fff, #999); color: #333; }
 .ce-workspace[data-preview-grade="silver"] .ce-style-incised, .ce-workspace[data-preview-grade="silver"] .ce-style-raised { background: linear-gradient(135deg, #fff, #b4c1cc); color: #5a626b; text-shadow: 1px 1px #fff, -1px -1px #727d88; }
 .ce-workspace[data-preview-grade="gold"] .ce-style-incised, .ce-workspace[data-preview-grade="gold"] .ce-style-raised { background: linear-gradient(135deg, #fff0b6, #d99a1c); color: #84580b; text-shadow: 1px 1px #fff6d2, -1px -1px #8e640f; }
 .ce-workspace[data-preview-grade="prism"] .ce-style-incised, .ce-workspace[data-preview-grade="prism"] .ce-style-raised { background: linear-gradient(135deg, #bcf4ff, #e8c5ff, #ffe3ed); color: #77539e; text-shadow: 1px 1px #fff, -1px -1px #88739b; }
@@ -201,8 +203,10 @@
 .ce-workspace[data-step="1"] .ce-choice-shape { display: flex; justify-content: center; padding: .4rem; }
 .ce-workspace[data-step="1"] .ce-field { margin-block: .35rem; }
 .ce-workspace[data-step="1"] .ce-photo-instruction { margin-block: .25rem; font-size: .85rem; }
-.ce-photo-editor > .ce-crop-slot { display: grid; place-items: center; border-radius: 1rem; padding: .6rem; background: #e8ecf2; }
-.ce-photo-editor canvas[data-view="crop"] { width: min(100%, 34svh); max-width: 512px; border-radius: .5rem; }
+.ce-photo-editor > .ce-crop-slot { display: block; height: min(64svh, 600px); overflow: auto; border-radius: 1rem; padding: .6rem; background: #e8ecf2; }
+.ce-photo-editor canvas[data-view="crop"] { width: calc(min(100%, max(360px, 60svh)) * var(--ce-editor-zoom, 1)); max-width: none; margin-inline: auto; border-radius: .5rem; }
+.ce-editor-zoom { display: flex; align-items: center; gap: .8rem; }
+.ce-editor-zoom .ce-field { flex: 1; margin: 0; }
 .ce-step-tools { justify-content: flex-end; }
 .ce-step-tools button { display: grid; place-items: center; width: 44px; padding: .5rem; }
 .ce-step-tools button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
@@ -212,6 +216,12 @@
 .ce-photo-editor > .ce-panel, .ce-photo-editor > details { margin-block: 0; padding-block: .6rem; }
 .ce-photo-editor > [data-edit-options="brush"] h3 { display: none; }
 .ce-photo-editor > [data-edit-options="brush"] .ce-field { margin-block: .35rem; }
+@media (min-width: 821px) {
+  .ce-photo-editor { max-width: 980px; grid-template-columns: minmax(0, 1fr) 230px; align-items: start; }
+  .ce-photo-editor > .ce-step-tools, .ce-photo-editor > .ce-photo-toolbar, .ce-photo-editor > .ce-editor-zoom { grid-column: 1 / -1; }
+  .ce-photo-editor > .ce-crop-slot { grid-column: 1; height: min(56svh, 520px); }
+  .ce-photo-editor > [data-edit-options] { grid-column: 2; grid-row: 4; }
+}
 .ce-background-swatches { display: flex; flex-wrap: wrap; gap: .45rem; margin-block: .7rem; }
 .collectible-editor .ce-color-swatch { width: 44px; height: 44px; padding: 0; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--ce-line); border-radius: 50%; }
 .collectible-editor .ce-color-swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--ce-blue); }

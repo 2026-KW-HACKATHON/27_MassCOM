@@ -7,9 +7,9 @@ if(upstream.hostname!=='127.0.0.1'||upstream.protocol!=='http:')throw new Error(
 createServer(async(request,response)=>{
   try{
     const path=new URL(request.url,'http://127.0.0.1').pathname;
-    if(path==='/'){
+    if(path==='/'||path==='/coin-edges/'){
       response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
-      response.end(await readFile(new URL('./collectible-relief-qa.html',import.meta.url)));return;
+      response.end(await readFile(new URL(path==='/coin-edges/'?'./collectible-edge-qa.html':'./collectible-relief-qa.html',import.meta.url)));return;
     }
     if(request.method!=='GET'||!(path.startsWith('/api/web/merchant/')||path.startsWith('/app/assets/'))){response.writeHead(404).end();return;}
     const result=await fetch(new URL(path,upstream));

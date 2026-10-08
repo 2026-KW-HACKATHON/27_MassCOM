@@ -158,6 +158,52 @@ test('coin thickness up to 48 survives validation and every shape and grade publ
   }
 });
 
+test('monochrome and optional brush hardness preserve source settings without inserting legacy defaults', () => {
+  const project = photoProject(); project.style = 'monochrome';
+  project.photoEdits.strokes = [{ tool: 'erase', points: [{ x: .5, y: .5 }], size: .05, color: '#000000' }];
+  const legacyStroke = validateCollectibleProject(project, true).photoEdits.strokes[0]!;
+  assert.equal('hardness' in legacyStroke, false);
+  for (const hardness of [0, 40.5, 100]) {
+    project.photoEdits.strokes[0]!.hardness = hardness;
+    const saved = validateCollectibleProject(project, true);
+    assert.equal(saved.style, 'monochrome'); assert.equal(saved.photoEdits.strokes[0]!.hardness, hardness);
+    assert.equal('photoEdits' in collectibleSnapshot(saved, 'p', 'pub', 'silver'), false);
+  }
+  for (const hardness of [-.001, 100.001, Infinity, NaN, '40', null]) {
+    const bad = structuredClone(project) as any; bad.photoEdits.strokes[0].hardness = hardness;
+    assert.throws(() => validateCollectibleProject(bad), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+  for (const style of ['original', 'incised', 'raised'] as const) {
+    assert.equal(validateCollectibleProject({ ...photoProject(), style }).style, style);
+  }
+});
+
+test('flame aura is grade scoped with optional speed and no new bitmap or legacy speed default', () => {
+  const project = photoProject();
+  project.effects.push({ id: 'aura', type: 'flame', target: 'aura', gradeIds: ['silver'], strength: 70, color: '#5dd8ff', roughness: 0 });
+  const withoutSpeed = validateCollectibleProject(project, true);
+  assert.equal('speed' in withoutSpeed.effects[1]!, false);
+  assert.equal('speed' in collectibleSnapshot(withoutSpeed, 'p', 'pub', 'silver').effects[0]!, false);
+  for (const speed of [.25, 1, 1.5, 3]) {
+    project.effects[1]!.speed = speed;
+    const saved = validateCollectibleProject(project, true);
+    assert.deepEqual(collectibleSnapshot(saved, 'p', 'pub', 'silver').effects, [{ type: 'flame', target: 'aura', strength: 70, color: '#5dd8ff', roughness: 0, speed }]);
+    assert.deepEqual(collectibleSnapshot(saved, 'p', 'pub', 'bronze').effects, []);
+    assert.deepEqual(saved.derived, project.derived);
+  }
+  const mutations: ((value: any) => void)[] = [
+    p => { p.effects[1].target = 'surface'; }, p => { p.effects[1].target = 'photo'; },
+    p => { p.effects[1].type = 'glow'; }, p => { p.effects[0].speed = 1; },
+    p => { p.effects[1].unknown = 1; }, p => { p.effects[1].gradeIds = ['missing']; },
+    p => { p.derived.silver.effectMasks = { aura: tinyPng }; },
+    ...[0, .249, 3.001, Infinity, NaN, '1', null].map(speed => (p: any) => { p.effects[1].speed = speed; }),
+  ];
+  for (const mutate of mutations) {
+    const bad = structuredClone(project); mutate(bad);
+    assert.throws(() => validateCollectibleProject(bad), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+  }
+});
+
 test('real image dimensions prevent spoofed pixel counts and oversized decode even when metadata claims a tiny photo',()=>{
   const p=photoProject();p.photo.width=2;
   assert.throws(()=>validateCollectibleProject(p),{code:'COLLECTIBLE_INVALID_PROJECT'});

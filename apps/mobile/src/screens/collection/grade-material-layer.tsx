@@ -29,6 +29,7 @@ type Props = {
   variant: 'detail' | 'card' | 'envelope';
   active: boolean;
   intensityScale?: number;
+  showGlints?: boolean;
 };
 
 type VisualProps = Props & { clock: SharedValue<number>; moving: boolean };
@@ -78,7 +79,7 @@ function Glint({ index, size, color, material, reflection, opacityScale }: {
   </AnimatedGroup>;
 }
 
-function MaterialVisual({ material, size, faceUri, faceMask, webFaceMask, shape, tilt, clock, variant, moving, intensityScale = 1 }: VisualProps) {
+function MaterialVisual({ material, size, faceUri, faceMask, webFaceMask, shape, tilt, clock, variant, moving, intensityScale = 1, showGlints = false }: VisualProps) {
   const basePreset = gradeMaterialPresets[material];
   const preset = variant === 'card' ? { ...basePreset, sweepPeriodMs: basePreset.cardPeriodMs } : basePreset;
   const key = useId().replace(/:/g, '');
@@ -139,7 +140,7 @@ function MaterialVisual({ material, size, faceUri, faceMask, webFaceMask, shape,
   const maskUri = webFaceMask ?? faceUri;
   const webShapeStyle = Platform.OS === 'web' ? { clipPath: collectibleWebClipPath(shape),
     ...(maskUri ? { maskImage: `url(${JSON.stringify(maskUri)})`, maskSize: 'contain', maskPosition: 'center', maskRepeat: 'no-repeat' } : {}) } as ViewStyle & CSSProperties : undefined;
-  const glintCount = variant === 'card' ? isPrism ? 4 : isGold ? 3 : 0 : variant === 'detail' ? 0 : preset.glintCount;
+  const glintCount = variant === 'card' ? isPrism ? 4 : isGold ? 3 : 0 : variant === 'detail' && !showGlints ? 0 : preset.glintCount;
   const bandStops = isGold ? GOLD_BAND_STOPS.map((stop) =>
     <Stop key={stop.offset} offset={stop.offset} stopColor={stop.color} stopOpacity={stop.opacity} />) : [
     <Stop key={0} offset={0} stopColor={preset.tint} stopOpacity={0} />,

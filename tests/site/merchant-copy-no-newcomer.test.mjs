@@ -3,9 +3,10 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 
-const root = new URL('../../', import.meta.url).pathname;
+const root = fileURLToPath(new URL('../../', import.meta.url));
 const merchantFacing = [
   'apps/production-web/merchant.html', 'apps/production-web/admin.html',
   'apps/production-web/assets/merchant.mjs', 'apps/production-web/assets/admin.mjs',
@@ -27,7 +28,7 @@ function sourceFiles(path) {
   if (!statSync(absolute).isDirectory()) return [path];
   return readdirSync(absolute, { recursive: true, withFileTypes: true })
     .filter(entry => entry.isFile() && /\.(?:tsx?|mjs|html|md)$/.test(entry.name) && !/\.test\.|integration\.ts$/.test(entry.name))
-    .map(entry => relative(root, join(entry.parentPath, entry.name)));
+    .map(entry => relative(root, join(entry.parentPath, entry.name)).replaceAll('\\', '/'));
 }
 
 test('merchant-facing screens, CSV and guides never call anyone a new customer or a first guest', () => {

@@ -144,13 +144,20 @@ test('확대가 한계에 닿은 −/+ 는 되돌리기 기록도 편집 표시�
 test('3단계에 애니메이션·재질 효과와 두께가 처음부터 보이고 등급 관리는 접혀 있다', async () => {
   const ui = await mountStudio();
   await ui.act('step', '3');
+  assert.equal(ui.stepOf(ui.q('[data-extra-panel="rotation"]')), '3');
   assert.equal(ui.stepOf(ui.q('[data-extra-panel="motion"]')), '3');
   assert.equal(ui.stepOf(ui.q('[data-extra-panel="materials"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-extra-panel="aura"]')), '3');
   assert.equal(ui.stepOf(ui.q('[data-extra-panel="voice"]')), '3');
-  assert.equal(ui.q('[data-extra-panel="motion"]').getAttribute('aria-pressed'), 'true');
-  assert.deepEqual(ui.all('[data-extra-options]').filter(panel => !panel.hidden).map(panel => panel.dataset.extraOptions), ['motion']);
-  assert.equal(ui.stepOf(ui.choice('style', 'incised')), '3');
+  assert.equal(ui.q('[data-extra-panel="rotation"]').getAttribute('aria-pressed'), 'true');
+  assert.deepEqual(ui.all('[data-extra-options]').filter(panel => !panel.hidden).map(panel => panel.dataset.extraOptions), ['rotation']);
+  assert.deepEqual(['original', 'monochrome', 'incised', 'raised'].map(id => ui.stepOf(ui.choice('style', id))), ['3', '3', '3', '3']);
+  const step3Panels = ui.all('[data-step-panel="3"] .ce-panel');
+  assert.ok(step3Panels.indexOf(ui.choice('style', 'original').closest('.ce-panel')) < step3Panels.indexOf(ui.q('[data-extra-panel="rotation"]').closest('.ce-panel')), '표현 스타일은 회전·애니메이션·효과보다 위에 있다');
   assert.equal(ui.stepOf(ui.q('[data-control="relief"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-action="material-toggle"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-action="aura-toggle"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-view="auras"]')), '3');
   assert.equal(ui.q('[data-control="thickness"]').getAttribute('max'), '48');
   assert.equal(ui.stepOf(ui.choice('thickness', '14')), '3');
   assert.equal(ui.stepOf(ui.choice('thickness', '32')), '3');
@@ -249,10 +256,22 @@ test('2단계는 스티커 결과 미리보기를 보이며 같은 사진 캔버
   assert.deepEqual(selectedPanels(), ['brush']);
   assert.deepEqual(selectedOptions(), ['brush']);
   assert.equal(ui.q('[data-control="brush"]').value, 'move');
+  const editorZoom = ui.q('[data-control="editor-zoom"]');
+  assert.equal(ui.stepOf(editorZoom), '2');
+  assert.equal(editorZoom.min, '1');
+  assert.equal(editorZoom.max, '3');
+  assert.equal(editorZoom.step, '.5');
+  assert.equal(editorZoom.value, '1');
+  assert.equal(ui.stepOf(ui.q('[data-action="editor-zoom-reset"]')), '2');
   assert.equal(ui.q('[data-control="brush-size"]').closest('label').hidden, true, '사진 이동 도구에서는 붓 크기를 숨긴다');
+  assert.equal(ui.q('[data-control="brush-hardness"]').closest('label').hidden, true, '사진 이동 도구에서는 붓 경도를 숨긴다');
   assert.equal(ui.q('[data-control="brush-color"]').closest('label').hidden, true, '색 통일 도구가 아니면 색 선택을 숨긴다');
+  assert.equal(ui.q('[data-control="brush-hardness"]').getAttribute('min'), '0');
+  assert.equal(ui.q('[data-control="brush-hardness"]').getAttribute('max'), '100');
+  assert.equal(ui.q('[data-control="brush-hardness"]').value, '80');
   await ui.click(ui.choice('brush', 'color'));
   assert.equal(ui.q('[data-control="brush-size"]').closest('label').hidden, false);
+  assert.equal(ui.q('[data-control="brush-hardness"]').closest('label').hidden, false);
   assert.equal(ui.q('[data-control="brush-color"]').closest('label').hidden, false);
   await ui.click(ui.q('[data-edit-panel="filter"]'));
   assert.deepEqual(selectedPanels(), ['filter']);
@@ -380,15 +399,23 @@ test('4단계에는 결과와 자동 방문 보상만 열려 있고 꾸미기 �
   assert.equal(ui.q('[data-view="reward-grades"]').closest('details').open, true, '방문 보상 연결은 기본으로 열린다');
   await ui.act('step', '3');
   const selectedExtras = () => ui.all('[data-extra-options]').filter(panel => !panel.hidden).map(panel => panel.dataset.extraOptions);
-  assert.deepEqual(selectedExtras(), ['motion'], '3단계는 움직임 옵션을 먼저 보인다');
-  for (const id of ['motion', 'materials', 'voice', 'living', 'story']) {
+  assert.deepEqual(selectedExtras(), ['rotation'], '3단계는 회전 옵션을 먼저 보인다');
+  for (const id of ['rotation', 'motion', 'materials', 'aura', 'voice', 'living', 'story']) {
     const button = ui.q(`[data-extra-panel="${id}"]`);
     await ui.click(button);
     assert.deepEqual(selectedExtras(), [id], `${id} 옵션만 보인다`);
     assert.equal(button.getAttribute('aria-pressed'), 'true', `${id} 선택 상태`);
   }
+  assert.equal(ui.stepOf(ui.q('[data-control="rotation-speed"]')), '3');
+  assert.equal(ui.q('[data-control="rotation-speed"]').closest('[data-extra-options]')?.dataset.extraOptions, 'rotation');
+  assert.equal(ui.stepOf(ui.q('[data-action="angle-reset"]')), '3');
+  assert.equal(ui.q('[data-action="angle-reset"]').closest('[data-extra-options]')?.dataset.extraOptions, 'rotation');
+  assert.equal(ui.stepOf(ui.q('[data-view="rotation-templates"]')), '3');
+  assert.equal(ui.q('[data-action="template"][data-id="rotate"]').closest('[data-view="rotation-templates"]')?.dataset.view, 'rotation-templates');
   assert.equal(ui.stepOf(ui.q('[data-view="templates"]')), '3');
+  assert.equal(ui.q('[data-action="template"][data-id="confetti"]').closest('[data-view="templates"]')?.dataset.view, 'templates');
   assert.equal(ui.stepOf(ui.q('[data-control="effect-type"]')), '3');
+  assert.equal(ui.stepOf(ui.q('[data-view="auras"]')), '3');
   assert.equal(ui.stepOf(ui.q('[data-control="greeting"]')), '3');
   assert.equal(ui.stepOf(ui.q('[data-control="living-kind"]')), '3');
   assert.equal(ui.stepOf(ui.q('[data-control="story-type"]')), '3');
@@ -623,7 +650,8 @@ test('미리보기는 등급·캔버스·재생/각도 줄만 펼치고 나머�
   assert.equal(ui.q('[data-action="play"]').getAttribute('aria-label'), '재생');
   const more = preview.querySelector('.ce-preview-more');
   assert.equal(more.open, false);
-  for (const selector of ['[data-action="angle-reset"]', '[data-control="reduce-motion"]', '[data-view="preview-caption"]', '[data-view="greeting"]']) assert.ok(ui.q(selector).closest('.ce-preview-more'), selector);
+  for (const selector of ['[data-control="reduce-motion"]', '[data-view="preview-caption"]', '[data-view="greeting"]']) assert.ok(ui.q(selector).closest('.ce-preview-more'), selector);
+  assert.equal(ui.stepOf(ui.q('[data-action="angle-reset"]')), '3', '각도 초기화는 회전 탭으로 이동한다');
   const distributionDetails = ui.q('[data-view="distribution"]').closest('details');
   assert.ok(distributionDetails.querySelector('[data-view="campaign-status"]'), '배포 상태는 게시 정보 안');
   assert.equal(distributionDetails.querySelector('[data-control="campaign"]'), null, '게시 정보 안에도 캠페인 선택은 없다');

@@ -28,16 +28,16 @@ export type CollectibleProject = {
   crop: { x: number; y: number; zoom: number };
   photoEdits: {
     brightness: number; contrast: number; merge: number; simplify: number; cartoon: number;
-    strokes: { tool: 'clean' | 'erase' | 'restore' | 'color'; points: { x: number; y: number }[]; size: number; color: string }[];
+    strokes: { tool: 'clean' | 'erase' | 'restore' | 'color'; points: { x: number; y: number }[]; size: number; color: string; hardness?: number }[];
   };
-  style: 'original' | 'incised' | 'raised';
+  style: 'original' | 'incised' | 'raised' | 'monochrome';
   baseColor: string;
   photoColor: number;
   relief: number;
   stickers: CollectibleSticker[];
   back: { mode: 'default' | 'custom'; color: string; stickers: CollectibleSticker[] };
   grades: { id: string; name: string; kind: 'basic' | 'special'; enabled: boolean }[];
-  effects: { id: string; type: 'metallic' | 'hologram' | 'pearl' | 'matte' | 'glow' | 'enamel' | 'glass'; target: string; gradeIds: string[]; strength: number; color: string; roughness: number }[];
+  effects: { id: string; type: 'metallic' | 'hologram' | 'pearl' | 'matte' | 'glow' | 'enamel' | 'glass' | 'flame'; target: string; gradeIds: string[]; strength: number; color: string; roughness: number; speed?: number }[];
   motion: CollectibleMotion[];
   thickness: number;
   angle: number;
@@ -80,7 +80,7 @@ export type CollectibleDetail = CollectibleArtwork & {
   animation: CollectibleProject['motion'][number]['type'];
   motions: { type: CollectibleMotion['type']; playback: CollectibleMotion['playback']; particle?: CollectibleMotion['particle'] }[];
   greeting: string; audio: CollectibleProject['audio']; story: CollectibleProject['story'];
-  effects: Pick<CollectibleProject['effects'][number], 'type' | 'target' | 'strength' | 'color' | 'roughness'>[];
+  effects: Pick<CollectibleProject['effects'][number], 'type' | 'target' | 'strength' | 'color' | 'roughness' | 'speed'>[];
 };
 
 export type CollectibleProjectErrorCode =

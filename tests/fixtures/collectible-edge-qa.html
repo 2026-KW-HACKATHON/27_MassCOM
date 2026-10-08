@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>코인 옆면 · 얇은 두께 비교</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#eef4fa;color:#18354e;font-family:system-ui,sans-serif}main{max-width:1150px;margin:auto;padding:16px}h1{font-size:22px;margin:0 0 8px}p{font-size:13px;margin:8px 0}button{font:inherit;padding:8px 14px;border:1px solid #b9c8db;background:white;border-radius:8px;color:inherit}.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:12px}article{padding:10px;border:1px solid #d3dfec;border-radius:12px;background:white}h2{font-size:15px;margin:0 0 8px}.pair{display:flex;justify-content:space-around}figure{margin:0;text-align:center}canvas{width:140px;height:140px;background:#e5f1fa;border-radius:8px}figcaption{font-size:12px;font-weight:700}#status{font-weight:700}@media(max-width:800px){.grid{grid-template-columns:1fr 1fr}canvas{width:120px;height:120px}}@media(max-width:500px){.grid{grid-template-columns:1fr}}
+</style>
+<main><h1>실제 렌더러 · 고정 옆면 홈 비교</h1><p>동일한 저장 사진을 사용한 로컬 합성 QA입니다. 각 모양·등급의 두께4와48을 비교합니다. 저장 자료에 옆면 이미지를 추가하지 않습니다.</p>
+<div class="controls"><strong>회전 각도</strong><button data-angle="70">70° 앞면</button><button data-angle="-70">−70° 앞면</button><button data-angle="110">110° 뒷면</button><button data-angle="90">90° 옆면</button><output id="angle">70°</output><button id="glass" aria-pressed="false">유리 재질 검수</button></div>
+<p id="status" role="status">검수 사진을 읽는 중…</p><div class="grid" id="grid"></div>
+<h2>회전 렌더링 시간 비교</h2><p>프리즘 양각·불꽃 오라를 실제 렌더러로 한 바퀴 그립니다. 텍스처640px/출력512px, 텍스처256px/출력512px, 재생용 텍스처·출력256px의 처리 시간을 비교합니다.</p>
+<button id="benchmark">회전 처리 시간 측정</button><p id="performance" role="status">아직 측정하지 않았어요.</p><canvas id="performance-canvas" width="512" height="512" aria-label="처리 시간 검수 코인"></canvas></main>
+<script type="module">
+import {renderCollectible,clearCollectibleRenderCache} from '/app/assets/collectible-renderer.mjs';
+import {shapePoints} from '/app/assets/collectible-model.mjs';
+const names={circle:'원형',stamp:'우표',serrated:'톱니'},status=document.querySelector('#status'),grid=document.querySelector('#grid');
+let project,currentAngle=70,drawing=false,glass=false;
+// Inspect the actual offscreen reed pixels, including concave transparent faces.
+function inspectReedMask(buffer,canvas,shape,thickness,angle){
+  const size=canvas.width*.78,radians=angle*Math.PI/180,horizontal=Math.max(.025,Math.abs(Math.cos(radians))),depth=Math.sin(radians)*thickness*size/512;
+  const outline=shapePoints(shape,size,size).map(point=>({x:canvas.width/2+(point.x-size/2)*horizontal-depth/2,y:canvas.height/2+point.y-size/2}));
+  const pixels=buffer.getContext('2d').getImageData(0,0,buffer.width,buffer.height).data;
+  let checked=0,leaked=0;
+  for(let y=1;y<buffer.height;y+=2)for(let x=1;x<buffer.width;x+=2){
+    let inside=false,distance=Infinity;
+    for(let i=0,j=outline.length-1;i<outline.length;j=i++){
+      const a=outline[j],b=outline[i];
+      if((a.y>y)!==(b.y>y)&&x<(b.x-a.x)*(y-a.y)/(b.y-a.y)+a.x)inside=!inside;
+      const dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((x-a.x)*dx+(y-a.y)*dy)/(dx*dx+dy*dy)));
+      distance=Math.min(distance,Math.hypot(x-a.x-t*dx,y-a.y-t*dy));
+    }
+    if(inside&&distance>1.2){checked++;if(pixels[(y*buffer.width+x)*4+3])leaked++;}
+  }
+  if(leaked)throw new Error(`${shape} 정면에 홈 픽셀${leaked}개가 남았습니다.`);
+  return checked;
+}
+try{
+  const list=await (await fetch('/api/web/merchant/merchants/qa-collectible-store/collectible-projects')).json();
+  const saved=list.projects.find(item=>item.status==='PUBLISHED'&&item.distributingCampaignId)||list.projects.find(item=>item.status==='PUBLISHED');
+  if(!saved)throw new Error('점주 화면에서 먼저 코인을 게시해 주세요.');
+  project=(await (await fetch(`/api/web/merchant/merchants/qa-collectible-store/collectible-projects/${encodeURIComponent(saved.id)}`)).json()).project;
+  for(const grade of project.grades.filter(item=>['bronze','silver','gold','prism'].includes(item.id)))for(const shape of Object.keys(names)){
+    const article=document.createElement('article'),heading=document.createElement('h2'),pair=document.createElement('div');heading.textContent=`${grade.name} · ${names[shape]}`;pair.className='pair';
+    for(const thickness of [4,48]){const figure=document.createElement('figure'),canvas=document.createElement('canvas'),caption=document.createElement('figcaption');canvas.width=canvas.height=140;canvas.dataset.shape=shape;canvas.dataset.grade=grade.id;canvas.dataset.thickness=String(thickness);canvas.setAttribute('aria-label',`${grade.name} ${names[shape]} 두께${thickness}`);caption.textContent=`두께 ${thickness}`;figure.append(canvas,caption);pair.append(figure);}article.append(heading,pair);grid.append(article);
+  }
+  const draw=async()=>{if(drawing)return;drawing=true;status.textContent='그리는 중…';let checked=0;try{for(const canvas of grid.querySelectorAll('canvas')){if(glass)clearCollectibleRenderCache();const {shape,grade,thickness}=canvas.dataset,buffers=[],createElement=document.createElement;document.createElement=function(...args){const element=createElement.apply(this,args);if(args[0]==='canvas')buffers.push(element);return element;};try{await renderCollectible(canvas,{...project,shape,thickness:Number(thickness),effects:glass?[{id:'qa-glass',type:'glass',target:'surface',strength:100,gradeIds:[grade]}]:project.effects,living:{periodMs:2400,items:[]}},grade,{angle:currentAngle,animation:'still',staticFrame:true});}finally{document.createElement=createElement;}if(glass){const mask=buffers.findLast(buffer=>buffer.getContext('2d').globalCompositeOperation==='destination-out');if(!mask)throw new Error('홈 마스크가 없어 픽셀 검사를 할 수 없습니다.');checked+=inspectReedMask(mask,canvas,shape,Number(thickness),currentAngle);}}document.querySelector('#angle').textContent=`${currentAngle}°`;status.textContent=`PASS · 24개 실제 canvas · 고정 홈144칸 / 투영 간격 최소2px · ${currentAngle}°${glass?` · 유리 정면${checked}픽셀 홈 누출0`:''}`;}finally{drawing=false;}};
+  for(const button of document.querySelectorAll('[data-angle]'))button.addEventListener('click',()=>{currentAngle=Number(button.dataset.angle);void draw().catch(error=>status.textContent=`FAIL · ${error.message}`);});
+  document.querySelector('#glass').addEventListener('click',()=>{glass=!glass;document.querySelector('#glass').setAttribute('aria-pressed',String(glass));void draw().catch(error=>status.textContent=`FAIL · ${error.message}`);});
+  document.querySelector('#benchmark').addEventListener('click',async()=>{
+    const button=document.querySelector('#benchmark'),output=document.querySelector('#performance'),canvas=document.querySelector('#performance-canvas');button.disabled=true;
+    const methods=['fill','stroke','clip','drawImage','getImageData','putImageData'],originals=new Map(),profile={};
+    for(const name of methods){const original=CanvasRenderingContext2D.prototype[name];originals.set(name,original);CanvasRenderingContext2D.prototype[name]=function(...args){const begin=performance.now();try{return original.apply(this,args);}finally{const row=profile[name]??={calls:0,ms:0};row.calls++;row.ms+=performance.now()-begin;}};}
+    try{
+      const samples=[],stress={...project,thickness:48,style:'raised',shape:'serrated',living:{periodMs:2400,items:[]},effects:[...project.effects.filter(effect=>effect.type!=='flame'),{id:'qa-flame',type:'flame',target:'aura',strength:65,color:'#5dd8ff',speed:1,gradeIds:['prism']}]};
+      for(const {textureSize,outputSize} of [{textureSize:640,outputSize:512},{textureSize:256,outputSize:512},{textureSize:256,outputSize:256}]){
+        canvas.width=canvas.height=outputSize;
+        const durations=[];output.textContent=`텍스처${textureSize}px / 출력${outputSize}px 회전 측정 중…`;
+        for(let index=0;index<72;index++){
+          const before=performance.now();await renderCollectible(canvas,stress,'prism',{angle:index*5,time:index*4000/72,rotationTime:0,textureSize});durations.push(performance.now()-before);
+          await new Promise(requestAnimationFrame);
+        }
+        const sorted=[...durations].sort((a,b)=>a-b);samples.push({textureSize,outputSize,frames:durations.length,medianMs:Number(sorted[36].toFixed(2)),p95Ms:Number(sorted[68].toFixed(2)),maxMs:Number(sorted[71].toFixed(2)),over50Ms:durations.filter(ms=>ms>50).length});
+      }
+      output.dataset.results=JSON.stringify(samples);output.dataset.profile=JSON.stringify(profile);output.textContent=`PASS · ${samples.map(s=>`${s.textureSize}/${s.outputSize}px: 중앙값${s.medianMs}ms / P95 ${s.p95Ms}ms / 최대${s.maxMs}ms / 50ms 초과${s.over50Ms}/${s.frames}`).join(' → ')}`;
+    }catch(error){output.textContent=`FAIL · ${error.message}`;}finally{for(const [name,original]of originals)CanvasRenderingContext2D.prototype[name]=original;button.disabled=false;}
+  });
+  await draw();
+}catch(error){status.textContent=`FAIL · ${error.message}`;}
+</script>
+</html>

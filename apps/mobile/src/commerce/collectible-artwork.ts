@@ -4,6 +4,10 @@ export type CollectibleArtwork = {
 };
 export type CollectibleParticleKind = 'confetti' | 'snow' | 'petals' | 'sparkles';
 export type CollectibleMotion = { type: string; playback: 'once' | 'loop'; particle?: CollectibleParticleKind };
+export type CollectibleEffect = {
+  type: 'metallic' | 'hologram' | 'pearl' | 'matte' | 'glow' | 'enamel' | 'glass' | 'flame';
+  target: string; strength: number; color: string; roughness: number; speed?: number;
+};
 export type CollectibleAngleFrames = { dataUrl: string; side: number; count: number; columns: number; stepDegrees: number };
 export type CollectibleLiving = {
   dataUrl: string; count: number; columns: number; cellWidth: number; cellHeight: number; periodMs: number;
@@ -16,6 +20,7 @@ export type PublishedCollectible = CollectibleArtwork & {
   story: { type: 'none' | 'zoom' | 'wide' | 'follow' | 'event'; frames: { dataUrl: string; width: number; height: number }[]; cartoon: number; strength: number };
   /** v2 (Issue #284); absent on holders published before WP1/WP2/WP3 or when the web editor hasn't generated them yet. */
   backImageDataUrl?: string; angleFrames?: CollectibleAngleFrames; living?: CollectibleLiving; motions?: CollectibleMotion[];
+  effects?: CollectibleEffect[];
 };
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 const text = (value: unknown, maximum = 80): value is string => typeof value === 'string' && value.trim().length > 0 && value.length <= maximum;
@@ -29,6 +34,25 @@ const animations = ['still', 'rotate', 'shine', 'float', 'stamp', 'sparkle', 'pu
 // EXIF Orientation이 반영되지 않는 스프라이트 치수 함정(design doc PR #288 리뷰) 때문에 jpeg는 받지 않는다.
 const spriteMimes = 'png|webp';
 const particleKinds: readonly CollectibleParticleKind[] = ['confetti', 'snow', 'petals', 'sparkles'];
+const effectTypes: readonly CollectibleEffect['type'][] = ['metallic', 'hologram', 'pearl', 'matte', 'glow', 'enamel', 'glass', 'flame'];
+
+/** Baked materials remain metadata; only flame/aura needs an additional runtime layer. */
+function parseEffects(value: unknown): CollectibleEffect[] | undefined {
+  if (!Array.isArray(value) || value.length > 64) return undefined;
+  const effects: CollectibleEffect[] = [];
+  for (const item of value) {
+    if (!record(item) || typeof item.type !== 'string' || !effectTypes.includes(item.type as CollectibleEffect['type'])
+      || typeof item.target !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(item.target)
+      || !inRange(item.strength, 0, 100) || !inRange(item.roughness, 0, 100)
+      || typeof item.color !== 'string' || !/^#[0-9a-f]{6}$/i.test(item.color)) return undefined;
+    if (item.type === 'flame') {
+      if (item.target !== 'aura' || (item.speed !== undefined && !inRange(item.speed, .25, 3))) return undefined;
+    } else if (item.target === 'aura' || item.speed !== undefined) return undefined;
+    effects.push({ type: item.type as CollectibleEffect['type'], target: item.target, strength: item.strength, color: item.color, roughness: item.roughness,
+      ...(item.speed !== undefined ? { speed: item.speed as number } : {}) });
+  }
+  return effects;
+}
 
 /** 뒷면 전용 이미지. 유효하지 않으면 호출부가 필드를 버리고 로컬 기본 뒷면을 표시한다. */
 function parseBackImageDataUrl(value: unknown): string | undefined {
@@ -106,6 +130,7 @@ export function parsePublishedCollectible(value: unknown): PublishedCollectible 
   const angleFrames = parseAngleFrames(value.angleFrames);
   const living = parseLiving(value.living);
   const motions = parseMotions(value.motions);
+  const effects = parseEffects(value.effects);
   return { ...artwork, imageDataUrl: value.imageDataUrl, thickness: value.thickness, angle: value.angle,
     animation: value.animation, greeting: value.greeting, audio,
     ...(inRange(value.rotationSpeed, .25, 3) ? { rotationSpeed: value.rotationSpeed } : {}),
@@ -113,7 +138,8 @@ export function parsePublishedCollectible(value: unknown): PublishedCollectible 
     ...(backImageDataUrl !== undefined ? { backImageDataUrl } : {}),
     ...(angleFrames !== undefined ? { angleFrames } : {}),
     ...(living !== undefined ? { living } : {}),
-    ...(motions !== undefined ? { motions } : {}) };
+    ...(motions !== undefined ? { motions } : {}),
+    ...(effects !== undefined ? { effects } : {}) };
 }
 
 /**

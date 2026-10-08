@@ -145,23 +145,71 @@ test('재생은 동작 없는 코인도 회전시키고 속도 변경·정지·�
     const angle = () => ui.container.querySelector('[data-value="angle"]').textContent;
     await run(0); await ui.click('play'); await run(7500);
     assert.equal(angle(), '100°', 'motion이 없어도 재생하면 회전한다');
+    assert.equal(ui.action('play').getAttribute('aria-label'), '정지');
+    assert.equal(ui.action('play').textContent, '❚❚');
     await ui.input('rotation-speed', '2'); await run(11250);
     assert.equal(angle(), '-160°', '속도를 바꿔도 각도가 튀지 않고 이후 두 배로 움직인다');
     assert.equal(ui.container.querySelector('[data-value="rotation-speed"]').textContent, '2×');
-    await ui.click('pause'); await run(19000); assert.equal(angle(), '-160°', '정지는 현재 각도를 유지한다');
+    await ui.click('play'); await run(19000); assert.equal(angle(), '-160°', '재생 버튼을 다시 누르면 현재 각도를 유지한다');
+    assert.equal(ui.action('play').getAttribute('aria-label'), '재생');
+    assert.equal(ui.action('play').textContent, '▶');
     ui.container.querySelector('[data-view="preview"]').dispatchEvent({ type: 'pointerdown', clientX: 256, clientY: 256, pointerId: 1 });
     assert.match(ui.notice, /정면 보기와 정지/, '멈춘 뒷면에서도 앞면 스티커 드래그를 막는다');
     await ui.click('play'); await run(22750); assert.equal(angle(), '-60°', '재개는 멈춘 각도부터 이어진다');
-    await ui.click('play'); await run(26500); assert.equal(angle(), '40°', '반복 재생 클릭은 시계를 초기화하지 않는다');
-    await ui.click('replay'); await run(34000); assert.equal(angle(), '-160°', '다시 보기는 처음부터 회전한다');
+    await ui.click('play'); await run(26500); assert.equal(angle(), '-60°', '재생 중 다시 누르면 정지한다');
+    await ui.click('play'); await run(30250); assert.equal(angle(), '40°', '다시 누르면 정지한 각도부터 이어진다');
+    await ui.click('replay'); await run(34000); assert.equal(angle(), '100°', '다시 보기는 처음부터 회전한다');
     ui.control('reduce-motion').checked = true; await ui.change('reduce-motion', '');
-    await ui.click('play'); await run(41500); assert.equal(angle(), '-160°', '동작 줄이기에서는 회전하지 않는다');
+    await ui.click('play'); await run(41500); assert.equal(angle(), '100°', '동작 줄이기에서는 회전하지 않는다');
     assert.match(ui.notice, /움직임 줄이기/);
     await ui.change('angle', '20'); await run(42000); assert.equal(angle(), '20°', '수동 각도는 회전을 멈추고 적용된다');
     await ui.click('draft'); assert.equal(created(api).rotationSpeed, 2);
     assert.deepEqual(created(api).motion, [], '재생과 속도 조절은 등급의 기존 동작 연결을 바꾸지 않는다');
     await ui.change('project-list', [...api.store.keys()][0]); assert.equal(Number(ui.control('rotation-speed').value), 2);
   } finally { Object.defineProperty(globalThis, 'performance', originalPerformance); }
+});
+
+test('재생 중 미리보기는 256 버퍼를 512 캔버스에 스케일하고 정지하면 512 버퍼로 돌아온다', async () => {
+  const originalPerformance = Object.getOwnPropertyDescriptor(globalThis, 'performance');
+  const originalRaf = globalThis.requestAnimationFrame, originalCancel = globalThis.cancelAnimationFrame;
+  let now = 0, sequence = 0;
+  const frames = new Map();
+  Object.defineProperty(globalThis, 'performance', { configurable: true, value: { now: () => now } });
+  globalThis.requestAnimationFrame = handler => { frames.set(++sequence, handler); return sequence; };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  const run = async time => {
+    now = time; const pending = [...frames.values()]; frames.clear();
+    assert.ok(pending.length, '미리보기 RAF가 예약된다');
+    for (const handler of pending) await handler(time);
+    await settle();
+  };
+  try {
+    const api = createFakeApi(), ui = await mount(api);
+    await ui.click('new'); await ui.upload(photoFile);
+    ui.container.querySelector('[data-action="step"][data-id="4"]').dispatchEvent({ type: 'click' }); await settle();
+    const preview = ui.container.querySelector('[data-view="preview"]'), draws = [];
+    preview.getContext('2d').drawImage = (...args) => draws.push(args);
+    assert.equal(preview.width, 512, '실제 미리보기 캔버스 좌표계는 512로 고정한다');
+
+    await run(0); draws.length = 0;
+    await ui.click('play'); await run(7500);
+    let [source, x, y, width, height] = draws.at(-1);
+    assert.equal(source.width, 256);
+    assert.equal(source.height, 256);
+    assert.deepEqual([x, y, width, height], [0, 0, 512, 512]);
+    assert.equal(preview.width, 512, '재생 중에도 포인터 좌표 기준 캔버스는 512를 유지한다');
+
+    draws.length = 0;
+    await ui.click('play'); await run(8000);
+    [source, x, y, width, height] = draws.at(-1);
+    assert.equal(source.width, 512);
+    assert.equal(source.height, 512);
+    assert.deepEqual([x, y, width, height], [0, 0, 512, 512]);
+  } finally {
+    Object.defineProperty(globalThis, 'performance', originalPerformance);
+    globalThis.requestAnimationFrame = originalRaf;
+    globalThis.cancelAnimationFrame = originalCancel;
+  }
 });
 const sceneFile = { type: 'image/png', size: 1000, name: 'scene.png', dataUrl: 'data:image/png;base64,BBBB' };
 const posts = api => api.calls.filter(call => call.method === 'POST').map(call => call.path);
@@ -699,10 +747,13 @@ test('마스코트 스티커는 포즈를 고르고, 뒷면 스티커는 효과 
 test('재생 방식 라디오와 파티클 선택은 지금 고른 템플릿의 motion에 저장된다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
+  assert.equal(ui.container.querySelector('[data-action="template"][data-id="rotate"]').closest('[data-view="rotation-templates"]')?.dataset.view, 'rotation-templates');
+  assert.equal(ui.container.querySelector('[data-action="template"][data-id="confetti"]').closest('[data-view="templates"]')?.dataset.view, 'templates');
   ui.container.querySelector('[data-action="template"][data-id="confetti"]').dispatchEvent({ type: 'click' }); await settle();
 
   const onceRadio = ui.container.querySelector('#motion-playback-once');
   assert.ok(onceRadio, '한 번만 재생 라디오가 있어야 한다');
+  assert.equal(onceRadio.closest('[data-view="motion-settings"]')?.dataset.view, 'motion-settings');
   onceRadio.checked = true; onceRadio.dispatchEvent({ type: 'change' }); await settle();
 
   const particleSelect = ui.container.querySelector('[data-control="motion-particle"]');
@@ -720,6 +771,8 @@ test('재생 방식 라디오와 파티클 선택은 지금 고른 템플릿의 
 
   // 다른 템플릿(rotate)으로 바꾸면 파티클 select가 사라진다.
   ui.container.querySelector('[data-action="template"][data-id="rotate"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.container.querySelector('[data-motion-grade="rotate"][data-grade="bronze"]').closest('[data-view="rotation-grades"]')?.dataset.view, 'rotation-grades');
+  assert.equal(ui.container.querySelector('#motion-playback-loop').closest('[data-view="rotation-settings"]')?.dataset.view, 'rotation-settings');
   assert.equal(ui.container.querySelector('[data-control="motion-particle"]'), null);
 });
 
@@ -1507,6 +1560,111 @@ const toggle = async (ui, effectId, gradeId, value) => {
   box.checked = value; box.dispatchEvent({ type: 'change' }); await settle();
 };
 
+const projectWithMaxEffects = () => {
+  const project = createProject({ name: '효과 한도 시험' });
+  project.effects = Array.from({ length: 64 }, (_, index) => ({
+    id: `effect-${index}`, type: 'glow', target: `target-${index}`, gradeIds: [], strength: 45, color: '#ffffff', roughness: 25,
+  }));
+  return project;
+};
+
+test('재질 타일은 지금 보는 등급에 즉시 적용하고 다시 누르면 해제한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  const tile = ui.container.querySelector('[data-action="material-toggle"][data-id="metallic"]');
+  assert.ok(tile, '메탈릭 재질 타일');
+  assert.equal(tile.getAttribute('aria-pressed'), 'false');
+
+  tile.dispatchEvent({ type: 'click' }); await settle();
+  const effectId = ui.container.querySelector('[data-effect-strength]').dataset.effectStrength;
+  assert.equal(tile.getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${effectId}"][data-grade="bronze"]`).checked, true, '현재 미리보기 등급이 바로 켜진다');
+  assert.ok(ui.container.querySelector(`[data-effect-output="${effectId}"]`), '재질 강도는 항상 보인다');
+
+  tile.dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(tile.getAttribute('aria-pressed'), 'false');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${effectId}"][data-grade="bronze"]`).checked, false, '같은 타일을 다시 누르면 현재 등급에서 해제된다');
+});
+
+test('재질 타일은 효과 64개에서 새 재질을 만들지 않고 저장 mutation을 남기지 않는다', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(projectWithMaxEffects());
+  const ui = await mount(api);
+  await ui.change('project-list', saved.id);
+  const beforeCalls = api.calls.length;
+
+  ui.container.querySelector('[data-action="material-toggle"][data-id="metallic"]').dispatchEvent({ type: 'click' }); await settle();
+
+  assert.match(ui.notice, /효과는 64개까지 만들 수 있어요/);
+  assert.equal(api.store.get(saved.id).project.effects.length, 64);
+  assert.equal(api.store.get(saved.id).project.effects.some(effect => effect.type === 'metallic' && effect.target === 'surface'), false);
+  assert.deepEqual(api.calls.slice(beforeCalls).map(call => call.method), [], '한도 초과 toggle은 서버 저장 요청도 만들지 않는다');
+});
+
+test('중복 재질 타일을 끄면 같은 type·target의 현재 등급만 모두 해제하고 다른 등급은 보존한다', async () => {
+  const api = createFakeApi();
+  const project = createProject({ name: '중복 재질 시험' });
+  project.effects = [
+    { id: 'e1', type: 'metallic', target: 'surface', gradeIds: ['silver', 'bronze'], strength: 45, color: '#ffffff', roughness: 25 },
+    { id: 'e2', type: 'metallic', target: 'surface', gradeIds: ['bronze'], strength: 55, color: '#dddddd', roughness: 25 },
+  ];
+  const saved = api.seed(project);
+  const ui = await mount(api);
+  await ui.change('project-list', saved.id);
+  const tile = ui.container.querySelector('[data-action="material-toggle"][data-id="metallic"]');
+  assert.equal(tile.getAttribute('aria-pressed'), 'true');
+
+  tile.dispatchEvent({ type: 'click' }); await settle();
+  await ui.click('draft');
+
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.deepEqual(put.body.project.effects.find(effect => effect.id === 'e1').gradeIds, ['silver']);
+  assert.deepEqual(put.body.project.effects.find(effect => effect.id === 'e2').gradeIds, []);
+});
+
+test('오라 타일은 별도 패널에서 불꽃 색·세기·속도를 저장한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  const aura = ui.container.querySelector('[data-action="aura-toggle"]');
+  assert.ok(aura, '불꽃 오라 타일');
+
+  aura.dispatchEvent({ type: 'click' }); await settle();
+  const fieldset = ui.container.querySelector('[data-view="auras"] fieldset');
+  const effectId = fieldset.querySelector('[data-effect-strength]').dataset.effectStrength;
+  assert.equal(aura.getAttribute('aria-pressed'), 'true');
+  assert.equal(ui.container.querySelector(`[data-effect-grade="${effectId}"][data-grade="bronze"]`).checked, true);
+  assert.ok(fieldset.querySelector('[data-effect-color]'), '오라 색상');
+  assert.ok(fieldset.querySelector('[data-effect-speed]'), '오라 속도');
+  fieldset.querySelector('[data-effect-strength]').value = '72'; fieldset.querySelector('[data-effect-strength]').dispatchEvent({ type: 'input' });
+  fieldset.querySelector('[data-effect-color]').value = '#ff66cc'; fieldset.querySelector('[data-effect-color]').dispatchEvent({ type: 'input' });
+  fieldset.querySelector('[data-effect-speed]').value = '1.75'; fieldset.querySelector('[data-effect-speed]').dispatchEvent({ type: 'input' });
+  await settle();
+
+  await ui.click('draft');
+  const flame = created(api).effects.find(effect => effect.id === effectId);
+  assert.equal(flame.type, 'flame');
+  assert.equal(flame.target, 'aura');
+  assert.equal(flame.strength, 72);
+  assert.equal(flame.color, '#ff66cc');
+  assert.equal(flame.speed, 1.75);
+  assert.ok(flame.gradeIds.includes('bronze'));
+});
+
+test('오라 타일은 효과 64개에서 새 오라를 만들지 않고 저장 mutation을 남기지 않는다', async () => {
+  const api = createFakeApi();
+  const saved = api.seed(projectWithMaxEffects());
+  const ui = await mount(api);
+  await ui.change('project-list', saved.id);
+  const beforeCalls = api.calls.length;
+
+  ui.container.querySelector('[data-action="aura-toggle"]').dispatchEvent({ type: 'click' }); await settle();
+
+  assert.match(ui.notice, /효과는 64개까지 만들 수 있어요/);
+  assert.equal(api.store.get(saved.id).project.effects.length, 64);
+  assert.equal(api.store.get(saved.id).project.effects.some(effect => effect.type === 'flame' && effect.target === 'aura'), false);
+  assert.deepEqual(api.calls.slice(beforeCalls).map(call => call.method), [], '한도 초과 오라 toggle은 서버 저장 요청도 만들지 않는다');
+});
+
 test('같은 곳의 배타 재질(무광·에나멜·유리)을 겹쳐 켜면 조용히 섞지 않고 확인 뒤 바꾼다(A8)', async () => {
   const api = createFakeApi();
   const ui = await mount(api, { confirm: true });
@@ -1548,6 +1706,21 @@ test('사진을 올리기 전에는 자동 맞춤을 막는다(A4)', async () =>
   const ui = await mount(api);
   await ui.click('auto-fit');
   assert.match(ui.notice, /먼저 사진을 올려 주세요/);
+});
+
+test('브러시 경도는 사진 편집 스트로크에 함께 저장된다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.change('brush', 'erase');
+  await ui.input('brush-hardness', '35');
+  const crop = ui.container.querySelector('[data-view="crop"]');
+  crop.dispatchEvent({ type: 'pointerdown', pointerId: 1, clientX: 256, clientY: 256 });
+  crop.dispatchEvent({ type: 'pointerup', pointerId: 1, clientX: 256, clientY: 256 });
+  await settle();
+
+  await ui.click('draft');
+  assert.equal(created(api).photoEdits.strokes[0].hardness, 35);
 });
 
 test('얼굴 감지가 되면 얼굴 기준으로 맞추고 방법을 안내한다(A4, 합성 얼굴 상자)', async () => {

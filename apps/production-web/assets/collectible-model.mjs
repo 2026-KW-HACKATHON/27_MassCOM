@@ -5,12 +5,12 @@
  */
 export const SCHEMA_VERSION = 2;
 export const SHAPES = Object.freeze(['circle', 'stamp', 'serrated']);
-export const PHOTO_STYLES = Object.freeze(['original', 'incised', 'raised']);
+export const PHOTO_STYLES = Object.freeze(['original', 'incised', 'raised', 'monochrome']);
 export const GRADE_KINDS = Object.freeze(['basic', 'special']);
 export const STICKER_KINDS = Object.freeze(['text', 'emoji', 'mascot']);
 export const STICKER_ALIGNS = Object.freeze(['left', 'center', 'right']);
 export const BRUSH_TOOLS = Object.freeze(['clean', 'erase', 'restore', 'color']);
-export const EFFECT_TYPES = Object.freeze(['metallic', 'hologram', 'pearl', 'matte', 'glow', 'enamel', 'glass']);
+export const EFFECT_TYPES = Object.freeze(['metallic', 'hologram', 'pearl', 'matte', 'glow', 'enamel', 'glass', 'flame']);
 export const MOTION_TYPES = Object.freeze(['still', 'rotate', 'shine', 'float', 'stamp', 'sparkle', 'pulse', 'confetti']);
 export const MOTION_PLAYBACKS = Object.freeze(['once', 'loop']);
 export const PARTICLE_KINDS = Object.freeze(['confetti', 'snow', 'petals', 'sparkles']);
@@ -138,18 +138,6 @@ export function createMerchantStarterProject({ merchantName = '', menuName = '',
   const project = createProject({ name: `${menu || store} 방문 수집품`, campaignId });
   applyStandardVisitRewards(project);
   if (!suggested) return project;
-  const motifs = [
-    { text: '⌂', color: '#58331f', layouts: { bronze: [.3, .29, 110], silver: [.2, .18, 20], gold: [.2, .18, 20] } },
-    { text: '◯', color: '#173c50', layouts: { bronze: [.82, .82, 8], silver: [.72, .7, 110], gold: [.72, .7, 24] } },
-    { text: '✦', color: '#7d3700', layouts: { bronze: [.85, .18, 8], silver: [.84, .18, 8], gold: [.73, .26, 120] } },
-  ];
-  for (const [order, motif] of motifs.entries()) {
-    const layouts = Object.fromEntries(Object.entries(motif.layouts).map(([grade, [x, y, size]]) => [grade, { x, y, size, rotation: 0 }]));
-    project.stickers.push({ id: createId('sticker'), kind: 'text', text: motif.text, x: .5, y: .5, size: 8,
-      rotation: 0, color: motif.color, order, align: 'center', layouts });
-  }
-  if (menu) project.stickers.push({ id: createId('sticker'), kind: 'text', text: menu, x: .5, y: .81,
-    size: 24, rotation: 0, color: '#ffffff', order: motifs.length, align: 'center', layouts: {} });
   for (const [gradeId, type, target, color, motion] of [
     ['bronze', 'matte', 'surface', '#ac7044', 'stamp'],
     ['silver', 'pearl', 'surface', '#dceaf1', 'float'],
@@ -271,6 +259,9 @@ export function strokeAlpha(strokes, w, h) {
   for (const stroke of strokes || []) {
     const radius = Math.max(1, clamp(stroke.size ?? .04, .01, .2, .04) * Math.min(w, h) / 2);
     const value = stroke.tool === 'bg' ? 0 : 255;
+    const hardness = clamp(stroke.hardness ?? 100, 0, 100, 100) / 100;
+    const hardRadius = radius * hardness;
+    const feather = Math.max(1e-6, radius - hardRadius);
     const points = stroke.points || [];
     for (let pointIndex = 0; pointIndex < points.length; pointIndex++) {
       const first = points[Math.max(0, pointIndex - 1)], last = points[pointIndex];
@@ -281,8 +272,11 @@ export function strokeAlpha(strokes, w, h) {
         const cy = (first.y + (last.y - first.y) * step / steps) * h;
         for (let y = Math.max(0, Math.floor(cy - radius)); y <= Math.min(h - 1, Math.ceil(cy + radius)); y++) {
           for (let x = Math.max(0, Math.floor(cx - radius)); x <= Math.min(w - 1, Math.ceil(cx + radius)); x++) {
-            if (Math.hypot(x - cx, y - cy) > radius) continue;
-            alpha[y * w + x] = value;
+            const brushDistance = Math.hypot(x - cx, y - cy);
+            if (brushDistance > radius) continue;
+            const weight = hardness >= 1 ? 1 : clamp((radius - brushDistance) / feather, 0, 1, 0);
+            const index = y * w + x;
+            alpha[index] = Math.round(alpha[index] * (1 - weight) + value * weight);
           }
         }
       }
