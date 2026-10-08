@@ -1,5 +1,24 @@
 # 테스트 상태
 
+## 2026-10-08 가게 사이를 잇는 코스 (Issue #412 T4 A, 배포하지 않음)
+
+환경: macOS Codex App sandbox, `.worktrees/t4-courses`, 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. migration `0072_courses.sql`은 준비된 전용 PostgreSQL 16 `_test` DB에 적용했다. 연결 정보는 출력하지 않았고 DB는 오케스트레이터가 삭제한다. 결정은 D-093이다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| API 단위 | PASS | `npm run typecheck --prefix apps/api`, `npm test --prefix apps/api`: 633/633. `npm run build --prefix apps/api` PASS. 새 순수 규칙·경로·추천·보존 시험을 포함한다 |
+| 코스 PostgreSQL 표적 시험 | PASS | `npx tsx --test --test-concurrency=1 src/course.postgres.integration.ts`: 13/13. 실제 staff 수령의 보상권 제외, 실제 방문 취소의 STALE, 동시/중복 열기 1행, 삭제, cutoff/게시 전 방문, 과거 코인 그림, ACTIVE 가드, 모집·점주 확인 위치·점검/참조·중지, 보존 row cap을 확인했다 |
+| PostgreSQL 전체 | PASS | `npm run test:postgres --prefix apps/api`: 총 541건, 538 PASS / 0 FAIL / 3 SKIP, 167.975초. skip은 별도 hosted showcase DB가 필요한 기존 3건이다. 첫 실행의 감사 union 기대값 16은 새 규칙에 맞게 21로 수정하고 5개 새 action INSERT 검증을 추가한 뒤 전체를 재실행했다 |
+| 모바일 | PASS | `npm test --prefix apps/mobile` 2086/2086, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile` exit 0. 선택 course 필드와 기존 reasonCode 거절, 코스 파서/화면, 동의 갱신·수령 후 별도 조회·재시도를 확인한다 |
+| 관련 관리자 사이트 | PASS | `node --test tests/site/courses-admin.test.mjs tests/site/commercial-admin.test.mjs tests/site/store-go-live-admin.test.mjs tests/site/nft-metadata-admin.test.mjs tests/site/verify_production_web_test.mjs` 168/168. fake DOM으로 코스 편집·점검·게시·중지를 확인한다 |
+| 전체 사이트 추가 검사 | BLOCKED | `node --test tests/site/*.test.mjs tests/site/*_test.mjs`: 566건 중 565 PASS/1 FAIL. 기존 Chrome theme 시험은 시작 직후 SIGABRT로 assertion 전 실패했고 한 파일 재실행도 같은 결과다. 관련 기대값을 낮추지 않았으며 [BLOCKERS](BLOCKERS.md)에서 환경 원인을 분리한다 |
+| CI 연결·접근성·문서·gate | PASS | `bash tests/ci/ci_wiring_test.sh`(92개 시험 파일), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tools/gate.sh` exit 0. README·PROJECT_STATE 합계 줄 동일. 기존 large-file guard의 두 한국어 인접 변수에 중괄호를 추가해 locale 의존 오류를 고쳤고 기존 `check_large_files_test.sh` PASS. 이 guard는 커밋 차이만 보므로 미커밋 파일도 별도 크기 검사로 모두 3 MiB 이하임을 확인했다 |
+| 독립 코드 리뷰 | 지적 반영 | 별도 code-reviewer 세션이 반복 시연 seed, 과거 획득 그림, 동의 갱신/조회 재시도, 실제 수령·취소 시험과 보존 복합 PK를 검토했다. 지적은 반영됐고 보호된 redeem·방문 보상·취소·0034·coin grant 파일 변경은 없다. 리뷰는 사람 수용을 대신하지 않는다 |
+| Git 기록 | BLOCKED | `git add`·`git commit`이 `.git/worktrees/t4-courses/index.lock` 생성 `Operation not permitted`로 실패했다. 사용자 run notes에 따라 미커밋으로 남겼다. HEAD `8841efea`, PR 없음·push 없음. [정확한 변경 목록](evidence/t4-courses-2026-10-08.md) |
+| 설치·배포·시각 수용 | NOT_RUN | 운영/시연 서버·실제 DB·APK·Play·push를 변경하지 않았다. 실제 브라우저/기기 코스 수용과 screenshot 비교는 하지 않았다. 별도 hosted showcase DB가 필요한 3개 시험은 전체 PG의 skip으로 구분한다. Studio 장면 배치는 후속 범위다 |
+
+기존 assertion 변경은 세 가지뿐이다. `admin-store-go-live.postgres.integration.ts`의 감사 action 수 16→21(0068 호환 + COURSE_* 4개), 모바일 `merchant-art/customer-display.test.ts`의 인라인 그림 허용 목록에 파서 검증을 거친 코스 화면 추가, `ui/components.test.ts`의 RefreshControl 수 19→20(새 코스 화면). 나머지 기존 기대값은 유지했다. 원래 남아 있던 미추적 코스 입력 시험의 빈 opt-in 참조 처리는 초안 입력 계약에 맞췄다.
+
 ## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
 
 기준 main `48a14811`(PR #420 병합) 위의 작업 브랜치 `feat/first-use-v2c`이며 앱 코드와 문서만 바뀌었다. API·DB·migration은 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행했다.

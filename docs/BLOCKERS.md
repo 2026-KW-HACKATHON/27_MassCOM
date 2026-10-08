@@ -49,3 +49,11 @@ B-028이 지적한 "시연 직원 부여는 감사 행이 없다"(`grant-staff.t
 
 - `BLOCKED` 환경: 이 sandbox에서 `cd apps/mobile && node ../../scripts/audit-ci.mjs`(종료 1, 결과를 읽지 못함)와 `npm audit --omit=dev --json`을 실행했지만 registry DNS 접근이 차단됐다(`ENOTFOUND registry.npmjs.org`; 재시도 0회·요청 상한 5초로 실행, 로그 `/private/tmp/343-round2-live-check.log`·`/private/tmp/343-round2-live-audit.json`). 네트워크가 가능한 환경에서 같은 명령으로 재검증한다.
 - 수정 1차의 전체 순회가 `expo`·`react-native` 이후 런타임 의존까지 검사하던 설계 문제는 두 단계 `levels` 검사로 해소했다. 제공된 실제 덤프(`/private/tmp/claude-501/audit-mobile.json`) 전체 재평가는 `PASS`(실패 0개·braces/node-forge 예외 2개), 관련 항목을 복사한 내장 fixture 회귀 시험도 `PASS`이며 실시간 audit 통과와는 구분한다.
+
+
+## Issue #412 T4 A 사이트 브라우저 검사 환경 (2026-10-08)
+
+`BLOCKED`: Codex App의 이 worktree sandbox에서 `node --test tests/site/verify_showcase_theme_test.mjs`가 Chrome 시작 직후 `exit=null signal=SIGABRT`로 두 번 실패했다. 제품 assertion에 이르기 전 `DevToolsActivePort` 생성 실패다. 최소 재현은 위 한 파일 실행이다. 전체 사이트 566건 중 565 PASS/1 FAIL이며 관련 관리자 168/168은 PASS다. 로그는 `/private/tmp/t4-courses-site.log`, `/private/tmp/t4-courses-theme-retry.log`다(비밀값 없음). Chrome이 시작되는 CI/호스트에서 해당 시험을 실행하면 해소 여부를 판정할 수 있다. 제품 기대값과 브라우저 검사 자체는 바꾸지 않았다.
+
+
+T4 A Git 기록도 `BLOCKED`다. 사용자에게 허용된 로컬 커밋을 시도했으나 `git add`와 `git commit` 모두 `.git/worktrees/t4-courses/index.lock`을 만들지 못했다(`Operation not permitted`). 제품 변경은 보존하고 커밋하지 않았으며 HEAD는 `8841efea`다. 최소 재현은 해당 worktree의 `git add apps/mobile`이고, 권한이 있는 오케스트레이터가 변경을 검토·커밋하면 해소된다. 승인 우회·stash·rebase·다른 worktree 쓰기를 시도하지 않았다.
