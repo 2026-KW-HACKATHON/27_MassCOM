@@ -1,8 +1,43 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
-import { collectibleFlameAnchors, collectibleFlameFrame, collectibleFlamePath, effectSpeedValue, effectStrengthValue, FLAME_PERIOD_MS } from './collectible-aura';
+import type { CollectibleEffect } from '../../commerce/collectible-artwork';
+
+import { collectibleFlameAnchors, collectibleFlameFrame, collectibleFlamePath, effectSpeedValue, effectStrengthValue, flameAuraEffects, FLAME_PERIOD_MS } from './collectible-aura';
+
+test('flame aura renders at most four active layers in saved order without changing effects', () => {
+  const flame: CollectibleEffect = { type: 'flame', target: 'aura', strength: 50, color: '#5dd8ff', roughness: 25 };
+  const active = Array.from({ length: 64 }, (_, index) => ({ ...flame, speed: .25 + index / 64 }));
+  const effects: CollectibleEffect[] = [
+    { ...flame, strength: 0 }, { ...flame, target: 'base' }, { ...flame, type: 'glow' }, ...active,
+  ];
+  const original = structuredClone(effects);
+  assert.deepEqual(flameAuraEffects(effects), active.slice(0, 4));
+  assert.deepEqual(flameAuraEffects(Array(64).fill(flame)), Array(4).fill(flame), 'identical overlapping layers obey the same cap');
+  assert.deepEqual(flameAuraEffects(active.slice(0, 2)), active.slice(0, 2));
+  assert.deepEqual(flameAuraEffects(), []);
+  assert.deepEqual(flameAuraEffects(effects.slice(0, 3)), []);
+  assert.deepEqual(effects, original);
+});
+
+test('inline animated flame paths match the geometry helper and hide missing tongues', () => {
+  const layer = readFileSync(new URL('./collectible-aura-layer.tsx', import.meta.url), 'utf8');
+  const body = layer.match(/const pathProps = useAnimatedProps\(\(\) => \{([\s\S]*?)\n  \}\);/)?.[1];
+  assert.ok(body, 'the animated path callback must be inspected');
+  for (const shape of ['circle', 'stamp', 'serrated']) {
+    for (const angle of [-180, -90, 0, 45, 90, 180]) {
+      const tongues = collectibleFlameFrame(shape, 256, angle, 350, 2, 65);
+      for (let index = 0; index <= tongues.length; index++) {
+        const props = runInNewContext(`(() => {${body}})()`, { frame: { get: () => tongues }, index });
+        const tongue = tongues[index];
+        assert.equal(props.d, tongue ? collectibleFlamePath(tongue) : '');
+        assert.equal(props.opacity, tongue?.alpha ?? 0);
+      }
+    }
+  }
+});
 
 test('flame geometry uses fixed native perimeter slots and finite upward tips for all three shapes', () => {
   for (const shape of ['circle', 'stamp', 'serrated']) {
@@ -72,7 +107,7 @@ test('native flame keeps the shared UI frame phase on pause and only adds a mask
   assert.doesNotMatch(clock.slice(clock.indexOf('export function useGradeMaterialClock'), clock.indexOf('function Glint')), /clock\.set\(0\)/);
   assert.match(layer, /clock\.get\(\)/);
   assert.doesNotMatch(layer, /moving \?[^;]*clock|setInterval|setTimeout|Image|dataUrl|Date\.now/);
-  assert.match(layer, /effect\.type === 'flame' && effect\.target === 'aura' && effectStrengthValue\(effect\) > 0/);
+  assert.match(layer, /const flames = flameAuraEffects\(effects\)/);
   assert.match(layer, /maskType="luminance"/);
   assert.match(layer, /<CollectibleFaceOutline shape=\{shape\} fill="black"/);
   assert.ok(detail.indexOf('<CollectibleAuraLayer') < detail.indexOf('<CollectibleEdgeLayer'), 'aura is behind the physical coin');

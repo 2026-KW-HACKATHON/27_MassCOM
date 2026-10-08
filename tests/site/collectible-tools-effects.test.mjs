@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { flameFrame } from '../../apps/production-web/assets/collectible-aura.mjs';
+import { flameAuraEffects, flameFrame } from '../../apps/production-web/assets/collectible-aura.mjs';
 import { createProject, strokeAlpha } from '../../apps/production-web/assets/collectible-model.mjs';
 import { processPhotoPixels, renderCollectible, renderPublishedCollectible } from '../../apps/production-web/assets/collectible-renderer.mjs';
 import { installMiniDom } from '../fixtures/mini-dom.mjs';
@@ -58,6 +58,19 @@ test('shared stroke alpha keeps old hard strokes exact and feathers soft hardnes
   assert.ok(soft[4 * 9 + 4] > 0 && soft[4 * 9 + 4] < 255);
 });
 
+test('flame aura selects at most four active effects in saved order without mutating metadata', () => {
+  const flame = { type: 'flame', target: 'aura', strength: 50, color: '#5dd8ff' };
+  const active = Array.from({ length: 64 }, (_, index) => ({ ...flame, speed: .25 + index / 64 }));
+  const effects = [{ ...flame, strength: 0 }, { ...flame, target: 'base' }, { ...flame, type: 'glow' }, ...active];
+  const original = structuredClone(effects);
+  assert.deepEqual(flameAuraEffects(effects), active.slice(0, 4));
+  assert.deepEqual(flameAuraEffects(Array(64).fill(flame)), Array(4).fill(flame));
+  assert.deepEqual(flameAuraEffects(active.slice(0, 2)), active.slice(0, 2));
+  assert.deepEqual(flameAuraEffects(), []);
+  assert.deepEqual(flameAuraEffects(effects.slice(0, 3)), []);
+  assert.deepEqual(effects, original);
+});
+
 test('flame aura geometry is strength gated and moves upward over time', () => {
   assert.deepEqual(flameFrame('stamp', 256, 0, 0, 1, 0), []);
   const first = flameFrame('stamp', 256, 35, 0, 1, 100);
@@ -101,7 +114,7 @@ test('published renderer paints runtime flame aura and angle-dependent back glin
 
 test('flame aura render keeps gradient work bounded per frame', async () => {
   const dom = installMiniDom();
-  let gradients = 0;
+  let gradients = 0, tongueCurves = 0;
   const createElement = dom.document.createElement.bind(dom.document);
   dom.document.createElement = tag => {
     const element = createElement(tag);
@@ -111,6 +124,7 @@ test('flame aura render keeps gradient work bounded per frame', async () => {
       get(target, key) {
         if (key in target) return target[key];
         if (key === 'createLinearGradient') return () => { gradients += 1; return { addColorStop() {} }; };
+        if (key === 'quadraticCurveTo') return () => { tongueCurves += 1; };
         return () => undefined;
       },
       set(target, key, value) { target[key] = value; return true; },
@@ -125,6 +139,13 @@ test('flame aura render keeps gradient work bounded per frame', async () => {
     await renderPublishedCollectible(canvas, snapshot, { angle: 35, time: 600 });
     assert.ok(tongues.length > 12);
     assert.ok(gradients <= 4, `flame should not allocate one gradient per tongue: ${gradients}`);
+    assert.equal(tongueCurves, tongues.length * 2);
+    for (const count of [4, 64]) {
+      tongueCurves = 0;
+      snapshot.effects = Array.from({ length: count }, () => ({ ...snapshot.effects[0] }));
+      await renderPublishedCollectible(canvas, snapshot, { angle: 35, time: 600 });
+      assert.equal(tongueCurves, tongues.length * 2 * 4, `${count} saved effects render only four flame layers`);
+    }
   } finally { dom.restore(); }
 });
 

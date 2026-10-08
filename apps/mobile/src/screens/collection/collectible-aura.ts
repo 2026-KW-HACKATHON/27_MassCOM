@@ -18,6 +18,11 @@ export function effectSpeedValue(effect: Pick<CollectibleEffect, 'speed'>, fallb
   return value !== undefined && Number.isFinite(value) ? Math.min(3, Math.max(.25, value)) : fallback;
 }
 
+/** Keep the first four active layers in saved order to bound per-frame animation work. */
+export function flameAuraEffects(effects: readonly CollectibleEffect[] = []): CollectibleEffect[] {
+  return effects.filter(effect => effect.type === 'flame' && effect.target === 'aura' && effectStrengthValue(effect) > 0).slice(0, 4);
+}
+
 /** Fixed physical slots prevent the flame bases jumping when a loop wraps. */
 export function collectibleFlameAnchors(shape: string, size: number): FlameAnchor[] {
   if (!Number.isFinite(size) || size <= 0) return [];

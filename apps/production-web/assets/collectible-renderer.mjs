@@ -4,7 +4,7 @@ import {
 } from './collectible-model.mjs';
 import { fixedCollectibleBack, fixedCollectibleBackShape } from './collectible-back-assets.mjs';
 import { collectibleEdgeGrooves, collectibleEdgeContrast } from './collectible-edge.mjs';
-import { effectSpeedValue, effectStrengthValue, flameFrame } from './collectible-aura.mjs';
+import { effectSpeedValue, effectStrengthValue, flameAuraEffects, flameFrame } from './collectible-aura.mjs';
 
 // Originals and editing instructions stay separate. Preview buffers are bounded
 // and never become the source for a later edit or a published version.
@@ -549,7 +549,7 @@ function traceSweptVolume(context, points, size, horizontal, signedDepth) {
   }
 }
 function paintFlameAura(context, project, gradeId, size, horizontal, angle, time) {
-  const effects = drawableEffects(project, gradeId, 'aura').filter((effect) => effect.type === 'flame' && effectStrengthValue(effect) > 0);
+  const effects = flameAuraEffects(drawableEffects(project, gradeId, 'aura'));
   if (!effects.length) return;
   for (const effect of effects) {
     const strength = effectStrengthValue(effect);

@@ -1,5 +1,11 @@
 # AI 사용 기록
 
+## 2026-10-09 PR #429 CI worklet 수정 (직접 요청, 미커밋)
+
+사용자의 직접 요청으로 Codex가 `feat/collectible-reeded-edge`에서 Flame animated props의 SVG 수식을 인라인하고 기존 시험 assertion을 유지한 채 실제 callback parity 시험을 추가했다. 결정 D-102와 자동 시험 합계·인수인계·환경 차단 기록을 갱신했다. 별도 읽기 전용 code-reviewer가 수식·worklet helper 체인·결정 참조를 확인하고 대상39/39 시험을 통과했다. 전체 결과와 소켓 제한은 [TEST_STATUS](TEST_STATUS.md)에 기록한다. staging·commit·stash·merge·rebase·push·배포·과금·실기 검수는 실행하지 않았다.
+
+같은 PR의 추가 직접 요청으로 Codex가 모바일·웹 Flame 렌더링을 활성 앞4개로 제한하고 입력 보존·64개 상한 시험을 추가했다. 별도 executor가 깊이 시험의 polygon 좌표 assertion을 복원했으며 임시 복사본 변이3종(깊이 붕괴·비대칭·cap 이동)으로 검증했다. 모바일2113/2113·typecheck·lint·접근성 PASS, 사이트324 PASS·6 소켓 BLOCKED/330. 기존 미커밋 변경을 보존하고 Git 쓰기 작업과 배포는 실행하지 않았다. [최신 검증](TEST_STATUS.md)을 따른다.
+
 ## 2026-10-09 — 새 점주 제작기 PR 준비
 
 소유자가 PR #418을 이어 고치지 말고 새 PR로 전달하라고 요청했다. Codex가 `feat/collectible-reeded-edge`에서 회전/움직임 분리 탭, 표현 스타일 상단 배치, 붓 경도와 확대 작업 영역, 단일 재생/정지 버튼, 기본 스티커 자동 삽입 제거, 새 점포 추천 motif·메뉴 문구 스티커 생성 제거, 오라 `flame` metadata, 후면 실시간 glint, 모양별 reeded edge를 구현·문서화하는 범위다. 기존 고정 뒷면 이미지는 재사용하고, 이번 후속은 새 오라 이미지 타일을 생성하지 않는다. 저장된 사용자 스티커는 보존한다. 최신 개발자 브랜치 `f2a29439`를 통합했다. 합성 점주 브라우저에서 게시·재읽기와 실버/편집/오라/옆면 화면을 검수하고 성능 실측을 남겼다. [검증·캡처·남은 성능 한계](evidence/coin-edge-2026-10-09/README.md), [최종 시험](TEST_STATUS.md)을 함께 전달한다. Android 실기·운영 배포·실계정 게시는 수행하지 않았다.

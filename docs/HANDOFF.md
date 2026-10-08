@@ -1,5 +1,14 @@
 # HANDOFF
 
+**2026-10-09 PR #429 CI 수정 전달 (미커밋)**
+
+- 위치: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `6231def8`, 열린 [PR #429](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/429), 기준 main `a8ed0dd1`. 이번 사용자 직접 지시에 따라 staging·commit·stash·merge·rebase·push를 하지 않았다.
+- Flame `useAnimatedProps` 안의 imported helper 호출을 같은 SVG 수식으로 인라인했다. 기존 crash guard assertion은 그대로이고, 실제 callback 경로/불투명도와 helper의 일치를 시험1건 추가했다. 결정은 D-102로 정정했다. 회전/움직임 분리·Flame·옆면·실버 림·기본 스티커 제거는 유지한다.
+- 추가 수정: 기록한 polygon 좌표의 0이 아닌 동일·대칭 깊이와 cap/옆면 연결을 복원했고 PR의 새 assertion도 보존했다. 모바일·웹은 저장 순서의 활성 Flame 오라 앞4개만 렌더링하며 뒤의 효과는 저장본을 바꾸지 않고 무시한다. 64개 상한 회귀와 기존 worklet 안전성 PASS.
+- 최신 모바일2113/2113·typecheck·lint·접근성 PASS, 사이트330건 중324 PASS·6 소켓 BLOCKED, 최종 깊이11/11 PASS. 로그는 `/tmp/pr429-extra-*.log`, 상세는 [TEST_STATUS](TEST_STATUS.md)의 같은 PR 추가 수정 표를 따른다. 아래 API·release·CI·운영 문서 결과는 이전 수정 기록이다.
+- 이전 검증: 모바일2112/2112·typecheck·lint, API typecheck, 접근성·release 지갑 표면·CI 연결·운영 문서 검사 PASS. API625건 중457 PASS·168 소켓 BLOCKED, 사이트331건 중325 PASS·6 소켓 BLOCKED. 상세 명령·사이트 결과·로그는 [TEST_STATUS](TEST_STATUS.md)의 PR #429 CI 수정 절을 따른다. `npm test`의 tsx IPC 차단은 `node --import tsx --test 'src/**/*.test.ts'`로 우회했다.
+- 다음 명령: 소켓을 허용하는 CI에서 `npm test --prefix apps/api`와 `node --test tests/site/collectible-*.test.mjs tests/site/merchant-copy-no-newcomer.test.mjs`를 재실행한다. 운영 배포·Android 실제 설치본은 NOT_RUN이며 이번 수정만으로 실기 안전성을 확정하지 않는다.
+
 **2026-10-09 새 점주 제작기 후속 전달**
 
 브랜치 `feat/collectible-reeded-edge`는 #418 병합 뒤 최신 main `a8ed0dd1` 기준의 별도 PR이다. main squash 트리와 앞서 통합한 `f2a29439`는 동일하다. 실버 테두리·기본 스티커 제거, 큰 편집 화면·붓 경도/확대, 흑백·회전/움직임 분리·단일 재생, 강도별 재질·Flame 오라, 고정 후면 실시간 조명과 얇은 옆면 홈을 담는다. [캡처·저장·성능](evidence/coin-edge-2026-10-09/README.md), [시험](TEST_STATUS.md)을 확인한다. 로컬 합성 게시·재읽기와 독립 리뷰를 수행했다. 최악 조건 새 각도50ms 초과는 남아 있어 추가 성능 검수가 필요하다. 운영 배포·Android 실기는 실행하지 않았다. 기존API/웹 동시 배포·1/3/5 보상 조건을 유지한다.

@@ -8,6 +8,11 @@ export function effectSpeedValue(effect, fallback = 1) {
   return clamp(effect?.speed ?? fallback, .25, 3, fallback);
 }
 
+/** Keep the first four active layers in saved order to bound per-frame animation work. */
+export function flameAuraEffects(effects = []) {
+  return effects.filter(effect => effect.type === 'flame' && effect.target === 'aura' && effectStrengthValue(effect) > 0).slice(0, 4);
+}
+
 export function flameFrame(shape, size, angleDeg = 0, timeMs = 0, speed = 1, strength = 50) {
   const amount = clamp(strength, 0, 100, 0) / 100;
   if (!amount || !Number.isFinite(size) || size <= 0) return [];

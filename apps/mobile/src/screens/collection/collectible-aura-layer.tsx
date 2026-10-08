@@ -4,7 +4,7 @@ import Svg, { Defs, G, LinearGradient, Mask, Path, Rect, Stop } from 'react-nati
 
 import type { CollectibleEffect } from '../../commerce/collectible-artwork';
 
-import { collectibleFlameAnchors, collectibleFlameFrameForAnchors, collectibleFlamePath, effectSpeedValue, effectStrengthValue, type FlameTongue } from './collectible-aura';
+import { collectibleFlameAnchors, collectibleFlameFrameForAnchors, effectSpeedValue, effectStrengthValue, flameAuraEffects, type FlameTongue } from './collectible-aura';
 import { CollectibleFaceOutline } from './collectible-default-back';
 
 const AnimatedGradient = Animated.createAnimatedComponent(LinearGradient);
@@ -30,7 +30,9 @@ function Flame({ index, frame, color }: { index: number; frame: SharedValue<Flam
   const pathProps = useAnimatedProps(() => {
     const tongue = frame.get()[index];
     if (!tongue) return { d: '', opacity: 0 };
-    return { d: collectibleFlamePath(tongue), opacity: tongue.alpha };
+    const { x, y, width, tipX, tipY } = tongue;
+    const middleY = (y + tipY) / 2;
+    return { d: `M${x - width},${y}Q${x},${middleY} ${tipX},${tipY}Q${x + width},${middleY} ${x + width},${y}Z`, opacity: tongue.alpha };
   });
   return <>
     <Defs><AnimatedGradient id={gradientId} animatedProps={gradientProps} gradientUnits="userSpaceOnUse">
@@ -61,7 +63,7 @@ function FlameAura({ effect, shape, faceSize, angle, clock }: Pick<Props, 'shape
 /** Only runtime aura is layered; the other saved material effects are already baked into the face. */
 export function CollectibleAuraLayer({ effects, shape, size, faceSize, horizontal, angle, clock }: Props) {
   const maskId = `aura-outline-${useId().replace(/:/g, '')}`;
-  const flames = effects?.filter(effect => effect.type === 'flame' && effect.target === 'aura' && effectStrengthValue(effect) > 0) ?? [];
+  const flames = flameAuraEffects(effects);
   if (!flames.length) return null;
   const center = size / 2;
   return <Svg pointerEvents="none" accessible={false} width={size} height={size} style={{ position: 'absolute', left: 0, top: 0 }}>
