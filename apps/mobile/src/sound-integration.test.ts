@@ -276,13 +276,17 @@ test('account setting is accessible, waits for persisted state, and describes it
 test('draw music and draw haptics are owned by the gacha modal without changing root initialization', () => {
   const sounds = source('./sound/ui-sounds.ts');
   const gacha = source('./screens/shop/gacha-machine.tsx');
+  const stampStage = source('./screens/shop/stamp-draw-stage.tsx');
+  const stampMedia = source('./screens/shop/stamp-draw-media.ts');
   const effects = source('./gamification/native-effects.ts');
   assert.match(sounds, /export function useDrawMusic\(enabled = true\)/);
   assert.match(sounds, /controller\.setDrawMusicFocused\(true\)/);
   assert.match(sounds, /controller\.setDrawMusicFocused\(false\)/);
   assert.match(gacha, /import \{ playUiSound, useDrawMusic \} from '@\/sound\/ui-sounds'/);
   assert.match(gacha, /useDrawMusic\(\)/);
-  assert.match(gacha, /void drawHaptic\(\); playUiSound\('open'\)/);
+  assert.match(gacha, /void drawHaptic\(\)/);
+  assert.match(stampStage, /useUiSoundSettings\(\)/);
+  assert.match(stampMedia, /muted: !opening \|\| !active \|\| !sound\.soundEffectsEnabled/);
   assert.match(effects, /export async function drawHaptic\(\)/);
   assert.match(effects, /mode !== 'DRAW_ONLY' && mode !== 'ALL'/);
 });

@@ -7,6 +7,13 @@
 네이티브 하위 에이전트가 소셜 API·친구 UI·식사 선택기·방 API·방 UI·격리된 검증 환경·문서를 나누고, 구현에 참여하지 않은 별도 검토가 변경을 확인했다. 검토에서 찾은 이미 수령된 우정 답장 재응답 처리와 실제 화면에서 찾은 날짜 선택기의 빈 공간을 고쳤다. 이미지 생성과 새 의존성은 사용하지 않았다. API 단위679/679·모바일2196/2196·관련 웹173/173, 타입·API 빌드·모바일 lint·운영/시연 Android export와 합성 브라우저48장 확인이 PASS다. 전체 PostgreSQL599건은596 PASS·0 FAIL·기존 hosted 전용3 SKIP이며 독립 최종 판정은 APPROVE다. 상세는 [TEST_STATUS](TEST_STATUS.md)에 기록하고 [화면 증거](evidence/friend-actions-2026-10-09/README.md)는 실제 서버 배포·Android 실기 검증을 뜻하지 않는다.
 
 **이하 이전 AI 사용 이력 — 다른 브랜치의 당시 지시·검증 범위이며 이번 작업에 소급하지 않는다.**
+## 2026-10-09 PR #445와 main 병합 충돌 해결 (직접 요청, 파일 수정만)
+
+Codex가 `feat/gacha-stamp-reveal`에서 문서·브라우저 fixture의 양쪽 변경을 보존하고 Android 영상 준비 및 영상 음소거 조건을 수정했다. 기존 시험을 약화하지 않고 대상 9/9와 모바일 전체 대체 실행 2229/2229, 타입·린트·접근성·지갑 표면·CI 연결·운영 제출 준비를 확인했다. npm 진입점은 sandbox tsx IPC `listen EPERM`으로 `BLOCKED`이며 API·브라우저·설치본·실제 청음·배포는 `NOT_RUN`이다([TEST_STATUS](TEST_STATUS.md)). Git add·commit·stash·merge·rebase·push는 수행하지 않는다.
+
+## 2026-10-09 우표 뽑기 영상·효과음 연결 (Issue #442)
+
+사용자가 승인한 우표 영상을 뽑기 화면에 적용하고 제공한 OGG 사운드로 효과음을 교체해 PR을 만들도록 직접 요청했다. Codex가 최신 main의 별도 작업 트리에서 통합하고 native 서브에이전트가 공통 재생기, 두 뽑기 화면, Android 재생 뷰, 사운드 분석, 실제 브라우저 검증을 나누어 맡았다. 독립 code-reviewer와 보조 critic 검토도 수행했다. 기존 일반 모델 운용 정책 자체는 변경하지 않는다. 영상 스트림과 보상 API·확률·마일리지 차감·도감 등록 규칙을 유지한다. 실제 청음은 지원되지 않아 주파수·음량 수치로 판단했다. 검사와 설치본 검증 경계는 [이번 QA 문서](GACHA_STAMP_QA_2026-10-09.md)에 기록한다.
 ## 2026-10-09 CI 병렬 작업 분리 (소유자 직접 요청, 미커밋)
 
 Codex가 `ci/parallel-jobs`에서 기존 15분 직렬 CI를 API·PostgreSQL 2샤드·모바일·웹/운영/문서·계약/worker로 나누고 `bootstrap-contract` 필수 상태를 최종 집계로 유지했다. 읽기 전용 explore가 기존 YAML 파서와 의존성 경계를 확인했고 독립 code-reviewer가 검사 보존·DB 격리·집계를 검토해 구체적인 결함을 찾지 않았다. 새 샤드/집계 회귀 2/2, CI 연결 104개, 기존 CI YAML 참조 시험·PyYAML 파싱·명령 보존·문법 검증은 [TEST_STATUS](TEST_STATUS.md)에 기록했다. actionlint 미설치·실제 GitHub CI 시간은 `NOT_RUN`; Git add·commit·stash·merge·rebase·push는 수행하지 않았다.

@@ -2,7 +2,7 @@
 
 ## 2026-10-09 PR #440 리뷰 지적9건 수정 (미커밋·미배포)
 
-현재 자동 시험 합계(2026-10-09 KST, PR #440 브랜치 `feat/friend-actions-guestbook`에 PR #444 반영 main `9282477d`를 합친 기준): API 단위 681/681 · 모바일 2245/2245. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, PR #440 브랜치 `feat/friend-actions-guestbook`에 PR #445 반영 main `97d351bd`를 합친 기준): API 단위 681/681 · 모바일 2258/2258. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 현재 worktree `.worktrees/pr440`, 브랜치 `feat/friend-actions-guestbook`, HEAD `2a541d73` 위 파일 수정이다. body 없는 DELETE, 새 앱 `X-MassCOM-Room-Visibility: v2`와 구 앱 PUBLIC 표시 호환·무작위 후보 제외, 방명록 작성자 본인 방 공개 동의와 신규 친구 하루20회, 비친구 전체 공개 방 공통 가게 비공개, 글 작성자·방당 하루10건, 삭제·신고 잠금 순서, 확장 CHECK NOT VALID·신고 FK 인덱스, 본문 제거·키 비교값 중복 방지·cursor 오류를 고쳤다. 친구 그림 버튼·날짜 선택기·첫 글5P·별도25P를 보존한다.
 
@@ -17,6 +17,16 @@
 로컬 검증은 API 단위679/679·모바일2196/2196·관련 웹173/173, API/모바일 타입·API 빌드·모바일 lint·운영/시연 Android export·비밀 검사·CI 연결103개 파일 PASS다. 방 대상57/57·우정 PostgreSQL53/53 PASS, 전체 PostgreSQL599건은596 PASS·0 FAIL·기존 hosted 전용3 SKIP이며 통합 후 독립 검토는 APPROVE다. 합성 브라우저의 폭320/360/390·밝은/어두운 테마 화면48장과 동작을 확인했다. [시험 상태](TEST_STATUS.md)와 [증거·제한](evidence/friend-actions-2026-10-09/README.md)을 따른다. 운영 배포·새 APK·실기·TalkBack은 NOT_RUN이다.
 
 **이하 이전 작업 이력 — 각 ‘현재’·합계·브랜치 상태는 당시 기준이며 Issue #436의 최신 판정을 뜻하지 않는다.**
+## 2026-10-09 PR #445와 main 병합 중 (파일 수정만·미배포)
+
+현재 `.worktrees/pr445`의 `feat/gacha-stamp-reveal` HEAD `dd76e693`에 main `2cfcc8e8`을 합치는 중이다. 양쪽 문서·RNW fixture를 보존하고 Android 영상이 다운로드된 파일 URI 준비 전에 재생되어 공개를 건너뛰는 경로와 소리 설정 준비 전 영상 음성을 수정했다. 대상 9/9·모바일 전체 Node loader 2229/2229, typecheck·lint(기존 경고 1), 접근성·지갑 표면·CI 연결(104개 시험 파일)·운영 제출 준비, fixture 문법·빌드 전용 검사 PASS다. `npm test`는 sandbox tsx IPC `listen EPERM`으로 BLOCKED다. API 674/674는 이전 측정이며 이번 API·새 앱 빌드·브라우저·기기 재생·실제 청음·배포는 NOT_RUN이다. [이번 검증](TEST_STATUS.md). Git index는 미병합 상태로 유지한다.
+
+## 이전 2026-10-09 우표 뽑기 영상·제공 효과음 (Issue #442, Windows 작업 기록)
+
+당시 요청은 `feat/gacha-stamp-reveal`에서 승인된 검은 배경 우표 영상과 사용자 제공 OGG 효과음을 뽑기 화면에 연결해 PR로 제출하는 것이었다. 영상 스트림은 그대로 유지했고 대기 무음 반복 → 서버 결과 확인 → 효과음이 있는 개봉 → 기존 보상·도감 등록으로 연결했다. 당시 Windows 모바일 전체는 **2212/2212**, 타입·린트·브라우저 27/27·Android 네이티브 모듈 컴파일·운영/시연 JS 번들 PASS다. 실제 설치본과 청음·배포는 NOT_RUN이다. [당시 검증](GACHA_STAMP_QA_2026-10-09.md). 아래 2203개 집계와 미커밋 기록은 더 오래된 작업 이력이다.
+
+
+이전 PR #435 리뷰 후속의 당시 합계는 API 674/674(기존 측정)·모바일 2203/2203(당시 재실행)이었다.
 
 ## 2026-10-09 PR #439 통합 중 (미커밋·미배포)
 
@@ -26,6 +36,7 @@
 
 `feat/collection-next-actions`는 열린 PR #435를 기준으로 한 후속 브랜치다. U1/U2/U3/O1 구현과 U5 최소 가게 식별 보완, X2 정책 분석을 수행했다. P4 표시는 잔여 수량·기준 미확정으로 보류한다. 기존 데이터/확률/쿠폰 정책은 변경하지 않았다. [작업별 상태와 증거](SELECTED_ACTIONS_QA_2026-10-09.md). 아래 과거 미커밋·미병합 기록은 당시 상태이며 현재 판단은 원격 PR과 이 절의 검증을 따른다.
 
+이전 PR #439 통합 당시 합계는 API 674/674(앞선 main 측정)·모바일 2216/2216(당시 통합 실측)이었다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 후속 (파일 수정만·미커밋)
 
