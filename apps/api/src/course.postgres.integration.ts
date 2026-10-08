@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 
 import { CourseError } from './course-rules.js';
+import { MerchantAccessError } from './merchant-access.js';
 import { AdminError } from './postgres/admin.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
@@ -19,6 +20,7 @@ const now = new Date('2026-10-08T03:00:00Z');
 const secret = 'course-test-account-lifecycle-secret-32-bytes';
 const draft = (merchantIds: string[], countsFrom: string | null = null) => ({
   title: '식사 후 모으는 장면', situation: 'AFTER_MEAL', sceneKey: 'test-picnic', countsFrom,
+  startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-11-30T00:00:00Z',
   steps: merchantIds.map((merchantId, index) => ({ merchantId, targetVisitCount: 1,
     pieceKey: `piece-${index + 1}`, pieceLabel: ['그릇', '컵', '봉투'][index] ?? '조각', ownerOptinRef: `COURSE-OPTIN-REF-${index + 1}` })),
 });
@@ -52,11 +54,34 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     await pool.query(`INSERT INTO merchant_members(merchant_id,account_id,role,status)
       VALUES ($1,'staff','STAFF','ACTIVE')`, [merchantId]);
   }
+  await pool.query(`INSERT INTO merchant_members(merchant_id,account_id,role,status)
+    VALUES ('course-a','owner-a','OWNER','ACTIVE')`);
   await pool.query(`INSERT INTO showcase_guest_trials(merchant_id,account_id,client_key_hash,expires_at)
     VALUES ('course-trial','trial-owner',decode(repeat('ab',32),'hex'),'2026-11-01')`);
 
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
   const service = new PostgresCourseService(pool, { now: () => now, accountLifecycle: lifecycle });
+
+  await t.test('only this store owner can register its own draft opt-in reference', async () => {
+    const input = draft(['course-a', 'course-b']);
+    input.steps[0]!.ownerOptinRef = '';
+    const created = await service.adminCreate('curator', input);
+    await assert.rejects(service.merchantList('staff', 'course-a'), MerchantAccessError);
+    const listed = await service.merchantList('owner-a', 'course-a');
+    assert.equal(listed.find(course => course.id === created.id)?.ownerOptinRef, null);
+    await assert.rejects(service.merchantOptIn('owner-a', 'course-b', created.id, 'OPTIN-NEW'), MerchantAccessError);
+    await assert.rejects(service.merchantOptIn('owner-a', 'course-a', created.id, '010-1234-5678'),
+      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_INVALID_INPUT');
+    await assert.rejects(service.merchantOptIn('owner-a', 'course-a', created.id, 'COURSE-OPTIN-REF-2'),
+      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_INVALID_INPUT');
+    const opted = await service.merchantOptIn('owner-a', 'course-a', created.id, 'OPTIN-NEW');
+    assert.equal(opted.ownerOptinRef, 'OPTIN-NEW');
+    assert.equal(opted.steps.length, 2);
+    assert.equal((await service.merchantOptIn('owner-a', 'course-a', created.id, 'OPTIN-NEW')).ownerOptinRef,
+      'OPTIN-NEW');
+    assert.equal((await service.adminList('curator')).find(course => course.id === created.id)?.steps[0]?.ownerOptinRef,
+      'OPTIN-NEW');
+  });
 
   await t.test('check and publish reject demo and guest trial stores', async () => {
     for (const merchantId of ['course-demo', 'course-trial']) {
@@ -69,6 +94,11 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
   });
 
   await t.test('publish needs a fresh successful check and both owner references', async () => {
+    const noWindow = await service.adminCreate('curator', { ...draft(['course-a', 'course-b']),
+      startsAt: null, endsAt: null });
+    await service.adminCheck('curator', noWindow.id, null);
+    await assert.rejects(service.adminPublish('curator', noWindow.id),
+      (error: unknown) => error instanceof CourseError && error.reasons.includes('COURSE_WINDOW_MISSING'));
     const missingCheck = await service.adminCreate('curator', draft(['course-a', 'course-b']));
     await assert.rejects(service.adminPublish('curator', missingCheck.id),
       (error: unknown) => error instanceof CourseError && error.reasons.includes('COURSE_CHECK_MISSING'));
@@ -127,7 +157,7 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     }
   });
 
-  const visitAndEntitle = async (merchantId: string, accountId: string, earnedAt: string) => {
+  const visitAndEntitle = async (merchantId: string, accountId: string, earnedAt: string, grant = true) => {
     const slot = randomUUID(), visit = randomUUID(), entitlement = randomUUID();
     await pool.query(`INSERT INTO claim_slots(id,merchant_id,customer_account_id,merchant_reference_hash,
       created_by_account_id,token_hash,status,expires_at,claimed_at,created_at,updated_at)
@@ -139,12 +169,12 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
       occurred_at,business_date,verification_level,status,progress_counted)
       VALUES ($1,$2,$3,$4,$5,$6,$7,'MERCHANT_CONFIRMED','VALID',$8)`,
       [visit, slot, merchantId, `campaign-${merchantId}`, accountId, earnedAt, earnedAt.slice(0, 10), true]);
-    await pool.query(`INSERT INTO reward_entitlements(id,customer_account_id,campaign_id,
+    if (grant) await pool.query(`INSERT INTO reward_entitlements(id,customer_account_id,campaign_id,
       target_visit_count,source_visit_event_id,status,policy_version,earned_at,claim_expires_at)
       VALUES ($1,$2,$3,1,$4,'GRANTED','VISIT_1_3_5_KST_DAILY_V1',$5,$6)`,
       [entitlement, accountId, `campaign-${merchantId}`, visit, earnedAt,
         new Date(Date.parse(earnedAt) + 90 * 86400000)]);
-    return { entitlement, visit };
+    return { entitlement: grant ? entitlement : null, visit };
   };
 
   await t.test('staff self-claim with no entitlement does not complete a step', async () => {
@@ -186,7 +216,8 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     assert.equal(queries.length, 5);
     assert.match(queries[0]!, /LIMIT 50/);
     assert.match(queries[1]!, /step\.course_id = ANY\(\$1::uuid\[\]\)/);
-    assert.match(queries[2]!, /c\.merchant_id = ANY\(\$2::text\[\]\)/);
+    assert.match(queries[2]!, /visit\.merchant_id = step\.merchant_id/);
+    assert.match(queries[2]!, /visit\.occurred_at < COALESCE\(course\.ends_at/);
     queries.length = 0;
     await tracked.listHints('course-reco');
     assert.equal(queries.length, 3);
@@ -230,14 +261,14 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     assert.deepEqual(after.steps.map(step => step.done), [true, false]);
   });
 
-  await t.test('counts_from excludes earlier entitlements', async () => {
+  await t.test('counts_from excludes earlier visits', async () => {
     const later = await service.adminCreate('curator', draft(['course-a', 'course-b'], '2026-10-08T02:00:00Z'));
     await service.adminCheck('curator', later.id, null);
     await service.adminPublish('curator', later.id);
     assert.equal((await service.get('course-customer', later.id)).done, 0);
   });
 
-  await t.test('counts_from includes entitlements earned at and after its instant', async () => {
+  await t.test('counts_from includes visits at and after its instant', async () => {
     const boundary = '2026-10-08T02:00:00Z';
     await visitAndEntitle('course-a', 'course-boundary', boundary);
     await visitAndEntitle('course-b', 'course-boundary', '2026-10-08T02:01:00Z');
@@ -248,11 +279,51 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     assert.equal((await service.unlock('course-boundary', candidate.id)).course.state, 'UNLOCKED');
   });
 
-  await t.test('without counts_from, a visit earned before publication still completes its step', async () => {
+  await t.test('a visit inside the mission period before publication still completes its step', async () => {
     const backfilled = await service.adminCreate('curator', draft(['course-a', 'course-b']));
     await service.adminCheck('curator', backfilled.id, null);
     await service.adminPublish('curator', backfilled.id);
     assert.deepEqual((await service.get('course-customer', backfilled.id)).steps.map(step => step.done), [true, false]);
+  });
+
+  await t.test('period visits, not old entitlement milestones, prove goals and scene unlock', async () => {
+    const account = 'course-period';
+    await visitAndEntitle('course-a', account, '2026-10-04T01:00:00Z');
+    await visitAndEntitle('course-a', account, '2026-10-05T01:00:00Z', false);
+    const first = await visitAndEntitle('course-a', account, '2026-10-06T01:00:00Z', false);
+    const input = { ...draft(['course-a', 'course-b'], '2026-10-06T00:00:00Z'),
+      endsAt: '2026-10-09T00:00:00Z' };
+    input.steps[0]!.targetVisitCount = 3;
+    const mission = await service.adminCreate('curator', input);
+    await service.adminCheck('curator', mission.id, null);
+    await service.adminPublish('curator', mission.id);
+    const goalOne = await service.adminCreate('curator', { ...input,
+      steps: input.steps.map(step => ({ ...step, targetVisitCount: 1 })) });
+    await service.adminCheck('curator', goalOne.id, null);
+    await service.adminPublish('curator', goalOne.id);
+    assert.equal((await service.get(account, goalOne.id)).steps[0]!.done, true);
+    assert.equal((await service.get(account, mission.id)).steps[0]!.progressVisitCount, 1);
+    assert.equal((await service.get(account, mission.id)).steps[0]!.done, false);
+    await assert.rejects(service.unlock(account, mission.id),
+      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_INCOMPLETE');
+    await visitAndEntitle('course-a', account, '2026-10-09T00:00:00Z', false);
+    assert.equal((await service.get(account, mission.id)).steps[0]!.progressVisitCount, 1);
+    const second = await visitAndEntitle('course-a', account, '2026-10-07T01:00:00Z', false);
+    const third = await visitAndEntitle('course-a', account, '2026-10-08T01:00:00Z', false);
+    await visitAndEntitle('course-b', account, '2026-10-06T02:00:00Z', false);
+    const ready = await service.get(account, mission.id);
+    assert.equal(ready.state, 'READY');
+    assert.equal(ready.steps[0]!.progressVisitCount, 3);
+    assert.equal(ready.steps[0]!.earnedAt, '2026-10-08T01:00:00.000Z');
+    const unlocked = await service.unlock(account, mission.id);
+    assert.equal(unlocked.course.state, 'UNLOCKED');
+    const evidence = (await pool.query<{ evidence: { steps: { visitEventIds: string[] }[] } }>(
+      'SELECT evidence FROM course_unlocks WHERE account_id=$1 AND course_id=$2', [account, mission.id])).rows[0]!.evidence;
+    assert.deepEqual(evidence.steps[0]!.visitEventIds, [first.visit, second.visit, third.visit]);
+    await pool.query("UPDATE visit_events SET status='CANCELED',cancellation_reason='test reversal' WHERE id=$1", [third.visit]);
+    const stale = await service.get(account, mission.id);
+    assert.equal(stale.state, 'STALE');
+    assert.equal(stale.steps[0]!.progressVisitCount, 2);
   });
 
   await t.test('a completed step keeps its own published coin thumbnail after its campaign ends', async () => {

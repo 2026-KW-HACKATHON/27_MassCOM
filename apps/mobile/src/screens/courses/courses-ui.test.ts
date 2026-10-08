@@ -13,9 +13,12 @@ test('course unlock is offered only for READY server state and scene is hidden f
 
 test('scene uses each step own coin thumbnail and claim follows up with one course read', () => {
   assert.match(source, /step\.artwork\.thumbnailDataUrl/);
-  assert.match(source, /course\.sceneKey/);
+  assert.doesNotMatch(source, /\{course\.sceneKey\}/);
+  assert.match(source, /완료 배지 · \{course\.title\}/);
+  assert.match(source, /!step\.done && step\.state === 'AVAILABLE'/);
+  assert.match(source, /가게 영업 상태·거리 보기/);
   assert.match(claim, /createCourseApiClient\(\{ apiUrl, credential, onSessionInvalid \}\)\.list\(controller\.signal\)/);
-  assert.match(claim, /코스 다시 불러오기/);
+  assert.match(claim, /연합 미션 다시 불러오기/);
 });
 
 test('consent refusal leads to the shared recheck flow and changing detail ids hides old data', () => {

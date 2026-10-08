@@ -7,13 +7,18 @@ import {
   parseCourseDraft, publishBlockers, summarizeProgress,
   type AdminCourse, type CourseCheckSummary, type CourseDraftInput, type CourseGoal,
   type CourseMerchantFact, type CourseService, type CourseSituation, type CourseStatus, type CourseView,
-  type StepEntitlement,
+  type MerchantCourse,
+  type CountedCourseVisit,
 } from '../course-rules.js';
 import type { RealWorldProfile } from '../real-world-contract.js';
 import { businessStateAt } from '../real-world-hours.js';
+import { normalizeDocumentReference } from '../store-go-live-rules.js';
+import { MerchantAccessError } from '../merchant-access.js';
 import { AdminError, assertPlatformAdmin } from './admin.js';
 import { AccountLifecycleError } from './account-lifecycle.js';
 import type { PostgresAccountLifecycle } from './account-lifecycle.js';
+import { requireActiveMerchantMember } from './merchant-membership.js';
+import { countedVisitFilterSql, countedVisitFromSql } from './badge-rewards.js';
 
 type Db = Pool | PoolClient;
 type CourseRow = {
@@ -25,7 +30,7 @@ type StepRow = {
   course_id: string; position: number; merchant_id: string; merchant_name: string; target_visit_count: CourseGoal;
   is_demo: boolean; available: boolean;
   piece_key: string; piece_label: string; owner_optin_ref: string | null; owner_optin_at: Date | null;
-  campaign_id: string | null; enrollment_open: boolean | null; progress_visit_count: number | null;
+  campaign_id: string | null; enrollment_open: boolean | null;
   artwork: CollectibleArtwork | null;
 };
 type FactRow = {
@@ -35,9 +40,7 @@ type FactRow = {
   profile: RealWorldProfile | null; campaign_id: string | null; campaign_ends_at: Date | null;
   enrolled_count: number | null; enrollment_capacity: number | null; goals: number[] | null; has_coin: boolean | null;
 };
-type EntitlementRow = {
-  entitlement_id: string; merchant_id: string; target_visit_count: number; earned_at: Date; status: string;
-};
+type CountedVisitRow = { course_id: string; merchant_id: string; visit_event_id: string; occurred_at: Date };
 
 const validId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 const iso = (date: Date | null) => date?.toISOString() ?? null;
@@ -79,8 +82,7 @@ export class PostgresCourseService implements CourseService {
     return result.rows[0];
   }
 
-  private async steps(db: Db, ids: string[], at: Date, accountId: string | null = null,
-    withArtwork = true): Promise<StepRow[]> {
+  private async steps(db: Db, ids: string[], at: Date, withArtwork = true): Promise<StepRow[]> {
     if (ids.length === 0) return [];
     const result = await db.query<StepRow>(
       `SELECT step.course_id, step.position, step.merchant_id, merchant.name AS merchant_name, step.target_visit_count,
@@ -89,9 +91,6 @@ export class PostgresCourseService implements CourseService {
               step.piece_key, step.piece_label, step.owner_optin_ref, step.owner_optin_at,
               campaign.id AS campaign_id,
               campaign.enrolled_count < campaign.enrollment_capacity AS enrollment_open,
-              (SELECT count(DISTINCT visit.business_date)::integer FROM visit_events visit
-                WHERE visit.campaign_id = campaign.id AND visit.status = 'VALID'
-                  AND visit.progress_counted AND visit.customer_account_id = $3) AS progress_visit_count,
               ${withArtwork ? 'grade.summary' : 'NULL::jsonb'} AS artwork
        FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id
        LEFT JOIN LATERAL (
@@ -108,7 +107,7 @@ export class PostgresCourseService implements CourseService {
        LEFT JOIN collectible_publication_grades grade ON grade.publication_id = publication.id
          AND grade.grade_id = publication.reward_grades->>step.target_visit_count::text` : ''}
        WHERE step.course_id = ANY($1::uuid[]) ORDER BY step.course_id, step.position`,
-      [ids, at, accountId],
+      [ids, at],
     );
     return result.rows;
   }
@@ -127,6 +126,58 @@ export class PostgresCourseService implements CourseService {
   async adminList(_actorAccountId: string): Promise<AdminCourse[]> {
     const result = await this.pool.query<CourseRow>('SELECT * FROM courses ORDER BY created_at DESC, id DESC');
     return Promise.all(result.rows.map(row => this.adminView(this.pool, row)));
+  }
+
+  private async owner(db: PoolClient, accountId: string, merchantId: string): Promise<void> {
+    if (!this.accountLifecycle) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    try { await this.accountLifecycle.assertActive(db, accountId); }
+    catch (error) {
+      if (error instanceof AccountLifecycleError) throw new CourseError('ACCOUNT_DELETED');
+      throw error;
+    }
+    const member = await requireActiveMerchantMember(db, merchantId, accountId);
+    if (member.role !== 'OWNER') throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+  }
+
+  private async merchantView(db: Db, row: CourseRow, merchantId: string): Promise<MerchantCourse> {
+    const view = await this.adminView(db, row);
+    return { id: view.id, title: view.title, status: view.status, startsAt: view.startsAt, endsAt: view.endsAt,
+      steps: view.steps.map(step => ({ position: step.position, merchantId: step.merchantId,
+        merchantName: step.merchantName, targetVisitCount: step.targetVisitCount, pieceLabel: step.pieceLabel })),
+      ownerOptinRef: view.steps.find(step => step.merchantId === merchantId)?.ownerOptinRef ?? null };
+  }
+
+  async merchantList(accountId: string, merchantId: string): Promise<MerchantCourse[]> {
+    return this.transaction(async db => {
+      await this.owner(db, accountId, merchantId);
+      const result = await db.query<CourseRow>(
+        `SELECT course.* FROM courses course JOIN course_steps step ON step.course_id = course.id
+         WHERE step.merchant_id = $1 ORDER BY course.created_at DESC, course.id DESC LIMIT 50`, [merchantId]);
+      return Promise.all(result.rows.map(row => this.merchantView(db, row, merchantId)));
+    });
+  }
+
+  async merchantOptIn(accountId: string, merchantId: string, courseId: string,
+    ownerOptinRef: string): Promise<MerchantCourse> {
+    const reference = normalizeDocumentReference(ownerOptinRef);
+    if (!reference) throw new CourseError('COURSE_INVALID_INPUT');
+    return this.transaction(async db => {
+      await this.owner(db, accountId, merchantId);
+      const row = await this.course(db, courseId, 'UPDATE');
+      if (row.status !== 'DRAFT') throw new CourseError('COURSE_STATE_CONFLICT');
+      const own = await db.query<{ owner_optin_ref: string | null }>(
+        'SELECT owner_optin_ref FROM course_steps WHERE course_id = $1 AND merchant_id = $2', [courseId, merchantId]);
+      if (!own.rows[0]) throw new CourseError('COURSE_NOT_FOUND');
+      if (own.rows[0].owner_optin_ref !== reference) {
+        const duplicate = await db.query(
+          'SELECT 1 FROM course_steps WHERE course_id = $1 AND merchant_id <> $2 AND owner_optin_ref = $3',
+          [courseId, merchantId, reference]);
+        if (duplicate.rowCount) throw new CourseError('COURSE_INVALID_INPUT');
+        await db.query('UPDATE course_steps SET owner_optin_ref = $3, owner_optin_at = $4 WHERE course_id = $1 AND merchant_id = $2',
+          [courseId, merchantId, reference, this.now()]);
+      }
+      return this.merchantView(db, row, merchantId);
+    });
   }
 
   private async audit(db: Db, actor: string, courseId: string, action: string, before: unknown, after: unknown): Promise<void> {
@@ -153,7 +204,8 @@ export class PostgresCourseService implements CourseService {
       const id = randomUUID();
       await db.query(`INSERT INTO courses(id, title, situation, scene_key, starts_at, ends_at, counts_from,
         curated_by_account_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id, input.title, input.situation, input.sceneKey, input.startsAt, input.endsAt, input.countsFrom, actorAccountId]);
+      [id, input.title, input.situation, input.sceneKey, input.startsAt, input.endsAt,
+        input.countsFrom ?? input.startsAt, actorAccountId]);
       for (const [index, step] of input.steps.entries()) await db.query(
         `INSERT INTO course_steps(course_id, position, merchant_id, target_visit_count, piece_key, piece_label,
           owner_optin_ref, owner_optin_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -242,7 +294,8 @@ export class PostgresCourseService implements CourseService {
       const steps = await this.steps(db, [id], now);
       const live = await this.checkFacts(db, row, row.check_summary?.suggestedHour ?? null, now);
       const reasons = publishBlockers({ status: row.status, stepCount: steps.length,
-        stepsWithoutOptin: steps.filter(step => !step.owner_optin_ref).length, endsAt: row.ends_at,
+        stepsWithoutOptin: steps.filter(step => !step.owner_optin_ref).length,
+        startsAt: row.starts_at, endsAt: row.ends_at, countsFrom: row.counts_from,
         checkedAt: row.checked_at, stored: row.check_summary, live, now });
       if (reasons.length) throw new CourseError('COURSE_NOT_PUBLISHABLE', reasons);
       await db.query("UPDATE courses SET status = 'ACTIVE' WHERE id = $1", [id]);
@@ -264,37 +317,49 @@ export class PostgresCourseService implements CourseService {
     });
   }
 
-  private async entitlements(db: Db, accountId: string, merchantIds: string[], lock = false): Promise<StepEntitlement[]> {
-    const result = await db.query<EntitlementRow>(
-      `SELECT e.id AS entitlement_id, c.merchant_id, e.target_visit_count, e.earned_at, e.status
-       FROM reward_entitlements e JOIN campaigns c ON c.id = e.campaign_id
-       WHERE e.customer_account_id = $1 AND c.merchant_id = ANY($2::text[]) AND e.status <> 'CANCELED'
-       ORDER BY e.earned_at, e.id ${lock ? 'FOR SHARE OF e' : ''}`, [accountId, merchantIds]);
-    return result.rows.map(item => ({ entitlementId: item.entitlement_id, merchantId: item.merchant_id,
-      targetVisitCount: item.target_visit_count, earnedAt: item.earned_at, status: item.status }));
+  private async countedVisits(db: Db, accountId: string, courseIds: string[], lock = false): Promise<CountedCourseVisit[]> {
+    if (courseIds.length === 0) return [];
+    const result = await db.query<CountedVisitRow>(
+      `SELECT step.course_id, step.merchant_id, counted.id AS visit_event_id, counted.occurred_at
+       FROM course_steps step JOIN courses course ON course.id = step.course_id
+       JOIN LATERAL (
+         SELECT visit.id, visit.occurred_at ${countedVisitFromSql}
+         WHERE visit.customer_account_id = $2 AND visit.merchant_id = step.merchant_id
+           AND visit.occurred_at >= COALESCE(course.counts_from, course.starts_at, '-infinity'::timestamptz)
+           AND visit.occurred_at < COALESCE(course.ends_at, 'infinity'::timestamptz)
+           AND ${countedVisitFilterSql}
+         ORDER BY visit.occurred_at, visit.id LIMIT 5 ${lock ? 'FOR SHARE OF visit' : ''}
+       ) counted ON true WHERE step.course_id = ANY($1::uuid[])`, [courseIds, accountId]);
+    return result.rows.map(item => ({ courseId: item.course_id, merchantId: item.merchant_id,
+      visitEventId: item.visit_event_id, occurredAt: item.occurred_at }));
   }
 
   private async customerViews(db: Db, accountId: string, rows: CourseRow[], lock = false): Promise<CourseView[]> {
     if (rows.length === 0) return [];
-    const steps = await this.steps(db, rows.map(row => row.id), this.now(), accountId);
-    const entitlements = await this.entitlements(db, accountId, [...new Set(steps.map(step => step.merchant_id))], lock);
+    const steps = await this.steps(db, rows.map(row => row.id), this.now());
+    const visits = await this.countedVisits(db, accountId, rows.map(row => row.id), lock);
     const progressByCourse = new Map(rows.map(row => {
       const courseSteps = steps.filter(step => step.course_id === row.id);
       const progress = evaluateSteps(courseSteps.map(step => ({ position: step.position,
-        merchantId: step.merchant_id, targetVisitCount: step.target_visit_count })), entitlements, row.counts_from);
+        merchantId: step.merchant_id, targetVisitCount: step.target_visit_count })),
+      visits.filter(visit => visit.courseId === row.id), row.counts_from ?? row.starts_at, row.ends_at);
       return [row.id, progress] as const;
     }));
-    const earnedArtwork = await db.query<{ entitlement_id: string; artwork: CollectibleArtwork }>(
-      `SELECT acquisition.entitlement_id, grade.summary AS artwork
-       FROM collectible_acquisitions acquisition
+    const earnedArtwork = await db.query<{ merchant_id: string; target_visit_count: number; artwork: CollectibleArtwork }>(
+      `SELECT DISTINCT ON (campaign.merchant_id, entitlement.target_visit_count)
+         campaign.merchant_id, entitlement.target_visit_count, grade.summary AS artwork
+       FROM reward_entitlements entitlement JOIN campaigns campaign ON campaign.id = entitlement.campaign_id
+       JOIN collectible_acquisitions acquisition ON acquisition.entitlement_id = entitlement.id
        JOIN collectible_publications publication ON publication.id = acquisition.publication_id
          AND publication.media_removed_at IS NULL
        JOIN collectible_publication_grades grade ON grade.publication_id = acquisition.publication_id
          AND grade.grade_id = acquisition.grade_id
-       WHERE acquisition.entitlement_id = ANY($1::uuid[])`,
-      [[...new Set([...progressByCourse.values()].flatMap(progress =>
-        progress.flatMap(step => step.entitlementId ? [step.entitlementId] : [])))]]);
-    const artworkByEntitlement = new Map(earnedArtwork.rows.map(item => [item.entitlement_id, item.artwork]));
+       WHERE entitlement.customer_account_id = $1 AND entitlement.status <> 'CANCELED'
+         AND campaign.merchant_id = ANY($2::text[])
+       ORDER BY campaign.merchant_id, entitlement.target_visit_count, entitlement.earned_at DESC`,
+      [accountId, [...new Set(steps.map(step => step.merchant_id))]]);
+    const artworkByMerchantGoal = new Map(earnedArtwork.rows.map(item =>
+      [`${item.merchant_id}:${item.target_visit_count}`, item.artwork]));
     const unlocked = await db.query<{ course_id: string; unlocked_at: Date }>(
       'SELECT course_id, unlocked_at FROM course_unlocks WHERE account_id = $1 AND course_id = ANY($2::uuid[]) AND revoked_at IS NULL',
       [accountId, rows.map(row => row.id)]);
@@ -312,12 +377,12 @@ export class PostgresCourseService implements CourseService {
       startsAt: iso(row.starts_at), endsAt: iso(row.ends_at), done: summary.done, total: summary.total,
       state, stale: state === 'STALE', unlockedAt,
       steps: courseSteps.map((step, index) => {
-        const artwork = artworkByEntitlement.get(progress[index]!.entitlementId ?? '') ?? step.artwork;
+        const artwork = artworkByMerchantGoal.get(`${step.merchant_id}:${step.target_visit_count}`) ?? step.artwork;
         return { position: step.position, merchantId: step.merchant_id, merchantName: step.merchant_name,
           targetVisitCount: step.target_visit_count, pieceKey: step.piece_key, pieceLabel: step.piece_label,
           state: step.available ? 'AVAILABLE' as const : 'UNAVAILABLE' as const,
           done: visibleProgress[index]!.done, earnedAt: progress[index]!.earnedAt,
-          progressVisitCount: step.progress_visit_count, full: step.enrollment_open === false,
+          progressVisitCount: progress[index]!.visitCount, full: step.enrollment_open === false,
           ...(artwork ? { artwork } : {}) };
       }) };
     });
@@ -351,13 +416,13 @@ export class PostgresCourseService implements CourseService {
 
   async listHints(accountId: string): Promise<CourseNextHint[]> {
     const rows = await this.activeCourses();
-    const steps = await this.steps(this.pool, rows.map(row => row.id), this.now(), accountId, false);
-    const entitlements = await this.entitlements(this.pool, accountId,
-      [...new Set(steps.map(step => step.merchant_id))]);
+    const steps = await this.steps(this.pool, rows.map(row => row.id), this.now(), false);
+    const visits = await this.countedVisits(this.pool, accountId, rows.map(row => row.id));
     return rows.flatMap(row => {
       const courseSteps = steps.filter(step => step.course_id === row.id);
       const progress = evaluateSteps(courseSteps.map(step => ({ position: step.position,
-        merchantId: step.merchant_id, targetVisitCount: step.target_visit_count })), entitlements, row.counts_from);
+        merchantId: step.merchant_id, targetVisitCount: step.target_visit_count })),
+      visits.filter(visit => visit.courseId === row.id), row.counts_from ?? row.starts_at, row.ends_at);
       const done = progress.filter((item, index) => item.done && courseSteps[index]!.available).length;
       const next = courseSteps.find((step, index) => !step.available || !progress[index]!.done);
       if (!next?.available || done === 0 || done === courseSteps.length) return [];
@@ -395,11 +460,12 @@ export class PostgresCourseService implements CourseService {
       }
       if (course.state === 'STALE' || course.state === 'IN_PROGRESS' || course.state === 'NOT_STARTED')
         throw new CourseError('COURSE_INCOMPLETE');
-      const current = await this.entitlements(db, accountId, course.steps.map(step => step.merchantId), true);
+      const current = await this.countedVisits(db, accountId, [id], true);
       const proof = evaluateSteps(course.steps.map(step => ({ position: step.position, merchantId: step.merchantId,
-        targetVisitCount: step.targetVisitCount })), current, row.counts_from);
+        targetVisitCount: step.targetVisitCount })), current, row.counts_from ?? row.starts_at, row.ends_at);
+      if (proof.some(step => !step.done)) throw new CourseError('COURSE_INCOMPLETE');
       const evidence = course.steps.map((step, index) => ({ position: step.position,
-        entitlementId: proof[index]!.entitlementId }));
+        visitEventIds: proof[index]!.visitEventIds }));
       const inserted = await db.query(
         `INSERT INTO course_unlocks(account_id, course_id, evidence) VALUES ($1, $2, $3)
          ON CONFLICT (account_id, course_id) DO NOTHING`, [accountId, id, JSON.stringify({ steps: evidence })]);

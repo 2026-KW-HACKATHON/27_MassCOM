@@ -313,6 +313,11 @@ test('publishing a purpose draft through the admin service freezes its condition
   await assert.rejects(admin.publishCampaign(accountId, draft.id), /ADMIN_CAMPAIGN_NOT_PUBLISHABLE/);
   await pool.query(`INSERT INTO campaign_benefits(id, campaign_id, merchant_id, title, detail, valid_days,
     unit_extra_cost_won, max_uses, status, consent_document_ref, consent_checklist_version)
+    VALUES ($1,$2,$3,'중지된 혜택','',7,100,10,'PAUSED','OPTIN-OLD','owner-offer-consent-v1')`,
+  [randomUUID(), draft.id, merchantId]);
+  await assert.rejects(admin.publishCampaign(accountId, draft.id), /ADMIN_CAMPAIGN_NOT_PUBLISHABLE/);
+  await pool.query(`INSERT INTO campaign_benefits(id, campaign_id, merchant_id, title, detail, valid_days,
+    unit_extra_cost_won, max_uses, status, consent_document_ref, consent_checklist_version)
     VALUES ($1,$2,$3,'방문 혜택','',7,100,10,'ACTIVE','OPTIN-1','owner-offer-consent-v1')`,
   [randomUUID(), draft.id, merchantId]);
   const published = await admin.publishCampaign(accountId, draft.id);

@@ -31,7 +31,7 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { directionsChooserButtons, directionsTargets, openDirections, type DirectionsProvider } from '../town-map/directions';
-import { coordinateWalkTargets } from './coordinate-directions';
+import { coordinateWalkTargets, straightLineMeters } from './coordinate-directions';
 import { saveCollectibleGoal } from './save-collectible-goal';
 import { VisitorFeedbackForm } from './visitor-feedback-form';
 
@@ -51,7 +51,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const [benefit,setBenefit]=useState<CampaignBenefit|null>(null);
   const [benefitError,setBenefitError]=useState<string|null>(null);
   const [benefitBusy,setBenefitBusy]=useState(false);
-  const [courseChip,setCourseChip]=useState<string>();
+  const [courseChip,setCourseChip]=useState<{label:string;id:string}>();
   const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
   const foreground=useAppForeground();
@@ -83,7 +83,8 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
     if(!foreground||!credential)return;
     const controller=new AbortController();
     void createCourseApiClient({apiUrl,credential,onSessionInvalid}).list(controller.signal)
-      .then(courses=>{if(!controller.signal.aborted)setCourseChip(merchantCourseChip(courses,merchantId));})
+      .then(courses=>{if(controller.signal.aborted)return;const course=courses.find(item=>item.status==='ACTIVE'&&item.steps.some(step=>step.merchantId===merchantId));
+        setCourseChip(course?{label:merchantCourseChip([course],merchantId)!,id:course.id}:undefined);})
       .catch(()=>undefined);
     return()=>controller.abort();
   },[apiUrl,credential,foreground,merchantId,onSessionInvalid]));
@@ -102,6 +103,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const coinNow=coinAvailability(campaign);
   const purposeBlock=campaign?campaignPurposeBlock(campaign.purpose):undefined;
   const source=detailViewSource(from);
+  const distanceMeters=merchant.distance?.meters??straightLineMeters(discoveryState.snapshot().origin,merchant.position);
   const claimBenefit=async()=>{
     if(!benefitApi||!benefit||benefit.state!=='CLAIMABLE'||benefitBusy)return;
     const current=generation.current;
@@ -143,7 +145,10 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 상세"/>} contentContainerStyle={{paddingBottom:48+insets.bottom}} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={()=>{void refresh(true);}} progressViewOffset={insets.top}/>}>
     <View style={{padding:16,gap:14}}>
       <FloatingCard>{leadPhoto?<View style={{gap:4,marginBottom:12}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,leadPhoto.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(leadPhoto.kind)}{leadPhoto.caption?` · ${leadPhoto.caption}`:''}</Text></View>:null}<Text accessibilityRole="header" style={ds.heading}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text selectable style={ds.body}>{merchant.story}</Text><Text style={ds.muted}>{merchant.category??'업종 정보 없음'}</Text>
-        {courseChip?<Text style={ds.courseChip}>{courseChip}</Text>:null}
+        {courseChip?<Pressable accessibilityRole="button" accessibilityLabel={`${courseChip.label} 연합 미션 상세 보기`}
+          onPress={()=>router.push({pathname:'/courses/[courseId]',params:{courseId:courseChip.id}})} style={ds.courseChip}>
+          <Text style={ds.body}>{courseChip.label} · 진행 보기 →</Text>
+        </Pressable>:null}
         <Pressable accessibilityRole="button" onPress={()=>{void recommendMerchant({id:merchant.id,name:merchant.name,demo:merchant.demo});}} style={ds.action}><Text style={ds.actionText}>친구에게 추천</Text></Pressable></FloatingCard>
       {error?<Text accessibilityRole="alert" style={ds.muted}>{error} 화면을 아래로 당겨 다시 확인하세요.</Text>:null}
       {photos.some(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url))?<FloatingCard><Text accessibilityRole="header" style={ds.section}>가게 사진 더 보기</Text><View style={{gap:10}}>{photos.filter(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View></FloatingCard>:null}
@@ -171,6 +176,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
         {visitConditions(merchant).map((condition,index)=><Text key={condition.key} style={ds.body}>{`${index+1}. ${condition.text} ${conditionSourceLabel(condition.source)}`}</Text>)}
       </FloatingCard>
       <FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 준비</Text><Line label="주소" value={merchant.roadAddress}/>
+        <Line label="거리" value={distanceMeters===null?'선택한 출발지의 거리 정보 없음':`${distanceMeters}m 직선거리`}/>
         {merchant.floor?<Line label="층·호수" value={`${merchant.floor}${merchant.location?.unit?` · ${merchant.location.unit}`:''}`}/>:null}
         {merchant.entranceNote?<Line label="입구" value={merchant.entranceNote}/>:null}
         <Line label="영업" warn={factOf('business')?.tone==='warning'} value={`${businessLabel(merchant.business)}${merchant.business.informationUpdatedAt?` · ${new Date(merchant.business.informationUpdatedAt).toLocaleString('ko-KR')} 확인`:''}`}/>

@@ -35,14 +35,14 @@ export function courseDraftPayload(data) {
   const steps = Array.from({ length: stepCount }, (_, index) => {
     const position = index + 1;
     const ownerOptinRef = String(data.get(`ownerOptinRef${position}`) ?? '').trim();
-    const problem = documentReferenceProblem(ownerOptinRef);
+    const problem = ownerOptinRef ? documentReferenceProblem(ownerOptinRef) : null;
     if (problem) throw localError(`${position}번 가게: ${problem}`);
     return {
       merchantId: String(data.get(`merchantId${position}`) ?? ''),
       targetVisitCount: Number(data.get(`targetVisitCount${position}`)),
       pieceKey: String(data.get(`pieceKey${position}`) ?? '').trim(),
       pieceLabel: String(data.get(`pieceLabel${position}`) ?? '').trim(),
-      ownerOptinRef,
+      ownerOptinRef: ownerOptinRef || null,
     };
   });
   if (steps.some(step => !step.merchantId || ![1, 3, 5].includes(step.targetVisitCount) ||
@@ -57,9 +57,11 @@ export function courseDraftPayload(data) {
     if (!Number.isFinite(parsed.getTime())) throw localError('코스 날짜와 시각을 확인해 주세요.');
     return parsed.toISOString();
   };
+  const startsAt = date('startsAt'), endsAt = date('endsAt');
+  if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) throw localError('미션 종료 시각은 시작 뒤여야 해요.');
   return { title: String(data.get('title') ?? '').trim(), situation: String(data.get('situation') ?? ''),
-    sceneKey: String(data.get('sceneKey') ?? '').trim(), startsAt: date('startsAt'), endsAt: date('endsAt'),
-    countsFrom: date('countsFrom'), steps };
+    sceneKey: String(data.get('sceneKey') ?? '').trim(), startsAt, endsAt,
+    countsFrom: date('countsFrom') ?? startsAt, steps };
 }
 
 // 공개 전에 채워 저장해야 하는 항목(서버의 ADMIN_MERCHANT_NOT_READY와 같은 기준).
@@ -105,7 +107,7 @@ const goLiveMessages = {
   ADMIN_CONSENT_INCOMPLETE: '점주 동의 5항목을 모두 확인해 주세요.',
   ADMIN_OFFER_MILESTONE_TAKEN: '이 상자에는 이미 활성 혜택이 있어요. 먼저 그 혜택을 멈춰 주세요.',
   ADMIN_OFFER_NOT_FOUND: '혜택을 찾을 수 없어요. 새로고침해 주세요.',
-  ADMIN_CAMPAIGN_NOT_PUBLISHABLE: '목표가 없거나 종료 시각이 지난 캠페인은 공개할 수 없어요.',
+  ADMIN_CAMPAIGN_NOT_PUBLISHABLE: '목표·종료 시각을 확인해 주세요. 목적형 캠페인은 점주 동의가 등록된 활성 혜택도 필요해요.',
   ADMIN_CAMPAIGN_NOT_PAUSABLE: '공개 중인 캠페인만 중지할 수 있어요.',
   ADMIN_CAMPAIGN_ACTIVE_EXISTS: '이 점포에는 이미 공개 중인 캠페인이 있어요. 먼저 그 캠페인을 중지해 주세요.',
   ADMIN_CAMPAIGN_NOT_FOUND: '캠페인을 찾을 수 없어요. 새로고침해 주세요.',
@@ -912,7 +914,8 @@ function courseStepFields(doc, merchants, position) {
   }
   const key = field('조각 키', 'pieceKey'); key.maxLength = 40; key.pattern = '[a-z0-9-]{1,40}'; key.value = `piece-${position}`;
   const label = field('조각 이름', 'pieceLabel'); label.maxLength = 20;
-  const reference = field('점주 참여 동의 참조 번호', 'ownerOptinRef');
+  const reference = field('점주 참여 동의 참조 번호 (선택)', 'ownerOptinRef');
+  reference.required = false;
   reference.maxLength = 40; reference.autocomplete = 'off';
   return group;
 }
@@ -947,7 +950,7 @@ export async function loadAdminCourses(fetcher, doc, merchants, act, current = (
       const row = doc.createElement('section'); row.className = 'admin-panel';
       const heading = doc.createElement('h4'); heading.textContent = `${course.title} · ${course.steps.length}곳 · ${course.status}`;
       const steps = doc.createElement('p');
-      steps.textContent = course.steps.map(step => `${step.position}번 ${step.merchantName} (${step.targetVisitCount}회, ${step.pieceLabel})`).join(' → ');
+      steps.textContent = course.steps.map(step => `${step.merchantName} (${step.targetVisitCount}회, ${step.pieceLabel}, ${step.ownerOptinRef ? `동의 참조 ${step.ownerOptinRef}` : '동의 대기'})`).join(' · ');
       row.append(heading, steps);
       if (course.checkSummary) {
         const summary = doc.createElement('div'); summary.setAttribute('role', 'status');
@@ -1753,6 +1756,26 @@ export function bindAdmin(fetcher, doc) {
     } finally { draftSaving = false; button.disabled = false; }
   });
   const courseForm = doc.getElementById('admin-course-create');
+  const courseTemplates = {
+    meal: { title: '식사+카페 방문', situation: 'AFTER_MEAL', sceneKey: 'meal-cafe', pieces: ['식사', '카페'] },
+    alley: { title: '골목 세 가게 방문', situation: 'OTHER', sceneKey: 'alley', pieces: ['첫 가게', '둘째 가게', '셋째 가게'] },
+    neighborhood: { title: '동네 네 가게 방문', situation: 'OTHER', sceneKey: 'neighborhood', pieces: ['첫 가게', '둘째 가게', '셋째 가게', '넷째 가게'] },
+  };
+  for (const button of courseForm?.querySelectorAll('[data-course-template]') ?? []) {
+    button.addEventListener('click', () => {
+      const template = courseTemplates[button.dataset.courseTemplate];
+      if (!template) return;
+      courseForm.elements.title.value = template.title;
+      courseForm.elements.situation.value = template.situation;
+      courseForm.elements.sceneKey.value = template.sceneKey;
+      courseForm.elements.stepCount.value = String(template.pieces.length);
+      renderCourseSteps(doc, courseMerchants.get(doc) ?? []);
+      for (const [index, label] of template.pieces.entries()) {
+        const control = courseForm.elements[`pieceLabel${index + 1}`];
+        if (control) control.value = label;
+      }
+    });
+  }
   courseForm?.querySelector('[name="stepCount"]')?.addEventListener('change', () => {
     const FormDataOf = doc.defaultView?.FormData ?? FormData;
     const previous = new FormDataOf(courseForm);

@@ -86,6 +86,7 @@ test('missions keep the 1, 3 and 5 goals and existing reward box on a backable p
   assert.match(home, /<HomeRewardCard book=\{book\} onOpen=\{badgeApi\.openReward\} onRevealed=\{onRevealed\} onOpenFailed=\{onOpenFailed\} \/>/);
   assert.match(home, /shouldRefreshBadgesQuietly\(code\)/);
   assert.match(home, /\[1, 3, 5\]\.map/);
+  assert.match(home, /<FloatingCard onPress=\{\(\) => router\.push\('\/courses'\)\} accessibilityLabel="연합 미션 보기"/);
 });
 
 test('a visitor with no visit gets one highlighted first store, and an empty room with coins gets a place-them action', () => {

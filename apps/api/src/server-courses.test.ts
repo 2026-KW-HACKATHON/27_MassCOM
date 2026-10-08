@@ -40,6 +40,7 @@ function fixture(options: { consentRequired?: boolean; replayed?: boolean; admin
     unlock: async (...args: unknown[]) => ({ course: await capture(...args), replayed: options.replayed ?? false }),
     adminList: async (...args: unknown[]) => [await capture(...args)],
     adminCreate: capture, adminCheck: capture, adminPublish: capture, adminPause: capture,
+    merchantList: async (...args: unknown[]) => [await capture(...args)], merchantOptIn: capture,
   } as unknown as CourseService;
   const consent: ConsentService = { appSource: 'ANDROID', status: async () => ({
     required: options.consentRequired ?? false, termsVersion: CURRENT_TERMS_VERSION, privacyVersion: CURRENT_PRIVACY_VERSION,
@@ -48,6 +49,7 @@ function fixture(options: { consentRequired?: boolean; replayed?: boolean; admin
     courses, consent,
     webAuth: { resolveSession: async () => 'admin' } as unknown as WebAuthHandler,
     admin: { isAdmin: async () => options.admin ?? true } as unknown as ApiDeps['admin'],
+    staffRegistration: {} as ApiDeps['staffRegistration'],
   };
   return { server: createApiServer(deps), calls };
 }
@@ -93,6 +95,21 @@ test('admin course routes enforce existing session, role and CSRF before dispatc
   assert.equal((await request(server, 'POST', '/api/web/admin/courses/course/publish', { complete: true }, webHeaders)).status, 400);
   assert.equal((await request(server, 'POST', '/api/web/admin/courses/course/publish', {}, webHeaders)).status, 200);
   assert.equal((await request(server, 'POST', '/api/web/admin/courses/course/pause', {}, webHeaders)).status, 200);
+});
+
+test('merchant course routes require web session, same-origin consent and route only to this store', async () => {
+  const { server, calls } = fixture();
+  const base = '/api/web/merchant/merchants/store-a/courses';
+  assert.equal((await request(server, 'GET', base, undefined, webHeaders)).status, 200);
+  assert.deepEqual(calls.at(-1), ['admin', 'store-a']);
+  assert.equal((await request(server, 'POST', `${base}/course-1/opt-in`,
+    { ownerOptinRef: 'OPTIN-1', consentAccepted: true },
+    { ...webHeaders, origin: 'https://elsewhere.example' })).status, 403);
+  assert.equal((await request(server, 'POST', `${base}/course-1/opt-in`,
+    { ownerOptinRef: 'OPTIN-1', consentAccepted: false }, webHeaders)).status, 400);
+  assert.equal((await request(server, 'POST', `${base}/course-1/opt-in`,
+    { ownerOptinRef: 'OPTIN-1', consentAccepted: true }, webHeaders)).status, 200);
+  assert.deepEqual(calls.at(-1), ['admin', 'store-a', 'course-1', 'OPTIN-1']);
 });
 
 test('course errors retain explicit not-found, incomplete and checklist details', async () => {

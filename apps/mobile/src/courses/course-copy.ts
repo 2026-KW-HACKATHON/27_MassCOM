@@ -7,12 +7,12 @@ const situations: Record<CourseSituation, string> = {
 };
 
 export function courseChipText(course: { situation: CourseSituation; done: number; total: number }): string {
-  return `'${situations[course.situation]}' 코스 ${course.done}/${course.total}`;
+  return `'${situations[course.situation]}' 연합 미션 ${course.done}/${course.total}`;
 }
 
 export function merchantCourseChip(courses: Course[], merchantId: string): string | undefined {
   const course = courses.find(item => item.status === 'ACTIVE' && item.steps.some(step => step.merchantId === merchantId));
-  return course ? `'${course.situationLabel}' 코스의 한 곳이에요` : undefined;
+  return course ? `'${course.situationLabel}' 연합 미션 참여 가게예요` : undefined;
 }
 
 export function courseStateText(course: Pick<Course, 'state' | 'done' | 'total'>): string {

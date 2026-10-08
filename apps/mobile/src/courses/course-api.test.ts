@@ -40,7 +40,7 @@ test('unlock sends no client completion assertion and accepts the server result'
 });
 
 test('stale progress is described honestly and malformed server progress is rejected', () => {
-  assert.equal(courseChipText(course as ReturnType<typeof parseCourse>), "'식사 후 들르기 좋은 곳' 코스 1/2");
+  assert.equal(courseChipText(course as ReturnType<typeof parseCourse>), "'식사 후 들르기 좋은 곳' 연합 미션 1/2");
   assert.match(courseStateText({ ...course, state: 'STALE' } as ReturnType<typeof parseCourse>), /장면을 열 수 없어요/);
   assert.throws(() => parseCourse({ ...course, done: 2 }), /INVALID_RESPONSE/);
   assert.throws(() => parseCourse({ ...course, state: 'STALE', stale: false }), /INVALID_RESPONSE/);
@@ -79,7 +79,7 @@ test('older APIs without courses are treated as an empty optional course read', 
 
 test('merchant chip selects only ACTIVE courses containing the current merchant', () => {
   const parsed = parseCourse(course);
-  assert.equal(merchantCourseChip([parsed], 'store-2'), "'식사 후 들르기 좋은 곳' 코스의 한 곳이에요");
+  assert.equal(merchantCourseChip([parsed], 'store-2'), "'식사 후 들르기 좋은 곳' 연합 미션 참여 가게예요");
   assert.equal(merchantCourseChip([parsed], 'other'), undefined);
   assert.equal(merchantCourseChip([{ ...parsed, status: 'PAUSED' }], 'store-2'), undefined);
 });

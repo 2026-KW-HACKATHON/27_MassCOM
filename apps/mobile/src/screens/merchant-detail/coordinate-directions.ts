@@ -6,6 +6,15 @@ const valid = (point: Point) => Number.isFinite(point.latitude) && Number.isFini
   point.latitude >= 31.43 && point.latitude <= 44.35 && point.longitude >= 122.37 && point.longitude <= 132;
 const encoded = (name: string) => {try{return encodeURIComponent(name);}catch{return null;}};
 
+export function straightLineMeters(origin: Point | null, destination: Point | null): number | null {
+  if (!origin || !destination || !valid(origin) || !valid(destination)) return null;
+  const rad = Math.PI / 180;
+  const a = Math.sin((destination.latitude - origin.latitude) * rad / 2) ** 2 +
+    Math.cos(origin.latitude * rad) * Math.cos(destination.latitude * rad) *
+    Math.sin((destination.longitude - origin.longitude) * rad / 2) ** 2;
+  return Math.round(6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
 /** Naver and Kakao official walking schemes. Destination always uses the owned entrance/building coordinate. */
 export function coordinateWalkTargets({name,destination,origin}:{name:string;destination:Point;origin?:Point|null}): ExactWalkTargets | null {
   if (!valid(destination) || (origin && !valid(origin))) return null;

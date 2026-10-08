@@ -116,7 +116,7 @@
           <label>5회 방문 수집품 이름 <input name="goal5" required maxlength="100"></label>
           <fieldset class="admin-consent admin-purpose">
             <legend>캠페인 목적 (선택)</legend>
-            <p class="admin-hint">점주가 풀고 싶은 문제를 하나 고르면 조건이 목적에 맞게 정해져요. 정하지 않으면 지금까지처럼 만들어져요. 공개한 뒤에는 목적과 조건을 바꿀 수 없어요. 앱에서 확인된 방문만으로는 "처음 오는 손님"인지 알 수 없어서, 첫 목적은 "MassCOM에서 처음 확인되는 방문"을 늘리는 것으로 적어요.</p>
+            <p class="admin-hint">점주가 풀고 싶은 문제를 하나 고르면 조건이 목적에 맞게 정해져요. 목적형 캠페인은 점주 동의를 받은 활성 혜택을 등록한 뒤 공개할 수 있어요. 정하지 않으면 지금까지처럼 만들어져요. 공개한 뒤에는 목적과 조건을 바꿀 수 없어요. 앱에서 확인된 방문만으로는 "처음 오는 손님"인지 알 수 없어서, 첫 목적은 "MassCOM에서 처음 확인되는 방문"을 늘리는 것으로 적어요.</p>
             <label>목적
               <select name="purpose">
                 <option value="">정하지 않음 (기존 방식)</option>
@@ -185,19 +185,20 @@
         </section>
       </section>
       <section class="admin-panel" aria-labelledby="courses-heading">
-        <h3 id="courses-heading">가게 사이 수집 코스</h3>
-        <p>운영팀이 점주 참여 의사를 확인한 실제 점포 2~4곳을 묶습니다. 점검 결과는 그때의 스냅샷이며, 직선거리는 도보 경로나 실시간 영업을 보증하지 않습니다. 코스를 완성해도 마일리지나 쿠폰은 지급되지 않습니다.</p>
+        <h3 id="courses-heading">가게 연합미션</h3>
+        <p>실제 점포 2~4곳을 묶고, 각 점주의 참여 동의 참조와 운영 점검을 확인한 뒤 공개합니다. 방문 순서는 자유이며 기간 중 각 점포에서 인정된 방문만 조각으로 셉니다. 완주하면 장면과 배지를 열 수 있고 쿠폰이나 무료 뽑기는 지급하지 않습니다. 점검 거리는 직선거리 스냅샷이며 도보 경로나 실시간 영업을 보증하지 않습니다.</p>
         <form id="admin-course-create" hidden>
-          <label>코스 이름 <input name="title" required maxlength="40"></label>
+          <p>운영 템플릿은 제목과 조각을 채웁니다. 참여 가게는 실제 등록 목록에서 직접 선택해 주세요.</p>
+          <div class="collection-actions"><button type="button" data-course-template="meal">식사+카페 2곳</button><button type="button" data-course-template="alley">골목 3곳</button><button type="button" data-course-template="neighborhood">동네 4곳</button></div>
+          <label>미션 이름 <input name="title" required maxlength="40"></label>
           <label>방문 상황 <select name="situation" required><option value="AFTER_MEAL">식사 후 들르기 좋은 곳</option><option value="TAKEOUT">포장해서 가져가기 좋은 곳</option><option value="OTHER">함께 들러볼 만한 곳</option></select></label>
           <label>장면 키 <input name="sceneKey" required maxlength="40" pattern="[a-z0-9-]{1,40}" placeholder="picnic-scene"></label>
           <label>단계 수 <select name="stepCount"><option value="2">2곳</option><option value="3">3곳</option><option value="4">4곳</option></select></label>
           <div id="admin-course-steps"></div>
-          <label>시작 시각 (선택) <input name="startsAt" type="datetime-local"></label>
-          <label>종료 시각 (선택) <input name="endsAt" type="datetime-local"></label>
-          <label>방문 인정 시작 (선택) <input name="countsFrom" type="datetime-local"></label>
-          <p>방문 인정 시작을 비우면 코스 공개 전의 유효한 방문 보상도 셉니다. 각 단계의 점주 참여 동의 참조 번호를 준비한 뒤 초안을 저장해 주세요. 참조 번호에는 이름·전화번호·사업자등록번호를 적지 않습니다.</p>
-          <button type="submit">비공개 코스 저장</button>
+          <label>시작 시각 <input name="startsAt" type="datetime-local" required></label>
+          <label>종료 시각 <input name="endsAt" type="datetime-local" required></label>
+          <p>이 미션은 시작 시각 이후 인정된 방문만 셉니다. 점주 동의 참조는 초안 저장 후 점주 채널에서 직접 등록하거나, 확인한 문서의 참조 번호를 운영자가 입력할 수 있어요. 참조 번호에는 이름·전화번호·사업자등록번호를 적지 않습니다.</p>
+          <button type="submit">비공개 미션 저장</button>
         </form>
         <label>권하는 방문 시각 (선택, 한국 시간) <input id="admin-course-hour" type="number" min="0" max="23" step="1" placeholder="예: 14"></label>
         <p id="admin-course-status" role="status" aria-live="polite"></p>

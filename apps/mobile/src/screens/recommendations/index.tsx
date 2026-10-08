@@ -113,7 +113,7 @@ export function RecommendationsScreen({
             아직 안 가본 가게와 다음 보상이 가까운 가게를 먼저 보여줘요. 자리가 다 찬 가게는 빼요.
           </Text>
           <Pressable accessibilityRole="button" onPress={() => router.push('/courses')} style={styles.courseListLink}>
-            <Text style={styles.courseListLinkText}>동네 코스 보기 →</Text>
+            <Text style={styles.courseListLinkText}>연합 미션 보기 →</Text>
           </Pressable>
         </View>
 
