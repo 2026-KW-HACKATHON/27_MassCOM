@@ -2,6 +2,10 @@
 
 현재 자동 시험 합계(2026-10-08 KST, Issue #412 브랜치 `feat/first-use-v2` 기준): API 단위 567/567 · 모바일 1992/1992. README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 
+## 2026-10-08 기능 수준 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 단일 원본 (Issue #412, 배포 동결)
+
+브랜치 `chore/ops-quality-t5`(main `b572184e`에서 갈라져 `e06c97cd` 위로 리베이스)에 15분 가동 점검(`.github/workflows/uptime.yml`, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(호스트에 미설치), `db-restore-drill.sh --restore-only`, 큰 파일 가드, `docs/CURRENT_RELEASE.json`(현재 배포 단일 원본), CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용), [APK 용량 분석](APK_SIZE_ANALYSIS.md)을 더했다. 배포·호스트 설치는 하지 않았다(소유자 결정 A). 절차는 [운영 절차](OPERATIONS_RUNBOOK.md), 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
+
 ## 2026-10-08 첫 사용 경험: 웹 첫 화면·동의·첫 코인·가게 사실 표시 (Issue #412, 배포 동결)
 
 기준 main `b572184e`(PR #411 병합) 위의 브랜치 `feat/first-use-v2` 작업이다. 소유자 2026-10-08 방향 가운데 신규 사용자 첫 코인 흐름과 첫 화면 즉시 반응 부분이다. 앱 코드와 CI 한 줄만 바뀌었고 API·DB·migration은 바뀌지 않았다. 결정은 [D-083~D-087](DECISIONS.md)에 있다.
@@ -25,10 +29,6 @@
 ## 2026-10-08 운영 웹 Caddy의 `/api/web/v1/*` 라우트 누락 수정 (배포 동결)
 
 `www.masscom.kr/api/web/v1/*`가 `infra/lightsail/Caddyfile`의 `@webSession`에 빠져 404였고(가게 실세계 프로필 편집기 장애), `@privateSurface`에도 없어 캐시 방지 헤더가 붙지 않았다. 설정과 시험(`tests/ops/verify_web_session_proxy_test.mjs` 등)은 `fix/caddy-web-v1-routes`에서 고쳤고, 배포하지 않아 웹/Caddy를 배포하기 전까지 라이브는 계속 404다(소유자 결정 A). 후속인 `real-world-http.ts` 쓰기의 계정별 제한은 트랙 T6, [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)이다. 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
-
-## 2026-10-08 기능 수준 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 단일 원본 (Issue #412, 배포 동결)
-
-브랜치 `chore/ops-quality-t5`(main `b572184e` 기준)에 15분 가동 점검(`.github/workflows/uptime.yml`, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(호스트에 미설치), `db-restore-drill.sh --restore-only`, 큰 파일 가드, `docs/CURRENT_RELEASE.json`(현재 배포 단일 원본), CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용), [APK 용량 분석](APK_SIZE_ANALYSIS.md)을 더했다. 배포·호스트 설치는 하지 않았다(소유자 결정 A). 절차는 [운영 절차](OPERATIONS_RUNBOOK.md), 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 
 ## 2026-10-08 전면 평가 후속: 접근성·CI 연결·저장소 정리·심사자 문서 (Issue #409·#410, 배포 동결)
 
