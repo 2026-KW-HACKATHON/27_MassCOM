@@ -2,7 +2,7 @@ import { createHash, randomInt as cryptoRandomInt, randomUUID } from 'node:crypt
 import type { Pool, PoolClient } from 'pg';
 
 import type { CollectibleArtwork } from '../collectible-project.js';
-import { catalogRewards, categoryWeightsByRarity, chooseGradeReward, gradeWeights, rewardEntries } from '../grade-draw-rules.js';
+import { catalogRewards, categoryWeightsFor, chooseGradeReward, gradeWeights, rewardEntries } from '../grade-draw-rules.js';
 import { GradeDrawError, type GradeDrawHistory, type GradeDrawPool, type GradeDrawResult,
   type GradeDrawService, type GradeDrawShop, type GradeReward, type DrawRarity } from '../grade-draw.js';
 import { MILEAGE_CATALOG, MILEAGE_GRADE_PRICES, isMileageGrade, type MileageGrade } from '../mileage-rules.js';
@@ -61,9 +61,8 @@ export class PostgresGradeDrawService implements GradeDrawService {
   private async poolFor(db: Queryable, grade: MileageGrade, lock: boolean): Promise<GradeDrawPool> {
     const furniture = (await db.query<{ id: string; name: string; assetId: string | null }>(
       `SELECT id,name,asset_id AS "assetId" FROM furniture_catalog ORDER BY id${lock ? ' FOR SHARE' : ''}`)).rows;
-    if (!furniture.length) throw new Error('general box furniture catalog is empty');
     const rewards = rewardEntries(grade, furniture);
-    const policy = { rewards, gradeWeights: gradeWeights[grade], categoryWeightsByRarity };
+    const policy = { rewards, gradeWeights: gradeWeights[grade], categoryWeightsByRarity: categoryWeightsFor(furniture) };
     return { grade, price: MILEAGE_GRADE_PRICES[grade], version: versionFor(policy),
       total: rewards.length, ...policy };
   }

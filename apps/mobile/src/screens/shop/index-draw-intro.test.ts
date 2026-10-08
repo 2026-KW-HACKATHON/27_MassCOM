@@ -14,7 +14,8 @@ const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url
 
 test('the draw section describes the current reward categories and rarity', () => {
   assert.equal(shopDrawHeading, '등급별 전체 랜덤 뽑기');
-  assert.match(shopDrawIntro, /마일리지, 가구, 꾸미기, 리롤권 중 하나/);
+  assert.match(shopDrawIntro, /마일리지, 꾸미기, 리롤권 중 하나/);
+  assert.match(shopDrawIntro, /브론즈에는 가구도 있어요/);
   assert.match(shopDrawIntro, /높은 등급과 리롤권은 드물고/);
   assert.match(shopDrawIntro, /중복도 나올 수 있어요/);
   assert.match(screen, /가게 행사 뽑기권/);

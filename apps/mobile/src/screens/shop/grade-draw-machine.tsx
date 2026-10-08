@@ -87,7 +87,7 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
         {phase === 'detail' ? <>
           <Text accessibilityRole="header" style={styles.heading}>{tone.name} 전체 랜덤</Text>
           <PackArt grade={pool.grade} size={170} />
-          <Text style={styles.description}>마일리지·가구·꾸미기·리롤권 중 하나를 받아요. 높은 등급과 리롤권은 드물게 나와요.</Text>
+          <Text style={styles.description}>{[...new Set(pool.rewards.map((entry) => kindName[entry.reward.kind]))].join(' · ')} 중 하나를 받아요. 높은 등급과 리롤권은 드물게 나와요.</Text>
           <Text style={styles.description}>전체 {pool.total}종 · 각 보상 확률은 아래와 같아요. 이미 가진 것도 다시 나올 수 있어요.</Text>
           <View style={styles.catalog}>{pool.rewards.map((entry) => <View key={`${entry.rarity}:${entry.reward.kind}:${entry.reward.id}`} style={styles.catalogItem}>
             <RewardArt reward={entry.reward} size={62} /><Text style={styles.catalogName}>{rarityName[entry.rarity]} · {kindName[entry.reward.kind]} · {entry.reward.name} · {(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%</Text>

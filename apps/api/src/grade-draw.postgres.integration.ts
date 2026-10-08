@@ -61,6 +61,8 @@ test('weighted pool excludes coins and characters and grants exactly one reward 
   const bronze = (await service.getShop(accountId)).pools[0]!;
   assert.deepEqual(bronze.gradeWeights, { BRONZE: 8000, SILVER: 1700, GOLD: 280, PLATINUM: 20 });
   assert.equal(bronze.rewards.some((entry) => ['COIN', 'CHARACTER'].includes(entry.reward.kind)), false);
+  assert.equal(bronze.rewards.some((entry) => entry.rarity !== 'BRONZE' && entry.reward.kind === 'FURNITURE'), false);
+  assert.equal(bronze.categoryWeightsByRarity.SILVER.FURNITURE, 0);
   assert.ok(Math.abs(bronze.rewards.reduce((sum, entry) => sum + entry.probability, 0) - 1) < 1e-12);
   const draw = (requestId: string) => service.draw({ accountId, grade: 'BRONZE', requestId,
     expectedPoolVersion: bronze.version });
@@ -159,4 +161,18 @@ test('concurrent requests serialize mileage and failed award rolls back draw', a
     [])).rows[0].n, 0);
   assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM mileage_credits WHERE source_id LIKE 'grade-draw:%'`,
     [])).rows[0].n, 1);
+});
+
+test('empty furniture catalog keeps disclosed odds and actual draw aligned', async (t) => {
+  const { pool, service, select } = await setup(t);
+  await pool.query('DELETE FROM furniture_catalog');
+  const bronze = (await service.getShop(accountId)).pools[0]!;
+  assert.equal(bronze.categoryWeightsByRarity.BRONZE.FURNITURE, 0);
+  assert.equal(bronze.categoryWeightsByRarity.BRONZE.MILEAGE, 8000);
+  assert.equal(bronze.rewards.some(({ reward }) => reward.kind === 'FURNITURE'), false);
+  assert.ok(Math.abs(bronze.rewards.reduce((sum, entry) => sum + entry.probability, 0) - 1) < 1e-12);
+  select(0, 1000, 0);
+  const draw = await service.draw({ accountId, grade: 'BRONZE', requestId: 'no-furniture',
+    expectedPoolVersion: bronze.version });
+  assert.equal(draw.reward.kind, 'MILEAGE');
 });

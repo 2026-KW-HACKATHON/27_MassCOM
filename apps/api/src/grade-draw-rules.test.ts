@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { catalogRewards, categoryWeightsByRarity, chooseGradeReward, gradeWeights, rewardEntries } from './grade-draw-rules.js';
+import { catalogRewards, categoryWeightsByRarity, categoryWeightsFor, chooseGradeReward,
+  gradeWeights, rewardEntries } from './grade-draw-rules.js';
 
 test('box rarity odds are independent of eligible catalog size', () => {
   assert.deepEqual(gradeWeights.BRONZE, { BRONZE: 8000, SILVER: 1700, GOLD: 280, PLATINUM: 20 });
@@ -9,7 +10,14 @@ test('box rarity odds are independent of eligible catalog size', () => {
   assert.deepEqual(['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'].map((rarity) =>
     categoryWeightsByRarity[rarity as keyof typeof categoryWeightsByRarity].REROLL_TICKET), [50, 100, 200, 200]);
   const entries = rewardEntries('BRONZE', [{ id: 'chair', name: 'Chair', assetId: 'chair-art' }]);
-  assert.throws(() => rewardEntries('BRONZE', []), RangeError);
+  const emptyFurniture = rewardEntries('BRONZE', []);
+  assert.ok(Math.abs(emptyFurniture.reduce((total, entry) => total + entry.probability, 0) - 1) < 1e-12);
+  assert.equal(emptyFurniture.some((entry) => entry.reward.kind === 'FURNITURE'), false);
+  assert.equal(categoryWeightsFor([]).BRONZE.FURNITURE, 0);
+  assert.equal(categoryWeightsFor([]).BRONZE.MILEAGE, 8000);
+  assert.equal(categoryWeightsByRarity.SILVER.FURNITURE, 0);
+  assert.equal(categoryWeightsByRarity.SILVER.MILEAGE, 8000);
+  assert.equal(entries.some((entry) => entry.rarity !== 'BRONZE' && entry.reward.kind === 'FURNITURE'), false);
   assert.equal(entries.some(({ reward }) => reward.kind === 'COIN' || reward.kind === 'CHARACTER'), false);
   assert.ok(entries.some(({ rarity, reward }) => rarity === 'PLATINUM' && reward.kind === 'MILEAGE'));
   assert.ok(Math.abs(entries.reduce((total, entry) => total + entry.probability, 0) - 1) < 1e-12);

@@ -9,14 +9,20 @@ export const gradeWeights: Record<MileageGrade, Record<DrawRarity, number>> = {
 };
 export const categoryWeightsByRarity: Record<DrawRarity, Record<DrawCategory, number>> = {
   BRONZE: { REROLL_TICKET: 50, MILEAGE: 6000, FURNITURE: 2000, THEME: 1950 },
-  SILVER: { REROLL_TICKET: 100, MILEAGE: 6000, FURNITURE: 2000, THEME: 1900 },
-  GOLD: { REROLL_TICKET: 200, MILEAGE: 6000, FURNITURE: 2000, THEME: 1800 },
-  PLATINUM: { REROLL_TICKET: 200, MILEAGE: 6000, FURNITURE: 2000, THEME: 1800 },
+  SILVER: { REROLL_TICKET: 100, MILEAGE: 8000, FURNITURE: 0, THEME: 1900 },
+  GOLD: { REROLL_TICKET: 200, MILEAGE: 8000, FURNITURE: 0, THEME: 1800 },
+  PLATINUM: { REROLL_TICKET: 200, MILEAGE: 8000, FURNITURE: 0, THEME: 1800 },
 };
 const mileageAmounts: Record<DrawRarity, number> = { BRONZE: 20, SILVER: 40, GOLD: 80, PLATINUM: 160 };
 const rarities = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM'] as const;
 const categories = ['REROLL_TICKET', 'MILEAGE', 'FURNITURE', 'THEME'] as const;
 export type FurnitureRewardItem = { id: string; name: string; assetId: string | null };
+
+export function categoryWeightsFor(furniture: readonly FurnitureRewardItem[]): Record<DrawRarity, Record<DrawCategory, number>> {
+  if (furniture.length) return categoryWeightsByRarity;
+  return { ...categoryWeightsByRarity,
+    BRONZE: { ...categoryWeightsByRarity.BRONZE, FURNITURE: 0, MILEAGE: 8000 } };
+}
 
 export function catalogRewards(rarity: DrawRarity, furniture: readonly FurnitureRewardItem[] = []): GradeReward[] {
   const packGrade = rarity === 'PLATINUM' ? 'GOLD' : rarity;
@@ -25,7 +31,7 @@ export function catalogRewards(rarity: DrawRarity, furniture: readonly Furniture
   return [
     { kind: 'REROLL_TICKET', id: `reroll-${ticketGrade.toLowerCase()}`, name: `${ticketGrade} 재뽑기권`, grade: ticketGrade },
     { kind: 'MILEAGE', id: `mileage-${rarity.toLowerCase()}`, name: `${mileageAmounts[rarity]}P`, amount: mileageAmounts[rarity] },
-    ...furniture.map((item) => ({ kind: 'FURNITURE' as const, id: item.id, name: item.name,
+    ...(rarity === 'BRONZE' ? furniture : []).map((item) => ({ kind: 'FURNITURE' as const, id: item.id, name: item.name,
       assetId: item.assetId })),
     ...EXPERIENCE_COSMETICS.filter((item) => item.source.kind === 'pack' && item.source.packId === pack.id)
       .map((item) => ({ kind: 'THEME' as const, id: item.id, name: item.name, slot: item.slot })),
@@ -37,8 +43,8 @@ function group(entries: readonly GradeRewardEntry[], rarity: DrawRarity, categor
 }
 
 export function rewardEntries(boxGrade: MileageGrade, furniture: readonly FurnitureRewardItem[]): GradeRewardEntry[] {
-  if (!furniture.length) throw new RangeError('general box furniture catalog is empty');
   const entries: GradeRewardEntry[] = [];
+  const weights = categoryWeightsFor(furniture);
   for (const rarity of rarities) {
     const rarityWeight = gradeWeights[boxGrade][rarity];
     if (!rarityWeight) continue;
@@ -46,7 +52,7 @@ export function rewardEntries(boxGrade: MileageGrade, furniture: readonly Furnit
     for (const category of categories) {
       const eligible = rewards.filter((reward) => reward.kind === category);
       if (!eligible.length) continue;
-      const categoryWeight = categoryWeightsByRarity[rarity][category];
+      const categoryWeight = weights[rarity][category];
       for (const reward of eligible) entries.push({ rarity, reward,
         probability: rarityWeight / 10000 * categoryWeight / 10000 / eligible.length });
     }
@@ -72,6 +78,11 @@ export function chooseGradeReward(entries: readonly GradeRewardEntry[], randomIn
     [rarity, Math.round(entries.filter((entry) => entry.rarity === rarity).reduce((sum, entry) => sum + entry.probability, 0) * 10000)])) as Record<DrawRarity, number>;
   const rarity = weighted(eligibleRarities, rarityWeights, randomInt);
   const eligibleCategories = categories.filter((category) => group(entries, rarity, category).length > 0);
-  const category = weighted(eligibleCategories, categoryWeightsByRarity[rarity], randomInt);
+  const rarityProbability = entries.filter((entry) => entry.rarity === rarity)
+    .reduce((sum, entry) => sum + entry.probability, 0);
+  const categoryWeights = Object.fromEntries(eligibleCategories.map((category) => [category,
+    Math.round(group(entries, rarity, category).reduce((sum, entry) => sum + entry.probability, 0)
+      / rarityProbability * 10000)])) as Record<DrawCategory, number>;
+  const category = weighted(eligibleCategories, categoryWeights, randomInt);
   return chooseUniform(group(entries, rarity, category), randomInt);
 }

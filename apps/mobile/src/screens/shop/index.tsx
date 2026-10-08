@@ -635,7 +635,7 @@ function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
         <View style={styles.gradeCopy}>
           <Text style={styles.gradeName}>{gradeLabel(grade.grade)} 전체 랜덤</Text>
           <Text style={styles.gradePrice}>가격 {formatMileage(grade.price)}</Text>
-          <Text style={styles.gradeOwned}>마일리지 · 가구 · 꾸미기 · 리롤권</Text>
+          <Text style={styles.gradeOwned}>마일리지 · {grade.rewards.some((entry) => entry.reward.kind === 'FURNITURE') ? '가구 · ' : ''}꾸미기 · 리롤권</Text>
         </View>
       </View>
       <Fold title="뽑기 확률 보기">{grade.rewards.map((entry) => <Text key={`${entry.rarity}:${entry.reward.kind}:${entry.reward.id}`} style={styles.disclosure}>
