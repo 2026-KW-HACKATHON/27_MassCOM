@@ -21,7 +21,7 @@
 
 ### migration 파일·원장 대조
 
-`apps/api/src/postgres/migrate.ts`는 파일명 전체를 정렬하고 `schema_migrations.filename`을 기본키로 사용한다. 다음은 실제 디렉터리에서 계산한 25개 추가 파일의 적용 순서다. `0050_quality_game_records.sql`과 `0050_social_mail.sql` 모두 적용하며 번호를 바꾸지 않는다.
+`apps/api/src/postgres/migrate.ts`는 파일명 전체를 정렬하고 `schema_migrations.filename`을 기본키로 사용한다. 다음은 실제 디렉터리에서 계산한 26개 추가 파일의 적용 순서다. `0050_quality_game_records.sql`과 `0050_social_mail.sql` 모두 적용하며 번호를 바꾸지 않는다.
 
 1. `0044_collection_experience.sql`
 2. `0045_notifications.sql`
@@ -48,8 +48,9 @@
 23. `0065_representative_coin_sources.sql`
 24. `0066_coin_reroll_revocation.sql`
 25. `0067_room_guestbook.sql`
+26. `0068_nft_series_uncapped.sql`
 
-적용 후 예상 원장 수는 **43 + 25 = 68건**이다(최대 번호 0067과 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 68건·마지막 `0067_room_guestbook.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다.
+적용 후 예상 원장 수는 **43 + 26 = 69건**이다(최대 번호 0068과 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 69건·마지막 `0068_nft_series_uncapped.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다. 2026-10-08에 배포한 운영·시연 DB는 0067까지 68건이며, 0068(NFT 시리즈 발행 수량 상한 해제, D-092)은 아직 적용 전이다.
 
 ### 개인정보 재동의·설치본 관문
 
