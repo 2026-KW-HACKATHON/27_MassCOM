@@ -20,7 +20,9 @@ type Props = {
   clock: SharedValue<number>;
 };
 
-function Flame({ index, frame, color }: { index: number; frame: SharedValue<FlameTongue[]>; color: string }) {
+type FlameVisual = FlameTongue & { d: string };
+
+function Flame({ index, frame, color }: { index: number; frame: SharedValue<FlameVisual[]>; color: string }) {
   const gradientId = `flame-${useId().replace(/:/g, '')}`;
   const gradientProps = useAnimatedProps(() => {
     const tongue = frame.get()[index];
@@ -30,7 +32,7 @@ function Flame({ index, frame, color }: { index: number; frame: SharedValue<Flam
   const pathProps = useAnimatedProps(() => {
     const tongue = frame.get()[index];
     if (!tongue) return { d: '', opacity: 0 };
-    return { d: collectibleFlamePath(tongue), opacity: tongue.alpha };
+    return { d: tongue.d, opacity: tongue.alpha };
   });
   return <>
     <Defs><AnimatedGradient id={gradientId} animatedProps={gradientProps} gradientUnits="userSpaceOnUse">
@@ -47,7 +49,9 @@ function FlameAura({ effect, shape, faceSize, angle, clock }: Pick<Props, 'shape
   const strength = effectStrengthValue(effect);
   const speed = effectSpeedValue(effect);
   const color = effect.color || '#5dd8ff';
-  const frame = useDerivedValue(() => collectibleFlameFrameForAnchors(anchors, faceSize, angle.get(), clock.get(), speed, strength));
+  // Derive geometry and SVG paths once on the UI thread; animated props only read shared frame data.
+  const frame = useDerivedValue(() => collectibleFlameFrameForAnchors(anchors, faceSize, angle.get(), clock.get(), speed, strength)
+    .map(tongue => ({ ...tongue, d: collectibleFlamePath(tongue) })));
   return <>
     {/* Soft concentric strokes provide a glow without another raster asset or a filter dependency. */}
     <G scale={faceSize * 1.03 / 100} x={-faceSize * .515} y={-faceSize * .515}>

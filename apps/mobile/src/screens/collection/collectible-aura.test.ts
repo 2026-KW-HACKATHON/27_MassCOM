@@ -77,3 +77,15 @@ test('native flame keeps the shared UI frame phase on pause and only adds a mask
   assert.match(layer, /<CollectibleFaceOutline shape=\{shape\} fill="black"/);
   assert.ok(detail.indexOf('<CollectibleAuraLayer') < detail.indexOf('<CollectibleEdgeLayer'), 'aura is behind the physical coin');
 });
+
+test('flame paths are shared UI-frame data and animated props never invoke imported geometry helpers', () => {
+  const layer = readFileSync(new URL('./collectible-aura-layer.tsx', import.meta.url), 'utf8');
+  const geometry = readFileSync(new URL('./collectible-aura.ts', import.meta.url), 'utf8');
+  const props = layer.slice(layer.indexOf('const gradientProps = useAnimatedProps'), layer.indexOf('return <>'));
+  assert.match(props, /d: tongue\.d, opacity: tongue\.alpha/);
+  assert.doesNotMatch(props, /collectibleFlame(?:Path|FrameForAnchors)\(/);
+  assert.match(layer, /const frame = useDerivedValue\([\s\S]*?d: collectibleFlamePath\(tongue\)/);
+  for (const helper of ['collectibleFlameFrameForAnchors', 'collectibleFlamePath', 'effectSpeedValue', 'effectStrengthValue']) {
+    assert.match(geometry, new RegExp(`export function ${helper}\\([^{]*\\{\\s*'worklet';`), `${helper} must remain UI-runtime serializable`);
+  }
+});

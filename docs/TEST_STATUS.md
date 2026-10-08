@@ -8,15 +8,17 @@
 | --- | --- | --- |
 | 사이트 전체 회귀 | PASS | LF QA 체크아웃에서 macOS Chrome 전용 `verify_showcase_theme_test.mjs`를 제외한668/668 PASS. 최신 main 시험의 Windows URL·경로 정규화 오류를 수정해 단독2/2 PASS, 기존 의미·대상 assertion은 유지했다. 최종 명령 종료0·fail0·skip0. |
 | API 계약 | PASS | collectible-project-rules30/30, API typecheck. 새 Flame speed·강도·대상과 흑백·붓 경도 계약 포함 |
-| 앱 계약·렌더 순수 로직 | PASS | artwork/back/motion/material/aura/edge62/62, 모바일 typecheck·변경 파일 ESLint. 새 효과 metadata 파서·획득 snapshot 보존·75ms/도 실제 재생·얇은 측면 포함 |
+| 앱 전체·계약·렌더 순수 로직 | PASS(로컬) | 최종 LF 체크아웃에서 앱 전체2112/2112·fail0·skip0. 모바일 typecheck·변경 파일 ESLint, worklet 계약·오라·회전54/54. 새 효과 metadata 파서·획득 snapshot 보존·75ms/도 실제 재생·얇은 측면 포함 |
 | 독립 읽기 전용 리뷰 | PASS | 저장/게시 경합·이미지 비동기 가드·256→512 표시/드래그 좌표·geometry·등급별 림 확인. 관련8파일204/204, 새P1/P2 차단0 |
 | 사진 픽셀 최적화 | PASS | 원본/흑백/음각/양각×4각도×2재질32개 전후 결과 byte 동일 |
 | 실제 브라우저·로컬 게시 | PASS(합성 fixture) | 버전6 게시·재읽기, 기본 스티커0, 양각·2배·Flame 보존. 실버 테두리·큰 붓 화면·오라·회전/움직임 분리 캡처. 투명 영역13,608표본·옆면 누출0 |
 | 성능 | 개선·남은 한계 | 동일 최대효과 프로젝트72각도에서640/512 중앙88.5ms·P95 103ms, 재생256/256 중앙63.6ms·P95 90.3ms. 새 각도 계산은 여전히50ms 초과. 기기 전체 FPS 보장 아님 |
-| PostgreSQL·전체 CI | 새 PR CI 대기 | 게시/획득 snapshot 새 metadata assertion은 통합 시험에 추가했다. Windows 로컬 PostgreSQL은 NOT_RUN. 새 CI에서 별도 확정한다. |
+| PostgreSQL·전체 CI | DB PASS / 수정 후 CI 대기 | 첫 CI에서 API625/625·typecheck·build, PostgreSQL544건 중541 PASS·0 FAIL·기존3 SKIP. 앱 worklet 계약1건 실패를 수정한 뒤 로컬 전체2112/2112 확인. 새 CI에서 번들까지 재확인한다. Windows 로컬 PostgreSQL은 NOT_RUN. |
 | 운영·실계정·실기 | NOT_RUN | 운영 배포·실계정 점포 게시·Android 실기 재생은 이번 후속에서 실행하지 않았다. API/웹 동시 배포 조건 유지 |
 
 [캡처·재현·저장 크기·성능 원자료](evidence/coin-edge-2026-10-09/README.md). 새 의존성·이번 후속의 새 migration·등급별 Flame 이미지 추가 없음. 이미지 생성 모델은 이번 후속에서 호출하지 않았다. 기존 확정 뒷면12종을 재사용한다.
+
+첫 [PR #429 CI](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/37810012488)는 앱2111건 중2110 PASS·1 FAIL이었다. `useAnimatedProps`의 imported helper 호출 금지 계약을 유지해 불꽃 SVG 경로를 명시적 worklet의 `useDerivedValue`에서 미리 계산하고, props는 공유 경로 문자열만 읽도록 수정했다. helper의 worklet 선언 유지도 회귀로 검사한다. 해당 수정의 별도 읽기 전용 리뷰 APPROVE·새P1/P2 없음·39/39 PASS. 최종 로컬 전체2112/2112 결과와 첫 CI의 실패를 구분한다. 최종 CI 상태는 [PR #429](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/429)의 Checks에서 확인한다.
 
 ## 2026-10-09 PR #418 리뷰 지적 1~10 수정 (미커밋)
 
