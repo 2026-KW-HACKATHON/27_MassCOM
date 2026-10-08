@@ -46,3 +46,15 @@ test('malformed successful search is rejected before UI state consumes it', asyn
   await assert.rejects(api.search({bounds:{west:127,south:37,east:128,north:38},zoom:12}),
     (error:unknown)=>error instanceof DiscoveryApiError&&error.code==='INVALID_RESPONSE');
 });
+
+test('detail keeps an optional campaign purpose and still accepts a campaign without one (#412)', async () => {
+  const detail = (campaign: unknown) => ({ schemaVersion: 1, asOf: '2026-10-06T00:00:00Z', merchant: {
+    id: 'shop', photos: [], menuItems: [], business: { state: 'OPEN' }, campaign } });
+  const campaign = { id: 'c1', title: '캠페인', state: 'ACTIVE', goals: [] };
+  const purpose = { kind: 'OFF_PEAK', timeWindows: [{ days: [1, 2, 3, 4, 5], start: '14:00', end: '17:00' }] };
+  const withPurpose = await client((async () => Response.json(detail({ ...campaign, purpose }))) as typeof fetch).merchant('shop');
+  assert.deepEqual(withPurpose.campaign?.purpose, purpose);
+  const legacy = await client((async () => Response.json(detail(campaign))) as typeof fetch).merchant('shop');
+  assert.equal(legacy.campaign?.purpose, undefined);
+  assert.equal(legacy.campaign?.id, 'c1');
+});

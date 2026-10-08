@@ -1,3 +1,4 @@
+import type { CampaignPurposeSummary } from './real-world-contract.js';
 import type { VisitorTagCode } from './visitor-feedback-rules.js';
 
 export type PublicRewardGoal = {
@@ -12,6 +13,8 @@ export type PublicCampaign = {
   endsAt: string;
   enrollmentStatus: 'OPEN' | 'FULL';
   rewardGoals: readonly PublicRewardGoal[];
+  // 점주가 정한 캠페인 목적(Issue #412). 목적이 없는 옛 캠페인은 이 값을 보내지 않는다(추가 필드).
+  purpose?: CampaignPurposeSummary;
 };
 
 export type PublicMerchant = {

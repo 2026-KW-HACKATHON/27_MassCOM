@@ -9,11 +9,17 @@ export type MerchantContext = {
   permissions: readonly ('VIEW_MERCHANT' | 'CONFIRM_VISIT')[];
 };
 
+/** 점주 목적형 캠페인의 시간대 조건에서 코드를 발급한 시각이 시간대 안인지. 옛 서버·모르는 값이면 없다(방문 인정과는 무관). */
+export type ClaimWindowStatus = 'IN_WINDOW' | 'OUTSIDE_WINDOW' | 'NONE';
+/** 방문 확정 때의 혜택 상태. 옛 서버·모르는 값이면 없다. */
+export type ClaimBenefitState = 'ELIGIBLE' | 'OUTSIDE_WINDOW' | 'NONE';
+
 export type IssuedClaim = {
   claimSlotId: string;
   token: string;
   tokenVersion: number;
   expiresAt: string;
+  windowStatus?: ClaimWindowStatus;
 };
 
 export type CustomerIdentity = { token: string; expiresAt: string };
@@ -91,6 +97,7 @@ export type RedeemedClaim = {
     status: 'GRANTED';
     claimExpiresAt: string;
   }[];
+  benefit?: { state: ClaimBenefitState };
 };
 
 export type CollectionSnapshot = {
@@ -543,6 +550,8 @@ function parseIssuedClaim(value: unknown): IssuedClaim {
     token: value.token,
     tokenVersion: value.tokenVersion,
     expiresAt: value.expiresAt,
+    ...(value.windowStatus === 'IN_WINDOW' || value.windowStatus === 'OUTSIDE_WINDOW' || value.windowStatus === 'NONE'
+      ? { windowStatus: value.windowStatus } : {}),
   };
 }
 
@@ -607,6 +616,9 @@ function parseRedeemedClaim(value: unknown): RedeemedClaim {
       ...(value.visit.progressExcludedReason === 'STAFF_SELF' ? { progressExcludedReason: 'STAFF_SELF' as const } : {}),
     },
     grantedRewards: value.grantedRewards.map(parseGrantedReward),
+    // 추가 필드: 없거나 모르는 값이면 버린다(옛 서버와 앞으로 생길 상태에서도 방문 확인 화면은 그대로 보인다).
+    ...(isRecord(value.benefit) && (value.benefit.state === 'ELIGIBLE' || value.benefit.state === 'OUTSIDE_WINDOW' || value.benefit.state === 'NONE')
+      ? { benefit: { state: value.benefit.state } } : {}),
   };
 }
 

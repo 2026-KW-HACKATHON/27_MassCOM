@@ -7,4 +7,4 @@ ALTER TABLE nft_series
   ALTER COLUMN max_ever_minted DROP NOT NULL;
 
 COMMENT ON COLUMN nft_series.max_ever_minted IS
-  '폐기됨(0068): 발행 수량 상한이 없다. 새 시리즈는 NULL로 두고 API는 읽지 않는다.';
+  '폐기됨(0075): 발행 수량 상한이 없다. 새 시리즈는 NULL로 두고 API는 읽지 않는다.';

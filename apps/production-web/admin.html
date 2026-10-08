@@ -114,6 +114,45 @@
           <label>첫 방문 수집품 이름 <input name="goal1" required maxlength="100"></label>
           <label>3회 방문 수집품 이름 <input name="goal3" required maxlength="100"></label>
           <label>5회 방문 수집품 이름 <input name="goal5" required maxlength="100"></label>
+          <fieldset class="admin-consent admin-purpose">
+            <legend>캠페인 목적 (선택)</legend>
+            <p class="admin-hint">점주가 풀고 싶은 문제를 하나 고르면 조건이 목적에 맞게 정해져요. 정하지 않으면 지금까지처럼 만들어져요. 공개한 뒤에는 목적과 조건을 바꿀 수 없어요. 앱에서 확인된 방문만으로는 "처음 오는 손님"인지 알 수 없어서, 첫 목적은 "MassCOM에서 처음 확인되는 방문"을 늘리는 것으로 적어요.</p>
+            <label>목적
+              <select name="purpose">
+                <option value="">정하지 않음 (기존 방식)</option>
+                <option value="NEW_CUSTOMERS">처음 확인되는 방문 늘리기</option>
+                <option value="REVISIT">다시 방문하게 하기</option>
+                <option value="OFF_PEAK">한산한 시간대 채우기</option>
+              </select>
+            </label>
+            <label data-purpose-for="NEW_CUSTOMERS REVISIT OFF_PEAK" hidden>대표 메뉴 (선택) <input name="purposeMenu" maxlength="40"></label>
+            <div data-purpose-for="REVISIT" hidden>
+              <label>다시 방문으로 세는 최소 일수 (1~30, 비우면 1일) <input name="revisitMinDays" type="number" min="1" max="30" step="1"></label>
+              <label>다시 방문으로 세는 기간 일수 (2~60, 비우면 14일) <input name="revisitWindowDays" type="number" min="2" max="60" step="1"></label>
+              <label>다음 방문 안내 문구 (선택) <input name="nextStepText" maxlength="80"></label>
+            </div>
+            <div data-purpose-for="OFF_PEAK" hidden>
+              <p class="admin-hint">시간은 한국 시간이고 시작 시각은 포함, 끝 시각은 제외예요. 끝 시각을 00:00으로 두면 그날 자정까지예요. 시간대 밖에 온 방문도 그대로 인정되고 혜택만 달라져요.</p>
+            <fieldset class="admin-window">
+              <legend>시간대 1</legend>
+              <label><input type="checkbox" name="window1Days" value="1"> 월</label><label><input type="checkbox" name="window1Days" value="2"> 화</label><label><input type="checkbox" name="window1Days" value="3"> 수</label><label><input type="checkbox" name="window1Days" value="4"> 목</label><label><input type="checkbox" name="window1Days" value="5"> 금</label><label><input type="checkbox" name="window1Days" value="6"> 토</label><label><input type="checkbox" name="window1Days" value="7"> 일</label>
+              <label>시작 <input name="window1Start" type="time"></label>
+              <label>끝 <input name="window1End" type="time"></label>
+            </fieldset>
+            <fieldset class="admin-window">
+              <legend>시간대 2 (선택)</legend>
+              <label><input type="checkbox" name="window2Days" value="1"> 월</label><label><input type="checkbox" name="window2Days" value="2"> 화</label><label><input type="checkbox" name="window2Days" value="3"> 수</label><label><input type="checkbox" name="window2Days" value="4"> 목</label><label><input type="checkbox" name="window2Days" value="5"> 금</label><label><input type="checkbox" name="window2Days" value="6"> 토</label><label><input type="checkbox" name="window2Days" value="7"> 일</label>
+              <label>시작 <input name="window2Start" type="time"></label>
+              <label>끝 <input name="window2End" type="time"></label>
+            </fieldset>
+            <fieldset class="admin-window">
+              <legend>시간대 3 (선택)</legend>
+              <label><input type="checkbox" name="window3Days" value="1"> 월</label><label><input type="checkbox" name="window3Days" value="2"> 화</label><label><input type="checkbox" name="window3Days" value="3"> 수</label><label><input type="checkbox" name="window3Days" value="4"> 목</label><label><input type="checkbox" name="window3Days" value="5"> 금</label><label><input type="checkbox" name="window3Days" value="6"> 토</label><label><input type="checkbox" name="window3Days" value="7"> 일</label>
+              <label>시작 <input name="window3Start" type="time"></label>
+              <label>끝 <input name="window3End" type="time"></label>
+            </fieldset>
+            </div>
+          </fieldset>
           <button type="submit">비공개 초안 저장</button>
         </form>
         <div id="admin-campaign-drafts" role="status" aria-live="polite"></div>

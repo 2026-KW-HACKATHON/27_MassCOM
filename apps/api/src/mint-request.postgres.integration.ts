@@ -134,7 +134,7 @@ test('W07 M01 M07 mint request atomically freezes recipient and replays one job'
     (error: unknown) => error instanceof MintRequestError && error.code === 'WALLET_BINDING_CHANGED',
   );
 
-  // 시리즈에는 수량 상한이 없다(0068). 같은 시리즈에 이미 작업이 있어도 다른 고객의 신청은 접수된다.
+  // 시리즈에는 수량 상한이 없다(0075). 같은 시리즈에 이미 작업이 있어도 다른 고객의 신청은 접수된다.
   const second = await service.requestMint({
     accountId: 'customer-2',
     entitlementId: '20000000-0000-4000-8000-000000000003',

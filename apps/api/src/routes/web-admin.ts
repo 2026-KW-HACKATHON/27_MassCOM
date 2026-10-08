@@ -138,7 +138,7 @@ export async function handleWebAdmin(ctx: RouteContext): Promise<boolean> {
         if (!admin.createCampaignDraft) throw new RequestError(503, 'WEB_ADMIN_NOT_CONFIGURED');
         const body = await readJson(request);
         if (Object.keys(body).some(key => !['merchantId', 'title', 'startsAt', 'endsAt',
-          'enrollmentCapacity', 'rewardGoals'].includes(key)) || !Array.isArray(body.rewardGoals)) {
+          'enrollmentCapacity', 'rewardGoals', 'purpose'].includes(key)) || !Array.isArray(body.rewardGoals)) {
           throw new RequestError(400, 'INVALID_REQUEST');
         }
         const input: AdminCampaignDraftInput = {
@@ -146,6 +146,8 @@ export async function handleWebAdmin(ctx: RouteContext): Promise<boolean> {
           startsAt: requireString(body, 'startsAt'), endsAt: requireString(body, 'endsAt'),
           enrollmentCapacity: requirePositiveInteger(body, 'enrollmentCapacity'),
           rewardGoals: body.rewardGoals as AdminCampaignDraftInput['rewardGoals'],
+          // 목적은 선택이다. 없으면 목적 없는 옛 캠페인과 똑같이 만들고, 있으면 service가 모양·메뉴를 검사한다.
+          ...(body.purpose === undefined ? {} : { purpose: body.purpose as NonNullable<AdminCampaignDraftInput['purpose']> }),
         };
         sendJson(response, 201, { draft: await admin.createCampaignDraft(accountId, input) });
         return true;

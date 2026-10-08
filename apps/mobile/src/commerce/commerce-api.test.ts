@@ -844,3 +844,55 @@ test('관리자 권한 요청 목록·결정은 승인자 계정으로만 가고
   });
   await assert.rejects(forbidden.listPendingShowcaseAccessRequests(), (error: unknown) => error instanceof CommerceApiError && error.status === 403 && error.code === 'SHOWCASE_APPROVER_REQUIRED');
 });
+
+test('a redeemed claim carries the benefit state only when the server sends a known one (#412)', async () => {
+  const claim = (extra: Record<string, unknown>) => Response.json({
+    claimSlotId: 'slot-1', merchantId: 'm', merchantName: '가게', campaignTitle: '캠페인', status: 'CLAIMED', replayed: false,
+    visit: { visitEventId: 'v1', campaignId: 'c1', businessDate: '2026-09-30', verificationLevel: 'MERCHANT_CONFIRMED',
+      progressCounted: true, progressVisitCount: 1 },
+    grantedRewards: [], ...extra,
+  });
+  const api = (extra: Record<string, unknown>) => createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => claim(extra),
+  });
+  for (const state of ['ELIGIBLE', 'OUTSIDE_WINDOW', 'NONE']) {
+    assert.deepEqual((await api({ benefit: { state } }).redeemClaim('token')).benefit, { state });
+  }
+  // 옛 서버(필드 없음)·모르는 상태·모양이 다른 값은 버린다. 방문 확인 화면은 그대로 열린다.
+  for (const extra of [{}, { benefit: null }, { benefit: 'ELIGIBLE' }, { benefit: {} }, { benefit: { state: 'SOMETHING_NEW' } }, { benefit: { state: 3 } }, { benefit: [] }]) {
+    const result = await api(extra).redeemClaim('token');
+    assert.equal('benefit' in result, false, JSON.stringify(extra));
+    assert.equal(result.visit.progressVisitCount, 1);
+  }
+});
+
+test('an issued claim carries the window status only when the server sends a known one (#412)', async () => {
+  const issued = (extra: Record<string, unknown>) => createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json({ claimSlotId: 'slot-1', token: 'one-time-token', tokenVersion: 1,
+      expiresAt: '2026-09-19T05:00:00.000Z', ...extra }, { status: 201 }),
+  });
+  for (const windowStatus of ['IN_WINDOW', 'OUTSIDE_WINDOW', 'NONE']) {
+    assert.equal((await issued({ windowStatus }).issueClaim({ merchantId: 'm', customerAccountId: 'c', merchantReference: 'r' })).windowStatus, windowStatus);
+    assert.equal((await issued({ windowStatus }).reissueClaim({ merchantId: 'm', claimSlotId: 'slot-1', expectedTokenVersion: 1 })).windowStatus, windowStatus);
+  }
+  for (const extra of [{}, { windowStatus: null }, { windowStatus: 'LATER' }, { windowStatus: 1 }, { windowStatus: {} }]) {
+    const result = await issued(extra).issueClaim({ merchantId: 'm', customerAccountId: 'c', merchantReference: 'r' });
+    assert.equal('windowStatus' in result, false, JSON.stringify(extra));
+    assert.equal(result.token, 'one-time-token');
+  }
+});
+
+test('an identity claim issued with a window status keeps it, and the replay shape still has none (#412)', async () => {
+  const api = (body: Record<string, unknown>) => createCommerceApiClient({
+    apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json(body, { status: 201 }),
+  });
+  const fresh = await api({ claimSlotId: 's', token: 't', tokenVersion: 1, expiresAt: '2026-09-19T05:00:00.000Z', windowStatus: 'OUTSIDE_WINDOW' })
+    .issueIdentityClaim({ merchantId: 'm', customerIdentityToken: 'x' });
+  assert.equal('replayed' in fresh ? undefined : fresh.windowStatus, 'OUTSIDE_WINDOW');
+  const replay = await api({ claimSlotId: 's', tokenVersion: 2, expiresAt: '2026-09-19T05:00:00.000Z', replayed: true })
+    .issueIdentityClaim({ merchantId: 'm', customerIdentityToken: 'x' });
+  assert.equal('windowStatus' in replay, false);
+});
