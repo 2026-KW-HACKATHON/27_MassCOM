@@ -1,5 +1,9 @@
 # HANDOFF
 
+## 2026-10-09 선택 작업 후속 (Issue #438, 미배포)
+
+작업 위치는 `/Users/choi/Desktop/MassCOM/collection-next-actions`, 브랜치는 `feat/collection-next-actions`이다. PR #435 `644beb75` 위에서 홈·도감·가게 코인 연출·점주 결과 이동을 보완했으며, #435와 기존 #418/#429 코인 디자인 변경을 보존한다. [작업 결과와 검증 한계](SELECTED_ACTIONS_QA_2026-10-09.md), [P4/X2 보류·미승인 정책안](SELECTED_POLICY_REVIEW_2026-10-09.md)을 먼저 읽는다. P4의 실제 잔여 재고와 표시 기준, X2 동일 방문 인증·강화권 규칙은 구현하지 않았다. 기존 쿠폰·NFT·소유·추첨 권리는 그대로다. 최신 PR과 CI는 이 브랜치의 실제 GitHub 상태에서 확인한다. 운영 배포·실기 수용은 NOT_RUN이다.
+
 **2026-10-09 획득 결과 → 도감 등록 확인 (Issue #432, 미배포)**
 
 - 현재 작업은 `feat/reward-album-confirmation`, 기준 main `8aa8b724`의 별도 작업 트리다. 아래 PR #429의 미병합·미커밋 문단은 이전 작업 기록이며 이번 작업 상태가 아니다. 사용자는 모든 추가 수정·검증을 마친 뒤 최종 PR 한 건을 요청했다.

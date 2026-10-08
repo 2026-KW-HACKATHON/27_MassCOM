@@ -1,5 +1,21 @@
 # 테스트 상태
 
+## 2026-10-09 선택 작업 후속 (Issue #438)
+
+PR #435 `644beb75` 위 `feat/collection-next-actions`. 공통 고객 UI는 운영·시연 소스 모두에 적용하며 API/DB/확률/권리 변경은 없다. [작업 QA](SELECTED_ACTIONS_QA_2026-10-09.md), [브라우저 근거](evidence/selected-actions-2026-10-09/README.md).
+
+| 검사 | 결과 | 실제 근거·한계 |
+| --- | --- | --- |
+| `npm test --prefix apps/mobile` | PASS | 2183/2183, macOS 로컬. 홈 새로고침·미확인 획득 회귀 포함 |
+| 모바일 typecheck / lint | PASS | 기존 collectible-aura.test.ts 미사용 import 경고1. 새 Reanimated shared value는 set/get으로 수정 |
+| `node --test tests/site/merchant-actions-overview.test.mjs tests/site/merchant-*.test.mjs` | PASS | 17/17 |
+| 모바일 접근성 계약 / `tools/gate.sh` / `git diff --check` | PASS | 소스 계약·비밀·충돌·대형 파일·문서·배포표 검사, 실제 운영 배포는 아님 |
+| 실제 RNW 컴포넌트 브라우저 QA | PASS | 홈/도감/가게 코인 단계·건너뛰기·수동 유지·복구·움직임 감소. 합성 데이터, 라우터·음향/진동 경계 mock |
+| 운영·시연 Android export | NOT_RUN | 최종 소스 커밋으로 실행 후 갱신. 첫 시도는 빌드 출처 SHA 누락으로 config 검사에서 종료 |
+| Android 설치·TalkBack·200% 글자·음향·진동·실제 QR/쿠폰·점주 계정 | NOT_RUN | 자동 시험/브라우저로 대체하지 않음 |
+| P4 잔여 확률 표시·X2 강화권 지급 | BLOCKED | 표시 기준/잔여 데이터·동일 방문 인증/보상 규칙 미확정. [근거](SELECTED_POLICY_REVIEW_2026-10-09.md) |
+
+
 ## 2026-10-09 보상 결과 후 도감 등록 확인 (Issue #432)
 
 환경: Windows PowerShell, `feat/reward-album-confirmation`, 기준 main `8aa8b724` 위 작업 트리. 운영·시연 공통 고객 코드 변경이며 API·DB·확률은 수정하지 않는다. Windows 체크아웃의 CRLF가 기존 소스 추출 시험 9건을 실패시켜, 검증용 작업 트리 텍스트를 LF로 정규화한 뒤 아래 결과를 얻었다. 기존 시험의 단언을 완화하지 않았으며 줄바꿈만 다른 파일은 최종 diff에 포함하지 않는다.

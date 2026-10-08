@@ -92,10 +92,28 @@ test('점주 보상 업무는 제작기를 기본 화면으로 두고 방문 확
   } finally { f.restore(); }
 });
 
+test('방문 확인에서 최근 처리 목록으로 바로 이동하며 선택 점포와 초점을 맞춘다', async () => {
+  const f = await fixture({ merchants: [
+    { id: 'm1', name: '월계 식당', role: 'OWNER' },
+    { id: 'm2', name: '두 번째 가게', role: 'OWNER' },
+  ] });
+  try {
+    const claimStore = f.doc.getElementById('merchant-claim-merchant');
+    claimStore.value = 'm2';
+    await f.click(f.doc.getElementById('merchant-claim-recent'));
+    assert.equal(f.doc.getElementById('merchant-reversal-merchant').value, 'm2');
+    assert.equal(f.doc.getElementById('merchant-overview-merchant').value, 'm2');
+    assert.equal(f.doc.getElementById('merchant-reversal').classList.contains('merchant-view-hidden'), false);
+    assert.equal(f.doc.activeElement.id, 'merchant-reversal-title');
+    assert.ok(f.calls.some(call => call.path.endsWith('/merchants/m2/recent-visits')));
+  } finally { f.restore(); }
+});
+
 test('보상 업무 HTML은 메뉴·직원·실제 정보 양식을 보조 구역으로 남기되 기본 흐름에 노출하지 않는다', () => {
   const html = readFileSync(new URL('../../apps/production-web/merchant.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../apps/production-web/assets/production.css', import.meta.url), 'utf8');
   assert.match(html, /id="merchant-owner-nav"[\s\S]*방문 보상 만들기[\s\S]*방문 확인[\s\S]*운영 결과/);
+  assert.ok(html.indexOf('id="merchant-reversal"') < html.indexOf('id="merchant-overview"'));
   for (const id of ['merchant-operations', 'merchant-profile', 'real-world-merchant']) {
     assert.match(html, new RegExp(`id="${id}"[^>]*merchant-workflow-secondary`));
   }

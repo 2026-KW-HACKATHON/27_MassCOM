@@ -5,6 +5,7 @@ import test from 'node:test';
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const home = read('./index.tsx');
 const overview = home.slice(0, home.indexOf('export function HomeMissionsScreen'));
+const nextAction = read('./next-action.ts');
 const tickets = read('./home-tickets.tsx');
 const exhibit = read('./home-exhibit.tsx');
 const layout = read('../../app/_layout.tsx');
@@ -24,15 +25,19 @@ test('home loads real room, ticket, reward, collection and merchant data', () =>
 });
 
 test('home keeps room, visit, rewards and friends one tap away', () => {
-  for (const route of ['/studio', '/coin-shop', '/claim', '/friends', '/home/tickets', '/home/missions', '/home/exhibit', '/room-explore']) {
+  for (const route of ['/studio', '/coin-shop', '/claim', '/friends', '/home/missions', '/home/exhibit', '/room-explore']) {
     assert.match(home, new RegExp(`<Link href="${route}" asChild>`), route);
   }
+  for (const route of ['/home/tickets', '/coin-shop', '/coin-collection', '/search', '/collection']) assert.ok(nextAction.includes(`href: '${route}'`), route);
   assert.doesNotMatch(overview, /<HomeCollectionDisplay|<HomeMissionsPanel|<CollectibleReveal|tickets\.map\(/);
 });
 
 test('방문 기록이 없는 홈은 탐색을 주 행동으로 보여주고 방문 인증을 보조로 남긴다', () => {
-  assert.match(overview, /data\?\.collection\?\.visits\.length === 0/);
-  assert.match(overview, /<Link href="\/search" asChild>[\s\S]*?accessibilityLabel="가게 찾기"[\s\S]*?가게 찾기/);
+  assert.match(overview, /const nextAction = homeNextAction\(data, goal\)/);
+  assert.match(overview, /nextAction \? <Link href=\{nextAction\.kind === 'next-visit'/);
+  assert.match(overview, /accessibilityLabel=\{`\$\{nextAction\.title\}\. \$\{nextAction\.detail\}`\}/);
+  assert.match(overview, /accessibilityLiveRegion="polite"[\s\S]*?다음 행동을 확인하고 있어요/);
+  assert.match(nextAction, /data\.collection\.visits\.length === 0/);
   assert.match(overview, /<Link href="\/claim" asChild>/);
 });
 
