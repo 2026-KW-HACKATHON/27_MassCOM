@@ -370,8 +370,92 @@ export function campaignDraftPayload(data) {
   if (rewardGoals.some(goal => !goal.displayName || goal.displayName.length > 100)) {
     throw new Error('세 목표의 수집품 이름을 모두 입력해 주세요.');
   }
+  const purpose = purposePayload(data);
   return { merchantId: String(data.get('merchantId') ?? ''), title: String(data.get('title') ?? '').trim(),
-    startsAt, endsAt, enrollmentCapacity, rewardGoals };
+    startsAt, endsAt, enrollmentCapacity, rewardGoals, ...(purpose ? { purpose } : {}) };
+}
+
+// 캠페인 목적(Issue #412, D-092). 목적을 고르지 않으면 payload에 purpose 키가 없어 지금까지의 요청과 같다.
+export const campaignPurposeNames = {
+  NEW_CUSTOMERS: '처음 확인되는 방문 늘리기', REVISIT: '다시 방문하게 하기', OFF_PEAK: '한산한 시간대 채우기',
+};
+const purposeDayNames = '월화수목금토일';
+const allValues = (data, name) => typeof data.getAll === 'function' ? data.getAll(name) : [];
+
+function purposeInteger(data, name, min, max, message) {
+  const text = String(data.get(name) ?? '').trim();
+  if (!text) return undefined;
+  const value = Number(text);
+  if (!Number.isInteger(value) || value < min || value > max) throw new Error(message);
+  return value;
+}
+
+function purposeWindows(data) {
+  const windows = [];
+  for (const index of [1, 2, 3]) {
+    const days = allValues(data, `window${index}Days`).map(Number);
+    const start = String(data.get(`window${index}Start`) ?? '');
+    let end = String(data.get(`window${index}End`) ?? '');
+    if (!days.length && !start && !end) continue;
+    if (!days.length || !start || !end || days.some(day => !Number.isInteger(day) || day < 1 || day > 7)) {
+      throw new Error(`시간대 ${index}의 요일과 시작·끝 시각을 모두 입력해 주세요.`);
+    }
+    if (end === '00:00') end = '24:00';
+    if (end <= start) throw new Error(`시간대 ${index}의 끝 시각은 시작 시각보다 늦어야 해요. 자정을 넘기는 시간대는 둘로 나눠 주세요.`);
+    windows.push({ days: [...new Set(days)].sort((a, b) => a - b), start, end });
+  }
+  if (!windows.length) throw new Error('한산한 시간대를 한 개 이상 입력해 주세요.');
+  return windows;
+}
+
+export function purposePayload(data) {
+  const kind = String(data.get('purpose') ?? '');
+  if (!kind) return undefined;
+  if (!Object.hasOwn(campaignPurposeNames, kind)) throw new Error('캠페인 목적을 다시 골라 주세요.');
+  const purpose = { purpose: kind };
+  const menu = String(data.get('purposeMenu') ?? '').trim();
+  if (menu.length > 40) throw new Error('대표 메뉴 이름은 40자 이하로 입력해 주세요.');
+  if (menu) purpose.featuredMenuName = menu;
+  if (kind === 'REVISIT') {
+    const minDays = purposeInteger(data, 'revisitMinDays', 1, 30, '최소 일수는 1~30 사이 정수로 입력해 주세요.');
+    const windowDays = purposeInteger(data, 'revisitWindowDays', 2, 60, '기간 일수는 2~60 사이 정수로 입력해 주세요.');
+    if ((minDays ?? 1) >= (windowDays ?? 14)) throw new Error('최소 일수는 기간 일수보다 작게 입력해 주세요.');
+    if (minDays !== undefined) purpose.revisitMinDays = minDays;
+    if (windowDays !== undefined) purpose.revisitWindowDays = windowDays;
+    const nextStep = String(data.get('nextStepText') ?? '').trim();
+    if (nextStep.length > 80) throw new Error('다음 방문 안내 문구는 80자 이하로 입력해 주세요.');
+    if (nextStep) purpose.nextStepText = nextStep;
+  }
+  if (kind === 'OFF_PEAK') purpose.timeWindows = purposeWindows(data);
+  return purpose;
+}
+
+function purposeDays(days) {
+  const key = [...new Set(days)].sort((a, b) => a - b).join('');
+  return key === '1234567' ? '매일' : key === '12345' ? '평일' : key === '67' ? '주말'
+    : [...new Set(days)].sort((a, b) => a - b).map(day => purposeDayNames[day - 1]).join('·');
+}
+
+// 관리자 목록에 보이는 한 줄 설명. 모르는 값이면 빈 문자열이라 목록 줄이 그대로다.
+export function purposeLabel(purpose) {
+  if (!purpose || !Object.hasOwn(campaignPurposeNames, purpose.kind)) return '';
+  const parts = [campaignPurposeNames[purpose.kind]];
+  if (purpose.kind === 'REVISIT' && Number.isInteger(purpose.revisitMinDays) && Number.isInteger(purpose.revisitWindowDays)) {
+    parts.push(`${purpose.revisitMinDays}일 뒤부터 ${purpose.revisitWindowDays}일 안`);
+  }
+  if (purpose.kind === 'OFF_PEAK' && Array.isArray(purpose.timeWindows)) {
+    parts.push(purpose.timeWindows.map(window => `${purposeDays(window.days)} ${window.start}–${window.end}`).join(', '));
+  }
+  if (typeof purpose.featuredMenuName === 'string' && purpose.featuredMenuName) parts.push(`대표 메뉴 ${purpose.featuredMenuName}`);
+  return ` · 목적: ${parts.join(' · ')}`;
+}
+
+// 고른 목적에 맞는 입력 칸만 보인다. 초기·초기화 뒤에는 모두 숨긴다.
+function syncPurposeFields(form) {
+  const kind = String(form?.elements?.purpose?.value ?? '');
+  for (const node of form?.querySelectorAll?.('[data-purpose-for]') ?? []) {
+    node.hidden = !String(node.dataset?.purposeFor ?? node.getAttribute?.('data-purpose-for') ?? '').split(' ').includes(kind);
+  }
 }
 
 const couponVoidReasons = [
@@ -1199,7 +1283,7 @@ export async function loadAdmin(fetcher, doc) {
           const item = doc.createElement('p');
           const period = typeof draft.startsAt === 'string' && typeof draft.endsAt === 'string'
             ? ` · ${formatKst(draft.startsAt)}부터 ${formatKst(draft.endsAt)}까지` : '';
-          item.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안 · 정원 ${draft.enrollmentCapacity}명${period}`;
+          item.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안 · 정원 ${draft.enrollmentCapacity}명${period}${purposeLabel(draft.purpose)}`;
           if (typeof draft.id === 'string' && draft.id) {
             item.append(campaignButton(fetcher, doc, act, draft, 'publish', '공개'));
           }
@@ -1237,7 +1321,7 @@ export async function loadAdmin(fetcher, doc) {
           const timing = hasServerTime ? campaignTiming(item.endsAt, published.generatedAt) : null;
           const ending = timing?.ended ? ' · 종료됨' : timing?.daysLeft !== null && timing?.daysLeft !== undefined
             ? ` · 종료까지 ${timing.daysLeft}일${timing.soon ? ' · 곧 종료' : ''}` : '';
-          row.textContent = `${item.merchantName} · ${item.title} · ${campaignStatusLabels[item.status]} · ${formatKst(item.startsAt)}부터 ${formatKst(item.endsAt)}까지${ending} · 보이는 참여자 ${item.enrolledCount}/${item.enrollmentCapacity}명`;
+          row.textContent = `${item.merchantName} · ${item.title} · ${campaignStatusLabels[item.status]} · ${formatKst(item.startsAt)}부터 ${formatKst(item.endsAt)}까지${ending} · 보이는 참여자 ${item.enrolledCount}/${item.enrollmentCapacity}명${purposeLabel(item.purpose)}`;
           if (item.status === 'ACTIVE') row.append(campaignButton(fetcher, doc, act, item, 'pause', '중지'));
           if (canRepublishCampaign(item, hasServerTime ? Date.parse(published.generatedAt) : Date.now())) {
             row.append(campaignButton(fetcher, doc, act, item, 'publish', '다시 공개'));
@@ -1419,6 +1503,9 @@ export function bindAdmin(fetcher, doc) {
   });
   const draftForm = doc.getElementById('admin-campaign-draft');
   let draftSaving = false;
+  draftForm?.addEventListener('change', event => {
+    if (event.target?.name === 'purpose') syncPurposeFields(draftForm);
+  });
   draftForm?.addEventListener('submit', async event => {
     event.preventDefault();
     if (draftSaving) return;
@@ -1428,9 +1515,10 @@ export function bindAdmin(fetcher, doc) {
     button.disabled = true;
     try {
       await jsonRequest(fetcher, '/api/web/admin/campaign-drafts', 'POST',
-        campaignDraftPayload(new FormData(draftForm)));
+        campaignDraftPayload(new (doc.defaultView?.FormData ?? FormData)(draftForm)));
       if (adminRequests.get(doc) !== requestId) return;
       draftForm.reset();
+      syncPurposeFields(draftForm);
       await loadAdmin(fetcher, doc);
       if (!doc.getElementById('admin-content').hidden) status.textContent = '비공개 캠페인 초안을 저장했습니다.';
     } catch (error) {

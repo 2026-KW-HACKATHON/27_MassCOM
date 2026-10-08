@@ -165,8 +165,11 @@ for (const clipboard of [{}, { writeText: async () => { throw new Error('denied'
 test('이번 주 현황은 계약의 방문 건수·등급 순서·쿠폰·열람 횟수와 주의 문구를 표시한다', async () => {
   const f = await fixture();
   try {
-    assert.match(f.card('이번 주 첫 방문 / 재방문').textContent, /2건 \/ 1건/);
-    assert.match(f.card('이번 주 첫 방문 / 재방문').textContent, /사람 수가 아니라 방문 건수/);
+    assert.match(f.card('이번 주 처음 확인된 방문 / 다시 확인된 방문').textContent, /2건 \/ 1건/);
+    assert.match(f.card('이번 주 처음 확인된 방문 / 다시 확인된 방문').textContent, /사람 수가 아니라 방문 건수/);
+    // #412: 앱 기록 기준의 "처음 확인"일 뿐 새 손님이라는 뜻이 아니라고 밝힌다.
+    assert.match(f.card('이번 주 처음 확인된 방문 / 다시 확인된 방문').textContent, /MassCOM에서 이 가게 방문이 처음 확인된 건/);
+    assert.doesNotMatch(f.card('이번 주 처음 확인된 방문 / 다시 확인된 방문').textContent, /신규 고객|첫 손님/);
     assert.match(f.card('이번 주 받은 수집품(등급별)').textContent, /브론즈 2개골드 1개/);
     assert.match(f.card('쿠폰 발급·사용(이번 주)').textContent, /발급 3장 · 사용 2장/);
     assert.match(f.card('가게 상세 조회(이번 주)').textContent, /12회/);

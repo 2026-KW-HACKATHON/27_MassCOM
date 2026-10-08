@@ -8,6 +8,7 @@ import type { AccountCredential } from '@/auth/account-credential';
 import { platformSecureStore } from '@/auth/platform-secure-store';
 import { createClaimPendingStore } from '@/commerce/claim-pending';
 import { createScanGate } from '@/commerce/claim-code';
+import { staffWindowNote } from '@/commerce/benefit-window';
 import { ClaimQr } from '@/commerce/claim-qr';
 import { CommerceApiError, createCommerceApiClient, type RecentCouponRedemption, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
 import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
@@ -521,6 +522,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
             <Text style={[styles.expiry, { paddingVertical: 8 }]}>{seconds > 0 ? `남은 시간 ${Math.floor(seconds / 60)}분 ${seconds % 60}초` : '방문 코드가 만료됐습니다. 새 QR을 요청해 주세요.'}</Text>
             {issuedUncertain ? <Text style={styles.help}>이전 QR이 폐기됐을 수 있습니다. 현재 코드를 복구한 뒤 고객에게 보여주세요.</Text> : null}
             <Text style={styles.help}>고객이 QR을 촬영하고 확정해야 방문이 기록됩니다.</Text>
+            {staffWindowNote(issued) ? <Text accessibilityLiveRegion="polite" style={styles.help}>{staffWindowNote(issued)}</Text> : null}
             {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
             {issuedUncertain ? <Button styles={styles} label={busy ? '복구 중…' : '현재 코드 복구'} disabled={busy} onPress={() => void recoverCurrent()} /> : <Button styles={styles} label="코드 관리" variant="secondary" disabled={busy} onPress={() => {
               const current = requestGate.start();

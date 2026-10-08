@@ -26,6 +26,7 @@ import {
 import { createBadgeApiClient, type BadgeBook } from '@/gamification/badge-api';
 import { afterVisitAction, hasOpenableBox, type AfterVisitAction } from '@/commerce/after-visit-action';
 import { diffBadgeBooks } from '@/gamification/badge-rules';
+import { customerBenefitNote } from '@/commerce/benefit-window';
 import { progressNote } from '@/commerce/progress-note';
 import { mileageBalanceLine, mileageDeltaLine, settleWithin, visitRewardGuide, type VisitGoal } from '@/commerce/visit-reward-guide';
 import { playUiSound } from '@/sound/ui-sounds';
@@ -729,6 +730,7 @@ export function ClaimRedeemScreen({
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
               {progressNote(redeemed.visit)}
             </Text>
+            {customerBenefitNote(redeemed) ? <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>{customerBenefitNote(redeemed)}</Text> : null}
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
               새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
             </Text>
