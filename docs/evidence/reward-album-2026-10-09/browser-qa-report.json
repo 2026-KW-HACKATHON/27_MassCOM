@@ -1,0 +1,181 @@
+{
+  "generatedAt": "2026-10-08T18:18:40.059Z",
+  "fixture": "file:///C:/Hackerton/27_MassCOM-reward-album/tests/fixtures/reward-album-rnw",
+  "baseUrl": "http://127.0.0.1:53077",
+  "screenshots": [
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\album-320-narrow.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\album-390-after-mount.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\album-390-dark.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\album-390-font-200.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\album-390-reduced-motion.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\album-390-settled.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\album-390-skip-holds.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\gacha-registration.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\gacha-result-summary.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\gacha-reward-1-mileage.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\gacha-reward-2-clothing.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\gacha-reward-3-character.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\grade-registration.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\grade-result.png",
+    "C:\\Hackerton\\27_MassCOM-reward-album\\docs\\evidence\\reward-album-2026-10-09\\screens\\grade-skip-holds.png"
+  ],
+  "videos": [],
+  "assertions": [
+    {
+      "name": "album settled frame has visible registration slots",
+      "passed": true,
+      "visibleSlots": 3
+    },
+    {
+      "name": "album skip keeps registration screen visible",
+      "passed": true
+    },
+    {
+      "name": "320 narrow album cards do not overlap or overflow",
+      "passed": true,
+      "cardCount": 3,
+      "textOverflows": [],
+      "overlaps": [],
+      "horizontalOverflow": 0
+    },
+    {
+      "name": "200 percent font page remains scrollable",
+      "passed": true,
+      "scrollHeight": 1621
+    },
+    {
+      "name": "200 percent font album cards do not overlap or overflow",
+      "passed": true,
+      "cardCount": 3,
+      "textOverflows": [],
+      "overlaps": [],
+      "horizontalOverflow": 0
+    },
+    {
+      "name": "grade registration animates from hidden/small to settled",
+      "passed": true,
+      "sampleCount": 116,
+      "cardSampleCount": 113,
+      "distinctScaleCount": 23,
+      "distinctOpacityCount": 11,
+      "minScale": 0.64,
+      "maxScale": 1.12,
+      "minOpacity": 0,
+      "maxOpacity": 1,
+      "finalOpacity": 1,
+      "finalScale": 1.00894
+    },
+    {
+      "name": "grade registration settled frame has visible slot",
+      "passed": true,
+      "visibleSlots": 1
+    },
+    {
+      "name": "grade skip keeps registration screen visible",
+      "passed": true
+    },
+    {
+      "name": "gacha registration settled frame has visible slots",
+      "passed": true,
+      "visibleSlots": 2
+    }
+  ],
+  "consoleErrors": [],
+  "aliases": [
+    {
+      "module": "@react-native-async-storage/async-storage",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\async-storage.ts"
+    },
+    {
+      "module": "expo-application",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-application.ts"
+    },
+    {
+      "module": "expo-audio",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-audio.ts"
+    },
+    {
+      "module": "expo-constants",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-constants.ts"
+    },
+    {
+      "module": "expo-haptics",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-haptics.ts"
+    },
+    {
+      "module": "expo-router",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-router.ts"
+    },
+    {
+      "module": "expo-sharing",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\expo-sharing.ts"
+    },
+    {
+      "module": "html2canvas",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\html2canvas.ts"
+    },
+    {
+      "module": "react",
+      "target": "C:\\Hackerton\\27_MassCOM-latest\\apps\\mobile\\node_modules\\react\\index.js"
+    },
+    {
+      "module": "react-dom",
+      "target": "C:\\Hackerton\\27_MassCOM-latest\\apps\\mobile\\node_modules\\react-dom\\index.js"
+    },
+    {
+      "module": "react-dom/client",
+      "target": "C:\\Hackerton\\27_MassCOM-latest\\apps\\mobile\\node_modules\\react-dom\\client.js"
+    },
+    {
+      "module": "react-native",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\react-native.ts"
+    },
+    {
+      "module": "react-native-reanimated",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\apps\\mobile\\node_modules\\react-native-reanimated\\src\\index.ts"
+    },
+    {
+      "module": "react-native-safe-area-context",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\safe-area-context.tsx"
+    },
+    {
+      "module": "react-native-svg",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\apps\\mobile\\node_modules\\react-native-svg\\src\\index.ts"
+    },
+    {
+      "module": "react-native-view-shot",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\tests\\fixtures\\reward-album-rnw\\src\\mocks\\react-native-view-shot.ts"
+    },
+    {
+      "module": "react-native-web",
+      "target": "C:\\Hackerton\\27_MassCOM-latest\\apps\\mobile\\node_modules\\react-native-web\\dist\\cjs\\index.js"
+    },
+    {
+      "module": "react-native-worklets",
+      "target": "C:\\Hackerton\\27_MassCOM-reward-album\\apps\\mobile\\node_modules\\react-native-worklets\\src\\index.ts"
+    },
+    {
+      "module": "react/jsx-runtime",
+      "target": "C:\\Hackerton\\27_MassCOM-latest\\apps\\mobile\\node_modules\\react\\jsx-runtime.js"
+    }
+  ],
+  "mockedBoundaries": [
+    "@react-native-async-storage/async-storage",
+    "expo-application",
+    "expo-audio",
+    "expo-constants",
+    "expo-haptics",
+    "expo-router",
+    "expo-sharing",
+    "html2canvas",
+    "react-native",
+    "react-native-safe-area-context",
+    "react-native-view-shot"
+  ],
+  "limits": [
+    "Playwright video recording was skipped because the local sandbox lacks the ffmpeg sidecar; screenshot sequences cover the same flows.",
+    "This run uses the real Reanimated, Worklets, and react-native-svg web-capable source paths with the local Reanimated Babel plugin.",
+    "Large text uses a fixture React Native adapter that overrides only useWindowDimensions().fontScale from the query string, plus doubled web text styles for screenshot readability; Android OS font-scale behavior remains native QA."
+  ],
+  "passed": true
+}

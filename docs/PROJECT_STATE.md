@@ -2,7 +2,7 @@
 
 ## 2026-10-09 PR #440 리뷰 지적9건 수정 (미커밋·미배포)
 
-현재 자동 시험 합계(2026-10-09 KST, PR #440 리뷰 수정, `feat/friend-actions-guestbook` HEAD `2a541d73` 위 작업 파일): API 단위 681/681 · 모바일 2197/2197. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, PR #440 브랜치 `feat/friend-actions-guestbook`에 PR #444 반영 main `9282477d`를 합친 기준): API 단위 681/681 · 모바일 2245/2245. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 현재 worktree `.worktrees/pr440`, 브랜치 `feat/friend-actions-guestbook`, HEAD `2a541d73` 위 파일 수정이다. body 없는 DELETE, 새 앱 `X-MassCOM-Room-Visibility: v2`와 구 앱 PUBLIC 표시 호환·무작위 후보 제외, 방명록 작성자 본인 방 공개 동의와 신규 친구 하루20회, 비친구 전체 공개 방 공통 가게 비공개, 글 작성자·방당 하루10건, 삭제·신고 잠금 순서, 확장 CHECK NOT VALID·신고 FK 인덱스, 본문 제거·키 비교값 중복 방지·cursor 오류를 고쳤다. 친구 그림 버튼·날짜 선택기·첫 글5P·별도25P를 보존한다.
 
@@ -18,6 +18,22 @@
 
 **이하 이전 작업 이력 — 각 ‘현재’·합계·브랜치 상태는 당시 기준이며 Issue #436의 최신 판정을 뜻하지 않는다.**
 
+## 2026-10-09 PR #439 통합 중 (미커밋·미배포)
+
+현재 `.worktrees/i439`의 `integ/pr439`에서 main `b37063c0` 위 PR #439(`e7395c96`)를 합치는 중이다. 홈·도감의 다음 행동, 가게 코인 보기와 점주 최근 결과 이동을 T9 은퇴 점포 숨김·BGM·#435 도감 등록 후속·공공자료 고지와 함께 보존한다. 같은 가게 쿠폰 사용 직후 점주 바로가기는 결과를 다시 읽도록 수정하고, 홈 다음 행동의 T9 은퇴 점포 코인권은 기존 공통 필터로 제외한다. Git index는 의도대로 미병합 상태이며 배포·기기 수용은 수행하지 않았다. 현재 합계의 API 값은 앞선 main 측정, 모바일 값은 이번 통합 실측이며 각각의 실행 경계는 TEST_STATUS에 적는다. 아래 수치는 과거 브랜치 이력이다.
+
+## 2026-10-09 선택 작업 후속 상태 (Issue #438, 이전 브랜치 기록)
+
+`feat/collection-next-actions`는 열린 PR #435를 기준으로 한 후속 브랜치다. U1/U2/U3/O1 구현과 U5 최소 가게 식별 보완, X2 정책 분석을 수행했다. P4 표시는 잔여 수량·기준 미확정으로 보류한다. 기존 데이터/확률/쿠폰 정책은 변경하지 않았다. [작업별 상태와 증거](SELECTED_ACTIONS_QA_2026-10-09.md). 아래 과거 미커밋·미병합 기록은 당시 상태이며 현재 판단은 원격 PR과 이 절의 검증을 따른다.
+
+
+## 2026-10-09 PR #435 도감 등록 리뷰 후속 (파일 수정만·미커밋)
+
+현재 작업은 `.worktrees/album`, 브랜치 `fix/album-registration-followups`, 통합 HEAD `5e4e648e` 위 미커밋 수정이다. 옷 등록 판정에서 지급 뒤 snapshot을 제거하고 서버 중복 플래그를 사용하며 등록 단계의 개봉 건너뛰기를 제외했다. 코인 등록 모달은 움직임 감소에서 `none`을 사용하고, 등급 결과의 effect 재실행은 확인 완료 전 등록 단계를 보존한다. 모바일 전체 2203/2203·대상60/60·typecheck·lint·접근성·CI 연결103개 파일 PASS, npm 진입점은 sandbox IPC BLOCKED다. API674/674는 기존 통합 측정값이다. 각 variant 실제 설치본·빌드·배포는 NOT_RUN이며 아래 다른 브랜치 상태는 이전 이력이다([TEST_STATUS](TEST_STATUS.md)). Git add·commit·stash·merge·rebase·push는 수행하지 않았다.
+
+## 2026-10-09 획득 결과 후 도감 등록 확인 (Issue #432, 미배포)
+
+`feat/reward-album-confirmation`은 main `8aa8b724`에서 등급 뽑기·이전 상자 보상·가게 코인권·코인 재뽑기의 마지막 확인을 연결한다. 기존 전체 보상 요약 뒤 새 수집품만 도감 칸에서 커지며 등록되고, 중복과 복구 결과는 보유 확인으로 남는다. 사용자가 결과를 확인한 뒤 실제 코인 도감 칸이나 기존 장착·전시 행동으로 이어진다. 보상 API·확률·지급 수량은 그대로이며 공통 고객 코드에 적용한다. [수용 기준과 검증 경계](REWARD_ALBUM_QA_2026-10-09.md), [이번 시험 결과](TEST_STATUS.md)를 따른다. 아래 API/모바일 합계는 PR #429 당시 기록이며 이번 작업이 API 전체 시험을 재실행했다는 뜻은 아니다.
 
 ## 2026-10-09 배경음 수정 브랜치에 T9 반영 main 병합 문서 충돌 해결 (파일 수정만·미배포)
 

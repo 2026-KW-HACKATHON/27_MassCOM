@@ -7,6 +7,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 const celebration = read('../../gamification/celebration.tsx');
 const shop = read('./index.tsx');
 const machine = read('./gacha-machine.tsx');
+const rules = read('./gacha-rules.ts');
 
 test('#342 축하 화면은 이번 보상을 릴로 보여주고 뽑기 보조 링크를 제공한다', () => {
   assert.match(celebration, /rewardReel\(/);
@@ -87,6 +88,27 @@ test('보상 화면은 기다려도 유지되고 다음 버튼을 눌러야 다�
   }
   assert.match(machine, /timers\.push\(setTimeout\(\(\) => startRewardReveal\('reward-mileage'\), elapsed\)\)/, '개봉 연출 뒤 첫 보상은 여전히 보여야 한다');
   assert.match(machine, /if \(!succeeded\)[\s\S]*?purchase-failed/, '구매 실패는 보상 화면으로 이동하지 않아야 한다');
+});
+
+test('최종 보상 요약 뒤 도감 등록 확인으로 넘어가고 마일리지는 등록 항목에 넣지 않는다', () => {
+  assert.match(machine, /import \{ RegistrationAlbum, type RegistrationItem \} from '@\/acquisition\/registration-album';/);
+  assert.match(machine, /displayPhase === 'album-registration'[\s\S]*?<RegistrationAlbum/);
+  assert.match(machine, /<Control label=\{alreadyRegistered \? '등록 결과 다시 보기' : '도감 등록 확인'\} primary[\s\S]*?advancePhase\('album-registration'\)/);
+  const registration = machine.slice(machine.indexOf('function legacyRegistrationItems'), machine.indexOf('function registrationStatus'));
+  assert.match(registration, /result\.rewards\.clothing\.item/);
+  assert.match(registration, /kindLabel: '캐릭터'/);
+  assert.doesNotMatch(registration, /mileage|마일리지/, '마일리지는 도감 수집품 등록 항목이 아니다');
+  assert.match(machine, /function registrationStatus\(replayed: boolean, alreadyOwned: boolean\): RegistrationItem\['status'\][\s\S]*?if \(replayed\) return 'owned';[\s\S]*?alreadyOwned \? 'duplicate' : 'new'/);
+  assert.match(machine, /alreadyRegistered \? '등록 결과 다시 보기' : '도감 등록 확인'/);
+  assert.match(machine, /setRegisteredReceiptId\(currentReceiptId\); advancePhase\('result'\)/);
+  assert.match(machine, /!result\.replayed && !alreadyRegistered \? <ConfettiBurst/);
+});
+
+test('도감 등록 확인 단계는 unrelated rerender나 motion toggle에서 결과로 돌아가지 않는다', () => {
+  assert.match(rules, /type GachaPhase[\s\S]*?'album-registration'/);
+  assert.match(rules, /if \(phase === 'album-registration'\) return 'album-registration';/);
+  const consumedBranch = machine.slice(machine.indexOf('if (consumedResult.current === result)'), machine.indexOf('const durations = gachaTimeline'));
+  assert.doesNotMatch(consumedBranch, /album-registration[\s\S]*advancePhase\('result'\)|album-registration[\s\S]*startRewardReveal/, '이미 등록 화면에 들어간 결과를 타이머로 되감지 않는다');
 });
 
 test('미공개 캐릭터 이름은 캐릭터 단계 전 접근성 라벨에 포함되지 않는다', () => {

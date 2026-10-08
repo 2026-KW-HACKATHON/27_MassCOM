@@ -1,0 +1,35 @@
+{
+  "score": 92,
+  "findings": [
+    "New items appear and stamp into persistent collection slots; duplicate/owned slots remain distinct.",
+    "320px and 200% font simulation cards have no text or card overlap and no horizontal overflow.",
+    "Actual app grade/legacy reward components retain result summary and registration follow-on actions."
+  ],
+  "evidence": {
+    "animationSamples": 116,
+    "finalOpacity": 1,
+    "consoleErrors": 0,
+    "browserAssertions": 9,
+    "minScale": 0.64,
+    "minOpacity": 0,
+    "maxScale": 1.12
+  },
+  "checks": {
+    "fontScale_2_simulation": "pass",
+    "dark": "pass",
+    "actual_device": "NOT_RUN",
+    "narrow_320": "pass",
+    "skip_holds_result": "pass",
+    "new_and_owned": "pass",
+    "actual_reanimated_web": "pass",
+    "grade_and_gacha_artwork": "pass",
+    "reduced_motion": "pass"
+  },
+  "scope": "reward-album",
+  "iteration": 4,
+  "status": "pass",
+  "limitations": [
+    "Synthetic reward/API boundaries; no native Android device connected.",
+    "No phone haptic, sound, TalkBack, sensor, or physical timing verification."
+  ]
+}

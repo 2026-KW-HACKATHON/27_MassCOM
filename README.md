@@ -5,6 +5,8 @@
 
 <h1 align="center">월계 마스코트 · MassCOM</h1>
 
+[홈·도감·가게 코인·점주 동선 후속 결과](docs/SELECTED_ACTIONS_QA_2026-10-09.md) · [P4/X2 미확정 정책과 보류 근거](docs/SELECTED_POLICY_REVIEW_2026-10-09.md) (Issue #438, 미배포)
+
 <p align="center">동네 가게를 발견하고, 방문을 기록하고, 마스코트를 모으는 Android 서비스.<br>외부 지갑 NFT는 선택 기능이며 앱 수집품과 실제 발행 상태를 구분합니다.</p>
 
 <p align="center">
@@ -72,6 +74,10 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 ## 증거 링크
 
+- 획득 경험: [보상 전체 결과 → 도감 등록 확인 → 도감·전시](docs/REWARD_ALBUM_QA_2026-10-09.md). 신규 수집품의 등장·도장과 기존 보유 결과를 구분하는 공통 고객 코드 변경이며, 공개 설치본 반영·실제 휴대전화 검증은 별도입니다.
+- [제품 경험·지역 가치·사업화 기반 보고서 — 공유 풀 수정본](docs/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.md) ([Word 원본](docs/source/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.docx))
+- [완성 과제와 수정·개선 제안](docs/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.md) ([Word 원본](docs/source/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.docx))
+
 - 시험·상태: [TEST_STATUS](docs/TEST_STATUS.md) · [PROJECT_STATE](docs/PROJECT_STATE.md) · [HANDOFF](docs/HANDOFF.md) · [평가 대응표](docs/EVALUATION_MAP.md)
 - 시연: [5분 시연·질의 대비](docs/DEMO_RUNBOOK.md) · [대체 시연 영상(웹 체험 4분 8초, 390×844, 이전 `/play/` 번들)](docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm) · [공개 체험 재측정](docs/evidence/submission-2026-10-08-recheck/README.md)
 - 배포: 운영 API·웹은 main `687427c2`, 시연 API는 `2d483ed`, `/play/` 번들은 소스 `5ca98955`입니다(migration 68건). `687427c2` 재배포의 별도 증거 JSON은 아직 없습니다. 원장을 올린 [`09dfceb0` 운영 배포](docs/evidence/production-deployment-09dfceb-2026-10-08.json)와 [시연 배포](docs/evidence/showcase-deployment-2d483ed-2026-10-08.json)를 함께 봅니다.
@@ -104,7 +110,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-09 KST, PR #440 리뷰 수정, `feat/friend-actions-guestbook` HEAD `2a541d73` 위 작업 파일): API 단위 681/681 · 모바일 2197/2197. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, PR #440 브랜치 `feat/friend-actions-guestbook`에 PR #444 반영 main `9282477d`를 합친 기준): API 단위 681/681 · 모바일 2245/2245. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 앱 시작 배경음 수정은 로컬 구현·검증됐다. 네이티브는 첫 렌더 뒤, 웹은 첫 입력과 자산 준비 뒤 일반 배경음을 재생하며 뽑기 화면의 intro→loop는 유지한다. 실제 브라우저·각 Android 앱 청음과 배포는 별도다([D-103](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 
@@ -530,3 +536,4 @@ npm run test:postgres --prefix apps/api
 
 [current-test-status]: docs/TEST_STATUS.md
 [current-handoff-history]: docs/HANDOFF_HISTORY.md
+

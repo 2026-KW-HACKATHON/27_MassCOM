@@ -31,6 +31,7 @@ test('건너뛰기는 진행 중인 구매를 기다리고 요청이 없는 pend
   assert.equal(gachaPhaseAfter('pending', { type: 'skip', busy: false }), 'detail');
   assert.equal(gachaPhaseAfter('shake', { type: 'skip', busy: false }), 'reward-mileage');
   assert.equal(gachaPhaseAfter('result', { type: 'purchase-failed' }), 'result');
+  assert.equal(gachaPhaseAfter('album-registration', { type: 'skip', busy: false }), 'album-registration');
 });
 
 test('gacha affordability uses server prices and prioritizes completed grades', () => {
