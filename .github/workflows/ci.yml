@@ -145,6 +145,8 @@ jobs:
         run: bash tests/release/verify_release_keychain_test.sh
       - name: 빌드에 들어간 API 주소 검사
         run: bash tests/release/check_embedded_api_test.sh
+      - name: 빌드에 들어간 지도 키 검사
+        run: node --test tests/release/check_embedded_maps_test.mjs
       - name: 시연 APK 전용 빌드 경계 검사
         run: |
           bash tests/release/verify_showcase_apk_test.sh
