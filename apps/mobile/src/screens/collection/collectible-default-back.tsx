@@ -1,10 +1,9 @@
 import { useId } from 'react';
-import { Image, Text, View, useColorScheme } from 'react-native';
-import Svg, { Circle, Defs, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
+import { Image, Platform, View, useColorScheme, type ViewStyle } from 'react-native';
+import Svg, { Circle, ClipPath, Defs, G, Image as SvgImage, LinearGradient, Polygon, Rect, Stop } from 'react-native-svg';
 
 import { medalColorsForScheme, type TierColors } from '@/theme/medal-colors';
 import { colorsForScheme } from '@/theme/palette';
-import { mascotArt } from '@/ui/mascot-art';
 import { gradeMaterialFor, gradeMaterialPresets, type GradeMaterial } from './grade-material';
 
 /** 옆면 팔레트와 얼굴 재질은 같은 등급 판별을 공유한다. */
@@ -58,27 +57,71 @@ export function CollectibleFaceShape({ shape, size, fill, ring, material }: { sh
   </Svg>;
 }
 
+export type FixedBackShape = 'circle' | 'stamp' | 'serrated';
+export type FixedBackGrade = 'bronze' | 'silver' | 'gold' | 'prism';
+
+export const fixedBackShapes: readonly FixedBackShape[] = ['circle', 'stamp', 'serrated'];
+export const fixedBackGrades: readonly FixedBackGrade[] = ['bronze', 'silver', 'gold', 'prism'];
+
+export function fixedBackShape(shape: string): FixedBackShape {
+  return shape === 'stamp' ? 'stamp' : (shape === 'serrated' || shape === 'gear') ? 'serrated' : 'circle';
+}
+
+export function fixedBackGrade(gradeId: string, _gradeName: string): FixedBackGrade {
+  const id = String(gradeId).toLowerCase();
+  return fixedBackGrades.includes(id as FixedBackGrade) ? id as FixedBackGrade : 'bronze';
+}
+
+const fixedBackImages: Record<FixedBackShape, Record<FixedBackGrade, number>> = {
+  circle: {
+    bronze: require('../../../assets/images/collectibles/backs/v1/circle-bronze.png'),
+    silver: require('../../../assets/images/collectibles/backs/v1/circle-silver.png'),
+    gold: require('../../../assets/images/collectibles/backs/v1/circle-gold.png'),
+    prism: require('../../../assets/images/collectibles/backs/v1/circle-prism.png'),
+  },
+  stamp: {
+    bronze: require('../../../assets/images/collectibles/backs/v1/stamp-bronze.png'),
+    silver: require('../../../assets/images/collectibles/backs/v1/stamp-silver.png'),
+    gold: require('../../../assets/images/collectibles/backs/v1/stamp-gold.png'),
+    prism: require('../../../assets/images/collectibles/backs/v1/stamp-prism.png'),
+  },
+  serrated: {
+    bronze: require('../../../assets/images/collectibles/backs/v1/serrated-bronze.png'),
+    silver: require('../../../assets/images/collectibles/backs/v1/serrated-silver.png'),
+    gold: require('../../../assets/images/collectibles/backs/v1/serrated-gold.png'),
+    prism: require('../../../assets/images/collectibles/backs/v1/serrated-prism.png'),
+  },
+};
+
+export function collectibleFixedBackSource(shape: string, gradeId: string, gradeName: string): number {
+  const fixedShape = fixedBackShape(shape);
+  const fixedGrade = fixedBackGrade(gradeId, gradeName);
+  return fixedBackImages[fixedShape][fixedGrade];
+}
+
 type Props = { shape: string; size: number; merchantName: string; name: string; gradeId: string; gradeName: string };
 
+function FixedBackImage({ shape, source, size }: { shape: string; source: number; size: number }) {
+  const fixedShape = fixedBackShape(shape);
+  const clipId = `fixed-back-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  if (Platform.OS === 'web') {
+    return <View pointerEvents="none" style={{ position: 'absolute', width: size, height: size, overflow: 'hidden', ...({ clipPath: collectibleWebClipPath(fixedShape) } as ViewStyle) }}>
+      <Image source={source} resizeMode="cover" accessible={false} style={{ width: size, height: size }} />
+    </View>;
+  }
+  return <Svg pointerEvents="none" width={size} height={size} style={{ position: 'absolute' }}>
+    <Defs><ClipPath id={clipId}><G scale={size / 100}><CollectibleFaceOutline shape={fixedShape} fill="white" /></G></ClipPath></Defs>
+    <SvgImage href={source} width={size} height={size} preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clipId})`} />
+  </Svg>;
+}
+
 /** 게시된 뒷면 그림이 없어도 로컬 자산만으로 완성된 수집품 뒷면을 보여준다. */
-export function CollectibleDefaultBack({ shape, size, merchantName, name, gradeId, gradeName }: Props) {
+export function CollectibleDefaultBack({ shape, size, gradeId, gradeName }: Props) {
   const colors = collectibleGradeColors(gradeId, gradeName, useColorScheme());
   const material = gradeMaterialFor(gradeId, gradeName);
-  const koreanGrade = /[가-힣]/.test(gradeName) ? gradeName
-    : /prism/i.test(`${gradeId} ${gradeName}`) ? '프리즘'
-      : /special/i.test(`${gradeId} ${gradeName}`) ? '특별'
-        : /gold/i.test(`${gradeId} ${gradeName}`) ? '골드'
-          : /silver/i.test(`${gradeId} ${gradeName}`) ? '실버' : '브론즈';
+  const source = collectibleFixedBackSource(shape, gradeId, gradeName);
   return <View accessible={false} style={{ width: size, height: size }}>
     <CollectibleFaceShape shape={shape} size={size} fill={colors.container} ring={colors.edge} material={material} />
-    {/* 무지개·금속 위 문자는 불투명한 등급 컨테이너에 두어 밝은/어두운 테마 대비를 지킨다. */}
-    <View style={{ position: 'absolute', top: size * .22, left: size * .23, width: size * .54, alignItems: 'center', gap: size * .015,
-      paddingVertical: size * .015, borderRadius: size * .04, backgroundColor: colors.container }}>
-      <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.onContainer, fontSize: size * .06, fontWeight: '700', textAlign: 'center' }}>{merchantName}</Text>
-      <Text numberOfLines={2} adjustsFontSizeToFit style={{ color: colors.onContainer, fontSize: size * .05, fontWeight: '700', textAlign: 'center' }}>{name}</Text>
-      <Text numberOfLines={1} style={{ color: colors.onContainer, fontSize: size * .04 }}>{koreanGrade}</Text>
-      <Image source={mascotArt.stamp} resizeMode="contain" accessible={false} style={{ width: size * .23, height: size * .23 }} />
-      <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.onContainer, fontSize: size * .028 }}>MassCOM 월계 수집</Text>
-    </View>
+    <FixedBackImage shape={shape} source={source} size={size} />
   </View>;
 }

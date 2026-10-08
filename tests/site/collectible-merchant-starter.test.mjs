@@ -45,14 +45,14 @@ test('대상 캠페인이 여러 개면 선택을 남기고, 명시된 캠페인
 test('등록 메뉴 시작점은 가게와 메뉴를 표시하고 방문 단계마다 다른 연출을 제안한다', async () => {
   const project = createMerchantStarterProject({ merchantName: '월계 식당', menuName: '국수', suggested: true, campaigns: [fakeCampaigns()[0]] });
   assert.equal(project.name, '국수 방문 수집품');
-  assert.deepEqual(project.back.stickers.map(item => item.text), ['월계 식당', '국수']);
+  assert.equal(project.back.mode, 'default');
+  assert.deepEqual(project.back.stickers, []);
   assert.deepEqual(project.effects.map(item => [item.gradeIds[0], item.type, item.target]), [
     ['bronze', 'matte', 'surface'], ['silver', 'pearl', 'surface'], ['gold', 'metallic', 'border'],
   ]);
   assert.deepEqual(project.motion.map(item => [item.gradeIds[0], item.type]), [
     ['bronze', 'stamp'], ['silver', 'float'], ['gold', 'shine'],
   ]);
-  assert.equal(project.back.mode, 'custom');
   assert.deepEqual(project.stickers.slice(0, 3).map(item => [item.text,
     item.layouts.bronze.size, item.layouts.silver.size, item.layouts.gold.size]), [
     ['⌂', 110, 20, 20], ['◯', 8, 110, 24], ['✦', 8, 8, 120],

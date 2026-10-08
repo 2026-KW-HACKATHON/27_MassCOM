@@ -1,5 +1,20 @@
 # 테스트 상태
 
+## 2026-10-08 모양·등급별 고정 음각 뒷면 (PR #418)
+
+웹과 앱에 원형·우표형·톱니형 × 브론즈·실버·골드·프리즘 12종을 연결했다. 이미 발행된 뒷면은 보존하고 새 게시본과 이미지 없는 예전 수집품만 고정 이미지로 렌더링한다. [자산·프롬프트·브라우저 원자료](evidence/fixed-collectible-backs-2026-10-08/README.md).
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 생성과 웹·앱 자산 일치 | PASS | built-in `image_gen.imagegen` 12회, 1254px PNG 12종. 웹·앱 SHA-256 일치, [assets.json](evidence/fixed-collectible-backs-2026-10-08/assets.json). PNG 한 벌 약 40MiB는 앱 배포 검토 사항 |
+| 실제 브라우저 렌더 | PASS | production renderer 12/12, 동일 이미지 재사용·윤곽 밖 투명, 512px WebP 50,096~69,320B로 모두 256KiB 이내. [실제 캡처](evidence/fixed-collectible-backs-2026-10-08/13-fixed-back-rendered.jpg)·[결과](evidence/fixed-collectible-backs-2026-10-08/browser-results.json) |
+| 점주 단계별 제작·게시 | PASS(합성 fixture) | AI 합성 초안에서 1→2→3→4 이동, 180°·프리즘 미리보기, 로컬 캠페인 게시 v2 완료. 운영 점주 권한·실제 AI 과금·공개 배포 증거가 아님 |
+| 사이트 회귀 | PASS | `node --test tests/site/*.test.mjs` 390/390. 중복 HTTP 검사를 자산 바이트·확정 버전 해시 검사로 바꾼 뒤 해당 파일과 뒷면·기존 마스코트·QA fixture 시험을 다시 확인 |
+| 모바일 전체·타입·lint | PASS | Git LF 체크아웃에서 `npm test` 1992/1992, `npm run typecheck`, `npm run lint` PASS. 원본 Windows CRLF 체크아웃의 기존 소스 추출 시험 8건 실패는 LF 체크아웃에서 모두 통과했으며 제품·기존 시험을 바꾸지 않음 |
+| Android 번들 export | PASS | 개발 variant Expo Android export 완료. metadata가 참조하는 자산 SHA-256을 대조해 고정 뒷면 12/12 포함 확인. [android-export.json](evidence/fixed-collectible-backs-2026-10-08/android-export.json). APK·실기기 검증은 아님 |
+| 독립 리뷰 | PASS | fixed-back 매핑·윤곽·hooks·게시 크기·로딩 오류·발행본 보존에 차단 지적 0건 |
+| 운영/API·실기 | NOT_RUN / 기존 경계 유지 | 이번 뒷면 작업은 API·DB schema 변경 없음. 운영 점포 승인·실제 방문/코인·Android 실기·APK 배포 검증은 남음 |
+
 ## 2026-10-08 점주 제작기 웹 두 갈래 진입과 가상 점포 QA (Issue #417)
 
 기준 main `e06c97cdad8d03b4e69b4008a91d39bedbbd874d`에서 브랜치 `feat/merchant-dual-studio`로 작업했다. 점주 웹 제작기 홈에 `AI로 초안 생성 후 스튜디오 하기`와 `미리 준비한 이미지 넣어서 스튜디오 가기`를 추가하고, AI 초안 선택·최근 등록 사진·웹 큰 사진 입력 정규화·최신 점포 사진 정렬·점주 웹 AI art API를 구현했다. 가상 점포 QA는 로컬 PostgreSQL/API 전용이며 운영 DB·공개 앱에는 넣지 않았다.

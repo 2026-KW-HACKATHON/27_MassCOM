@@ -165,7 +165,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   panels[0].append(photoHelp, shapes, photoStage);
   const style = field('style'); style.hidden = true;
   const styles = section('표현 스타일', '원본 색, 음각, 양각을 직접 비교해 보세요.');
-  styles.append(style, choices('style', [['original', '원본'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style'), field('relief'));
+  styles.append(style, choices('style', [['original', '원본'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style'), field('relief'), view('fixed-back'));
   panels[1].append(styles);
   const thickness = field('thickness'), thicknessReset = container.querySelector('[data-action="thickness-reset"]'), thicknessHelp = thicknessReset.nextElementSibling;
   const thicknessCustom = node('p', 'ce-thickness-custom'); thicknessCustom.hidden = true;

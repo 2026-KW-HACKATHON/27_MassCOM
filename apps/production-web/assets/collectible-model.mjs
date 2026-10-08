@@ -103,9 +103,6 @@ export function createMerchantStarterProject({ merchantName = '', menuName = '',
   const project = createProject({ name: `${menu || store} 방문 수집품`, campaignId });
   project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
   if (!suggested) return project;
-  project.back.mode = 'custom';
-  project.back.stickers.push({ id: createId('sticker'), kind: 'text', text: store.slice(0, 40), x: .5, y: .5, size: 42, rotation: 0, color: '#ffffff', order: 0, align: 'center' });
-  if (menu) project.back.stickers.push({ id: createId('sticker'), kind: 'text', text: menu, x: .5, y: .66, size: 28, rotation: 0, color: '#ffffff', order: 1, align: 'center' });
   const motifs = [
     { text: '⌂', color: '#58331f', layouts: { bronze: [.3, .29, 110], silver: [.2, .18, 20], gold: [.2, .18, 20] } },
     { text: '◯', color: '#173c50', layouts: { bronze: [.82, .82, 8], silver: [.72, .7, 110], gold: [.72, .7, 24] } },

@@ -21,6 +21,10 @@ const full = project => ({ id: randomUUID(),merchantId:merchant.id,version:1,sta
 createServer(async (request,response) => {
   try {
     const path = request.url.split('?')[0];
+    if (path === '/fixed-backs/') {
+      response.writeHead(200, {'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
+      response.end(await readFile(new URL('./collectible-fixed-back-qa.html', import.meta.url))); return;
+    }
     if (path.startsWith('/api/') || path === '/merchants') {
       let body;
       if (request.method !== 'GET') { const chunks=[]; for await (const chunk of request) chunks.push(chunk); body=JSON.parse(Buffer.concat(chunks).toString()||'{}'); }
@@ -104,8 +108,8 @@ createServer(async (request,response) => {
     }
     const names=new Map([['/merchant/','merchant.html'],['/app/','index.html'],['/admin/','admin.html']]);
     let file=names.get(path);
-    // mascot/<pose>.png처럼 assets 아래 한 단계 더 들어간 경로(server.mjs의 마스코트 스티커·뒷면 도장 자산)도 허용한다.
-    if(!file){const match=path.match(/^\/(?:(?:app|merchant|admin)\/)?assets\/([a-z0-9-]+\/)?([a-z0-9-]+\.(?:mjs|css|png))$/);if(match)file=`assets/${match[1]??''}${match[2]}`;}
+    // 마스코트와 collectible-backs/v1 고정 자산도 읽는다. 경로 구분자·상위 폴더 이동은 허용하지 않는다.
+    if(!file){const match=path.match(/^\/(?:(?:app|merchant|admin)\/)?assets\/((?:[a-z0-9-]+\/){0,2})([a-z0-9-]+\.(?:mjs|css|png))$/);if(match)file=`assets/${match[1]}${match[2]}`;}
     if(!file){response.writeHead(404).end();return;}
     const bytes=await readFile(new URL(file,root));
     const mime=file.endsWith('.mjs')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':'text/html; charset=utf-8';

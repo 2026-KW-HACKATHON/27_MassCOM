@@ -518,34 +518,37 @@ test('기존 마스코트 스티커의 포즈 select도 추가 폼처럼 포즈 
   assert.equal(poseSelect.value, 'wave', '고른 포즈가 선택돼 있어야 한다');
 });
 
-test('뒷면 모드를 커스텀으로 바꾸면 뒷면 스티커를 추가할 수 있고, 기본 모드에서는 폼이 잠긴다', async () => {
+test('뒷면은 모양·등급별 고정 음각으로 안내하고 앞면 스티커만 편집한다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
-  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, true, '앞면을 꾸밀 때는 뒷면 모드가 보이지 않는다');
-
-  await ui.change('sticker-side', 'back');
-  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, false);
-  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드에서는 뒷면 스티커를 추가할 수 없다');
-
-  await ui.change('back-mode', 'custom');
-  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, false);
-  ui.control('sticker-new').value = '뒷면 글자';
+  for (const control of ['sticker-side', 'back-mode', 'back-color']) assert.equal(ui.control(control), null, control);
+  const note = ui.container.querySelector('[data-view="fixed-back"]');
+  assert.match(note.textContent, /원형 · 브론즈 고정 음각/);
+  assert.equal(note.closest('[data-step-panel]').dataset.stepPanel, '2');
+  await ui.change('shape', 'stamp');
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.match(note.textContent, /우표 · 실버 고정 음각/);
+  await ui.change('grade-name', '축제'); await ui.click('grade-add');
+  assert.match(note.textContent, /우표 · 브론즈 고정 음각/, '특수 등급의 뒷면은 정해진 브론즈를 쓴다');
+  ui.control('sticker-new').value = '앞면 글자';
   await ui.click('sticker-add');
   assert.equal(ui.control('sticker-list').options.length, 1);
-
   await ui.click('draft');
   const saved = created(api);
-  assert.equal(saved.back.mode, 'custom');
-  assert.equal(saved.back.stickers.length, 1);
-  assert.equal(saved.back.stickers[0].text, '뒷면 글자');
-  assert.equal(saved.stickers.length, 0, '뒷면 스티커는 앞면 목록에 섞이지 않는다');
+  assert.equal(saved.stickers[0].text, '앞면 글자');
+  assert.deepEqual(saved.back.stickers, [], '새 프로젝트에는 사용자 뒷면 스티커가 생기지 않는다');
+});
 
-  await ui.change('sticker-side', 'front');
-  await ui.change('back-mode', 'default');
-  // back-mode는 side==='back'일 때만 보이므로, 위 change는 뒷면으로 되돌아가 default를 거쳐야 한다.
-  await ui.change('sticker-side', 'back');
-  assert.equal(ui.control('back-mode').value, 'default');
-  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드로 되돌리면 폼이 다시 잠긴다');
+test('기존 커스텀 뒷면 메타데이터는 앞면 스티커 편집과 저장에서 유지한다', async () => {
+  const api = createFakeApi(), project = seeded('옛 뒷면 보관');
+  project.back = { mode: 'custom', color: '#123456', stickers: [{ id: 'legacy-back', kind: 'text', text: '옛 뒷면', x: .5, y: .5, size: 30, rotation: 0, color: '#ffffff', order: 0, align: 'center' }] };
+  const saved = api.seed(project), ui = await mount(api);
+  await ui.change('project-list', saved.id);
+  assert.equal(ui.control('sticker-list').options.length, 0, '옛 뒷면 스티커를 앞면으로 옮기지 않는다');
+  ui.control('sticker-new').value = '새 앞면'; await ui.click('sticker-add'); await ui.click('draft');
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.deepEqual(put.body.project.back, project.back);
+  assert.equal(put.body.project.stickers[0].text, '새 앞면');
 });
 
 test('마스코트 스티커는 포즈를 고르고, 뒷면 스티커는 효과 대상 목록에 나오지 않는다', async () => {
@@ -1166,9 +1169,11 @@ test('서버와 같은 버전의 기기 보관본이 있으면 다시 열 때 �
   assert.equal(put.body.project.name, '복원할 이름');
 });
 
-test('pre-v2 편집기가 남긴 schemaVersion:1 기기 보관본을 복원한 뒤 뒷면 편집을 더해 저장하면, 저장 본문은 항상 schemaVersion 2이고 뒷면 편집을 담는다(PR #293 P1 회귀)', async () => {
+test('pre-v2 기기 보관본 복원 뒤 앞면을 편집해도 schemaVersion 2와 기존 뒷면 메타데이터를 지킨다(PR #293 P1 회귀)', async () => {
   const api = createFakeApi();
-  const saved = api.seed(seeded('구버전 보관본 복원 시험'));
+  const project = seeded('구버전 보관본 복원 시험');
+  project.back = { mode: 'custom', color: '#123456', stickers: [{ id: 'legacy-back', kind: 'text', text: '기존 뒷면 글자', x: .5, y: .5, size: 30, rotation: 0, color: '#ffffff', order: 0, align: 'center' }] };
+  const saved = api.seed(project);
   assert.equal(saved.project.schemaVersion, 2, '서버 프로젝트는 이미 v2다');
 
   // pre-v2 편집기의 draftEditsOnly가 남겼을 모양: schemaVersion:1이고 back·layouts·greetingOverrides가 아예 없다.
@@ -1181,17 +1186,14 @@ test('pre-v2 편집기가 남긴 schemaVersion:1 기기 보관본을 복원한 �
   assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
   assert.equal(restored.control('name').value, '복원된 이름');
 
-  // 복원 뒤 v2 전용(뒷면) 편집을 더한다.
-  await restored.change('sticker-side', 'back');
-  await restored.change('back-mode', 'custom');
-  restored.control('sticker-new').value = '뒷면 글자';
+  restored.control('sticker-new').value = '앞면 글자';
   await restored.click('sticker-add');
 
   await restored.click('draft');
   const put = api.calls.find(call => call.method === 'PUT');
   assert.equal(put.body.project.schemaVersion, 2, '옛 보관본을 복원해 저장해도 본문은 항상 schemaVersion 2여야 한다');
-  assert.equal(put.body.project.back.mode, 'custom', '복원 뒤 더한 뒷면 편집이 업그레이더에 지워지지 않고 그대로 저장돼야 한다');
-  assert.equal(put.body.project.back.stickers[0]?.text, '뒷면 글자');
+  assert.deepEqual(put.body.project.back, project.back, '옛 보관본 복원은 서버에 보관된 뒷면 메타데이터를 지우지 않는다');
+  assert.equal(put.body.project.stickers[0]?.text, '앞면 글자');
 });
 
 test('복원 응답을 기다리는 동안 새로 입력하면 늦게 온 복원이 그 입력을 덮지 않는다(PR #289 P1)', async () => {

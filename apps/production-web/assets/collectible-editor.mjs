@@ -1,6 +1,7 @@
 import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
+import { fixedCollectibleBack } from './collectible-back-assets.mjs';
 import { attachWaveform } from './collectible-waveform.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
 import { draftStorageKey, draftEditsOnly, applyDraftEdits, findMaterialConflict, findMaterialConflicts, materialConflictQuestion, materialSwapNotice, faceFitCrop, centerFillCrop } from './collectible-assist.mjs';
@@ -47,7 +48,7 @@ async function inspectAudio(dataUrl) {
 // campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
 // 서버가 받는 크기 상한(docs/COLLECTIBLE_CREATOR.md "서버 계약"). 넘으면 보내기 전에 안내해 413을 받지 않게 한다.
 const MiB = 1024 * 1024;
-export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, living: 512 * 1024, body: 8 * MiB - 4096, stickers: 30, backStickers: 10 };
+export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, living: 512 * 1024, body: 8 * MiB - 4096, stickers: 30 };
 // 크기 사다리(설계 문서 "서버 검증·스냅샷·상한·저장"): 프레임 한 변 448→384→320→256px, 화질 .85(앞 두 단계)→
 // .7(나머지)로 angleFrames·living 스프라이트를 다시 구워 publishSizeProblem을 통과할 때까지 시도한다.
 // 그래도 넘으면 가장 작은 단계 결과를 그대로 두고 기존 초과 안내로 넘어간다.
@@ -143,7 +144,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const menuNames = Array.isArray(merchantMenuItems) ? [...new Set(merchantMenuItems.map(item => typeof item?.name === 'string' ? item.name.trim() : '').filter(Boolean))].slice(0, 3) : [];
   let campaignSelectionTouched = false;
   let project = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId });
-  let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate', stickerSide = 'front';
+  let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate';
   // 자르기 캔버스의 붓이 지금 어디에 칠하는지: 'photo'(사진 보정, 기존), 'parallax'(패럴랙스 전경/배경),
   // 'living:<id>'(그 living 항목의 영역). 설계 문서 "패럴랙스" 항목: 사진 브러시 포인터 코드를 그대로 재사용한다.
   let brushTarget = 'photo', selectedLivingId = '';
@@ -200,12 +201,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         <label class="ce-field">사진 원본 색 반영<input data-control="photo-color" type="range" min="0" max="100" value="100"></label>
         <label class="ce-field">음각·양각 깊이<input data-control="relief" type="range" min="0" max="100" value="45"></label>
       </div></details>
-      <details><summary>앞면·뒷면 스티커</summary><div class="ce-detail">
-        <label class="ce-field">꾸밀 면<select data-control="sticker-side"><option value="front">앞면</option><option value="back">뒷면</option></select></label>
-        <div data-view="back-mode-row" hidden>
-          <label class="ce-field">뒷면 모드<select data-control="back-mode"><option value="default">기본 · 가게 이름과 등급을 자동으로 보여요</option><option value="custom">커스텀 · 직접 꾸며요</option></select></label>
-          <label class="ce-field">뒷면 바탕색<input data-control="back-color" type="color"></label>
-        </div>
+      <details><summary>앞면 스티커</summary><div class="ce-detail">
+        <p class="ce-help" data-view="fixed-back"></p>
         <div data-view="sticker-form">
           <div class="ce-row">
             <label class="ce-field">종류<select data-control="sticker-kind"><option value="text">텍스트</option><option value="emoji">이모티콘</option><option value="mascot">마스코트</option></select></label>
@@ -434,19 +431,20 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     host.append(element('p', '방문 조건·쿠폰·NFT 규칙은 현재 캠페인을 따르고, 여기서는 기존 목표에 보이는 사진 수집품만 연결해요.', { className: 'ce-help' }));
   }
-  // 꾸밀 면(앞/뒤)에 맞는 스티커 배열. 뒷면은 layouts가 없고 효과 대상도 될 수 없다(서버·설계 문서, 앞면 전용 유지).
-  function activeStickers() { return stickerSide === 'back' ? project.back.stickers : project.stickers; }
+  // 스티커는 앞면만 편집한다. 옛 back 데이터는 저장·복원 호환을 위해 그대로 둔다.
+  function activeStickers() { return project.stickers; }
   // 선택한 스티커가 "이 등급만 따로 배치" 중이면 x·y·size·rotation은 그 등급의 layouts를, 아니면 스티커 자체를 읽고 쓴다.
   function stickerPositionTarget(sticker) {
-    if (stickerSide === 'front' && sticker.layouts?.[selectedGrade]) return sticker.layouts[selectedGrade];
+    if (sticker.layouts?.[selectedGrade]) return sticker.layouts[selectedGrade];
     return sticker;
   }
   function stickerLabel(sticker) { return sticker.kind === 'mascot' ? `마스코트 · ${mascotPoseNames[sticker.text] || sticker.text}` : sticker.text; }
+  function renderFixedBack() {
+    const asset = fixedCollectibleBack(project.shape, selectedGrade);
+    view('fixed-back').textContent = `뒷면은 ${asset.shapeLabel} · ${asset.gradeLabel} 고정 음각을 사용해요. 모양과 등급을 바꾸면 정해진 뒷면으로 바뀌어요. 특수 등급은 브론즈 뒷면을 사용해요.`;
+  }
   function renderStickers() {
-    control('sticker-side').value = stickerSide;
-    view('back-mode-row').hidden = stickerSide !== 'back';
-    if (stickerSide === 'back') { control('back-mode').value = project.back.mode; control('back-color').value = project.back.color; }
-    view('sticker-form').hidden = stickerSide === 'back' && project.back.mode !== 'custom';
+    renderFixedBack();
     const list = activeStickers();
     const select = control('sticker-list'); select.replaceChildren();
     if (!list.some(sticker => sticker.id === selectedSticker)) selectedSticker = list.at(-1)?.id || '';
@@ -464,10 +462,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (input.dataset.sticker === 'text' && isMascot) continue; // textarea는 마스코트일 때 숨고 값도 건드리지 않는다.
       input.value = ['x', 'y', 'size', 'rotation'].includes(input.dataset.sticker) ? stickerPositionTarget(sticker)[input.dataset.sticker] : sticker[input.dataset.sticker];
     }
-    view('sticker-layout-toggle').hidden = stickerSide !== 'front' || !sticker;
+    view('sticker-layout-toggle').hidden = !sticker;
     const hasLayout = Boolean(sticker?.layouts?.[selectedGrade]);
-    if (sticker && stickerSide === 'front') control('sticker-grade-only').checked = hasLayout;
-    container.querySelector('[data-action="sticker-layout-reset"]').hidden = stickerSide !== 'front' || !hasLayout;
+    if (sticker) control('sticker-grade-only').checked = hasLayout;
+    container.querySelector('[data-action="sticker-layout-reset"]').hidden = !hasLayout;
     const targets = control('effect-target'), previous = targets.value; targets.replaceChildren();
     for (const [id, name] of [['surface', '전체 표면'], ['photo', '사진'], ['border', '테두리'], ...project.stickers.map(item => [item.id, `스티커 · ${stickerLabel(item)}`])]) option(targets, name, id);
     if ([...targets.options].some(item => item.value === previous)) targets.value = previous;
@@ -778,8 +776,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
     if (!project.name.trim()) { navigateStep(4); control('name').closest('details').open = true; notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
-    if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
-    if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
+    if (project.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
+    if (project.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
     if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
     // PR #310 리뷰(P1): region 대상 living 항목은 서버가 점 1~20개를 요구한다(rules.ts parseLivingItem). 칠한
     // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
@@ -1127,10 +1125,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const clamped = clampStickerLines(text); text = clamped.text;
         if (clamped.truncated) notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지웠어요.', true);
       }
-      const list = activeStickers(), cap = stickerSide === 'back' ? mediaLimits.backStickers : mediaLimits.stickers;
+      const list = activeStickers(), cap = mediaLimits.stickers;
       if (list.length >= cap) { notice(`스티커는 ${cap}개까지 만들 수 있어요.`, true); return; }
       mutate(() => {
-        const sticker = { id: createId('sticker'), kind, text, x: .5, y: .7, size: 42, rotation: 0, color: '#ffffff', order: list.length, align: 'center', ...(stickerSide === 'front' ? { layouts: {} } : {}) };
+        const sticker = { id: createId('sticker'), kind, text, x: .5, y: .7, size: 42, rotation: 0, color: '#ffffff', order: list.length, align: 'center', layouts: {} };
         list.push(sticker); selectedSticker = sticker.id;
       });
       control('sticker-new').value = '';
@@ -1141,14 +1139,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
       mutate(() => { delete sticker.layouts[selectedGrade]; }); renderStickers(); return;
     }
-    if (action.startsWith('sticker-') && action !== 'sticker-side') {
+    if (action.startsWith('sticker-')) {
       const list = activeStickers();
       const sticker = list.find(item => item.id === selectedSticker); if (!sticker) return;
       mutate(() => {
         if (action === 'sticker-delete') {
           const filtered = list.filter(item => item.id !== sticker.id);
-          if (stickerSide === 'back') project.back.stickers = filtered;
-          else { project.stickers = filtered; project.effects = project.effects.filter(item => item.target !== sticker.id); project.living.items = project.living.items.filter(item => item.target !== sticker.id); }
+          project.stickers = filtered; project.effects = project.effects.filter(item => item.target !== sticker.id); project.living.items = project.living.items.filter(item => item.target !== sticker.id);
         } else { const ordered = [...list].sort((a, b) => a.order - b.order); const index = ordered.indexOf(sticker), other = ordered[index + (action === 'sticker-front' ? 1 : -1)]; if (other) [other.order, sticker.order] = [sticker.order, other.order]; }
       }); renderStickers(); renderEffects(); renderLivingItems(); renderBrushTargetOptions(); return;
     }
@@ -1276,7 +1273,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       changed(); schedulePreview(); return;
     }
     const field = target.dataset.control;
-    if (field === 'back-color') { project.back.color = target.value; changed(); schedulePreview(); return; }
     if (['zoom', 'crop-x', 'crop-y'].includes(field)) {
       project.crop[field === 'zoom' ? 'zoom' : field.slice(-1)] = Number(target.value); output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`; changed(); drawCrop(); schedulePreview();
     } else if (field === 'angle' || field === 'thickness') {
@@ -1333,12 +1329,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         if (project.story.frames.length + frames.length > 5) throw new Error('이야기 장면은 5장까지 올릴 수 있어요.');
         mutate(() => project.story.frames.push(...frames)); renderStoryFrames(); return;
       }
-      if (field === 'shape' || field === 'style') { mutate(() => { project[field] = target.value; if (field === 'style' && target.value !== 'original') project.photoColor = 0; }); control('photo-color').value = project.photoColor; await drawCrop(); return; }
+      if (field === 'shape' || field === 'style') { mutate(() => { project[field] = target.value; if (field === 'style' && target.value !== 'original') project.photoColor = 0; }); control('photo-color').value = project.photoColor; renderFixedBack(); await drawCrop(); return; }
       if (field === 'angle' || field === 'thickness') { project[field] = Number(target.value); changed(); schedulePreview(); return; }
       if (field === 'sticker-list') { selectedSticker = target.value; renderStickers(); return; }
-      if (field === 'sticker-side') { stickerSide = target.value; selectedSticker = ''; renderStickers(); return; }
       if (field === 'sticker-kind') { syncStickerKindVisibility(); return; }
-      if (field === 'back-mode') { mutate(() => { project.back.mode = target.value; }); renderStickers(); return; }
       if (field === 'brush-target') { brushTarget = target.value; renderBrushTargetOptions(); renderLivingItems(); drawCrop(); return; }
       if (field === 'sticker-grade-only') {
         const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;

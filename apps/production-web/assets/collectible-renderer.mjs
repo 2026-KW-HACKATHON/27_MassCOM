@@ -2,6 +2,7 @@ import {
   shapePoints, cropTransform, effectsForGrade, cloneProject, resolveSticker, stickerLines, stickerLineOffsets, particleAt, ONCE_MS,
   strokeAlpha, parallaxOffset, livingPhaseAt, livingFrameAt, livingSpriteCount, livingSpriteGrid, livingBoundingBox, angleFrameIndex, MASCOT_BLINK,
 } from './collectible-model.mjs';
+import { fixedCollectibleBack, fixedCollectibleBackShape } from './collectible-back-assets.mjs';
 
 // Originals and editing instructions stay separate. Preview buffers are bounded
 // and never become the source for a later edit or a published version.
@@ -21,13 +22,13 @@ const boundedSet = (cache, key, value, max) => {
 const strokeMaskCache = new Map();
 export function clearCollectibleRenderCache() { imageCache.clear(); photoCache.clear(); resizedSourceCache.clear(); currentPhotoSource = ''; photoGeneration++; strokeMaskCache.clear(); }
 
-async function imageFor(source) {
+async function imageFor(source, errorMessage = '사진을 읽지 못했어요. 다른 사진으로 다시 시도해 주세요.') {
   if (!source) return null;
   if (imageCache.has(source)) return imageCache.get(source);
   const pending = new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => { imageCache.delete(source); reject(new Error('사진을 읽지 못했어요. 다른 사진으로 다시 시도해 주세요.')); };
+    image.onerror = () => { imageCache.delete(source); reject(new Error(errorMessage)); };
     image.src = source;
   });
   return boundedSet(imageCache, source, pending, 12);
@@ -376,33 +377,13 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   context.strokeStyle = 'rgba(255,255,255,.55)'; context.lineWidth = size * .006; context.stroke();
   return canvas;
 }
-/**
- * 뒷면. 기본: 바탕색·안쪽 테두리·가게 이름·수집품 이름·등급·마스코트 도장. 커스텀: 뒷면색 + 뒷면 스티커(효과 없음, 앞면 전용 유지).
- */
-export async function backFor(project, gradeId, size, merchantName = '') {
+/** 새 제작물의 뒷면은 확정된 음각 이미지 한 장을 앞면과 같은 모양으로 자른다. 옛 back 편집값은 저장만 유지한다. */
+export async function backFor(project, gradeId, size) {
+  const asset = fixedCollectibleBack(project.shape, gradeId);
+  const texture = await imageFor(asset.path, '정해진 뒷면 이미지를 불러오지 못했어요. 다시 시도해 주세요.');
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
-  traceShape(context, project.shape, size, size); context.clip();
-  const back = project.back || { mode: 'default', color: project.baseColor, stickers: [] };
-  context.fillStyle = back.color || project.baseColor || '#c7974e'; context.fillRect(0, 0, size, size);
-  if (back.mode === 'custom') {
-    for (const sticker of [...(back.stickers || [])].sort((a, b) => a.order - b.order)) {
-      context.drawImage(await stickerLayer(sticker, size, [], 0, 0), 0, 0);
-    }
-  } else {
-    traceShape(context, project.shape, size * .86, size * .86, size * .07, size * .07);
-    context.strokeStyle = 'rgba(255,255,255,.55)'; context.lineWidth = size * .012; context.stroke();
-    const grade = project.grades.find(item => item.id === gradeId);
-    context.textAlign = 'center'; context.fillStyle = '#fff6e6';
-    context.font = `700 ${size * .06}px system-ui, sans-serif`; context.fillText(merchantName || '', size / 2, size * .3, size * .7);
-    context.font = `700 ${size * .05}px system-ui, sans-serif`; context.fillText(project.name || '', size / 2, size * .42, size * .7);
-    context.font = `400 ${size * .04}px system-ui, sans-serif`; context.fillText(grade?.name || '', size / 2, size * .5, size * .7);
-    const mascot = await imageFor('/app/assets/mascot/stamp.png');
-    if (mascot) context.drawImage(mascot, size * .35, size * .56, size * .3, size * .3);
-  }
-  const border = canvasOf(size, size), borderContext = border.getContext('2d');
-  traceShape(borderContext, project.shape, size * .97, size * .97, size * .015, size * .015);
-  borderContext.strokeStyle = back.color || project.baseColor || '#c7974e'; borderContext.lineWidth = size * .055; borderContext.stroke();
-  context.drawImage(border, 0, 0);
+  traceShape(context, asset.shape, size, size); context.clip();
+  context.drawImage(texture, 0, 0, size, size);
   return canvas;
 }
 /** Same grade aliases and metal stops as the mobile material preset. */
@@ -452,11 +433,7 @@ function drawVolume(canvas, front, project, options = {}) {
   context.translate(-depth / 2, 0); context.scale(horizontal, 1);
   if (Math.cos(radians) < 0) {
     traceShape(context, project.shape, size, size, -size / 2, -size / 2);
-    if (options.back) { context.save(); context.clip(); context.drawImage(options.back, -size / 2, -size / 2, size, size); context.restore(); }
-    else {
-      context.fillStyle = project.baseColor || '#c7974e'; context.fill();
-      context.fillStyle = '#39281d'; context.font = `700 ${size * .075}px system-ui`; context.textAlign = 'center'; context.fillText(project.name || '가게 수집품', 0, 0, size * .72);
-    }
+    context.save(); context.clip(); context.drawImage(options.back, -size / 2, -size / 2, size, size); context.restore();
   } else {
     context.drawImage(front, -size / 2, -size / 2, size, size);
     if (motion === 'shine' || motion === 'sparkle') {
@@ -500,7 +477,7 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   // 계속 움직이고, 동작 줄이기일 때만 정지 포즈(phase 0)로 고정한다.
   const livingOverlay = await livingOverlayFor(project, gradeId, size, options.reducedMotion ? 0 : livingPhaseAt(options.livingTime ?? options.time ?? 0, project.living?.periodMs ?? 2400));
   if (livingOverlay) { const composed = canvasOf(size, size), context = composed.getContext('2d'); context.drawImage(front, 0, 0); context.drawImage(livingOverlay, 0, 0); front = composed; }
-  const back = await backFor(project, gradeId, size, options.merchantName || '');
+  const back = await backFor(project, gradeId, size);
   drawVolume(canvas, front, project, { ...options, gradeId, animation, playback, particle, back });
 }
 /** angleFrames 스프라이트의 i번째 칸(4×side 그리드)만 잘라낸 side×side 캔버스. */
@@ -533,6 +510,8 @@ async function livingOverlayCell(living, t) {
   return cell;
 }
 export async function renderPublishedCollectible(canvas, snapshot, options = {}) {
+  // 모바일 구 발행본의 gear 별칭도 동일한 톱니 윤곽으로 읽으며 원본 snapshot은 고치지 않는다.
+  snapshot = { ...snapshot, shape: fixedCollectibleBackShape(snapshot.shape) };
   const angle = (options.angle ?? snapshot.angle ?? 0) + (!options.staticFrame && snapshot.animation === 'rotate' ? (options.time || 0) / 75 : 0);
   let front = snapshot.angleFrames ? await angleFrameFront(snapshot.angleFrames, angle) : null;
   if (!front) front = await imageFor(snapshot.baseDataUrl || snapshot.imageDataUrl || snapshot.thumbnailDataUrl);
@@ -566,8 +545,9 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
       front = composed;
     }
   }
-  // v1 발행본·뒷면 미생성본은 backImageDataUrl이 없어 drawVolume이 오늘의 모습(바탕색+이름)으로 대체한다.
-  const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl) : null;
+  // 이미 받은 발행본의 뒷면은 그대로 쓴다. 뒷면이 없는 옛 발행본만 확정된 공용 이미지로 보완한다.
+  const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl)
+    : await backFor(snapshot, snapshot.gradeId, Math.min(options.textureSize || 640, 1024));
   // 호출자가 특정 동작(예: once 모션 "다시 보기")을 명시하면 그 값을, 아니면 게시된 기본(loop 또는 still) 동작을 쓴다.
   const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
   drawVolume(canvas, front, snapshot, { ...options, gradeId: snapshot.gradeId, animation, back });
@@ -645,14 +625,14 @@ async function livingSpriteFor(project, gradeId, side, quality) {
  * 연결된 등급에 한해 만든다(PR #293 P2: WP2에서 한 번 뺐다가 되살림).
  * angleSide·spriteQuality는 게시 크기 사다리(editor.mjs publishSizeProblem 루프)가 바꿔 가며 다시 부르는 값이다.
  */
-export async function serializeDerived(project, { extraGradeId, merchantName = '', angleSide = 448, spriteQuality = .85 } = {}) {
+export async function serializeDerived(project, { extraGradeId, angleSide = 448, spriteQuality = .85 } = {}) {
   const linked = new Set(Object.values(project.rewardGrades || {}));
   if (extraGradeId) linked.add(extraGradeId);
   const derived = {};
   for (const grade of project.grades.filter(item => item.enabled !== false && linked.has(item.id))) {
     const front = await frontFor(project, grade.id, 512, 0, 0);
     const base = await frontFor(project, grade.id, 512, 0, 0, false);
-    const back = await backFor(project, grade.id, 512, merchantName);
+    const back = await backFor(project, grade.id, 512);
     const thumbnail = canvasOf(160, 160); thumbnail.getContext('2d').drawImage(front, 0, 0, 160, 160);
     const effectMasks = {};
     for (const target of new Set(effectsForGrade(project, grade.id).map(effect => effect.target))) effectMasks[target] = await maskFor(project, grade.id, target, 512);

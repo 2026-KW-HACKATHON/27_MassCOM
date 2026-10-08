@@ -56,21 +56,36 @@ test('상세 화면은 각도별 모서리 이동과 등급별 어두운 색을 
   assert.match(detail, /<CollectibleFaceShape\s+shape=\{snapshot\.shape\}[^>]*fill=\{gradeColors\.shade\}/);
 });
 
-test('기본 뒷면의 마스코트 도장은 앱 자산만 사용한다', () => {
+test('기본 뒷면은 모양·등급별 고정 로컬 이미지만 사용한다', () => {
   const back = readFileSync(new URL('./collectible-default-back.tsx', import.meta.url), 'utf8');
-  assert.match(back, /mascotArt\.stamp/);
+  for (const shape of ['circle', 'stamp', 'serrated']) {
+    for (const grade of ['bronze', 'silver', 'gold', 'prism']) {
+      assert.match(back, new RegExp(`collectibles/backs/v1/${shape}-${grade}\\.png`));
+    }
+  }
+  assert.match(back, /collectibleFixedBackSource\(shape, gradeId, gradeName\)/);
+  assert.doesNotMatch(back, /mascotArt\.stamp/);
+  assert.doesNotMatch(back, /MassCOM 월계 수집/);
+  assert.doesNotMatch(back, /\{merchantName\}/);
+  assert.doesNotMatch(back, /\{name\}/);
   assert.doesNotMatch(back, /\buri\s*:/);
   assert.doesNotMatch(back, /https?:\/\//);
 });
 
-test('기본 뒷면은 공통 등급 판별과 프리즘 무지개·골드 금속 그라데이션을 쓰고 글자를 패널 위에 둔다', () => {
+test('기본 뒷면은 공통 등급 판별과 프리즘 무지개·골드 금속 그라데이션을 쓴다', () => {
   const back = readFileSync(new URL('./collectible-default-back.tsx', import.meta.url), 'utf8');
   assert.match(back, /const material = gradeMaterialFor\(gradeId, gradeName\)/);
   assert.match(back, /gradeMaterialPresets\.prism\.rainbowStops/);
   assert.match(back, /gradeMaterialPresets\.gold\.colors/);
   assert.match(back, /<CollectibleFaceShape[^>]*material=\{material\}/);
-  assert.match(back, /backgroundColor: colors\.container/);
-  assert.match(back, /color: colors\.onContainer/);
+  assert.match(back, /fixedBackShape\(shape\)/);
+  assert.match(back, /fixedBackGrade\(gradeId, gradeName\)/);
+  assert.match(back, /shape === 'stamp' \? 'stamp' : \(shape === 'serrated' \|\| shape === 'gear'\)/);
+  assert.match(back, /return fixedBackGrades\.includes\(id as FixedBackGrade\) \? id as FixedBackGrade : 'bronze'/);
+  assert.doesNotMatch(back.match(/export function fixedBackGrade[\s\S]*?\n}/)?.[0] ?? '', /프리즘|특별|골드|실버|gold|silver|prism/);
+  assert.match(back, /const clipId = `fixed-back-\$\{useId\(\)\.replace/);
+  assert.match(back, /clipPath: collectibleWebClipPath\(fixedShape\)/);
+  assert.match(back, /<CollectibleFaceOutline shape=\{fixedShape\}/);
 });
 
 test('앞면·사용자 뒷면·기본 뒷면은 회전 부모 안에서 같은 조명 입력과 시계를 쓴다', () => {
