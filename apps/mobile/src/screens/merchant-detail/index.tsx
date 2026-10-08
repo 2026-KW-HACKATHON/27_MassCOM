@@ -14,6 +14,7 @@ import { sendDiscoveryDetailView } from '@/merchant/discovery-detail-view';
 import { detailViewSource } from '@/merchant/detail-view-api';
 import { businessLabel, campaignLabel, enrollmentLabel, openingPeriodLabel, photoKindLabel, rewardLabel } from '@/merchant/real-world-labels';
 import { merchantCardFacts, missingFactsNotice } from '@/merchant/merchant-card-facts';
+import { campaignPurposeBlock } from '@/merchant/campaign-purpose';
 import { coinAvailability, conditionSourceLabel, visitConditions } from '@/merchant/visit-conditions';
 import { discoveryState } from '@/merchant/discovery-state';
 import { useAppForeground } from '@/merchant-art/use-merchant-art';
@@ -89,6 +90,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const targets=campaign?[...campaign.goals].sort((a,b)=>a.targetVisitCount-b.targetVisitCount):[];
   const leadVisit=targets[0]?.targetVisitCount;
   const coinNow=coinAvailability(campaign);
+  const purposeBlock=campaign?campaignPurposeBlock(campaign.purpose):undefined;
   const source=detailViewSource(from);
   const saveGoal=async(targetVisitCount:1|3|5)=>{
     if(!studioApi||!campaign||campaign.state!=='ACTIVE'||campaign.rewardAvailability!=='AVAILABLE'||!preview?.publicationId||preview.campaignId!==campaign.id||!preview.goals.some(goal=>goal.visitCount===targetVisitCount))return;
@@ -122,6 +124,7 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
       {photos.some(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url))?<FloatingCard><Text accessibilityRole="header" style={ds.section}>가게 사진 더 보기</Text><View style={{gap:10}}>{photos.filter(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View></FloatingCard>:null}
       <FloatingCard><Text accessibilityRole="header" style={ds.section}>{leadVisit===1?'첫 방문 기념 코인':'방문 기념 코인'}</Text>
         {campaign?<><Text style={ds.body}>{campaign.title} · {campaignLabel(campaign.state)}</Text><Text style={ds.muted}>{new Date(campaign.startsAt).toLocaleDateString('ko-KR')} – {new Date(campaign.endsAt).toLocaleDateString('ko-KR')} · {enrollmentLabel(campaign.enrollment)} · {rewardLabel(campaign.rewardAvailability)}</Text>
+          {purposeBlock?<View style={{gap:2}}><Text style={ds.body}>{purposeBlock.headline}</Text>{purposeBlock.lines.map(line=><Text key={line} style={ds.muted}>{line}</Text>)}</View>:null}
           {coinNow.kind==='ok'?null:<Text style={ds.warn}>⚠ {coinNow.reason}</Text>}
           {targets.map(goal=>{const lead=goal.targetVisitCount===leadVisit;const art=preview?.campaignId===campaign.id?preview.goals.find(item=>item.visitCount===goal.targetVisitCount):undefined;
             return <View key={goal.targetVisitCount} style={lead?ds.coinLead:ds.coinLater}><CoinArt goal={art} size={lead?132:56}/>

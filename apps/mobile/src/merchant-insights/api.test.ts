@@ -94,7 +94,7 @@ test('API-3 fields are optional, validated, and retain zero values in cards', ()
   });
   assert.deepEqual(overviewCards(current).map(({ label, value }) => [label, value]), [
     ['오늘 방문', '3'], ['이번 주 방문', '9'], ['재방문 고객', '4'],
-    ['이번 주 첫 방문', '0'], ['이번 주 재방문', '2'],
+    ['이번 주 처음 확인된 방문', '0'], ['이번 주 다시 확인된 방문', '2'],
     ['이번 주 받은 수집품 · 브론즈', '0'], ['이번 주 받은 수집품 · 골드', '1'],
     ['이번 주 쿠폰 발급', '0'], ['이번 주 쿠폰 사용', '1'], ['이번 주 가게 상세 조회', '0'],
   ]);

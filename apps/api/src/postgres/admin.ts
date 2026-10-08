@@ -9,6 +9,11 @@ import {
   type OwnerDemotionReason,
 } from '../store-go-live-rules.js';
 import { normalizeCategory, normalizeMerchantProfileFields, normalizeNeighborhood } from '../merchant-profile-rules.js';
+import {
+  normalizeCampaignPurpose, purposeSummaryFromSettings, type CampaignPurposeInput,
+} from '../campaign-purpose-rules.js';
+import type { CampaignPurposeSummary } from '../real-world-contract.js';
+import { insertCampaignPurpose, parsePurposeSummary, purposeSummarySql } from './campaign-purpose.js';
 import { AccountLifecycleError, PostgresAccountLifecycle } from './account-lifecycle.js';
 
 export type AdminMerchant = {
@@ -71,13 +76,16 @@ export type AdminCampaignDraftInput = {
   endsAt: string;
   enrollmentCapacity: number;
   rewardGoals: AdminRewardGoal[];
+  // 점주 목적형 캠페인(Issue #412). 없으면 목적 없는 옛 캠페인과 똑같이 만든다.
+  purpose?: CampaignPurposeInput;
 };
 
-export type AdminCampaignDraft = AdminCampaignDraftInput & {
+export type AdminCampaignDraft = Omit<AdminCampaignDraftInput, 'purpose'> & {
   id: string;
   merchantName: string;
   status: 'DRAFT';
   public: false;
+  purpose?: CampaignPurposeSummary;
 };
 
 export type AdminCampaign = {
@@ -92,6 +100,7 @@ export type AdminCampaign = {
   rewardGoals: AdminRewardGoal[];
   status: 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'ENDED';
   public: boolean;
+  purpose?: CampaignPurposeSummary;
 };
 
 // 멤버 행의 granted_at은 STAFF로 처음 승인된 시각이라 점주가 된 시각이 아니다. 오해를 막으려고 내보내지 않는다.
@@ -143,7 +152,7 @@ type MerchantRow = {
 type CampaignRow = {
   id: string; merchant_id: string; merchant_name: string; title: string; starts_at: Date; ends_at: Date;
   enrollment_capacity: number; enrolled_count: number; reward_goals: AdminRewardGoal[];
-  status: AdminCampaign['status']; is_public: boolean;
+  status: AdminCampaign['status']; is_public: boolean; purpose: unknown;
 };
 
 type OfferRow = {
@@ -162,7 +171,9 @@ export class AdminError extends Error {
     'ADMIN_OWNER_LIMIT' | 'ADMIN_CONSENT_INCOMPLETE' | 'ADMIN_OFFER_NOT_FOUND' | 'ADMIN_OFFER_MILESTONE_TAKEN' |
     'ADMIN_CAMPAIGN_NOT_FOUND' | 'ADMIN_CAMPAIGN_NOT_PUBLISHABLE' | 'ADMIN_CAMPAIGN_NOT_PAUSABLE' |
     'ADMIN_CAMPAIGN_ACTIVE_EXISTS' | 'ADMIN_OFFER_TEXT_INVALID' |
-    'ADMIN_CAMPAIGN_NOT_EXTENDABLE' | 'ADMIN_CAMPAIGN_EXTENSION_LIMIT') {
+    'ADMIN_CAMPAIGN_NOT_EXTENDABLE' | 'ADMIN_CAMPAIGN_EXTENSION_LIMIT' |
+    // Issue #412: 목적형 캠페인 입력 거절
+    'ADMIN_PURPOSE_INVALID' | 'ADMIN_PURPOSE_MENU_UNKNOWN') {
     super(code);
     this.name = 'AdminError';
   }
@@ -187,15 +198,17 @@ const campaignSelect = `SELECT campaign.id, campaign.merchant_id, merchant.name 
     campaign.status, campaign.is_public,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('targetVisitCount', goal.target_visit_count,
       'displayName', goal.display_name) ORDER BY goal.target_visit_count)
-      FROM campaign_goals AS goal WHERE goal.campaign_id = campaign.id), '[]'::jsonb) AS reward_goals
+      FROM campaign_goals AS goal WHERE goal.campaign_id = campaign.id), '[]'::jsonb) AS reward_goals,
+    ${purposeSummarySql('campaign.id')} AS purpose
   FROM campaigns AS campaign JOIN merchants AS merchant ON merchant.id = campaign.merchant_id`;
 
 function campaign(row: CampaignRow): AdminCampaign {
+  const purpose = parsePurposeSummary(row.purpose);
   return {
     id: row.id, merchantId: row.merchant_id, merchantName: row.merchant_name, title: row.title,
     startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
     enrollmentCapacity: row.enrollment_capacity, enrolledCount: row.enrolled_count, rewardGoals: row.reward_goals,
-    status: row.status, public: row.is_public,
+    status: row.status, public: row.is_public, ...(purpose ? { purpose } : {}),
   };
 }
 
@@ -275,7 +288,13 @@ function validate(input: MerchantInput): MerchantInput {
     ...(category === undefined ? {} : { category }) };
 }
 
-function validateCampaignDraft(raw: AdminCampaignDraftInput): AdminCampaignDraftInput {
+// 점포 메뉴(menu_items jsonb)의 이름들. 메뉴 정보가 없으면 빈 목록이라 대표 메뉴는 이름 형식만 검사한다.
+function menuNamesOf(menuItems: unknown): string[] {
+  if (!Array.isArray(menuItems)) return [];
+  return menuItems.flatMap(item => typeof item?.name === 'string' && item.name.trim() !== '' ? [item.name as string] : []);
+}
+
+function validateCampaignDraft(raw: AdminCampaignDraftInput): Omit<AdminCampaignDraftInput, 'purpose'> {
   const goals = Array.isArray(raw.rewardGoals) ? [...raw.rewardGoals] : [];
   goals.sort((a, b) => (a?.targetVisitCount ?? 0) - (b?.targetVisitCount ?? 0));
   const validUtc = (value: unknown): value is string =>
@@ -434,24 +453,28 @@ export class PostgresAdminService {
       await this.requireAdmin(client, accountId);
       const result = await client.query<{
         id: string; merchant_id: string; merchant_name: string; title: string;
-        starts_at: Date; ends_at: Date; enrollment_capacity: number; reward_goals: AdminRewardGoal[];
+        starts_at: Date; ends_at: Date; enrollment_capacity: number; reward_goals: AdminRewardGoal[]; purpose: unknown;
       }>(`SELECT campaign.id, campaign.merchant_id, merchant.name AS merchant_name,
           campaign.title, campaign.starts_at, campaign.ends_at, campaign.enrollment_capacity,
           COALESCE(jsonb_agg(jsonb_build_object('targetVisitCount', goal.target_visit_count,
             'displayName', goal.display_name) ORDER BY goal.target_visit_count)
-            FILTER (WHERE goal.campaign_id IS NOT NULL), '[]'::jsonb) AS reward_goals
+            FILTER (WHERE goal.campaign_id IS NOT NULL), '[]'::jsonb) AS reward_goals,
+          ${purposeSummarySql('campaign.id')} AS purpose
         FROM campaigns AS campaign
         JOIN merchants AS merchant ON merchant.id = campaign.merchant_id
         LEFT JOIN campaign_goals AS goal ON goal.campaign_id = campaign.id
         WHERE campaign.status = 'DRAFT' AND NOT campaign.is_public AND NOT merchant.is_demo
         GROUP BY campaign.id, merchant.id
         ORDER BY campaign.created_at DESC, campaign.id LIMIT 100`);
-      return result.rows.map(row => ({
-        id: row.id, merchantId: row.merchant_id, merchantName: row.merchant_name,
-        title: row.title, startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
-        enrollmentCapacity: row.enrollment_capacity, rewardGoals: row.reward_goals,
-        status: 'DRAFT', public: false,
-      }));
+      return result.rows.map(row => {
+        const purpose = parsePurposeSummary(row.purpose);
+        return {
+          id: row.id, merchantId: row.merchant_id, merchantName: row.merchant_name,
+          title: row.title, startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
+          enrollmentCapacity: row.enrollment_capacity, rewardGoals: row.reward_goals,
+          status: 'DRAFT' as const, public: false as const, ...(purpose ? { purpose } : {}),
+        };
+      });
     });
   }
 
@@ -459,10 +482,18 @@ export class PostgresAdminService {
     const input = validateCampaignDraft(raw);
     return this.transaction(async client => {
       await this.requireAdmin(client, accountId);
-      const merchantRow = await client.query<{ name: string }>(
-        `SELECT name FROM merchants WHERE id = $1 AND NOT is_demo FOR UPDATE`, [input.merchantId],
+      const merchantRow = await client.query<{ name: string; menu_items: unknown }>(
+        `SELECT name, menu_items FROM merchants WHERE id = $1 AND NOT is_demo FOR UPDATE`, [input.merchantId],
       );
       if (!merchantRow.rows[0]) throw new AdminError('ADMIN_MERCHANT_NOT_FOUND');
+      // 목적은 캠페인·목표와 한 트랜잭션에서 만든다. 대표 메뉴는 이 점포 메뉴(있을 때)와 맞아야 한다.
+      let purpose: ReturnType<typeof normalizeCampaignPurpose> | undefined;
+      if (raw.purpose !== undefined) {
+        purpose = normalizeCampaignPurpose(raw.purpose, menuNamesOf(merchantRow.rows[0].menu_items));
+        if (!purpose.ok) {
+          throw new AdminError(purpose.problem === 'MENU_UNKNOWN' ? 'ADMIN_PURPOSE_MENU_UNKNOWN' : 'ADMIN_PURPOSE_INVALID');
+        }
+      }
       const id = randomUUID();
       await client.query(
         `INSERT INTO campaigns(id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
@@ -474,13 +505,19 @@ export class PostgresAdminService {
          VALUES ($1, 1, $2), ($1, 3, $3), ($1, 5, $4)`,
         [id, ...input.rewardGoals.map(goal => goal.displayName)],
       );
+      const summary = purpose?.ok ? purposeSummaryFromSettings(purpose.value) : undefined;
       const draft: AdminCampaignDraft = { ...input, id, merchantName: merchantRow.rows[0].name,
-        status: 'DRAFT', public: false };
+        status: 'DRAFT', public: false, ...(summary ? { purpose: summary } : {}) };
       await client.query(
         `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, before_state, after_state)
          VALUES ($1, $2, $3, 'CAMPAIGN_DRAFT_CREATED', NULL, $4)`,
         [randomUUID(), accountId, input.merchantId, JSON.stringify(draft)],
       );
+      if (purpose?.ok && summary) {
+        await insertCampaignPurpose(client, id, purpose.value);
+        await this.auditEvent(client, { actor: accountId, merchantId: input.merchantId, action: 'CAMPAIGN_PURPOSE_SET',
+          before: null, after: { campaignId: id, purpose: summary } });
+      }
       return draft;
     });
   }

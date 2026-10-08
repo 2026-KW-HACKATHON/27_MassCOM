@@ -1,12 +1,27 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 T4 A 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`): API 단위 634/634 · 모바일 2094/2094.
+현재 자동 시험 합계(2026-10-09 KST, Issue #412 T4 브랜치 `feat/cross-store-courses`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 __API__/__API__ · 모바일 __MOB__/__MOB__. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
+
+README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 
 ## Issue #412 T4 A — 가게 사이를 잇는 코스 (2026-10-08, 배포하지 않음)
 
 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 2–4개 점포 코스의 관리자 초안·점검 스냅샷·게시·중지, 보상권 기반 고객 진행·장면 열기, 추천 우선순위, 관리자 웹과 최소 모바일 목록·상세·장면을 구현했다. migration `0072_courses.sql`은 추가 전용이며 D-093을 따른다. 코스 완성은 재화·쿠폰을 지급하지 않는다. 시연 코스는 시연 DB seed에만 있고 운영 fixture는 없다. 수령·방문 보상·취소·0034 트리거를 바꾸지 않았다. 검증 결과는 [TEST_STATUS](TEST_STATUS.md)의 최상단 항목이다. Studio 배치·실제 브라우저/기기·배포는 `NOT_RUN`이다.
 
 2026-10-09 리뷰 수정: 검토 시작 HEAD `29644366`에서 관리자 4개 쓰기의 트랜잭션 안 권한 재검사, 삭제 큐레이터 ID의 제한된 복구, 고객 코스 최대 50개 배치 조회와 그림 없는 추천 힌트, 이용 불가 단계·중지/종료 장면 접근 규칙, DB 고유키·가드·감사 action, 앱 캐시 해제·구 API 호환·가게 상세 코스 칩을 보강했다. API 634/634, PG 553건 중 550 PASS·0 FAIL·기존 3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139다. 후속 커밋은 오케스트레이터가 담당한다.
+
+## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
+
+기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`의 작업이다. 점주가 캠페인으로 풀 문제를 세 목적(MassCOM에서 처음 확인되는 방문 늘리기·다시 방문하게 하기·한산한 시간대 채우기) 중 하나로 고르게 하고, 시간대 조건을 서버가 판정하게 했다. 결정은 [D-092](DECISIONS.md)다.
+
+- **데이터.** migration `0068_campaign_purposes.sql`(추가만, 잠금 대기 5초, `backward_compatible=yes`): `campaign_purposes` 부속 표, 시간대 jsonb 검사 함수, 공개 뒤 조건 변경을 막는 트리거(`intro_*`만 예외), 감사 action `CAMPAIGN_PURPOSE_SET`(기존 16개 전체 유지, 17개). 목적 행이 없는 기존 캠페인은 지금과 똑같이 동작한다.
+- **관리자.** `POST /api/web/admin/campaign-drafts`가 선택 입력 `purpose`를 받아 캠페인·목표·목적·감사를 한 거래로 쓴다. 관리자 웹 초안 양식에 목적 선택이 있고 목적별 칸만 보인다. 순수 규칙은 `apps/api/src/campaign-purpose-rules.ts`다.
+- **방문 확정(민감 경로).** 시간대 밖에서 한 방문도 방문·코인·보상권은 그대로 센다(D1). 발급·재발급 응답에 `windowStatus`, 확정 응답에 `benefit.state`를 더했고 기준 시각은 점원이 코드를 만든 `claim_slots.created_at`이지만 유효 시간(15분)이 지난 뒤 확정·재발급하면 그 시각이다. 직원 본인·같은 날 두 번째처럼 진행에 세어지지 않은 방문은 항상 `NONE`이다. 혜택 자체와 시간대 밖 처리는 뒤 PR이다. 모바일·점포 웹 점원 화면은 "이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)", 고객 방문 완료 카드는 세어진 방문일 때만 중립 한 줄을 보인다. 가게 상세는 "이번 캠페인: 한산한 시간대 방문 · 평일 14:00–17:00" 같은 조건만 보이고 혜택은 약속하지 않는다. 혜택(PR 2)이 생기기 전에는 목적형 캠페인을 공개하지 않는다.
+- **표기.** 점주가 보는 "첫 방문/재방문"을 "처음 확인된 방문/다시 확인된 방문"으로 바꿨다(점포 웹 카드, 모바일 가게 현황, 방문 CSV 머리글 `방문구분(MassCOM 확인 기준)`). API 필드 이름과 집계는 그대로이고, 점주 화면·CSV·안내 문서에 "신규 고객"·"첫 손님"이 없음을 소스 시험이 지킨다.
+
+검증: API 단위 615/615, PostgreSQL 543건 중 540 pass / 0 fail / 3 skip, 모바일 2093/2093과 lint·typecheck, 사이트 578/578, 게이트·CI 연결·운영 문서 검사 통과, 변이 점검 8건 모두 시험 실패([TEST_STATUS](TEST_STATUS.md)). 서버·설치본은 바뀌지 않았고 배포하지 않았다(소유자 결정 A).
+
+남은 것: 혜택·쿠폰과 비용 상한, 결과 카드, 설문, 파일럿 설정 패널과 안내물은 뒤 PR이다. `intro_*`의 쓰기 경로(점주 확인 참조 번호)도 설정 패널 PR에서 만든다. 개인정보 처리방침·동의 문구의 "첫 방문/재방문" 설명은 버전과 동의 재수집이 따라오므로 소유자 승인 전까지 바꾸지 않았다(D-092).
 
 ## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
 
@@ -642,3 +657,6 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 - Base Sepolia Worker proof와 upload-key AAB·16KB runtime·App Links는 PASS. Play는 별도 `NOT_RUN`
 
 상세 실행 근거는 [TEST_STATUS.md](TEST_STATUS.md), Phase 3 증거는 [phase3-worker-anvil-android.json](evidence/phase3-worker-anvil-android.json), 차단 사유는 [BLOCKERS.md](BLOCKERS.md), 다음 세션 상태는 [HANDOFF.md](HANDOFF.md)를 기준으로 합니다.
+
+[current-test-status]: TEST_STATUS.md
+[current-handoff-history]: HANDOFF_HISTORY.md

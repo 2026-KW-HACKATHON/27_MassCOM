@@ -89,6 +89,8 @@ test('one-person claim slots keep only hashes, reissue in place, and consume onc
     token: 'token-1-abcdefghijklmnopqrstuvwxyz012345',
     tokenVersion: 1,
     expiresAt: '2026-09-18T03:15:00.000Z',
+    // #412: 목적 행이 없는 옛 캠페인은 시간대 조건이 없다는 뜻의 NONE만 더해진다.
+    windowStatus: 'NONE',
   });
 
   const stored = await pool.query<{

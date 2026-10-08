@@ -1,5 +1,15 @@
 # 테스트 상태
 
+## 2026-10-09 T4·T3 병합 충돌 해결 (Issue #412, 배포하지 않음)
+
+환경: macOS, `feat/cross-store-courses`에 PR #425 포함 main `055d0523` 병합 중. 파일 수정만 수행했으며 Git index의 미병합 상태는 유지했다.
+
+- `bash tests/bootstrap/operations_submission_readiness_test.sh`: PASS(추가 migration 27개·전체 70개).
+- `bash tests/ci/ci_wiring_test.sh`: PASS(시험 파일 94개 모두 연결).
+- `cd apps/api && npm run typecheck`: PASS(exit 0).
+- 양쪽 날짜별 기록·감사 단언 보존, README·PROJECT_STATE 합계 줄 동일, HANDOFF 14절, 텍스트 충돌 표시 없음, `git diff --check`: PASS.
+- API·모바일 단위 시험과 PostgreSQL 통합 실행·실기·배포: NOT_RUN. 합계 `__API__`·`__MOB__`는 오케스트레이터가 채운다.
+
 ## 2026-10-09 코스 리뷰 지적 수정 (Issue #412 T4 A, 배포하지 않음)
 
 환경: macOS Codex App sandbox, 브랜치 `feat/cross-store-courses`, 검토 시작 HEAD `29644366`(기준 main `8841efea` 위 4개 커밋). 후속 커밋은 오케스트레이터가 담당하며 이 세션은 Git 쓰기를 실행하지 않는다. 변경된 미배포 0072를 반영하려고 제공된 전용 테스트 DB의 public schema만 재생성한 뒤 filename 순으로 migration을 적용했다. 연결 URL은 출력하지 않았다.
@@ -36,6 +46,46 @@
 | 설치·배포·시각 수용 | NOT_RUN | 운영/시연 서버·실제 DB·APK·Play·push를 변경하지 않았다. 실제 브라우저/기기 코스 수용과 screenshot 비교는 하지 않았다. 별도 hosted showcase DB가 필요한 3개 시험은 전체 PG의 skip으로 구분한다. Studio 장면 배치는 후속 범위다 |
 
 기존 assertion 변경은 세 가지뿐이다. `admin-store-go-live.postgres.integration.ts`의 감사 action 수 16→21(0068 호환 + COURSE_* 4개), 모바일 `merchant-art/customer-display.test.ts`의 인라인 그림 허용 목록에 파서 검증을 거친 코스 화면 추가, `ui/components.test.ts`의 RefreshControl 수 19→20(새 코스 화면). 나머지 기존 기대값은 유지했다. 원래 남아 있던 미추적 코스 입력 시험의 빈 opt-in 참조 처리는 초안 입력 계약에 맞췄다.
+## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
+
+기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`. 점주가 캠페인 목적(처음 확인되는 방문·다시 방문·한산한 시간대)을 고르게 하는 migration `0068_campaign_purposes.sql`, 시간대 판정 순수 규칙, 방문 확정 경로(`claim-slot-service.ts`, 민감 경로)의 시간대 상태 필드 추가, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 점주 화면의 "첫 방문/재방문" 표기 정정을 담았다([D-092](DECISIONS.md)). 방문 삽입·진행 계산·`grantReachedGoals`·잠금·취소는 바꾸지 않았다. 배포·게시는 하지 않았다(소유자 결정 A).
+
+**교차 리뷰 반영(같은 PR의 두 번째 커밋).** Claude Sonnet·Opus 리뷰가 🔴 0으로 승인하며 남긴 🟠 3건과 🟡를 고쳤다. (1) `campaign_purposes_terms_guard`가 UPDATE에서 `campaign_id` 변경을 거절한다(초안 행을 공개된 캠페인으로 옮기는 틈, 0068은 미병합이라 제자리 수정). (2) 혜택 시간대 기준이 `확정(재발급) 시각 < created_at + ttlMs`일 때만 `created_at`이고 그 뒤에는 확정(재발급) 시각이다(`benefitJudgedAt`). 재생은 저장된 `claimed_at`을 쓴다. (3) 직원 본인·같은 날 두 번째처럼 진행에 세어지지 않은 방문은 `benefit.state`가 `NONE`이고 모바일 고객 한 줄도 세어진 방문에만 붙는다. 관리자 웹은 양식이 복원한 목적 칸을 바인딩 때 한 번 맞춘다. 혜택이 아직 없으므로 점원·고객·가게 상세 문구에서 "혜택"이라는 말을 뺐다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| API 단위 시험·typecheck | PASS | `npm run typecheck --prefix apps/api && npm test --prefix apps/api` 615/615(이 작업 전 597). 새 시험 18건: 순수 규칙 15건(`campaign-purpose-rules.test.ts`: 시작 포함·끝 제외, 한국 요일·자정 넘김·1970 이전·연말, `24:00`, 잘못된 입력 전부, 기준 시각 `benefitJudgedAt`의 유효 시간 경계), 경로 3건(`server.test.ts`: 발급·재발급·확정 응답의 추가 필드 통과, 옛 모양 유지, 관리자 초안 `purpose`와 400 매핑) |
+| PostgreSQL 통합 시험 | PASS | 새 DB `masscom_t3afix_test`(컨테이너 `masscom-pg-test` 55432)에 migration을 한 번 적용하고 `npm run test:postgres`(전체 60개 파일, `--test-concurrency=1`): 543건 중 540 pass / 0 fail / 3 skip(이 작업 전 527건 중 524 pass). skip 3건은 전용 hosted seed 컨테이너가 필요한 시험이다(이전 기록과 같다). 새 시험 16건(`campaign-purpose.postgres.integration.ts`; 리뷰 반영으로 3건 추가: 목적 행을 다른 캠페인(공개된 캠페인·다른 초안)으로 옮기는 UPDATE 거절, 유효 시간이 지난 재발급·확정은 사용 시각 기준·유효 시간 안은 만든 시각 기준과 경계 `created_at + 15분` 정각·재생이 저장된 `claimed_at`을 씀, 직원 본인 적립과 같은 날 두 번째 방문의 `benefit.state`가 `NONE`이고 재생도 같음): 초안·목적·감사 두 줄의 한 거래와 잘못된 목적의 무기록, 목적 저장 실패 시 캠페인·목표·감사 롤백, 표의 CHECK 전부(시간대 jsonb 18가지 등), 공개 뒤 조건 변경·삭제·추가 거절과 `intro_*`만 허용, 공개와 수정의 경합, 실제 `publishCampaign` 흐름, 목적 없는 캠페인의 발급·확정 응답과 건수가 그대로임, 발급이 시간대 안이고 시간대가 끝난 뒤 스캔하면 `ELIGIBLE`, 시간대 밖이면 `OUTSIDE_WINDOW`이면서 방문·진행·보상권이 안쪽 방문과 같음, 요일·한국 자정·`24:00` 경계, 재발급·재생의 기준 시각, 공개 목록·가게 상세의 `purpose` 유무 |
+| 모바일 단위 시험·typecheck·lint | PASS | `npm test`·`npm run typecheck`·`npm run lint --prefix apps/mobile` 2093/2093(main 2077에서 16건 증가, 병합 전 T3는 2008/2008), lint 경고·오류 없음. 새 시험 16건: 해석기가 `windowStatus`·`benefit`을 모르는 값·없는 값에서 버리고 방문 화면은 그대로 열림(`commerce-api.test.ts` 3건), 안내 문구와 화면 연결(`benefit-window.test.ts` 4건: 세어지지 않은 방문에는 고객 한 줄이 붙지 않아 진행 안내와 어긋나지 않음 포함), 가게 상세 목적 블록(`campaign-purpose.test.ts` 7건), 상세·목록 해석기가 `purpose`를 통과·생략(2건) |
+| 운영 웹·관리자 웹 시험 | PASS | `node --test tests/site/*.test.mjs tests/site/*_test.mjs` 578/578(이 작업 전 563). 새 시험 15건: 관리자 목적 선택(`campaign-purpose-admin.test.mjs` 12건: 목적이 없으면 요청이 그대로, 요일 정렬·`00:00`→`24:00`, 모든 입력 오류 메시지, 양식의 라벨·숨김 속성·시간대 3줄, 목적별 칸 표시, 바인딩 때 복원된 목적 칸 표시, 목록 문구), 점포 웹이 시간대 밖 코드에만 안내를 붙임(`verify_production_web_test.mjs` 1건), 점주 화면·CSV·안내 문서에 "신규 고객"·"첫 손님"이 없음과 새 표기(`merchant-copy-no-newcomer.test.mjs` 2건). 두 새 파일은 `.github/workflows/ci.yml`에 연결했다(`tests/ci/ci_wiring_test.sh` 92개 파일 모두 연결) |
+| 문서·게이트 | PASS | `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tools/gate.sh`, `bash tests/ci/ci_wiring_test.sh`, 모바일 접근성 semantics, 출시 지갑 표면(`function open()`) 검사 통과 |
+| 변이 점검 | PASS | 시험이 정말 잡는지 코드를 일부러 깨 봤고 모두 실패를 확인한 뒤 되돌렸다. 확정의 혜택 기준을 `claim_slots.created_at` 대신 고객 확정 시각으로 → PostgreSQL 시험 4건 실패(시간대 끝난 뒤 스캔, 경계, 한국 자정, 재발급). 끝 시각을 포함으로(`<` → `<=`) → 순수 규칙 시험 2건과 PostgreSQL 시험 2건 실패. 리뷰 반영 뒤 다시 깨 봤다(PostgreSQL 시험 파일): 확정 판정을 `created_at`만으로 → 유효 시간 시험 실패, 재생 판정을 `created_at`만으로 → 같은 시험 실패, 재발급 판정을 `created_at`만으로 → 같은 시험 실패, 확정에서 `progress_counted` 확인을 뺌 → 세지 않는 방문 시험 실패, 재생에서 뺌 → 같은 시험 실패, 트리거의 `campaign_id` 이동 거절을 뺌(새 DB) → 이동 시험 2건 실패. 모두 되돌렸다 |
+
+**바뀐 기존 단언(의도된 사양 변경, 모두 이 작업이 만든 필드·표기에 한정).**
+
+| 파일 | 변경 |
+| --- | --- |
+| `apps/api/src/claim-slot.postgres.integration.ts` | 첫 발급 응답의 `deepEqual`에 `windowStatus: 'NONE'`을 더했다(목적 없는 옛 캠페인의 새 필드) |
+| `apps/api/src/visit-reward.postgres.integration.ts` | 첫 확정 응답의 `deepEqual`에 `benefit: { state: 'NONE' }`을 더했다 |
+| `apps/api/src/admin-store-go-live.postgres.integration.ts` | 감사 action CHECK의 허용 개수 16→17, 허용 목록에 `CAMPAIGN_PURPOSE_SET` 추가, 시험 이름 "sixteen"→"seventeen … with 0043 and 0068" |
+| `apps/api/src/migrate.test.ts` | 잠금 대기 `SET LOCAL` 검사 파일 목록에 `0068_campaign_purposes.sql` 추가 |
+| `apps/api/src/merchant-operations.postgres.integration.ts` | CSV 값 `/재방문/` → `/다시 확인된 방문/`, 머리글 `방문구분(MassCOM 확인 기준)`와 첫 확인 값 `처음 확인된 방문` 단언 추가 |
+| `apps/mobile/src/merchant-insights/api.test.ts` | 카드 이름 `이번 주 첫 방문`·`이번 주 재방문` → `이번 주 처음 확인된 방문`·`이번 주 다시 확인된 방문` |
+| `tests/site/merchant-actions-overview.test.mjs` | 카드 이름 `이번 주 첫 방문 / 재방문` → `이번 주 처음 확인된 방문 / 다시 확인된 방문`, 설명 단언 추가 |
+| `tests/site/verify_production_web_test.mjs` | 가게 현황 카드 이름 목록의 같은 항목 |
+
+리뷰 반영 커밋이 바꾼 단언(혜택이 아직 없어 문구를 중립으로 바꾸고, 목적 행 이동 거절의 메시지가 바뀐 데 따른 것).
+
+| 파일 | 변경 |
+| --- | --- |
+| `apps/api/src/campaign-purpose.postgres.integration.ts` | 공개된 캠페인의 목적 행을 다른 캠페인으로 옮기는 UPDATE의 기대 메시지 `/immutable/` → `/moved/`(이동은 상태 검사보다 먼저 거절한다) |
+| `apps/mobile/src/commerce/benefit-window.ts`·`.test.ts` | 점원 문구 "지금은 혜택 시간대가 아니에요(방문은 인정돼요)" → "이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)", 고객 문구 "혜택 시간대" → "점주가 정한 캠페인 시간대". 고객 한 줄은 `visit.progressCounted`가 true일 때만 |
+| `apps/mobile/src/merchant/campaign-purpose.test.ts` | 가게 상세 줄: 시간대 캠페인 "점주가 정한 시간대 캠페인이에요. …", 재방문 "점주가 정한 재방문 기간은 …일 뒤부터 …일 안이에요." |
+| `tests/site/campaign-purpose-admin.test.mjs`·`tests/site/verify_production_web_test.mjs` | 점포 웹 점원 문구 단언을 새 문장으로(모바일과 같은 문장인지 확인하는 단언 포함) |
+
+`tests/site/commercial-merchant-operations.test.mjs`는 CSV 머리글·값을 단언하지 않아 바뀔 것이 없었다. 새 시험이 그 자리를 채운다.
+
+**확인하지 않은 것.** 운영 배포, 실제 점주·직원 계정과 실제 휴대전화에서 시간대 안내가 보이는 화면, 관리자 양식을 실제 브라우저에서 눌러 보는 일은 `NOT_RUN`이다(가짜 DOM과 소스 시험으로만 확인했다). 점주·고객 문구의 어감은 사람 판정이 필요하다. 이 작업의 시험은 방문 확정 경로의 교차 리뷰를 대신하지 않는다.
 
 ## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
 

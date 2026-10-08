@@ -532,7 +532,7 @@ test('D-023: a visit earns the reward without any campaign enrollment even when 
   } finally { await pool.end(); }
 });
 
-test('0032 keeps deployed API statements working and 0072 preserves the complete audit action union', { skip }, async () => {
+test('0032 keeps deployed API statements working and, with 0043, 0068 and 0072, accepts exactly the twenty-one audit actions', { skip }, async () => {
   const pool = new Pool({ connectionString: testUrl });
   const client = await pool.connect();
   try {
@@ -562,9 +562,9 @@ test('0032 keeps deployed API statements working and 0072 preserves the complete
     await client.query(
       `INSERT INTO badge_reward_offers (id, milestone, merchant_id, title, detail, valid_days, status, consent_note)
        VALUES ($1, 1, $2, '옛 혜택', '', 30, 'PAUSED', '점주 동의 기록')`, [randomUUID(), merchantId]);
-    // 0043(#365)이 CAMPAIGN_EXTENDED 하나를 더했다.
+    // 0043(#365)이 CAMPAIGN_EXTENDED, 0068(#412)이 CAMPAIGN_PURPOSE_SET 하나씩을 더했다.
     for (const action of ['MERCHANT_PUBLISHED', 'REWARD_OFFER_CREATED', 'REWARD_OFFER_PAUSED', 'CAMPAIGN_PUBLISHED',
-      'CAMPAIGN_PAUSED', 'CAMPAIGN_EXTENDED']) {
+      'CAMPAIGN_PAUSED', 'CAMPAIGN_EXTENDED', 'CAMPAIGN_PURPOSE_SET']) {
       await client.query(
         `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, after_state)
          VALUES ($1, 'new-admin', $2, $3, '{}')`, [randomUUID(), merchantId, action]);
