@@ -148,6 +148,28 @@ Git add·commit·stash·merge·rebase·push는 실행하지 않았다. 파일의
 | `apps/mobile/src/screens/home/showcase-visibility.test.ts` | exact 은퇴3ID만 showcase Home에서 숨김; 실제Wolgye/비슷한이름ID 유지; production/development 배열 원본참조·내용불변; `displayStudioItems`의 구coin/수집품 history 조회는 그대로이며 Home 전달값만 필터링 |
 
 필수 36개 시험 ID 상태는 31 PASS / 2 BLOCKED / 3 NOT_RUN으로 유지한다. 당시 README·PROJECT_STATE의 “현재 자동 시험 합계” 줄은 같은 측정값으로 함께 갱신했다.
+## 2026-10-09 보상 결과 후 도감 등록 확인 (Issue #432)
+
+환경: Windows PowerShell, `feat/reward-album-confirmation`, 기준 main `8aa8b724` 위 작업 트리. 운영·시연 공통 고객 코드 변경이며 API·DB·확률은 수정하지 않는다. Windows 체크아웃의 CRLF가 기존 소스 추출 시험 9건을 실패시켜, 검증용 작업 트리 텍스트를 LF로 정규화한 뒤 아래 결과를 얻었다. 기존 시험의 단언을 완화하지 않았으며 줄바꿈만 다른 파일은 최종 diff에 포함하지 않는다.
+
+| 검사 | 최종 결과 | 근거와 경계 |
+| --- | --- | --- |
+| `npm test --prefix apps/mobile` | **2171/2171 PASS** | fail 0, skip 0. 신규/중복/복구 판정, 티켓 지연 응답, 등록 단계, 모달 재확인 포함 |
+| `npm run typecheck --prefix apps/mobile` | PASS | exit 0 |
+| `npm run lint --prefix apps/mobile` | PASS | 오류 0, 기존 `collectible-aura.test.ts` 미사용 import 경고 1개 |
+| `node scripts/check-accessibility-semantics.mjs apps/mobile/src` | PASS | 기존 접근성 계약 검사 |
+| `git diff --check` | PASS | 공백 오류 없음 |
+| 운영·시연 `expo export --platform android` | 모두 PASS | 최종 수정 소스의 Hermes 번들 생성. sandbox 임시 경로 권한 실패 후 정상 권한으로 재실행 |
+| `bash tools/gate.sh` | PASS | 비밀·충돌 표시·bootstrap·운영 문서·증거 일관성·현재 배포 원장 검사 |
+| 실제 컴포넌트 브라우저 검증 | **9/9 PASS**, console error 0 | [보고서](evidence/reward-album-2026-10-09/browser-qa-report.json). 로컬 합성 보상, 실제 RNW/Reanimated/Worklets/SVG. [경계·재현](evidence/reward-album-2026-10-09/README.md) |
+
+공통 등록 컴포넌트의 StrictMode 시험은 실제 TSX의 효과를 setup → cleanup → setup 순서로 실행한다. 애니메이션이 아직 완료되지 않아 opacity 0인 상태에서 cleanup을 재현하고, 두 번째 setup이 전부 표시 상태로 복구되는지 검사한다. 이전 early-return 분기로 바꾼 임시 소스 문자열은 같은 검사에서 숨은 상태를 유지하는 것도 확인했다.
+
+독립 검토가 찾은 collection/ticket 지연 응답의 focus 전환, 중첩 도감 칸의 스크롤 좌표, 재뽑기 후 새로고침 실패 시 등록 버튼 복구를 수정했다. 자동 스크롤도 움직임 감소 설정을 따른다. 결과 확인은 새 지급 API를 부르지 않는다.
+
+추가 검토에서 focus 변경 뒤 성공 응답이 오면 복구 기록을 지우던 문제를 재현했다(수정 전 2 FAIL → 수정 후 6/6 PASS). 현재 화면이 결과를 받은 뒤 기록을 지우고, 오래된 응답은 기록과 재시도 가능 상태를 보존한다. 화면 검토에서 발견한 320px의 고정 카드 높이도 자동 높이로 고쳤다. 브라우저는 320px·200% 글씨의 겹침/가로 넘침 0을 검사하며, 등록 전환 116프레임에서 scale 0.64 → 최대 1.12 → 정착 및 opacity 0 → 1을 확인했다. [최종 시각 판정](evidence/reward-album-2026-10-09/visual-verdict.json)은 PASS다.
+
+시연 export에는 빌드 검사 전용 공개 OAuth 형식 식별자 `1234567890-rewardalbumqa.apps.googleusercontent.com`을 썼고 `.env` 로딩을 껐다. 빌드 source 값은 기준 main SHA이며 작업 트리 변경을 포함한 로컬 컴파일 증거다. 실제 Google 로그인·APK 서명·설치·실제 API 연동·Android 진동/소리/TalkBack/센서·운영 배포는 `NOT_RUN`이다. 연결된 ADB 기기는 없었다. API 전체 시험과 기존 필수 시험 36개 상태도 이번 UI 작업으로 재검증했다고 주장하지 않는다.
 
 ## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
 

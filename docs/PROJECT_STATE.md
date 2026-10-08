@@ -1,6 +1,11 @@
 # 프로젝트 상태
 
 현재 자동 시험 합계(2026-10-09 KST, 배경음 수정 브랜치 `fix/bgm-start`에 PR #433 반영 main `c7632b35`를 병합한 기준): API 단위 674/674 · 모바일 2168/2168. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+## 2026-10-09 획득 결과 후 도감 등록 확인 (Issue #432, 미배포)
+
+`feat/reward-album-confirmation`은 main `8aa8b724`에서 등급 뽑기·이전 상자 보상·가게 코인권·코인 재뽑기의 마지막 확인을 연결한다. 기존 전체 보상 요약 뒤 새 수집품만 도감 칸에서 커지며 등록되고, 중복과 복구 결과는 보유 확인으로 남는다. 사용자가 결과를 확인한 뒤 실제 코인 도감 칸이나 기존 장착·전시 행동으로 이어진다. 보상 API·확률·지급 수량은 그대로이며 공통 고객 코드에 적용한다. [수용 기준과 검증 경계](REWARD_ALBUM_QA_2026-10-09.md), [이번 시험 결과](TEST_STATUS.md)를 따른다. 아래 API/모바일 합계는 PR #429 당시 기록이며 이번 작업이 API 전체 시험을 재실행했다는 뜻은 아니다.
+
+현재 자동 시험 합계(2026-10-09 KST, PR #429 브랜치 `feat/collectible-reeded-edge`에 PR #430 반영 main `a1a3eef3`를 병합한 기준): API 단위 672/672 · 모바일 2148/2148. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 ## 2026-10-09 배경음 수정 브랜치에 T9 반영 main 병합 문서 충돌 해결 (파일 수정만·미배포)
 
