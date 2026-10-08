@@ -663,7 +663,8 @@ export class PostgresMintRepository implements MintWorkRepository {
 
     if (job.transaction_hash) {
       // The job already holds a broadcast transaction: this release only checks its result
-      // (RECEIPT_NOT_READY or a lookup failure), it never sends a new one, so the send cap below
+      // (RECEIPT_NOT_READY: no receipt or too few confirmations yet; RECEIPT_LOOKUP_FAILED: the RPC
+      // lookup itself failed; both only recorded, never branched on), it never sends a new one, so the send cap below
       // does not apply. Bound it by wall-clock time since that attempt was submitted instead.
       const attempt = (
         await client.query<{ submitted_at: Date | null }>(

@@ -21,6 +21,12 @@ Claude Opus 5.5가 지휘와 통합, 교차 평가를 맡았다. Claude Sonnet 5
 
 Claude Sonnet 5.5 서브에이전트 둘이 구현했다. 하나는 가동 점검 워크플로·스크립트, 운영·시연 매일 백업 유닛과 `install.sh` 일반화, `db-restore-drill.sh --restore-only`, 큰 파일 가드, CI·`tools/gate.sh` 연결, 이 운영 문서를, 다른 하나는 `docs/CURRENT_RELEASE.json`과 생성·검사 스크립트, 포털·`/open` 정리, 설치본 용량 분석을 맡았다. 지휘·통합은 위 한눈에 보기의 역할 분담과 같다. Codex는 쓰지 않았다(2026-10-08 소유자 지시). 시험은 가짜 curl·gh·docker·systemctl 시험, 임시 git 저장소 시험, 이 PC의 일회용 Postgres 16.10 컨테이너로 실행했고, 서버 호스트와 GitHub Actions에서는 실행하지 않았다. 독립 리뷰 2건이 변경을 요청했고(반드시 고칠 것 있음, 🔴 없음) 다른 Claude Sonnet 5.5 서브에이전트가 후속 커밋에서 반영했다(복원 드릴 인자 안전장치, 백업·정리 작업 보강, 가동 점검 재시도, 큰 파일 가드 상한, 현재 배포 검사 범위와 문서 표현). 반영분의 재검토는 받지 않았다(`NOT_RUN`). 호스트 설치·예약 쓰기 점검·서버 밖 백업 보관은 사람(소유자)이 정할 몫으로 남았다.
 
+## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) 구현 (D-089)
+
+- Claude Sonnet 5.5가 소유자 지시("B안대로 구현")에 따라 Worker 반복 루프(`worker-loop.ts`·`run-worker-loop.ts`), 실행기 분리(`createConfiguredWorker`), 게이트웨이 조회 시작 블록 갱신(`setScanFromBlock`), `worker.Dockerfile`, 운영 compose의 `nft-live` 프로파일 서비스, 시험, 문서를 작성했다. 설계 추천과 구현이 같은 세션이었으므로 구현 세션 밖에서 독립 리뷰를 받았다(아래).
+- 검증은 [TEST_STATUS](TEST_STATUS.md)의 같은 날짜 항목을 따른다. 브랜치 `feat/worker-continuous-loop`는 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이다. 일회용 컨테이너 리허설에 쓴 keystore는 그 실행에서만 만든 임의 키이며 저장하지 않았다. 사용자·운영 키와 DB는 쓰지 않았다.
+- **독립 리뷰(2026-10-08):** 구현과 다른 컨텍스트의 Claude Sonnet 리뷰와 Claude Opus 리뷰가 각각 PR #420을 검토했다. 둘 다 🔴는 없고 변경을 요청했으며, 지적은 같은 날 Claude Sonnet 5.5가 고쳤다: ethers `waitForTransaction`의 RPC 주소 로그 노출·프로세스 종료·타이머 누수(직접 만든 유한 조회로 대체), 잡히지 않은 오류 처리(`MINT_WORKER_CRASHED`), DB 풀 'error' 리스너, 결정 번호 충돌(D-080 → D-089), `CHAIN_FROM_BLOCK` 기본값, 임대 소유자 중복, 하트비트 서술, 배포 절차 문서와 시험 보강. Opus 재리뷰가 `e3c156fc`를 🔴 0·🟠 0으로 승인했고 그 🟡 지적은 이어진 커밋에서 같은 모델이 고쳤으며(재리뷰 없음) 자동 시험과 `tools/gate.sh`로 확인했다. 이 리뷰도 AI 세션의 판정이며 사람의 코드 리뷰는 남아 있다. 그 뒤 main `cd01c0d6`(PR #421·#422 병합)을 이 브랜치에 병합하고 문서 충돌을 정리하는 일은 Claude Sonnet 5.5 서브에이전트가 했다(재작성·force push 없이 병합 커밋으로).
+
 ## 2026-10-08 첫 사용 경험 (Issue #412)
 
 Claude Opus 5.5가 지휘와 통합, 교차 평가를 맡았다. Claude Sonnet 5.5 서브에이전트가 앱 코드와 시험을 구현했다. 구현은 두 세션으로 나눴다. 한 세션은 웹 대기 안내, 웹 번들의 지갑 SDK 제외(`.web` 파일과 Metro 리다이렉트), 소리 지연 생성, 동의 화면, 마스코트·랜드마크 접근성과 CI 가드를 맡았다. 다른 세션은 홈의 요청별 표시, 가게 카드·상세의 사실 표시, 방문 인정 조건, 첫 코인 "내 공간에 놓기" 제안을 맡았다. 두 세션이 같은 worktree의 서로 다른 파일을 고쳤다.
