@@ -74,7 +74,7 @@ export function CollectibleDefaultBack({ shape, size, merchantName, name, gradeI
     {/* 무지개·금속 위 문자는 불투명한 등급 컨테이너에 두어 밝은/어두운 테마 대비를 지킨다. */}
     <View style={{ position: 'absolute', top: size * .22, left: size * .23, width: size * .54, alignItems: 'center', gap: size * .015,
       paddingVertical: size * .015, borderRadius: size * .04, backgroundColor: colors.container }}>
-      <Text numberOfLines={1} adjustsFontSizeToFit style={{ color: colors.onContainer, fontSize: size * .06, fontWeight: '700', textAlign: 'center' }}>{merchantName}</Text>
+      <Text adjustsFontSizeToFit style={{ color: colors.onContainer, fontSize: size * .06, fontWeight: '700', textAlign: 'center' }}>{merchantName}</Text>
       <Text numberOfLines={2} adjustsFontSizeToFit style={{ color: colors.onContainer, fontSize: size * .05, fontWeight: '700', textAlign: 'center' }}>{name}</Text>
       <Text numberOfLines={1} style={{ color: colors.onContainer, fontSize: size * .04 }}>{koreanGrade}</Text>
       <Image source={mascotArt.stamp} resizeMode="contain" accessible={false} style={{ width: size * .23, height: size * .23 }} />

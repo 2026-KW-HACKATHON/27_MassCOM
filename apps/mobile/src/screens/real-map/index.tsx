@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 import * as Location from 'expo-location';
@@ -235,9 +236,9 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   const row=(merchant:MerchantSummary,source:'list'|'map'|'recommendation')=>{const facts=merchantCardFacts(merchant);const distance=facts.core.find(fact=>fact.key==='distance');
     // The seeded demo address is placeholder text, not a place, so the line is dropped; the 시연 데이터 marker stays on the name and in the label.
     const where=[merchant.demo?null:merchant.roadAddress,facts.core.find(fact=>fact.key==='floor')?.value].filter(Boolean).join(' · ');
-    return <Pressable key={merchant.id} accessibilityRole="button" accessibilityLabel={`${merchant.name}, ${merchant.roadAddress}, ${merchant.demo?'시연 데이터, ':''}${merchant.position?'위치 확인됨':'위치 확인 필요'}, ${businessLabel(merchant.business)}, ${merchant.campaign?`${campaignLabel(merchant.campaign.state)} 캠페인, ${rewardLabel(merchant.campaign.rewardAvailability)}`:'진행 중인 캠페인 없음'}, ${merchant.distance?`${Math.round(merchant.distance.meters)}미터 직선거리`:'거리 정보 없음'}`} accessibilityState={{selected:state.selectedId===merchant.id}} accessibilityHint="상세 보기와 코스 추가 동작이 있습니다" onPress={()=>select(merchant.id,source)} style={styles.row}>
+    return <Pressable key={merchant.id} accessibilityRole="button" accessibilityLabel={`${publicDataDemoStoreName(merchant.id, merchant.name)}, ${merchant.roadAddress}, ${merchant.demo?'시연 데이터, ':''}${merchant.position?'위치 확인됨':'위치 확인 필요'}, ${businessLabel(merchant.business)}, ${merchant.campaign?`${campaignLabel(merchant.campaign.state)} 캠페인, ${rewardLabel(merchant.campaign.rewardAvailability)}`:'진행 중인 캠페인 없음'}, ${merchant.distance?`${Math.round(merchant.distance.meters)}미터 직선거리`:'거리 정보 없음'}`} accessibilityState={{selected:state.selectedId===merchant.id}} accessibilityHint="상세 보기와 코스 추가 동작이 있습니다" onPress={()=>select(merchant.id,source)} style={styles.row}>
     <View style={styles.photoBox}>{merchant.thumbnail&&publishedPhotoUri(apiUrl,merchant.thumbnail.url)?<Image source={{uri:publishedPhotoUri(apiUrl,merchant.thumbnail.url)!}} style={styles.photo}/>:<MerchantCrest merchant={{id:merchant.id,name:merchant.name,artUrl:null}} apiUrl={apiUrl}/>}</View>
-    <View style={{flex:1}}><Text style={styles.name}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text>
+    <View style={{flex:1}}><Text style={styles.name}>{publicDataDemoStoreName(merchant.id, merchant.name)}{merchant.demo?' · 시연 데이터':''}</Text>
       {where?<Text style={styles.muted}>{where}</Text>:null}
       {distance?<Text style={styles.muted}>{distance.value}</Text>:null}
       <FactLine facts={facts.critical.filter(fact=>fact.key==='business'||fact.key==='lastOrder')} base={styles.muted} warning={styles.warning}/>
@@ -287,14 +288,14 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       <View style={styles.panel}><Text accessibilityRole="header" style={styles.heading}>짧은 탐험 코스</Text><Text style={styles.muted}>저장한 목표 수집품·방문 진행·영업 상태·거리 순으로 제안합니다. 이동 시간은 실제 보행 경로를 요청할 때만 표시합니다.</Text>
         {!course.length&&suggestions.length?button('추천 가게로 코스 만들기',()=>updateCourse(createCourse(suggestions.map(m=>m.id)))):null}
         {course.map((stop,index)=>{const latest=courseDetails[stop.merchantId];const m=latest===undefined?state.merchants.find(item=>item.id===stop.merchantId):latest;return <View key={`${stop.merchantId}-${index}`} style={styles.courseStop}>
-          <Text style={styles.name}>{index+1}. {latest===null?'가게 정보 확인 실패 · 다른 가게 선택':m?.name??'가게 최신 정보 확인 중'} · 머무름 {stop.dwellMinutes}분</Text>
+          <Text style={styles.name}>{index+1}. {latest===null?'가게 정보 확인 실패 · 다른 가게 선택':m?publicDataDemoStoreName(m.id, m.name):'가게 최신 정보 확인 중'} · 머무름 {stop.dwellMinutes}분</Text>
           <View style={styles.actions}>{button('앞으로',()=>updateCourse(moveStop(course,index,index-1)))}{button('뒤로',()=>updateCourse(moveStop(course,index,index+1)))}{button('-5분',()=>updateCourse(setDwell(course,index,stop.dwellMinutes-5)))}{button('+5분',()=>updateCourse(setDwell(course,index,stop.dwellMinutes+5)))}{button('빼기',()=>updateCourse(course.filter((_,i)=>i!==index)))}</View>
-          <ScrollView horizontal contentContainerStyle={styles.actions}>{suggestions.filter(option=>!course.some((entry,i)=>i!==index&&entry.merchantId===option.id)).map(option=><View key={option.id}>{button(`${option.name}으로 변경`,()=>updateCourse(replaceStop(course,index,option.id)))}</View>)}</ScrollView>
+          <ScrollView horizontal contentContainerStyle={styles.actions}>{suggestions.filter(option=>!course.some((entry,i)=>i!==index&&entry.merchantId===option.id)).map(option=><View key={option.id}>{button(`${publicDataDemoStoreName(option.id, option.name)}으로 변경`,()=>updateCourse(replaceStop(course,index,option.id)))}</View>)}</ScrollView>
         </View>;})}
         {course.length?<View style={styles.actions}><Pressable accessibilityRole="button" onPress={()=>{void calculateRoute();}} style={styles.button}><Text style={styles.buttonText}>실제 보행 경로 보기</Text></Pressable>{button('코스 지우기',()=>updateCourse([]))}</View>:null}
         {routeMessage?<Text accessibilityRole="alert" style={styles.notice}>{routeMessage}</Text>:null}
         {route?<View><Text style={styles.name}>보행 약 {Math.round(route.travelMeters)}m · {Math.ceil(route.travelSeconds/60)}분 + 머무름 {Math.round(route.dwellSeconds/60)}분</Text><Text style={styles.muted}>{route.attribution} · {new Date(route.expiresAt).toLocaleString('ko-KR')}까지</Text>
-          {route.stops.map(stop=><Text key={stop.merchantId} style={styles.muted}>{state.merchants.find(m=>m.id===stop.merchantId)?.name??stop.merchantId}: {new Date(stop.arrivalAt).toLocaleTimeString('ko-KR')} 도착{stop.warnings.length?` · ${stop.warnings.map(routeWarningLabel).join(', ')}`:''}</Text>)}</View>:null}
+          {route.stops.map(stop=><Text key={stop.merchantId} style={styles.muted}>{publicDataDemoStoreName(stop.merchantId, state.merchants.find(m=>m.id===stop.merchantId)?.name??stop.merchantId)}: {new Date(stop.arrivalAt).toLocaleTimeString('ko-KR')} 도착{stop.warnings.length?` · ${stop.warnings.map(routeWarningLabel).join(', ')}`:''}</Text>)}</View>:null}
       </View>
   </View>;
   return state.mode==='list' ? <View style={[styles.screen,{paddingBottom:insets.bottom}]}>

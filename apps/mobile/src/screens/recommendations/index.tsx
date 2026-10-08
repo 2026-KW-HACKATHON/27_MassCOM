@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -151,7 +152,7 @@ function RecommendationCard({ styles, palette, item, index }: { styles: Recommen
       </View>
       <View style={styles.cardNameRow}>
         <MerchantMark label={String(index + 1)} visited={item.progressVisitCount > 0} palette={palette} />
-        <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{item.merchantName}</Text>
+        <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{publicDataDemoStoreName(item.merchantId, item.merchantName)}</Text>
       </View>
       <Text selectable style={styles.reason}>{item.reasonText}</Text>
       {item.course ? <Pressable accessibilityRole="button" accessibilityLabel={`${courseChipText(item.course)} 상세 보기`}

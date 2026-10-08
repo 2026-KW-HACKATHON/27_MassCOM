@@ -1,13 +1,24 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #424·#426 반영 main `0801c1ce`를 병합한 기준): API 단위 662/662 · 모바일 2115/2115. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #424·#426 반영 main `0801c1ce`를 병합한 기준): API 단위 662/662 · 모바일 2127/2127. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
 
 README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 
 NFT 시리즈 발행 상한 해제는 [D-095](DECISIONS.md)·[PR #424](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/424)의 미배포 변경이다. 기존 Base Sepolia 상한 1 시리즈는 실증 전용이며 운영 발행에는 쓰지 않는다. 기존 계약에 운영용 새 시리즈를 만들 때는 `createSeries(bytes32,string,uint64)`의 세 번째 인자에 `18446744073709551615`를 넣고, 새 계약에서는 `createSeries(bytes32,string)`을 쓴다. DB migration 0075의 NULL 상한 행은 새 API가 모든 인스턴스에 배포된 뒤에만 넣는다.
-## 2026-10-09 T3 혜택·T4 코스 통합 (Issue #412, 배포하지 않음)
 
-`integ/t3b-t4-t8`의 HEAD `8c0bad5e`에서 PR #424·#426 반영 main `0801c1ce`와 이미 병합한 T3 혜택 위로 T4 코스를 병합 중이다. migration 적용 순서는 0068 → 0069 → 0072 → 0075이며, 0072 감사 CHECK는 T3 혜택 action을 유지해야 한다. 현재 충돌 해결은 파일 수정만 진행 중이고 검증 합계는 위의 자리표시자를 오케스트레이터가 채운다. 운영·시연 배포와 실제 설치본 수용은 이 통합으로 확인되지 않았다.
+## 2026-10-09 T3 혜택·T4 코스·T8 시연 점포 통합 (Issue #412, 배포하지 않음)
+
+`integ/t3b-t4-t8`의 HEAD `5962fe08`에서 PR #424·#426 반영 main `0801c1ce`와 T3 혜택·T4 코스를 병합한 상태로 `feat/showcase-wolgye-stores` T8을 병합 중이다. migration 적용 순서는 0068 → 0069 → 0072 → 0075이며, 0072 감사 CHECK는 T3 혜택 action을 유지해야 한다. 코드 충돌의 파일 수정은 끝났으며 이번 문서 중복 정리도 파일 수정만 수행한다. 위의 검증 합계 자리표시자는 그대로 두고 실제 통합 측정은 별도로 기록한다. 운영·시연 배포와 실제 설치본 수용은 이 통합으로 확인되지 않았다.
+
+## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8, D-100)
+
+브랜치 `feat/showcase-wolgye-stores`의 시연 seed는 기존 가상 점포 A/B/C에 월계1·2·3동의 실제 상가정보 기반 점포 30곳을 더해 총 33곳을 구성한다. 공공 원본 487곳 중 월계역에서 가까운 순으로 선정했으며, 구내식당·유흥주점 제외, 중분류별 최대 6곳, 상호 중복 제거를 적용했다. 30곳의 분포는 중분류별 6/6/6/5/3/2/2곳이고 거리는 약 28–823m다. 이 값은 실제 MassCOM 참여를 뜻하지 않는다. 상세 `merchant.story`에는 [D-100](DECISIONS.md)의 고정 고지를 두고, 확인되지 않은 영업시간·메뉴·가격·소개는 비워 둔다. 원본은 2026-06-30 기준 소상공인시장진흥공단 상가(상권)정보이며 영업 여부 확인과 LOCALDATA 교차 확인은 하지 않았다.
+
+`is_demo = true`와 `showcase-wolgye-<SEMAS id>`로 식별하며, 기존 showcase DB 이름 가드가 있는 공통 로컬·hosted seed 트랜잭션에서 캠페인·공개 코인까지 만든다. A/B/C의 seed·스태프 권한·코스는 그대로다. 운영은 `is_demo` 점포를 제외한다. 앱 목록은 거리순(거리 미상은 뒤)이며 기존 필터를 유지한다. 화면 요청 크기 40 안에 33곳이 들어가며 `/play/`도 같은 API를 사용한다. 새 데이터와 코드는 미배포 상태다. 원본 충돌은 seed가 조용히 덮어쓰지 않고 트랜잭션 롤백한다.
+
+갱신은 현재 2026-06-30 날짜만 허용하는 selector guard, attribution, 상세의 날짜 고지를 새 자료에 맞게 함께 검토한 뒤 진행한다. 검토한 전체 JSON을 인자로 `node scripts/build-showcase-wolgye-stores.mjs <full JSON>`을 실행하고 빠진/추가된 상호와 ID별 변경 메타데이터를 확인한다. 선택 스크립트는 기존 seed를 자동 교체하지 않으며 기존 ID의 정규 데이터가 달라지면 seed가 덮어쓰지 않고 트랜잭션을 롤백한다. 스냅샷의 영업 여부 미확인도 유지한다([D-100](DECISIONS.md)).
+
+T8 월계동 공공 상가정보 시연 점포 측정 기록(2026-10-09 KST, `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`): API 단위 615/615 · PostgreSQL 549건 중 546 PASS / 0 FAIL / 3 SKIP · 모바일 2105/2105 (PASS). SKIP 대상 hosted 전용 시험 3건은 전용 disposable runner에서 3/3 PASS. CI wiring·접근성·웹 export·문서 검사와 전체 gate PASS. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`(자세한 내용은 `docs/TEST_STATUS.md`). 이전 기준선·브랜치별 로컬 검증 수치는 `docs/HANDOFF_HISTORY.md`에 보존했습니다.
 
 ## 2026-10-09 캠페인 혜택과 추가 원가 상한 (Issue #412 T3 PR 2, 배포 동결)
 

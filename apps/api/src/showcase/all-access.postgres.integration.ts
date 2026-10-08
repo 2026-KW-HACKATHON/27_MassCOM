@@ -24,7 +24,7 @@ import { seedStoreCollectibles, storeCollectibleProject, type StoreCollectibleTa
 const referenceHmacSecret = 'test-only-all-access-reference-secret-32-bytes';
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** A fresh masscom_showcase_ci_<uuid>_test database, migrated and seeded with the three local demo merchants. */
+/** A fresh masscom_showcase_ci_<uuid>_test database, migrated and seeded with all demo merchants. */
 async function withFreshShowcaseDatabase(run: (pool: Pool) => Promise<void>): Promise<void> {
   const connectionString = process.env.TEST_DATABASE_URL;
   if (!connectionString) throw new Error('TEST_DATABASE_URL is required');
@@ -286,7 +286,10 @@ test('(seed) a fresh seed spans 30 days back to 30 days ahead; a re-seed widens 
         .map((row) => [row.id, [row.starts_at.getTime(), row.ends_at.getTime()]]),
     );
     const fresh = await period();
-    assert.equal(fresh.size, 3);
+    assert.equal(fresh.size, 33);
+    assert.equal([SHOWCASE_CAMPAIGN_ID, 'showcase-local-campaign-b', 'showcase-local-campaign-c']
+      .filter((id) => fresh.has(id)).length, 3);
+    assert.equal([...fresh.keys()].filter((id) => id.startsWith('showcase-wolgye-')).length, 30);
     for (const [starts, ends] of fresh.values()) {
       assert.ok(starts <= Date.now() - 30 * DAY_MS, 'at least 30 days in the past');
       assert.ok(starts > Date.now() - 30 * DAY_MS - 60_000, 'and only just that far');
@@ -470,8 +473,20 @@ async function waitUntilTwoBlockOrWorkFinishes(pool: Pool, finished: () => boole
 
 async function collectibleCounts(pool: Pool): Promise<number[]> {
   const tables = ['collectible_projects', 'collectible_publications', 'collectible_publication_grades', 'campaign_collectible_publications'];
-  const results = await Promise.all(tables.map((table) => pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM ${table}`)));
-  return results.map(({ rows }) => rows[0]!.total);
+  const [results, wolgye] = await Promise.all([Promise.all(tables.map((table) =>
+    pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM ${table}`))), Promise.all([
+    pool.query<{ total: number }>("SELECT count(*)::int AS total FROM collectible_projects WHERE merchant_id LIKE 'showcase-wolgye-%'"),
+    pool.query<{ total: number }>("SELECT count(*)::int AS total FROM collectible_publications WHERE merchant_id LIKE 'showcase-wolgye-%'"),
+    pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM collectible_publication_grades grade
+      JOIN collectible_publications publication ON publication.id = grade.publication_id
+      WHERE publication.merchant_id LIKE 'showcase-wolgye-%'`),
+    pool.query<{ total: number }>(`SELECT count(*)::int AS total FROM campaign_collectible_publications link
+      JOIN campaigns campaign ON campaign.id = link.campaign_id
+      WHERE campaign.merchant_id LIKE 'showcase-wolgye-%'`),
+  ])]);
+  const baseline = [30, 30, 90, 30];
+  assert.deepEqual(wolgye.map(({ rows }) => rows[0]!.total), baseline);
+  return results.map(({ rows }, index) => rows[0]!.total - baseline[index]!);
 }
 
 async function linkedPublication(pool: Pool, campaignId: string): Promise<string> {

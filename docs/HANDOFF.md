@@ -4,14 +4,30 @@
 
 ## 1. 기준 커밋과 작업 위치
 
-- 기준 main 커밋 SHA: `0801c1ce`(PR #424·#426 반영). 작업 위치는 `.worktrees/integ`, 브랜치 `integ/t3b-t4-t8`, HEAD `8c0bad5e`다. T3 혜택은 이미 병합됐고 `origin/feat/cross-store-courses` T4 코스는 병합 충돌 해결 중이다.
+- 기준 main 커밋 SHA: `0801c1ce`(PR #424·#426 반영). 작업 위치는 `.worktrees/integ`, 브랜치 `integ/t3b-t4-t8`, HEAD `5962fe08`다. T3 혜택·T4 코스는 이미 병합됐고 `feat/showcase-wolgye-stores` T8은 병합 중이며 코드 충돌의 파일 수정은 끝났다.
 - 이 세션은 파일 수정만 수행한다. add·commit·stash·rebase·push·merge는 실행하지 않고 Git index의 미병합 상태를 유지한다. 제출 기준선은 마감 시점의 실제 최신 main과 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)·`SUBMISSION_EVIDENCE.json`에서 별도 확정한다.
 
 ## 2. 현재 통합 상태
 
+- T8 구현 중: seed 파일 30곳과 A/B/C를 합쳐 시연 데이터 33곳이다. 운영 DB·서버·설치본·공개 `/play/`에는 배포하지 않았다. Git add/commit/push/merge도 하지 않는다(오케스트레이터 담당).
+- T8 리뷰 고지 후속 이력: 원래 브랜치 `feat/showcase-wolgye-stores`, HEAD `29afaf46` 위 미커밋 변경의 기록. 고객 가게명 카드·행·지도·추천·홈과 수집/보상/공유의 공공자료 시연 고지를 공통 ID helper로 표시하고 접근성 이름에도 넣었다. 모바일 동일 glob Node loader 2105/2105·typecheck·lint·접근성·지갑 표면 PASS. `npm test` 자체는 sandbox IPC `EPERM`으로 BLOCKED(동일 시험의 Node loader 결과와 구분). 정확한 범위·제한은 [TEST_STATUS](TEST_STATUS.md)의 T8 리뷰 절에 있다. 사용자 지시로 add/commit/stash/rebase/push 없음. 다음 검토 명령은 `git diff --check`, `git diff`; 배포·새 설치본 검증은 하지 않았다.
+- T8 원래 기준 main: `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`(PR #425 병합). 작업 브랜치 `feat/showcase-wolgye-stores`는 이 기준에서 시작해 월계동 공공 상가정보 점포 30곳을 showcase seed에 더했다([D-100](DECISIONS.md)). 현재 통합 상태는 1절의 브랜치와 worktree에서 확인한다.
 - T3 혜택([D-094](DECISIONS.md), migration 0069)과 T4 코스([D-093](DECISIONS.md), migration 0072)를 함께 보존한다. 적용 순서는 0068 → 0069 → 0072 → 0075다. 0072의 감사 CHECK는 먼저 적용된 목적·혜택 action과 코스 action을 모두 허용해야 한다.
 - PR #424의 NFT 시리즈 발행 상한 해제([D-095](DECISIONS.md), migration 0075)는 main `0801c1ce`에 포함된다. 기존 Base Sepolia 상한 1 실증 시리즈는 운영 발행에 쓰지 않는다. 운영·시연 배포와 설치본은 이 통합으로 바뀌지 않았다.
 - 현재 PR·CI 상태는 이번 문서 작업에서 조회하지 않았다. 재개할 때 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 확인한다.
+- 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 앞서 기록한 `687427c2` 운영 배포와 test.13·Preview 22·`/play/` 증거는 2026-10-08 당시 공개 상태를 가리킨다([3절](#3-공개-서버와-설치본)). 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
+- PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`), PR #425(T3 점주 목적형 캠페인, main `055d0523`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
+- 병합 순서: PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결, `a742e32d`) → #406(재측정·대체 시연 영상·제출 후보 기록, `6ce8ad03`) → #408(Issue #407의 낮은 화면 결함 4건 수정과 #402를 다음 설치본·웹 체험에 반영, `687427c2`). Issue #401은 #403 병합으로 닫혔다.
+- 운영·시연 서버 배포와 수정본 `/play/` 재측정은 끝났다. Issue #407의 코드(`5ca98955`)로 운영 test.13·시연 Preview 22를 게시했고 시연 `/play/`를 같은 소스로 전환했다. #402의 변경도 이 설치본과 `/play/`에 들어 있다. 라이브 `/open`은 test.13·Preview 22를 가리킨다(2026-10-08 확인).
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 T3 PR 1(점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정)은 브랜치 `feat/purpose-campaigns`를 main `cd01c0d6` 위에서 시작해 main `8841efea`(PR #420·#423)를 병합한 작업이다. migration `0068_campaign_purposes.sql`, `apps/api`·`apps/mobile`·`apps/production-web` 코드와 시험, 문서를 바꿨고 결정은 [D-092](DECISIONS.md)다. 배포하지 않았다(소유자 결정 A).
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 T1(API 서버 구조 정리)은 PR #422로 병합돼 main `cd01c0d6`에 있고 배포하지 않았다. `apps/api`만 바꾼 작업이며 요청·응답 동작은 바꾸지 않았다. 구조 규칙은 [D-088](DECISIONS.md)이다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 T1(API 서버 구조 정리)의 병합 전 이력은 `apps/api`만 바꾼 작업이다. 브랜치 `refactor/api-deps-routes`를 main `b707ed09`(PR #413·#414·#415·#421 병합) 위로 옮겼고 요청·응답 동작은 바꾸지 않았다. 구조 규칙은 [D-088](DECISIONS.md)이다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)(첫 사용 경험)의 T2 작업(브랜치 `feat/first-use-v2`)은 PR #415로 병합돼 main `e06c97cd`에 있고 배포하지 않았다. 결정은 [D-083~D-087](DECISIONS.md)이다. 같은 이슈의 T5(운영 품질) 작업(브랜치 `chore/ops-quality-t5`)은 PR #421로 병합돼 main `b707ed09`에 있고 배포하지 않았다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 T2c(점진적 공개·점주 1인 2역·최소 크기)는 브랜치 `feat/first-use-v2c`에서 PR #423으로 main `8841efea`에 병합됐다. 병합 전에는 PR #420이 병합된 main `48a14811` 위로 리베이스했다. 결정은 [D-090~D-091](DECISIONS.md)이다(D-089는 main의 PR #420 몫이다).
+- PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414·#415·#420·#421·#422·#423은 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
+- NFT 발행 Worker 상시 실행([D-089](DECISIONS.md))의 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)은 병합돼 main `48a14811`에 있고 서버 배포·운영 활성화는 하지 않았다.
+- PR #396은 닫혔으나 main에 병합되지 않았다. 미병합 초안을 공개본 기능으로 계산하지 않는다.
+- 재개 시 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 다시 대조한다.
 
 ## 3. 공개 서버와 설치본
 
@@ -28,6 +44,7 @@
 ## 4. 이번 작업의 범위
 
 - 현재 범위는 T3 PR 2의 캠페인 혜택/쿠폰(D-094, 0069)과 T4 A의 가게 사이 코스(D-093, 0072)를 한 통합 브랜치에 보존하는 충돌 해결이다. 관리자 API·웹, 고객 가게 상세, 감사 시험과 문서에서 두 기능을 함께 유지한다. 0072 감사 CHECK가 앞선 0069 혜택 action을 누락하지 않도록 검사한다.
+- **T8 월계동 시연 점포(2026-10-09):** 원본 487곳에서 월계역 기준 가장 가까운 30곳을 선택했다. 중분류별 6/6/6/5/3/2/2곳, 거리 약 28–823m다. `is_demo = true`와 안정 ID `showcase-wolgye-<SEMAS id>`로 표시하며, `merchant.story`에 D-100의 고정 비참여 고지를 넣는다. 영업시간·메뉴·가격·점포 소개 등 확인되지 않은 정보는 만들지 않았고 코인 그림은 기존 A/B/C 템플릿을 분류별로 재사용한다. 출처는 소상공인시장진흥공단 상가(상권)정보 2026-06-30이며, 영업 여부와 LOCALDATA는 교차 확인하지 않았다.
 
 - [Issue #401](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/401)은 제출 전 운영·문서·심사 대응 정리이며 #403 병합으로 닫혔다. PR #408은 [Issue #407](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/407)의 앱 수정 코드와 test.13·Preview 22 게시, `/play/` 전환, 현재 요약 문서 갱신을 함께 담아 병합됐다.
 - [수정본 재측정](evidence/submission-2026-10-08-recheck/README.md)(Playwright, 시연 서버 임시 계정만)에서 이전 [17단계 실측](evidence/submission-2026-10-08/README.md)의 결함 4건이 모두 FIXED였다. 5분 시연 15단계가 전부 PASS이고 `console.error`·`pageerror`·4xx/5xx·요청 실패는 0건이다. 대체 시연 영상 `demo-flow-390.webm`(10,053,739바이트·4분 8초·390×844)과 캡처 68장을 같은 폴더에 보존했다.
@@ -74,6 +91,7 @@
 - 통합 브랜치 `integ/t3b-t4-t8`: API typecheck `PASS`; `npm test`는 tsx IPC `EPERM`으로 `BLOCKED`, 대체 전체 단위 실행은 662건 중 488 `PASS` / 174 `FAIL`(모두 socket `listen EPERM`)이다. 모바일 typecheck·lint와 대체 단위 시험 2115/2115 `PASS`. 관리자 웹 혜택·목적·코스 격리 시험 22/22와 CI 연결 95개 파일 `PASS`; `verify_production_web_test.mjs`는 서버 listen 훅에서 멈춰 5초 제한 재실행이 시간 초과돼 환경 `BLOCKED`다. 운영 제출 준비 검사 `PASS`(실제 43 + 29 = 72건), 0072 감사 action 23개 합집합·`NOT VALID` 정적 확인 `PASS`. API·모바일 합계 자리표시자는 오케스트레이터가 실제 결과로 채운다. 다른 브랜치의 아래 수치는 그때의 이력이다. PostgreSQL 통합·실기·배포는 현재 `NOT_RUN`이다.
 
 - T4 A 리뷰 수정 실행(2026-10-09): API 634/634, PG 553건 중 550 PASS/0 FAIL/3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139; typecheck·모바일 lint·CI 연결·접근성·문서·gate PASS. PG SKIP은 별도 disposable hosted-showcase 55435 컨테이너가 필요한 기존 3건이다. 검토 시작 HEAD `29644366`(기준 위 4개 커밋); 후속 커밋은 오케스트레이터가 담당한다. 이번 세션은 Git 쓰기를 실행하지 않는다. [검증과 전달](evidence/t4-courses-2026-10-08.md)을 따른다. 전체 사이트·실제 브라우저/기기·설치·배포는 이번 실행에서 NOT_RUN이다.
+- T8 검증: API 615/615·typecheck·build, PostgreSQL 549건 중 546 PASS / 0 FAIL / 3 SKIP, 모바일 2094/2094·typecheck·lint, 선택기 2/2, 전용 hosted seed 3/3, CI wiring 94개 시험 연결, 모바일 접근성·`/play/` web export·운영 문서 검사·`LC_ALL=C bash tools/gate.sh` PASS. 세 PostgreSQL hosted-only skip은 별도 fresh Docker runner에서 각각 통과했다([TEST_STATUS](TEST_STATUS.md)). 웹 export에는 test-only OAuth client fixture를 썼으며 브라우저·로그인 수용은 `NOT_RUN`이다. 공개 서버·APK·웹 배포도 `NOT_RUN`이다.
 
 - Issue #412 T3 PR 1 브랜치 `feat/purpose-campaigns`(main `8841efea` 병합 후): API 단위 615/615(main 597에서 18건 증가)·typecheck, PostgreSQL 전체 543건 중 540 pass / 0 fail / 3 skip(이 작업 전 527건 중 524 pass, 3건은 전용 hosted seed 컨테이너 조건), 모바일 `npm test` 2093/2093(main 2077에서 16건 증가)·typecheck·lint, 사이트·운영 웹 578/578, CI 연결·모바일 접근성 의미·지갑 표면·`bash tools/gate.sh` PASS, 변이 점검 8건 모두 시험 실패. 바뀐 기존 단언과 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 
@@ -145,6 +163,7 @@ bash tests/bootstrap/check_pr_korean_test.sh  # checker 자체 회귀 시험
 ## 14. 이력과 변경 규칙
 
 - 이 세션 커밋은 가능할 때 한국어 의도 제목+Lore trailer만 사용한다. AI 공동 작성자 서명 없음. Git common directory 쓰기가 sandbox로 막히면 변경을 그대로 남기고 목록을 전달한다.
+- T8 데이터 갱신: selector는 현재 `data_date=2026-06-30`만 허용한다. 새 스냅샷 사용 전에는 날짜 guard·attribution·상세 날짜 고지를 함께 검토해 바꾸고, 검토한 전체 JSON에 `node scripts/build-showcase-wolgye-stores.mjs <full JSON>`을 실행한다. 선택 결과·빠지거나 추가되는 상호와 기존 ID의 변경 메타데이터를 확인해 seed를 갱신한다. 이 스크립트는 기존 seed를 자동으로 교체하지 않는다. ID 데이터가 충돌하면 덮어쓰지 않고 롤백한다. 공개·운영 DB를 직접 갱신하지 않는다.
 
 - 2026-09-22부터 2026-10-07까지의 날짜별 인수인계 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 그대로 보존한다. 과거 기록의 “현재”, “열린 PR”, “다음 명령”은 작성 당시의 상태다.
 - 다음 중단 전 이 14절의 기준 SHA·브랜치·PR·공개 버전·검증 상태·다음 명령만 실제 근거에 맞춰 갱신한다.

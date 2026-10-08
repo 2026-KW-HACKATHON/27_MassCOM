@@ -1,4 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, useColorScheme, View } from 'react-native';
 
@@ -145,7 +146,7 @@ export function MealInviteScreen({ apiUrl, credential, onSessionInvalid, friends
             {merchantId ? (
               selectedMerchant ? (
                 <View>
-                  <Text style={{ color: palette.label, fontWeight: '900', fontSize: 16 }}>{selectedMerchant.name}</Text>
+                  <Text style={{ color: palette.label, fontWeight: '900', fontSize: 16 }}>{publicDataDemoStoreName(selectedMerchant.id, selectedMerchant.name)}</Text>
                   <Text selectable style={{ color: palette.secondaryLabel, marginTop: 3 }}>{selectedMerchant.roadAddress}</Text>
                   <Text style={{ color: palette.secondaryLabel, marginTop: 3 }}>현재 {detail ? businessLabel[detail.business.state] : detailError ? '영업 상태 확인 실패' : '영업 상태 확인 중…'}</Text>
                   <BounceButton label="가게 정보 보기" variant="secondary" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId } })} />

@@ -49,6 +49,19 @@ test('same building keeps each merchant ID; selection survives list/map return',
   assert.equal(state.snapshot().selectedId, 'b');
 });
 
+test('loaded discovery pages show nearest stores first without changing the API cursor', () => {
+  const state = createDiscoveryState();
+  const merchant = (id: string, meters: number | null) => ({
+    ...page(id).merchants[0]!, distance: meters === null ? null : { meters, kind: 'STRAIGHT_LINE' as const, origin: 'MAP_CENTER' as const },
+  });
+  state.resolve(state.begin(queryA), { ...page('a', 'next'), merchants: [merchant('far', 500), merchant('unknown', null), merchant('near', 100)] });
+  assert.deepEqual(state.snapshot().merchants.map(item => item.id), ['near', 'far', 'unknown']);
+  const next = state.beginNext();
+  assert.equal(next?.cursor, 'next');
+  state.resolve(next!, { ...page('b'), merchants: [merchant('middle', 250), merchant('near', 100)] });
+  assert.deepEqual(state.snapshot().merchants.map(item => item.id), ['near', 'middle', 'far', 'unknown']);
+});
+
 test('restore stores filters and selection but no GPS, route geometry or provider data', () => {
   const state = createDiscoveryState(); state.setFilters({query:'cake',openOnly:true}); state.select('shop');
   state.setOrigin({latitude:37.6,longitude:127,basis:'CURRENT_LOCATION'});

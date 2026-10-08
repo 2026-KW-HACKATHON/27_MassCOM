@@ -5,9 +5,11 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 
 import { PostgresMerchantAccessControl } from '../postgres/merchant-access.js';
+import { PostgresCampaignEnrollmentService } from '../postgres/campaign-enrollment.js';
 import { PostgresMerchantCatalog } from '../postgres/merchant-catalog.js';
 import { PostgresRealWorldService } from '../postgres/real-world.js';
 import { runMigrations } from '../postgres/migrate.js';
+import { WOLGYE_STORES, WOLGYE_STORE_DISCLOSURE } from './wolgye-seed.js';
 import {
   seedLocalShowcase,
   SHOWCASE_CAMPAIGN_ID,
@@ -70,7 +72,7 @@ async function withFreshShowcaseDatabase(run: (pool: Pool) => Promise<void>): Pr
   }
 }
 
-test('local showcase seed is repeatable with three visible demo merchants', async () => {
+test('local showcase seed is repeatable with 33 visible demo merchants', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const first = await seedLocalShowcase(pool);
     const second = await seedLocalShowcase(pool);
@@ -81,9 +83,10 @@ test('local showcase seed is repeatable with three visible demo merchants', asyn
     });
 
     const rows = await snapshot(pool);
-    assert.equal(rows.merchants.length, 3);
-    assert.equal(rows.campaigns.length, 3);
-    assert.equal(rows.goals.length, 9);
+    assert.equal(WOLGYE_STORES.length, 30);
+    assert.equal(rows.merchants.length, 33);
+    assert.equal(rows.campaigns.length, 33);
+    assert.equal(rows.goals.length, 99);
     assert.equal(rows.members.length, 3);
 
     // 보상 상자 체험 혜택은 가상 점포 A·B·C에 milestone별 하나씩, 재실행해도 늘거나 초기화되지 않는다.
@@ -115,7 +118,8 @@ test('local showcase seed is repeatable with three visible demo merchants', asyn
 
     const catalog = new PostgresMerchantCatalog(pool);
     const listed = await catalog.listPublicMerchants();
-    assert.deepEqual(listed.map((merchant) => merchant.name), [
+    assert.equal(listed.length, 33);
+    assert.deepEqual(listed.filter((merchant) => merchant.id.startsWith('showcase-local-')).map((merchant) => merchant.name), [
       '가상 점포 A', '가상 점포 B', '가상 점포 C',
     ]);
     assert.ok(listed.every((merchant) => merchant.demo));
@@ -142,6 +146,78 @@ test('local showcase seed is repeatable with three visible demo merchants', asyn
       merchantId: SHOWCASE_MERCHANT_ID,
       permission: 'CONFIRM_VISIT',
     }), /MERCHANT_ACCESS_DENIED/);
+  });
+});
+
+test('Wolgye demo stores disclose their source and leave unverified business details empty', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    await seedLocalShowcase(pool);
+    const details = new PostgresRealWorldService(pool, { includeDemo: true });
+    for (const store of WOLGYE_STORES) {
+      const detail = await details.merchant(store.id);
+      assert.equal(detail.demo, true);
+      assert.equal(detail.story, WOLGYE_STORE_DISCLOSURE);
+      assert.equal(detail.name, store.name);
+      assert.equal(detail.roadAddress, store.roadAddress);
+      assert.deepEqual(detail.position, { latitude: store.lat, longitude: store.lng });
+      assert.equal(detail.location?.source, 'ADMIN_DOCUMENTED');
+      assert.equal(detail.schedule, null);
+      assert.equal(detail.business.state, 'UNKNOWN');
+      assert.deepEqual(detail.menuItems, []);
+      assert.deepEqual(detail.contact, { phone: null, website: null });
+      assert.equal(detail.legacyBusinessHours, '');
+      assert.equal(detail.campaign?.state, 'ACTIVE');
+      assert.equal(detail.campaign?.enrollment, 'OPEN');
+      assert.deepEqual(detail.campaign?.goals.map((goal) => goal.targetVisitCount), [1, 3, 5]);
+    }
+  });
+});
+
+test('Wolgye demo stores appear in showcase discovery with station distances and category filtering', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    await seedLocalShowcase(pool);
+    const showcase = new PostgresRealWorldService(pool, { includeDemo: true });
+    const query = {
+      bounds: { west: 127.0, east: 127.12, south: 37.58, north: 37.7 }, zoom: 15,
+      origin: { latitude: 37.6341068, longitude: 127.0589231, basis: 'MANUAL' as const },
+      campaignOnly: true,
+    };
+    const page = await showcase.search(query);
+    assert.equal(page.merchants.length, 33);
+    assert.equal(page.nextCursor, null);
+    assert.equal(page.merchants.filter((merchant) => merchant.id.startsWith('showcase-wolgye-')).length, 30);
+    const nearest = WOLGYE_STORES[0]!;
+    assert.equal(page.merchants.find((merchant) => merchant.id === nearest.id)?.distance?.meters, nearest.distanceM);
+    const categoryPage = await showcase.search({ ...query, category: nearest.category });
+    assert.ok(categoryPage.merchants.some((merchant) => merchant.id === nearest.id));
+    assert.ok(categoryPage.merchants.every((merchant) => merchant.category === nearest.category));
+  });
+});
+
+test('production discovery and detail exclude every Wolgye demo store', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    await seedLocalShowcase(pool);
+    const production = new PostgresRealWorldService(pool);
+    const query = { bounds: { west: 127.0, east: 127.12, south: 37.58, north: 37.7 }, zoom: 15 };
+    assert.deepEqual((await production.search(query)).merchants, []);
+    for (const store of WOLGYE_STORES) {
+      await assert.rejects(production.merchant(store.id), { code: 'MERCHANT_NOT_FOUND' });
+    }
+  });
+});
+
+test('a Wolgye public-data campaign accepts customer enrollment', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    await seedLocalShowcase(pool);
+    const campaignId = `${WOLGYE_STORES[0]!.id}-campaign`;
+    const enrolled = await new PostgresCampaignEnrollmentService(pool).enroll({
+      campaignId, accountId: 'wolgye-enrollment-customer',
+    });
+    assert.equal(enrolled.created, true);
+    const count = await pool.query<{ enrolled_count: number }>(
+      'SELECT enrolled_count FROM campaigns WHERE id = $1', [campaignId],
+    );
+    assert.equal(count.rows[0]?.enrolled_count, 1);
   });
 });
 
@@ -183,11 +259,11 @@ test('existing one-store showcase data grows to three stores without changing vi
     const rows = await snapshot(pool);
     assert.deepEqual(
       [rows.merchants.length, rows.campaigns.length, rows.goals.length, rows.members.length],
-      [3, 3, 9, 3],
+      [33, 33, 99, 3],
     );
     // #254: 0036 전에 seed된 A도 동네·업종을 받고, 이미 값이 있는 점포는 다시 seed해도 바뀌지 않는다.
     const profiles = async () => (await pool.query<{ id: string; neighborhood: string; category: string }>(
-      'SELECT id, neighborhood, category FROM merchants ORDER BY id')).rows;
+      "SELECT id, neighborhood, category FROM merchants WHERE id LIKE 'showcase-local-%' ORDER BY id")).rows;
     assert.deepEqual(await profiles(), [
       { id: SHOWCASE_MERCHANT_ID, neighborhood: '월계동', category: '카페' },
       { id: 'showcase-local-merchant-b', neighborhood: '월계동', category: '분식' },
@@ -225,7 +301,7 @@ test('damaged existing fixture is refused without changing any of its four table
       // Restore only this disposable test database for the next independent corruption case.
       await pool.query('TRUNCATE merchant_members, campaign_goals, campaigns, merchants CASCADE');
       await seedLocalShowcase(pool);
-      assert.equal(before.merchants.length, 3);
+      assert.equal(before.merchants.length, 33);
     }
   });
 });
@@ -250,6 +326,19 @@ test('existing active public campaign with another id stays unchanged', async ()
   });
 });
 
+test('a pre-existing non-demo Wolgye id aborts the whole seed without touching the collision', async () => {
+  await withFreshShowcaseDatabase(async (pool) => {
+    const store = WOLGYE_STORES[0]!;
+    await pool.query(
+      `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
+       VALUES ($1, '기존 운영 점포', '기존 소개', '기존 주소', 0, 'ACTIVE', false)`, [store.id],
+    );
+    const before = await snapshot(pool);
+    await assert.rejects(seedLocalShowcase(pool), /SHOWCASE_WOLGYE_FIXTURE_COLLISION/);
+    assert.deepEqual(await snapshot(pool), before);
+  });
+});
+
 test('concurrent first seeds converge on one complete fixture', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const results = await Promise.all(Array.from({ length: 8 }, () => seedLocalShowcase(pool)));
@@ -262,7 +351,7 @@ test('concurrent first seeds converge on one complete fixture', async () => {
     const rows = await snapshot(pool);
     assert.deepEqual(
       [rows.merchants.length, rows.campaigns.length, rows.goals.length, rows.members.length],
-      [3, 3, 9, 3],
+      [33, 33, 99, 3],
     );
   });
 });

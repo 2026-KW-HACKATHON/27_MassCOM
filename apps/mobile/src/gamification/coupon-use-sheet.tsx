@@ -4,6 +4,7 @@ import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSprin
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { focusForAccessibility } from '@/accessibility/focus-component';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { ClaimQr } from '@/commerce/claim-qr';
 import type { CustomerIdentity } from '@/commerce/commerce-api';
 import { createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired } from '@/commerce/customer-identity';
@@ -177,10 +178,10 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
           </Pressable>
         </View>
         <ScrollView style={styles.sheetScroll} contentContainerStyle={[styles.sheetBody, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.couponSummary} accessible accessibilityLabel={coupon.status === 'VOIDED' ? `${coupon.merchantName} ${coupon.title}` : `${coupon.merchantName} ${coupon.title}, ${couponExpiryLabel(coupon.expiresAt).replace('~', '')}`}>
+          <View style={styles.couponSummary} accessible accessibilityLabel={coupon.status === 'VOIDED' ? `${publicDataDemoStoreName(coupon.merchantId, coupon.merchantName)} ${coupon.title}` : `${publicDataDemoStoreName(coupon.merchantId, coupon.merchantName)} ${coupon.title}, ${couponExpiryLabel(coupon.expiresAt).replace('~', '')}`}>
             <GiftGlyph size={34} color={coupon.milestone === 3 ? medal.giftGold : medal.giftPaperShade} ribbon={medal.ribbon} />
             <View style={styles.couponSummaryCopy}>
-              <Text style={styles.ticketMerchant}>{coupon.merchantName}</Text>
+              <Text style={styles.ticketMerchant}>{publicDataDemoStoreName(coupon.merchantId, coupon.merchantName)}</Text>
               <Text style={styles.ticketTitle}>{coupon.title}</Text>
               {coupon.detail.trim() ? <Text style={styles.ticketExpiry}>사용 조건 · {coupon.detail}</Text> : null}
               {coupon.status === 'VOIDED' ? null : <Text style={styles.ticketExpiry}>{couponExpiryLabel(coupon.expiresAt)}</Text>}
@@ -188,7 +189,7 @@ function SheetBody({ coupon: initial, variant, createIdentity, revokeIdentity, l
           </View>
 
           {coupon.status === 'REDEEMED' ? (
-            <RedeemedPanel merchantName={coupon.merchantName} onClose={onClose} />
+            <RedeemedPanel merchantName={publicDataDemoStoreName(coupon.merchantId, coupon.merchantName)} onClose={onClose} />
           ) : coupon.status === 'VOIDED' ? (
             <Text accessibilityLiveRegion="polite" style={styles.errorText}>이 쿠폰은 더 이상 사용할 수 없어요. 방문 기록이 바뀌었거나 운영팀이 무효로 했어요.</Text>
           ) : coupon.status === 'EXPIRED' || Date.parse(coupon.expiresAt) <= now ? (

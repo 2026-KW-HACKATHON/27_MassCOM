@@ -2,6 +2,8 @@
 
 ## 2026-10-09 T3 혜택·T4 코스 통합 (Issue #412, 배포하지 않음)
 
+2026-10-09 T8 병합 문서 정리 재검증(macOS, `integ/t3b-t4-t8`, HEAD `5962fe08`, 파일 수정만): `bash tests/bootstrap/operations_submission_readiness_test.sh`·`bash tests/bootstrap/verify_bootstrap_test.sh`·`bash tests/ci/ci_wiring_test.sh`는 PASS(72 migrations·36 ID 동기화·96개 시험 파일 연결), `node --test tests/site/current_release_test.mjs`는 PASS(12/12)다. `bash tests/bootstrap/verify_operations_docs_test.sh`는 현재 문서 본검사 PASS 뒤 숫자 전용 변이가 `__MOB__`에 매칭되지 않아 FAIL(`mutation did not change README.md`); 요청대로 `__API__`·`__MOB__`를 유지하며 검사나 코드를 바꾸지 않았다. 아래 API·모바일 결과는 앞선 T3/T4 통합 실행 이력이며 이번 문서 검사의 재측정값이 아니다.
+
 환경: macOS, 통합 브랜치 `integ/t3b-t4-t8`의 HEAD `8c0bad5e`. PR #424·#426 반영 main `0801c1ce`와 T3 혜택을 반영한 상태에서 `origin/feat/cross-store-courses` 병합 충돌의 파일 수정을 마쳤다. Git index는 미병합 상태로 둔다.
 
 - `cd apps/api && npm run typecheck`: `PASS`. `npm test`는 tsx IPC `EPERM`으로 `BLOCKED`. `node --import tsx` 대체 전체 실행은 662건 중 488 `PASS` / 174 `FAIL`이며 174건 모두 socket `listen EPERM`이었다. 전체 API 단위 통과는 확인하지 못했다.
@@ -76,6 +78,38 @@
 
 회귀는 권한 취소·삭제 후 관리자 4개 쓰기 거절, 삭제 계정 unlock의 ACCOUNT_DELETED(기존 HTTP 410 매핑), 큐레이터 원장 복구의 상한·멱등성, 50개 목록 상한과 5개 배치 읽기, 그림 없는 3개 hint 읽기, goal-1 실제 코스 추천과 실패 fallback, 게시 후 점포·캠페인 변경, cutoff 포함 경계, DB 가드·21개 감사 action, 앱 캐시 해제·구 API 404/503·가게 코스 칩을 확인한다. 독립 code-reviewer가 조각 키 중복 입력의 DB 23505→500 가능성을 찾아 parser 거절과 시험으로 수정했다. 전체 PG와 표적 PG가 겹친 실행은 공유 fixture 충돌로 판정했다. 첫 전체 실행에서는 기존 추천 fixture에 목표가 없어 hint assertion이 실패했고, 기대값을 유지하며 실제 계약 필드를 채운 뒤 전체를 순차 재실행해 PASS했다. 최종 로그는 `/private/tmp/t4-review-api-unit-final.log`, `/private/tmp/t4-review-api-pg-final.log`, `/private/tmp/t4-mobile-test.log`, `/private/tmp/t4-review-site.log`다. README와 PROJECT_STATE의 현재 합계 줄은 동일하다.
 
+## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8, 검증 완료·미배포)
+
+브랜치 `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`. 시연 seed에 30개 공공 상가정보 점포를 추가해 기존 A/B/C와 총 33곳으로 구성한다. [D-100](DECISIONS.md)의 공개 고지·미확인 정보 제한을 적용한다. 구현·검증 결과는 다음과 같다. 서버 배포·APK 공개는 `NOT_RUN`이다.
+
+| 범위 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| API unit/typecheck/build | PASS | `npm test --prefix apps/api` 615/615; `npm run typecheck --prefix apps/api`; `npm run build --prefix apps/api`. |
+| PostgreSQL 통합 | PASS | migration 적용 뒤 `npm run test:postgres`: 전체 549건 중 546 PASS / 0 FAIL / 3 SKIP, 총 실행 시간 571,422.879667 ms. SKIP 세 건은 별도 fresh Docker hosted runner에서 각각 실행해 3/3 PASS했다. 접속 URL과 비밀값은 기록하지 않는다. |
+| 모바일 시험/typecheck/lint | PASS | 최초 T8 `npm test --prefix apps/mobile` 2094/2094. 리뷰 고지 수정(HEAD `29afaf46` + 미커밋 변경): 동일 glob의 `node --import tsx --test 'src/**/*.test.ts'` 2105/2105, `npm run typecheck`, `npm run lint` PASS(`apps/mobile`에서 실행). 정확한 `npm test`는 sandbox의 tsx CLI IPC socket `listen EPERM`으로 시험 시작 전 BLOCKED; Node loader는 같은 시험 파일 전부를 실행한다. |
+| 원본 선택기·생성 데이터 | PASS | 선택기 시험 2/2; 생성 JSON 30개. 기준일이 아닌 입력과 좌표 범위 오류는 거절한다. |
+| CI·접근성·웹 체험 export | PASS | CI wiring 94개 시험 파일 연결, 모바일 accessibility semantics 검사, `/play/`이 사용하는 showcase 웹 export PASS. export 빌드는 `EXPO_NO_DOTENV=1 CI=1 MASSCOM_BUILD_SOURCE_COMMIT=055d05237a6f65cfe4b00e29ce95c26d6eb67ece`와 test-only OAuth client id `123-demo.apps.googleusercontent.com`을 사용해 uncommitted working tree를 컴파일했다. 이 빌드 출처 표식은 release provenance가 아니다. 컴파일 경로 확인이며 실제 로그인·브라우저 수용·공개 반영 증거도 아니다. |
+| 운영 문서 검사 | PASS | `bash tests/bootstrap/verify_operations_docs_test.sh`; README와 PROJECT_STATE의 현재 합계 문장 일치 검사 포함. |
+| 전체 gate | PASS | `LC_ALL=C bash tools/gate.sh` 종료 0, 모든 subgate PASS. |
+| 공개 서버·앱·웹 반영 | `NOT_RUN` | 배포·릴리스는 이 작업 범위에 없다. 기존 공개 `/play/`와 설치본이 33개를 제공한다고 주장하지 않는다. |
+
+**리뷰 차단 고지 수정(2026-10-09, HEAD `29afaf46` + 미커밋 변경).** 모바일 공통 helper는 `showcase-wolgye-` ID에만 “실제 가게 정보로 만든 시연 · 참여하지 않은 가게”를 붙인다. 탐색 목록·지도 선택/클러스터/제안 행·provider 마커 제목, 추천, 홈 첫 가게/뽑기권/방문 목표, 동네 지도 pin/overflow/callout, 코스·교체 선택·도착 행, 식사 초대 선택/상세, 시연 방문 선택/미리보기/축하, 방문 기록·도장판·친구 여권, 수집품/시리즈/상세/뒷면/봉투/공유 카드, 코인 도감·뽑기권 상점·뽑기 결과, 마이룸/친구 방/이웃 목록·공유 이미지, 놀이 가게/발견 코인, 쿠폰·사용 요약·보상 상자에 적용했다. `/play/` 웹 체험은 같은 Expo renderer를 사용한다. 명시적 접근성 이름에도 고지를 넣고 고지가 있는 가게명은 줄 수로 자르지 않는다. 가게 상세 `story`의 전체 고지, 원본 API 이름, API/schema/서버 권한·보상 규칙은 그대로다.
+
+신규 모바일 시험 11건(분류 helper와 production JSX/접근성 이름·마커/도장·공유 view model)으로 2094→2105건이다. 기존 source 단언은 가게명 helper 호출을 정확히 확인하도록 바꾸되 기존 주소·시연 표식·상태·진행·링크·줄바꿈·대비 단언을 유지했다. 친구 여권의 과거 `merchantId: null` 행은 ID가 없어 공공자료 점포를 분류할 수 없다. 실제 T8 seed ID가 있는 행은 분류된다. API/schema 변경은 하지 않았다. API/PostgreSQL/웹 export는 위 최초 T8 증거를 유지하며 이번 수정에서 다시 실행하지 않았다. 실제 Android/TalkBack/브라우저 렌더·새 웹 export·배포는 `NOT_RUN`이다. `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh` PASS; 전체 gate `LC_ALL=C bash tools/gate.sh` 종료 0 PASS(위 행 참조). 사용자 지시로 Git add/commit/stash/rebase/push를 실행하지 않았다.
+
+**변경한 기존 단언:**
+
+| 파일 | 변경 | 이유 |
+| --- | --- | --- |
+| `local-seed.postgres.integration.ts` | 가게·캠페인·목표 합계를 `3/3/9`에서 `33/33/99`로 바꾸고, 기존 A/B/C 세 곳과 Wolgye 30곳을 별도로 확인 | showcase 전체 seed가 33곳으로 확장됨 |
+| `host-seed.postgres.integration.ts` | 전체 가게·캠페인·목표를 `3/3/9`에서 `33/33/99`로 바꿈 | hosted seed도 같은 33곳을 공개함 |
+| `host-seed-existing.postgres.integration.ts` | 재시드 뒤 전체 수와 연결 공개물을 `3/3/9`·3에서 `33/33/99`·33으로 바꿈 | 기존 방문 보존 검증에 새 점포의 공개 seed도 포함 |
+| `store-collectibles.postgres.integration.ts` | 공개물·등급 행·캠페인 연결 수를 `3/3/9/3`에서 `33/33/99/33`으로 바꿈; A/B/C 그림 검증은 해당 캠페인에 한정 | 각 추가 캠페인에도 표준 코인 게시물·세 등급 스냅샷이 생김 |
+| `guest-trials.postgres.integration.ts` | 가게 목록과 추천 후보 기대값 `3`을 `33`으로 바꿈 | 새 공개 demo stores는 보이지만 숨겨진 임시 체험 점포는 계속 제외됨 |
+| `all-access.postgres.integration.ts` | fresh campaign map size `3`을 `33`으로 바꾸고 33개 전체 기간을 확인; 기존 A/B/C 3개와 Wolgye ID 30개를 별도 확인. 집계 helper는 검증된 T8 기준 `[30,30,90,30]`을 전체값에서 빼도록 바꾸고 기존 exact `3/3/9/3` 단언을 유지 | 새 캠페인 30개도 기간·집계 보호를 받되, 기존 동시성·재시드 시나리오의 A/B/C 기준 의미도 보존 |
+
+합계 assertion을 늘렸지만 기존 보존·격리 검증을 삭제하거나 약화하지 않았다. 신규 Wolgye 범위와 A/B/C 회귀 기대값을 분리했다.
+
 ## 2026-10-08 가게 사이를 잇는 코스 (Issue #412 T4 A, 배포하지 않음)
 
 환경: macOS Codex App sandbox, `.worktrees/t4-courses`, 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. migration `0072_courses.sql`은 준비된 전용 PostgreSQL 16 `_test` DB에 적용했다. 연결 정보는 출력하지 않았고 DB는 오케스트레이터가 삭제한다. 결정은 D-093이다.
@@ -94,6 +128,7 @@
 | 설치·배포·시각 수용 | NOT_RUN | 운영/시연 서버·실제 DB·APK·Play·push를 변경하지 않았다. 실제 브라우저/기기 코스 수용과 screenshot 비교는 하지 않았다. 별도 hosted showcase DB가 필요한 3개 시험은 전체 PG의 skip으로 구분한다. Studio 장면 배치는 후속 범위다 |
 
 기존 assertion 변경은 세 가지뿐이다. `admin-store-go-live.postgres.integration.ts`의 감사 action 수 16→21(0068 호환 + COURSE_* 4개), 모바일 `merchant-art/customer-display.test.ts`의 인라인 그림 허용 목록에 파서 검증을 거친 코스 화면 추가, `ui/components.test.ts`의 RefreshControl 수 19→20(새 코스 화면). 나머지 기존 기대값은 유지했다. 원래 남아 있던 미추적 코스 입력 시험의 빈 opt-in 참조 처리는 초안 입력 계약에 맞췄다.
+
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
 기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`. 점주가 캠페인 목적(처음 확인되는 방문·다시 방문·한산한 시간대)을 고르게 하는 migration `0068_campaign_purposes.sql`, 시간대 판정 순수 규칙, 방문 확정 경로(`claim-slot-service.ts`, 민감 경로)의 시간대 상태 필드 추가, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 점주 화면의 "첫 방문/재방문" 표기 정정을 담았다([D-092](DECISIONS.md)). 방문 삽입·진행 계산·`grantReachedGoals`·잠금·취소는 바꾸지 않았다. 배포·게시는 하지 않았다(소유자 결정 A).

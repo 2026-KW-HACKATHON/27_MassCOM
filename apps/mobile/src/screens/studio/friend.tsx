@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useW
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { createExperienceApiClient, type DisplayExperienceProfile } from '@/experience/experience-api';
 import { consentRequiredMessage, consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
@@ -99,20 +100,20 @@ export function FriendStudioScreen({ apiUrl, credential, onSessionInvalid, frien
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId } })}
         style={styles.row}>
         <View style={styles.rowText}><Text numberOfLines={1} style={styles.name}>{item.displayName}</Text>
-          <Text numberOfLines={1} style={styles.merchant}>{item.merchantName}</Text></View>
+          <Text style={styles.merchant}>{publicDataDemoStoreName(item.merchantId, item.merchantName)}</Text></View>
         <Text style={styles.arrow}>›</Text>
       </Pressable>)}
       {displayStudioItems(snapshot).filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`goal:${item.merchantId}`} accessibilityRole="button"
         disabled={Boolean(goalSaving)} onPress={() => void saveVisitGoal(item.merchantId, item.merchantName)} style={styles.goal}>
-        <Text style={styles.goalText}>{goalSaving === item.merchantId ? '저장 중…' : `${item.merchantName} 방문 목표로 저장`}</Text>
+        <Text style={styles.goalText}>{goalSaving === item.merchantId ? '저장 중…' : `${publicDataDemoStoreName(item.merchantId, item.merchantName)} 방문 목표로 저장`}</Text>
       </Pressable>)}
       {displayStudioItems(snapshot).filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`collectible-goal:${item.merchantId}`} accessibilityRole="button"
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: item.merchantId, from: 'friend' } })} style={styles.goal}>
-        <Text style={styles.goalText}>{item.merchantName} 수집품의 현재 획득 경로 보기</Text>
+        <Text style={styles.goalText}>{publicDataDemoStoreName(item.merchantId, item.merchantName)} 수집품의 현재 획득 경로 보기</Text>
       </Pressable>)}
       {displayStudioItems(snapshot).filter((item, index, items) => items.findIndex((candidate) => candidate.merchantId === item.merchantId) === index).map((item) => <Pressable key={`invite:${item.merchantId}`} accessibilityRole="button"
         onPress={() => router.push({ pathname: '/friends/[friendshipId]/meal-invite', params: { friendshipId, merchantId: item.merchantId } })} style={styles.goal}>
-        <Text style={styles.goalText}>{item.merchantName}에서 만날 시간 제안 · 매장 예약 아님</Text>
+        <Text style={styles.goalText}>{publicDataDemoStoreName(item.merchantId, item.merchantName)}에서 만날 시간 제안 · 매장 예약 아님</Text>
       </Pressable>)}
       {!displayStudioItems(snapshot).length ? <Text style={[styles.empty, { color: palette.secondaryLabel }]}>아직 진열한 수집품이 없어요.</Text> : null}
       {snapshot.studio.goal?.merchantId ? <Pressable accessibilityRole="button" style={styles.goal}

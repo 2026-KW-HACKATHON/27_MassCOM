@@ -22,7 +22,7 @@ test('oversized open-only search offers a changed-query recovery',()=>{
 });
 
 test('real rows announce verified status, campaign and straight-line distance at large text',()=>{
-  assert.match(map,/accessibilityLabel=\{`\$\{merchant\.name\}/);
+  assert.match(map,/accessibilityLabel=\{`\$\{publicDataDemoStoreName\(merchant\.id, merchant\.name\)\}/);
   assert.match(map,/businessLabel\(merchant\.business\)/);
   assert.match(map,/Math\.round\(merchant\.distance\.meters\)/);
   assert.match(map,/accessibilityState=\{\{selected:state\.selectedId===merchant\.id\}\}/);
@@ -57,8 +57,8 @@ test('map keeps native gesture canvas outside a vertical ScrollView and bounds i
 });
 
 test('a demo store keeps its 시연 데이터 marker on the row name and in the spoken label; only the placeholder address line is dropped', () => {
-  assert.match(map, /<Text style=\{styles\.name\}>\{merchant\.name\}\{merchant\.demo\?' · 시연 데이터':''\}<\/Text>/);
-  assert.match(map, /\$\{merchant\.name\}, \$\{merchant\.roadAddress\}, \$\{merchant\.demo\?'시연 데이터, ':''\}/);
+  assert.match(map, /<Text style=\{styles\.name\}>\{publicDataDemoStoreName\(merchant\.id, merchant\.name\)\}\{merchant\.demo\?' · 시연 데이터':''\}<\/Text>/);
+  assert.match(map, /\$\{publicDataDemoStoreName\(merchant\.id, merchant\.name\)\}, \$\{merchant\.roadAddress\}, \$\{merchant\.demo\?'시연 데이터, ':''\}/);
   assert.match(map, /\[merchant\.demo\?null:merchant\.roadAddress,/);
   assert.doesNotMatch(map, /the banner already says/);
 });

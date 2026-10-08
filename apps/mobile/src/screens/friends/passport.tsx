@@ -4,6 +4,7 @@ import { Alert, Pressable, RefreshControl, Text, View, useColorScheme, useWindow
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { FriendsApiError, createFriendsApiClient, friendsErrorMessage, rotateFailureCopy, type Friend, type FriendStamp } from '@/friends/friends-api';
 import { passportAsOfNote, visitedShopSummary } from '@/friends/friends-model';
 import { useFriends } from '@/friends/use-friends';
@@ -276,6 +277,7 @@ function FriendStampPage({ stamps }: { stamps: readonly FriendStamp[] }) {
     <View style={ui.stampPage}>
       {stamps.map((stamp, index) => {
         const name = stamp.merchantName;
+        const displayName = publicDataDemoStoreName(stamp.merchantId ?? undefined, name);
         const destination = friendStampDestination(stamp);
         const content = <>
           {/* The tilt is computed here on the JS thread, like the passport's own stamps. */}
@@ -284,15 +286,15 @@ function FriendStampPage({ stamps }: { stamps: readonly FriendStamp[] }) {
               <Text maxFontSizeMultiplier={1.2} style={ui.stampMark}>{stampGlyph(name)}</Text>
             </View>
           </View>
-          <Text numberOfLines={2} textBreakStrategy="simple" style={ui.stampName}>{name}</Text>
+          <Text textBreakStrategy="simple" style={ui.stampName}>{displayName}</Text>
         </>;
         const style = [styles.stampSlotStatic, { width: slotWidth }];
         return destination ? (
-          <Pressable key={`${index}-${name}`} accessibilityRole="link" accessibilityLabel={`${name} 도장 받음, 가게 보기`}
+          <Pressable key={`${index}-${name}`} accessibilityRole="link" accessibilityLabel={`${displayName} 도장 받음, 가게 보기`}
             onPress={() => router.push(destination)}
             style={style}>{content}</Pressable>
         ) : (
-          <View key={`${index}-${name}`} accessible accessibilityLabel={`${name} 도장 받음`} style={style}>{content}</View>
+          <View key={`${index}-${name}`} accessible accessibilityLabel={`${displayName} 도장 받음`} style={style}>{content}</View>
         );
       })}
     </View>

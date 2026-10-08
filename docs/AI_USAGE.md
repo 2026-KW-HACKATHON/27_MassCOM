@@ -1,8 +1,10 @@
 # AI 사용 기록
 
-## 한눈에 보기 (2026-10-08 기준)
+## 한눈에 보기 (2026-10-09 기준)
 
-- 도구: Codex(GPT‑6 계열, 예: `gpt-6.1-sol`)와 Claude Code(Opus 5.5, Sonnet 5.5)입니다. Codex는 구현과 독립 리뷰에 써 왔고, 2026-10-08 소유자 지시 뒤로는 이미지 생성에만 씁니다(임시). [모델 사용 기준](AI_MODEL_ROUTING.md)
+- T8 (2026-10-09): 이번 사용자 요청에서는 Codex가 선택기·seed·시험·문서를 구현하고 검증했다. Codex native subagents가 저장소 탐색, 원본 선택기, 모바일 거리 정렬, PostgreSQL 시험을 나눠 맡았고 별도 코드 리뷰 에이전트가 날짜 고정 가드 누락을 발견했다. 사용자 요청이 2026-10-08 임시 모델 운용 안내보다 우선하는 이번 범위에 한해 Codex를 사용했다.
+
+- 도구: Codex(GPT‑6 계열, 예: `gpt-6.1-sol`)와 Claude Code(Opus 5.5, Sonnet 5.5)입니다. 2026-10-08 임시 운용 안내 이후 Codex는 이미지 생성에만 쓰도록 했지만, 이번 T8은 사용자의 직접 요청으로 Codex 구현·검증·문서화 및 별도 리뷰를 진행했습니다. [모델 사용 기준](AI_MODEL_ROUTING.md)
 - 지금 역할: Claude Opus 5.5가 지휘와 교차 평가를, Claude Sonnet 5.5 서브에이전트가 구현과 독립 리뷰를 맡습니다. 구현과 리뷰는 서로 다른 세션입니다.
 - AI가 한 일: 코드·시험·문서 초안 작성, 독립 리뷰, 공개 `/play/` 측정입니다. 코드량 비중은 추정하지 않습니다.
 - 사람이 한 일(git·문서에 남은 것만): 소유자(`choijunhuk`)가 범위·승인 경계·사용할 모델을 정하고 AI 작업을 지시·승인했습니다([DECISIONS](DECISIONS.md)의 소유자 결정). 병합된 PR 239건(2026-10-08 조회) 중 230건은 `choijunhuk`가 올렸습니다.
@@ -13,11 +15,20 @@
 
 ## 2026-10-09 T3 혜택·T4 코스 통합 (Issue #412)
 
+2026-10-09 T8 병합 문서 정리: 이번 사용자 요청으로 Codex와 문서 담당 native executor가 README·PROJECT_STATE·HANDOFF·TEST_STATUS·AI_USAGE의 합집합 중복과 날짜 순서를 정리했다. DECISIONS는 D 번호의 유일성·숫자 순서가 이미 맞아 유지했다. API·모바일 합계 자리표시자는 그대로 두고 T8 측정값은 기능 이력으로 옮겼다. 코드 변경·Git add/commit/stash/merge/rebase/push는 실행하지 않았다. 지정 문서·CI·배포 원장 검사 결과는 [TEST_STATUS](TEST_STATUS.md)의 통합 절에 기록했다.
+
 이번 사용자의 명시적인 Codex 요청으로 `integ/t3b-t4-t8`에서 Codex와 네이티브 서브에이전트가 파일별 충돌 해결을 나눠 맡았다. API 관리자 라우트·운영 웹 관리자·모바일 가게 상세와 회귀 시험에서 혜택·코스를 함께 보존하고, migration 0072와 감사 시험을 23개 action 합집합으로 고쳤다. README·PROJECT_STATE·DECISIONS·HANDOFF·TEST_STATUS·AI_USAGE·OPERATIONS_RUNBOOK의 문서 합집합과 운영 제출 준비 검사를 정리했다. 기존 브랜치의 검증 숫자를 이번 통합의 통과 결과로 쓰지 않고 실제 판정을 아래에 기록했다.
 
 현재 확인된 검사는 API typecheck, 모바일 typecheck·lint·대체 단위 2115/2115, 격리 관리자 웹 22/22, CI 연결 95개 파일, 운영 제출 준비 72건, 0072 감사 action 23개 정적 확인이 `PASS`다. API 전체 대체 실행은 662건 중 174건이 socket `listen EPERM`으로 실패했고 원래 `npm test`도 tsx IPC `EPERM`으로 막혔다. `verify_production_web_test.mjs`는 서버 listen 훅에서 멈춰 제한 시간 안에 실행하지 못했다. 실제 PostgreSQL 적용·기기·배포는 `NOT_RUN`이다. 자세한 명령과 판정은 [TEST_STATUS](TEST_STATUS.md)의 통합 항목을 따른다.
 
 사용자가 금지한 add·commit·stash·rebase·push·merge는 실행하지 않는다. 운영 배포·실기 수용은 이번 작업에 포함되지 않는다.
+
+
+## 2026-10-09 — T8 공공자료 시연 점포 카드 고지 리뷰 수정
+
+- 사용자 지정 범위에서 Codex가 공통 ID helper·고객 카드/행/지도/수집/보상 고지·접근성 이름과 회귀 시험을 작성했다. native explore·executor·code-reviewer가 범위 탐색·독립 화면 수정·검토를 보조했다. API/schema·의존성 추가와 Git add/commit/stash/rebase/push는 없다.
+- 검증: 모바일 동일 glob Node loader 2105/2105, typecheck·lint·접근성·지갑 표면 PASS. 정확한 `npm test`는 sandbox tsx IPC `EPERM`으로 시작 전 BLOCKED. Android/TalkBack·브라우저·배포 NOT_RUN. 세부 증거·예외는 `docs/TEST_STATUS.md` T8 절에 있다.
+
 
 ## 2026-10-09 PR #424 검토 지적 수정
 
@@ -37,6 +48,10 @@
 
 이번 사용자의 명시적인 Codex 수정 요청으로 브랜치 `feat/cross-store-courses`, HEAD `29644366`에서 권한 재검사·보존 복구·조회 배치·추천 호환·DB 가드·모바일 캐시와 코스 안내를 수정했다. 기본 세션이 통합·문서를 담당하고 executor 세션이 백엔드, migration/보존·시험, 모바일의 범위를 나눠 맡았다. 검증은 [TEST_STATUS](TEST_STATUS.md)와 [코스 증거](evidence/t4-courses-2026-10-08.md)에 실제 실행 결과를 기록한다. Git 쓰기·운영 데이터·배포는 실행하지 않고 후속 커밋은 오케스트레이터가 담당한다.
 
+## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8)
+
+Codex가 선택기·showcase seed·PostgreSQL 시험과 문서를 구현하고 확인했다. Codex native subagents가 저장소 탐색, 데이터 선택기, 모바일 거리 정렬, PostgreSQL 시험을 맡았다. 별도 코드 리뷰 에이전트가 날짜 고정 가드의 누락을 찾아, 선택기가 2026-06-30 이외의 자료를 거부하도록 보강했다. 전체 API·PostgreSQL·모바일 시험, CI 연결·접근성·웹 export·문서 검사와 gate는 PASS다([TEST_STATUS](TEST_STATUS.md)). AI 이미지 생성은 하지 않았고 기존 코인 템플릿을 재사용했다. 웹 export는 테스트 전용 OAuth fixture로 컴파일 경로만 확인했으며 로그인·브라우저 수용은 하지 않았다. 서버 배포·앱 게시·Git 이력 쓰기는 하지 않았다.
+
 ## 2026-10-08 — NFT 시리즈 발행 수량 상한 해제 (D-095)
 
 - Claude Sonnet 5.5가 컨트랙트 `createSeries`의 상한 인자·오류 제거, API 발행 신청의 수량 검사·`CAPACITY_UNAVAILABLE` 제거, migration 0075, 관련 시험(Foundry·API·Worker)과 문서 수정을 구현했다. 소유자가 오프라인 회의의 합의와 "상한을 보존하지 않고 코드를 고친다"는 결정을 지시했다.
@@ -45,6 +60,7 @@
 ## 2026-10-08 가게 사이를 잇는 코스 (Issue #412 T4 A)
 
 이 세션의 명시적인 Codex 구현 지시에 따라 Codex가 T4 A 구현·시험·문서를 맡았다. 기존 "Codex 이미지 생성만" 운용 기록을 전체적으로 변경한 것이 아니라 이번 요청 범위의 실행 기록이다. 기본 세션은 API 경로·deps·추천·문서를 통합했고, 별도 executor 세션은 코스 DB/서비스, 관리자 웹, 모바일을 각각 맡았다. 구현 세션과 다른 code-reviewer 세션이 데이터·동의·중복·시연 경계를 검토했다. 리뷰 지적은 반복 seed, 과거 획득 그림 보존, 실제 직원 수령·취소 시험, 동의 갱신과 조회 재시도에 반영했다. 실제 검사 결과와 미실행 항목은 [TEST_STATUS](TEST_STATUS.md)를 따른다. 운영 데이터·키·배포·push는 하지 않았다.
+
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1)
 
 Claude Opus 5.5가 범위 설계와 지휘를 맡았고 Claude Sonnet 5.5 서브에이전트가 구현했다(migration 0068, 순수 규칙, 방문 확정 경로의 시간대 판정, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 표기 정정, 시험과 문서). Codex는 쓰지 않았다(2026-10-08부터 소유자 지시로 이미지 생성 외에는 쓰지 않는다). 방문 확정 경로(`claim-slot-service.ts`)는 민감 경로라 구현과 다른 세션의 교차 리뷰 2건이 필요하며, 구현 세션은 자기 코드를 리뷰하지 않았다.
