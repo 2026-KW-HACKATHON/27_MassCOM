@@ -1,5 +1,23 @@
 # 테스트 상태
 
+## 2026-10-09 우표 뽑기 영상·제공 효과음 (Issue #442, 미배포)
+
+Windows / Node 24.15.0 / Chrome / JDK 17.0.20.1 / Android SDK 36. 기준 main `b37063c0`, 브랜치 `feat/gacha-stamp-reveal`. 이번 모바일 전체 측정값은 **2212/2212**다. 아래 이전 macOS IPC 제한과 2203개 결과는 과거 기록이며 이번 실행은 npm 진입점으로 통과했다. API 시험과 필수 36개 ID의 기존 집계는 변경하지 않는다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 모바일 전체 | `PASS` | `npm test --prefix apps/mobile`: 2212 passed, 0 failed. Windows CRLF에 의존하던 기존 소스 문자열 시험은 로컬 checkout만 LF로 정규화해 실행; 무관한 소스 변경은 커밋하지 않는다. |
+| 타입·린트 | `PASS` | `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`; 오류 0, 기존 `collectible-aura.test.ts` 미사용 import 경고 1. |
+| 실제 브라우저 컴포넌트 | `PASS` | `node tests/fixtures/reward-album-rnw/run-qa.cjs`: 27/27, 콘솔 오류 0. 실제 MP4, 320x568/390x844, 구매 1회, 결과 지연, 완료·건너뛰기·복구·오류·움직임 감소·음소거·StrictMode·unmount pause. [JSON](evidence/gacha-stamp-2026-10-09/browser-qa-report.json). |
+| Android 네이티브 모듈 | `PASS` | Expo prebuild/autolinking 후 `gradlew.bat :masscom-studio-video:compileDebugKotlin -Pkotlin.incremental=false`. 첫 incremental cache 경로 오류는 incremental 비활성화로 해소했고 마지막 수정 뒤 재컴파일 PASS. |
+| 운영 Android JS 번들 | `PASS` | `APP_VARIANT=production`, `EXPO_PUBLIC_API_URL=https://api.masscom.kr`, 기준 SHA 환경에서 `npx expo export --platform android --output-dir dist --max-workers 2`. |
+| 시연 Android JS 번들 | `PASS` | `APP_VARIANT=showcase`, 전용 demo API와 빌드 확인용 공개 client ID 형식 fixture로 같은 export 성공. 실제 로그인·서명·배포용 빌드가 아니다. |
+| 영상·소리 | `PASS` | 두 영상 스트림 SHA-256 동일, FFmpeg decode 오류 0. 최종 AAC decode peak -3.7dBFS / mean -21.2dBFS, 클리핑 0. 제공 OGG로 repo 내 빌더 재현 성공. [자산·manifest](../apps/mobile/assets/videos/README.md). |
+| 독립 검토 | `PASS` | code-reviewer의 StrictMode 개봉 생략 지적 수정 후 재검토 APPROVE, 보조 critic CLEAR. 지정 architect 실행은 모델 지원 오류로 unavailable이며 전체 스킬 승인으로 간주하지 않는다. |
+| 설치본·청음·실제 구매·배포 | `NOT_RUN` | 운영/시연 각 Android 설치본, 실제 청음, 실제 계정 구매, Play·서버 배포는 실행하지 않았다. |
+
+수용 기준·복구·재현 환경은 [우표 뽑기 QA](GACHA_STAMP_QA_2026-10-09.md)를 따른다. 코드/영상 자산은 공통 고객 화면이며 보상 API·정책·DB·의존성은 그대로다.
+
 ## 2026-10-09 PR #435 도감 등록 리뷰 4건 수정 (파일 수정만·미커밋·미배포)
 
 환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/album`, 브랜치 `fix/album-registration-followups`, HEAD `5e4e648e99a7c028e117c0b219e5b11507ed9221` 위 미커밋 수정. 기준 통합에는 PR #434·#435·#437이 포함된다. 공통 고객 코드에 적용되므로 운영·시연 variant 모두 같은 수정이 적용되지만 각 설치본 수용은 별도다.

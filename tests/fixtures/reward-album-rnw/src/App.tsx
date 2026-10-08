@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { RegistrationAlbum, type RegistrationItem } from '../../../../apps/mobile/src/acquisition/registration-album';
@@ -127,18 +127,33 @@ const rerollResult: ShopRerollResult = {
   },
 };
 
-function scenarioName(): 'album' | 'grade' | 'gacha' {
+type ScenarioName = 'album' | 'grade' | 'gacha' | 'grade-delayed' | 'grade-error' | 'gacha-delayed';
+
+function scenarioName(): ScenarioName {
   const value = new URLSearchParams(window.location.search).get('scenario');
-  return value === 'grade' || value === 'gacha' ? value : 'album';
+  return value === 'grade' || value === 'gacha' || value === 'grade-delayed' || value === 'grade-error' || value === 'gacha-delayed' ? value : 'album';
 }
 
 export function App() {
-  const scenario = scenarioName();
+  const [scenario, setScenario] = useState<ScenarioName>(() => scenarioName());
+  useEffect(() => {
+    const onScenario = (event: Event) => {
+      const detail = (event as CustomEvent<ScenarioName>).detail;
+      if (detail === 'album' || detail === 'grade' || detail === 'gacha' || detail === 'grade-delayed' || detail === 'grade-error' || detail === 'gacha-delayed') {
+        setScenario(detail);
+      }
+    };
+    window.addEventListener('qa:set-scenario', onScenario);
+    return () => window.removeEventListener('qa:set-scenario', onScenario);
+  }, []);
   return (
     <View style={styles.app}>
       {scenario === 'album' ? <AlbumScenario /> : null}
       {scenario === 'grade' ? <GradeScenario /> : null}
+      {scenario === 'grade-delayed' ? <GradeDelayedScenario /> : null}
+      {scenario === 'grade-error' ? <GradeDelayedScenario fail /> : null}
       {scenario === 'gacha' ? <GachaScenario /> : null}
+      {scenario === 'gacha-delayed' ? <GachaDelayedScenario /> : null}
     </View>
   );
 }
@@ -180,6 +195,31 @@ function GradeScenario() {
   );
 }
 
+function GradeDelayedScenario({ fail = false }: { fail?: boolean }) {
+  const [result, setResult] = useState<GradeDrawResult | undefined>();
+  const [busy, setBusy] = useState(false);
+  return (
+    <GradeDrawMachine
+      pool={gradePool}
+      balance={2000}
+      result={result}
+      busy={busy}
+      onDraw={async () => {
+        window.__qaDrawCalls = (window.__qaDrawCalls ?? 0) + 1;
+        setBusy(true);
+        await new Promise((resolve) => setTimeout(resolve, 160));
+        setBusy(false);
+        if (fail) return false;
+        setResult({ ...gradeResult, drawId: `qa-grade-delayed-${window.__qaDrawCalls}` });
+        return true;
+      }}
+      onOpenCollection={() => window.dispatchEvent(new CustomEvent('reward-album-open-collection', { detail: 'grade-delayed' }))}
+      onClose={() => window.dispatchEvent(new CustomEvent('reward-album-close', { detail: 'grade-delayed' }))}
+      onRefresh={() => undefined}
+    />
+  );
+}
+
 function GachaScenario() {
   const profile = useMemo(() => ({ badgeId: null, cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null } }), []);
   return (
@@ -199,6 +239,43 @@ function GachaScenario() {
       onOpenStudio={() => window.dispatchEvent(new CustomEvent('reward-album-open-studio'))}
     />
   );
+}
+
+function GachaDelayedScenario() {
+  const profile = useMemo(() => ({ badgeId: null, cosmetics: { hat: null, bag: null, prop: null, pose: null, decor: null } }), []);
+  const [result, setResult] = useState<ShopRerollResult | undefined>();
+  const [busy, setBusy] = useState(false);
+  return (
+    <GachaMachine
+      snapshot={shopSnapshot}
+      profile={profile}
+      result={result}
+      receiptId={result ? `qa-reroll-delayed-${window.__qaDrawCalls ?? 0}` : undefined}
+      selectedGrade="GOLD"
+      ownedBefore={[]}
+      busy={busy}
+      avatarBusy={false}
+      isAvatar={false}
+      onDraw={async () => {
+        window.__qaDrawCalls = (window.__qaDrawCalls ?? 0) + 1;
+        setBusy(true);
+        await new Promise((resolve) => setTimeout(resolve, 160));
+        setBusy(false);
+        setResult({ ...rerollResult, item: { ...rerollResult.item, id: `walk-rabbit-${window.__qaDrawCalls ?? 1}` } });
+        return true;
+      }}
+      onSetAvatar={() => window.dispatchEvent(new CustomEvent('reward-album-set-avatar'))}
+      onClose={() => window.dispatchEvent(new CustomEvent('reward-album-close', { detail: 'gacha-delayed' }))}
+      onOpenStudio={() => window.dispatchEvent(new CustomEvent('reward-album-open-studio'))}
+    />
+  );
+}
+
+declare global {
+  interface Window {
+    __qaDrawCalls?: number;
+    __qaDetachedVideo?: HTMLVideoElement | null;
+  }
 }
 
 const styles = StyleSheet.create({

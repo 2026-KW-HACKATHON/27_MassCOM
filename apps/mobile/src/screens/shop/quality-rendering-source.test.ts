@@ -20,7 +20,7 @@ test('잠긴 꾸미기도 먼저 입혀 보고 소유한 것만 확인 뒤 장�
 test('팩 결과의 실제 보너스는 미리보기와 별도 저장 행동을 제공한다', () => {
   const machine = read('./gacha-machine.tsx');
   const shop = read('./index.tsx');
-  assert.match(machine, /<PackArt grade=\{selected\.grade\}/);
+  assert.match(machine, /<StampDrawStage phase="idle" compact \/>/);
   assert.match(machine, /<CosmeticArt id=\{result\.bonus\.id\}/);
   assert.match(machine, /<AvatarPortrait avatar=\{result\.item\.id\} profile=\{bonusProfile\}/);
   assert.match(machine, /<AvatarPortrait avatar=\{snapshot\.avatar\} profile=\{bonusProfile\}/);

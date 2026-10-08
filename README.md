@@ -29,6 +29,8 @@
 
 ## 무엇인가
 
+2026-10-09 개발 변경: 승인된 우표 대기·개봉 영상과 제공 효과음을 뽑기 화면에 연결했다. 현재 브랜치 모바일 자동 시험 2212/2212·브라우저 27/27·Android 모듈 컴파일·두 variant JS 번들 PASS이며 아직 배포하지 않았다. [화면과 검증 범위](docs/GACHA_STAMP_QA_2026-10-09.md).
+
 MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모으는 Android 서비스입니다.
 대상은 지역 이용자와 점주·직원입니다.
 흐름은 "가게 탐색 → QR 방문 인증 → 도감·코인 수집 → 놀이·마이룸 → 다음 가게 추천"입니다.
@@ -534,4 +536,3 @@ npm run test:postgres --prefix apps/api
 
 [current-test-status]: docs/TEST_STATUS.md
 [current-handoff-history]: docs/HANDOFF_HISTORY.md
-

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Image, ScrollView, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { cancelAnimation, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { consentRecheckLabel, consentRequiredMessage } from '@/privacy/consent-flow';
 import { RegistrationAlbum, type RegistrationItem } from '@/acquisition/registration-album';
@@ -12,10 +11,11 @@ import { drawHaptic } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound, useDrawMusic } from '@/sound/ui-sounds';
 import { CharacterArt } from '@/illustration/character-art';
-import { CosmeticArt, PackArt } from '@/illustration/artwork';
+import { CosmeticArt } from '@/illustration/artwork';
 import { classifyGradeDrawCoinAcquisition } from '@/shop/coin-acquisition';
 import type { GradeDrawPool, GradeDrawResult, GradeReward } from '@/shop/grade-draw-api';
-import { BurstRays, Control, Machine, gradeStyle, styles } from './gacha-machine';
+import { BurstRays, Control, gradeStyle, styles } from './gacha-machine';
+import { StampDrawStage } from './stamp-draw-stage';
 
 type Props = { pool: GradeDrawPool; balance: number; result?: GradeDrawResult; busy: boolean; error?: string;
   refreshing?: boolean; equipmentBusy?: boolean; equipmentError?: string; avatarId?: string | null; equippedThemeId?: string | null;
@@ -34,42 +34,42 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   const [closeNotice, setCloseNotice] = useState(false);
   const [registeredDrawId, setRegisteredDrawId] = useState<string>();
   const seen = useRef<GradeDrawResult | undefined>(undefined);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const jiggle = useSharedValue(0);
-  const crank = useSharedValue(0);
-  const openingScale = useSharedValue(0.8);
-  const machineStyle = useAnimatedStyle(() => ({ transform: [{ scale: openingScale.get() }] }));
-  const crankStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${crank.get()}deg` }] }));
+  const drawInFlight = useRef(false);
   const tone = gradeStyle[result?.grade ?? pool.grade];
 
   useEffect(() => {
     if (!result) return;
     if (seen.current === result) {
-      const resume = setTimeout(() => setPhase((current) => current === 'album-registration' ? current : 'result'), 0);
+      const resume = setTimeout(() => {
+        setPhase((current) => {
+          if (current === 'album-registration' || current === 'opening' || current === 'result') return current;
+          if (result.replayed || !motionAllowed) return 'result';
+          return 'opening';
+        });
+      }, 0);
       return () => clearTimeout(resume);
     }
     seen.current = result;
     if (result.replayed || !motionAllowed) {
+      drawInFlight.current = false;
       const replay = setTimeout(() => setPhase('result'), 0);
       return () => clearTimeout(replay);
     }
     const enter = setTimeout(() => setPhase('opening'), 0);
-    crank.set(withTiming(360, { duration: 540 }));
-    jiggle.set(withSequence(withTiming(-1, { duration: 100 }), withTiming(1, { duration: 100 }),
-      withTiming(-1, { duration: 100 }), withTiming(1, { duration: 100 }), withTiming(0, { duration: 100 })));
-    openingScale.set(withSequence(withTiming(1.06, { duration: 500 }), withTiming(1, { duration: 280 })));
-    playUiSound('open'); void drawHaptic();
-    timer.current = setTimeout(() => { setPhase('result'); playUiSound('success'); void drawHaptic(); }, 850);
-    return () => { clearTimeout(enter); if (timer.current) clearTimeout(timer.current); };
-  }, [result, motionAllowed, crank, jiggle, openingScale]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); cancelAnimation(crank); cancelAnimation(jiggle); cancelAnimation(openingScale); }, [crank, jiggle, openingScale]);
+    drawInFlight.current = false;
+    void drawHaptic();
+    return () => { clearTimeout(enter); };
+  }, [result, motionAllowed]);
 
   const start = async () => {
-    if (busy || !pool.total || balance < pool.price) return;
+    if (drawInFlight.current || busy || !pool.total || balance < pool.price) return;
+    drawInFlight.current = true;
     setCloseNotice(false);
-    crank.set(0); jiggle.set(0); openingScale.set(0.8);
     setPhase('pending');
-    if (!await onDraw()) setPhase('detail');
+    if (!await onDraw()) {
+      drawInFlight.current = false;
+      setPhase('detail');
+    }
   };
   const close = () => {
     if (phase === 'pending' || busy) { setCloseNotice(true); return; }
@@ -80,17 +80,31 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   const showResult = phase === 'result' && !!reward;
   const registrationItem = result && reward ? gradeRegistrationItem(result, registeredDrawId === result.drawId) : undefined;
   const alreadyRegistered = !!result && registeredDrawId === result.drawId;
+  const finishOpening = () => {
+    if (phase !== 'opening' || seen.current !== result) return;
+    setPhase('result');
+    playUiSound('success'); void drawHaptic();
+  };
   return <FullScreenModal visible animationType="fade" onRequestClose={close}>
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.topBar}>
         <Text style={styles.balance}>보유 {displayedBalance.toLocaleString('ko-KR')} 마일리지</Text>
-        {phase === 'opening' ? <Control label="연출 건너뛰기" onPress={() => { if (timer.current) clearTimeout(timer.current); setPhase('result'); }} />
+        {phase === 'opening' ? <Control label="연출 건너뛰기" onPress={finishOpening} />
           : <Control label="닫기" disabled={phase === 'pending' || busy} onPress={close} />}
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {phase === 'detail' ? <>
           <Text accessibilityRole="header" style={styles.heading}>{tone.name} 전체 랜덤</Text>
-          <PackArt grade={pool.grade} size={170} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${pool.price.toLocaleString('ko-KR')} 마일리지로 뽑기`}
+            accessibilityState={{ disabled: busy || refreshing || !pool.total || balance < pool.price }}
+            disabled={busy || refreshing || !pool.total || balance < pool.price}
+            onPress={() => { void start(); }}
+            style={styles.stageButton}
+          >
+            <StampDrawStage phase="idle" compact />
+          </Pressable>
           <Text style={styles.description}>같은 등급의 코인·테마 꾸미기·캐릭터 중 정확히 하나를 받아요.</Text>
           <Text style={styles.description}>코인 {pool.counts.COIN}종 · 꾸미기 {pool.counts.THEME}종 · 캐릭터 {pool.counts.CHARACTER}종</Text>
           <Text style={styles.description}>전체 {pool.total}종, 품목마다 1/{pool.total} (약 {(pool.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}%) · 이미 가진 것도 다시 나올 수 있어요.</Text>
@@ -101,8 +115,10 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
           <Control label={`${pool.price.toLocaleString('ko-KR')} 마일리지로 뽑기`} purchase disabled={busy || refreshing || !pool.total || balance < pool.price} onPress={() => { void start(); }} />
           {onRecover ? <Control label="이전 뽑기 결과 다시 확인" disabled={busy || refreshing} onPress={onRecover} /> : null}
         </> : phase === 'pending' || phase === 'opening' ? <>
-          <Text accessibilityRole="header" style={styles.heading}>{phase === 'pending' ? '뽑기 결과 확인 중…' : '캡슐을 여는 중…'}</Text>
-          <Machine tone={tone} machineStyle={machineStyle} crankStyle={crankStyle} jiggle={jiggle} />
+          <Text accessibilityRole="header" style={styles.heading}>{phase === 'pending' ? '뽑기 결과 확인 중…' : '우표를 여는 중…'}</Text>
+          <View style={styles.stageArea}>
+            <StampDrawStage phase={phase === 'opening' ? 'opening' : 'idle'} onComplete={phase === 'opening' ? finishOpening : undefined} />
+          </View>
           {phase === 'pending' ? <Text accessibilityLiveRegion="polite" style={styles.description}>요청을 확인하고 있어요.</Text> : null}
           {closeNotice ? <Text style={styles.error}>구매 확인이 끝나면 닫을 수 있어요.</Text> : null}
         </> : phase === 'album-registration' && result && reward && registrationItem ? <>

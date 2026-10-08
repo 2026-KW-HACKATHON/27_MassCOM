@@ -1,5 +1,9 @@
 # 프로젝트 상태
 
+## 2026-10-09 우표 뽑기 영상·제공 효과음 (Issue #442, 미배포)
+
+최신 요청은 `feat/gacha-stamp-reveal`에서 승인된 검은 배경 우표 영상과 사용자 제공 OGG 효과음을 뽑기 화면에 연결해 PR로 제출하는 것이다. 영상 스트림은 그대로 유지했고 대기 무음 반복 → 서버 결과 확인 → 효과음이 있는 개봉 → 기존 보상·도감 등록으로 연결했다. 이번 모바일 전체는 **2212/2212**, 타입·린트·브라우저 27/27·Android 네이티브 모듈 컴파일·운영/시연 JS 번들 PASS다. 실제 설치본과 청음·배포는 NOT_RUN이다. [현재 검증](GACHA_STAMP_QA_2026-10-09.md). 아래 2203개 집계와 미커밋 기록은 이전 작업 이력이다.
+
 현재 자동 시험 합계(2026-10-09 KST, PR #434·#435·#437 통합 HEAD `5e4e648e` 위 `fix/album-registration-followups`의 미커밋 수정 기준, API는 통합 시 기존 측정값·모바일은 이번 재실행): API 단위 674/674 · 모바일 2203/2203. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 후속 (파일 수정만·미커밋)
