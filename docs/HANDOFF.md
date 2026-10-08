@@ -2,12 +2,12 @@
 
 기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
-## PR #418 리뷰 수정 전달 (2026-10-09, 미커밋)
+**PR #418 리뷰 수정 전달 (2026-10-09, 커밋 `07efaccf`, 오케스트레이터 커밋)**
 
 - 위치: `.worktrees/pr418`, 브랜치 `feat/merchant-dual-studio`, 시작 HEAD `e119f55e`. main `055d0523` 병합을 확인했다. 결정 D-096·D-097과 고정 방문 보상 1→브론즈·3→실버·5→골드, 프리즘 포함 네 기본 등급, v2 뒷면, 점주 연장 제거·관리자 연장 유지는 그대로다. staging·commit·stash·rebase·push는 오케스트레이터가 맡는다.
 - **배포 필수 조건(D-096): API와 웹 편집기 자산을 같은 배포 창에 함께 전환하고 롤백도 함께 한다.** 새 API+구 편집기는 프리즘 누락을 거절하고 구 API+새 편집기는 방문 보상 연결 등급만 저장한다. 혼합 버전 게시를 허용하는 호환 코드로 우회하지 않는다. 기본 등급 누락의 `COLLECTIBLE_DEFAULT_GRADE_MISSING`은 "편집기를 새로고침한 뒤 다시 게시해 주세요"로 안내한다. 배포 전 구 편집기 탭 새로고침과 네 등급 게시본을 확인한다. 서버 배포·운영 DB·설치본 갱신은 이번 수정 범위 밖이다.
 - 검증: API 단위 623/623·typecheck·build, 모바일 2097/2097·typecheck·lint, 사이트 636건 중 635 PASS·Chrome 기동 1 BLOCKED(원래 assertion 유지), CI 연결·운영 문서·접근성·bootstrap·큰 파일 가드 회귀·증거 일관성 PASS. PostgreSQL 전체는 544건 중 541 PASS / 0 FAIL / 기존 3 SKIP (`npm run test:postgres`, 전용 hosted seed 컨테이너 127.0.0.1:55435가 필요한 세 시험). assertion 변경 이유와 명령별 로그는 `docs/TEST_STATUS.md`에 기록했다.
-- 다음 명령: 오케스트레이터가 작업 트리 diff를 검토·커밋한 뒤 `bash scripts/check-large-files.sh origin/main`과 `bash tools/gate.sh`를 실행한다. 현재 두 명령은 삭제 전 PNG가 남은 HEAD 때문에 실패한다. Chrome 기동 가능한 환경에서 `node --test tests/site/*.test.mjs tests/site/*_test.mjs`도 다시 실행한다. 이 작업의 환경 제한은 `docs/BLOCKERS.md`에 기록했다.
+- 확인: 커밋 뒤 `bash scripts/check-large-files.sh origin/main`(추가·수정 187개 통과)과 `bash tools/gate.sh` PASS. PostgreSQL 541 pass / 3 skip. Chrome 기동 시험 1건은 이 PC에서 BLOCKED(원래 assertion 유지).
 
 ## 1. 기준 커밋과 작업 위치
 
