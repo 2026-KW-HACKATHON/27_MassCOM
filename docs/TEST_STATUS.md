@@ -1,5 +1,9 @@
 # 테스트 상태
 
+## 2026-10-09 지갑·지도 설정 복구 (Issue #447)
+
+모바일2231/2231·집중설정33·지도산출물6·타입 PASS, lint 오류0/기존경고1. Samsung 설치·TMAP 실제 타일·네이버 대체 타일·지갑 연결과 APK 업데이트 뒤 복원 PASS. 주소 서명·실제 GPS·공개 배포 NOT_RUN. [산출물·환경·경계](evidence/wallet-map-config-2026-10-09/README.md).
+
 ## 2026-10-09 PR #445와 main 통합 검증 (파일 수정만·미배포)
 
 환경: macOS 제한 sandbox, `.worktrees/pr445`, 브랜치 `feat/gacha-stamp-reveal`, HEAD `dd76e693`, MERGE_HEAD main `2cfcc8e8`, Git index 미병합. 문서·RNW fixture의 양쪽 변경을 보존하고 Android 영상은 다운로드된 `localUri`가 생긴 뒤에만 재생기를 장착하며 준비 전 native 오류로 공개 흐름을 끝내지 않도록 수정했다. 영상 소리는 설정 준비와 효과음 허용을 모두 확인한 뒤 출력한다. 기존 시험은 약화하지 않았다.

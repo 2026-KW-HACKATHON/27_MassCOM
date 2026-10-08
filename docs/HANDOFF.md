@@ -2,7 +2,7 @@
 
 ## 2026-10-09 시연 지갑·지도 설정 복구 (Issue #447)
 
-`fix/showcase-wallet-map-config`는 `2cfcc8e8` 기준 격리 작업트리다. Samsung 설치본에서 Reown 설정 누락과 지도 실패를 재현했고, APK의 공개 TMAP/NAVER 키 누락을 값 출력 없이 확인했다. 시연 Reown 명시 설정 경로와 지도 빌드 입력/산출물 검사를 추가한다. 모바일2218/2218, 집중설정33, 지도산출물6, 타입 검사 PASS; lint 기존 경고1/오류0. 실제 새 APK 설치와 지갑 연결은 아직 검증 중이며 공개 배포하지 않았다. 네이버 결제수단 등록 상태는 콘솔에서 확인했고, Reown 신규 프로젝트는 현 요금제 한도로 생성되지 않았다.
+[PR #448](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/448), `fix/showcase-wallet-map-config`. 시연 Reown 명시 설정·지도 키 누락 차단을 구현했고 재발급된 TMAP 키를 Git 밖 설정에 반영했다. Samsung 최종APK `f07637eb`는 동일서명 설치·설치파일 해시 일치·실제 TMAP 타일·지갑 CONNECTED/BASE_SEPOLIA 복원 PASS. 주소 서명은 UNVERIFIED로 남겼다. 최신 main 병합 `c3c41bf3`에서 모바일2231/2231·타입 PASS, lint 오류0/기존경고1. [실기/자동검사](evidence/wallet-map-config-2026-10-09/README.md). 네이버 결제수단은 기존 등록 확인, Reown 기존 프로젝트 공유는 소유자 확정이고 `.demo` 허용 목록을 등록했다. DNS·결제·공개 서버/배포·Play는 변경하지 않았다. PR 최신 CI·병합 상태는 GitHub에서 확인한다.
 
 기준 시각: 2026-10-09 KST. PR #445 `feat/gacha-stamp-reveal`에 main을 합치고 리뷰 지적(우표 영상 준비 전 재생, 효과음 설정 대기)을 고친 상태다.
 
