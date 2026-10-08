@@ -19,7 +19,8 @@ test('가구 구매 성공 잔액은 상점과 등급 뽑기에 즉시 반영되
 });
 
 test('가구 구매가 첫 등급 목록 조회보다 먼저 끝나도 등급 목록과 새 잔액을 표시한다', async () => {
-  const refreshSource = screen.slice(screen.indexOf('const refreshDrawShop = useCallback('), screen.indexOf('useEffect(() => {\n    const timer', screen.indexOf('const refreshDrawShop =')));
+  const refreshSource = screen.match(/const refreshDrawShop = useCallback\([\s\S]*?\n  \}, \[drawApi, drawScopeKey\]\);/)?.[0];
+  assert.ok(refreshSource);
   const purchaseSource = screen.slice(screen.indexOf('shop.applyBalance(result.balance);'), screen.indexOf('await clearFurniturePending(furnitureKey);'));
   type Stored = { key: string; value: { balance: number } };
   let stored: Stored | undefined;
@@ -226,12 +227,12 @@ test('PR #312 리뷰 7번 + 2차 confirm-review: 대표 설정 성공·실패 �
   // avatar-set success closes a NEWER draw's result modal"). 뽑기 연출에서 부르면(reveal.item.id, reveal) 그
   // reveal 객체 자체를 넘겨, 응답이 왔을 때 revealRef.current가 여전히 그 객체일 때만 닫거나 실패를 적는다.
   const chooseFn = screen.slice(screen.indexOf('async function chooseAvatar('), screen.indexOf('function confirmAvatar('));
-  assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) \{\s*setReveal\(undefined\);\s*setMachineOpen\(false\);/);
+  assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) \{\s*setReveal\(undefined\);\s*setRevealReceiptId\(undefined\);\s*setMachineOpen\(false\);/);
   assert.match(chooseFn, /if \(targetReveal && revealRef\.current === targetReveal\) setAvatarError\(shopErrorMessage\(error\)\);/);
   assert.match(chooseFn, /else setNotice\(\{ tone: 'error', text: shopErrorMessage\(error\) \}\);/);
   assert.match(screen, /onSetAvatar=\{\(\) => \{ if \(reveal\) void chooseAvatar\(reveal\.item\.id, reveal\); \}\}/);
   assert.match(screen, /avatarError=\{avatarError\}/);
-  assert.match(screen, /onClose=\{\(\) => \{ setMachineOpen\(false\); setReveal\(undefined\); setAvatarError\(undefined\); onGachaClose\?\.\(\); \}\}/);
+  assert.match(screen, /onClose=\{\(\) => \{ setMachineOpen\(false\); setReveal\(undefined\); setRevealReceiptId\(undefined\); setAvatarError\(undefined\); onGachaClose\?\.\(\); \}\}/);
   assert.match(machine, /avatarError\?: string;/);
   assert.match(machine, /\{avatarError \? <Text accessibilityLiveRegion="polite"/);
 });
@@ -358,4 +359,16 @@ test('등급 뽑기는 동의 필요 오류에서 다시 불러오기 대신 동
   assert.match(screen, /onRecheckConsent=\{recheckConsent\}/);
   assert.equal(screen.match(/drawError === consentRequiredMessage \? \{ label: consentRecheckLabel, onPress: recheckConsent \}/g)?.length, 2);
   assert.match(gradeMachine, /error === consentRequiredMessage && onRecheckConsent\s*\? <Control label=\{consentRecheckLabel\}[^>]*onPress=\{onRecheckConsent\}/);
+});
+
+test('등급 코인 결과의 도감 이동은 실제 publicationId, gradeId, receiptId로 해당 칸을 연다', () => {
+  const gradeMachine = readFileSync(fileURLToPath(new URL('./grade-draw-machine.tsx', import.meta.url)), 'utf8');
+  assert.match(gradeMachine, /<RegistrationAlbum[\s\S]*?receiptId=\{result\.drawId\}[\s\S]*?items=\{\[registrationItem\]\}/);
+  assert.match(gradeMachine, /function gradeRegistrationItem\(result: GradeDrawResult, alreadyRegistered: boolean\): RegistrationItem/);
+  assert.match(gradeMachine, /const status: RegistrationItem\['status'\] = alreadyRegistered \? 'owned' : classifyGradeDrawCoinAcquisition\(result\);/);
+  assert.match(gradeMachine, /alreadyRegistered \? '등록 결과 다시 보기' : '도감 등록 확인'/);
+  assert.match(gradeMachine, /!result\.replayed && !alreadyRegistered \? <ConfettiBurst/);
+  assert.match(screen, /const target = focus \?\? \(reward\?\.kind === 'COIN'[\s\S]*?publicationId: reward\.publicationId, gradeId: reward\.gradeId, receiptId: gradeResult\?\.drawId \?\? ''/);
+  assert.match(screen, /router\.push\(target\s*\? \{ pathname: '\/coin-collection', params: target \}/);
+  assert.match(screen, /receiptId=\{revealReceiptId\}/);
 });

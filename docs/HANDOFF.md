@@ -1,9 +1,17 @@
 # HANDOFF
 
-## 2026-10-09 CI 병렬 작업 분리 (미커밋)
+**2026-10-09 CI 병렬 작업 분리 (PR #443)**
 
 작업 위치 `.worktrees/ci`, 브랜치 `ci/parallel-jobs`, 기준 HEAD `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`. 기존 검사를 API·PG 2샤드·모바일·웹/운영/문서·계약/worker로 분리하고 필수 `bootstrap-contract` 집계를 유지했다. 변경 파일은 `.github/workflows/ci.yml`, 새 `tests/ci/parallel_jobs.test.mjs`, TEST_STATUS·AI_USAGE·이 인수인계 항목이다. 로컬 CI 연결·기존 YAML 참조 회귀·샤드/집계 2/2·YAML/문법/명령 보존 PASS; 실제 GitHub 약 5~6분 예상은 미측정, actionlint 미설치. 다음 로컬 확인은 `bash tests/ci/ci_wiring_test.sh`와 `node --test tests/ci/parallel_jobs.test.mjs`; 상세는 [TEST_STATUS](TEST_STATUS.md) 최상단. 사용자 지시로 Git add·commit·stash·merge·rebase·push와 원격 CI 실행은 하지 않았다.
 
+## 최신 인수인계 — 2026-10-09 PR #435 리뷰 후속
+
+- 현재 위치: `.worktrees/album`, 브랜치 `fix/album-registration-followups`, HEAD `5e4e648e99a7c028e117c0b219e5b11507ed9221`. PR #434·#435·#437을 포함한 통합 기준 위 파일만 수정했다. 아래 BGM·T9·이전 획득 구현 기록은 이전 작업의 상태다.
+- 옷 신규 판정·등록 헤더·코인 모달 움직임 감소·등급 등록 단계 보존 4건을 수정하고 회귀 12건을 추가했다. 기존 시험 약화 없이 모바일2203/2203·대상60/60·typecheck·lint·접근성·CI 연결103개 파일 PASS. npm test는 tsx IPC EPERM으로 BLOCKED이며 같은 glob Node loader로 검증했다. 기존 lint 경고1개. 상세 명령·로그·검증 경계는 [TEST_STATUS](TEST_STATUS.md) 최상단이다.
+- README·PROJECT_STATE 현재 합계는 동일하다. API674/674는 기존 통합 측정값이며 이번 API 재실행·빌드·배포·각 Android 설치본 수용은 NOT_RUN이다. 보상 정책·운영 데이터·의존성 변경은 없다.
+- Git add·commit·stash·merge·rebase·push를 수행하지 않았고 index는 비어 있다. 다음 검토 명령: `git diff --check`, `git diff`, `git status --short`. 커밋·통합은 이 세션의 요청 범위 밖이다.
+
+아래는 이전 인수인계 기록이다.
 
 기준 시각: 2026-10-09 KST. 배경음 수정 브랜치 `fix/bgm-start`에 PR #433 반영 main `c7632b35`를 병합 중인 작업 트리의 현재 상태를 기록한다. 날짜별 이전 기록은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
@@ -41,6 +49,21 @@
 **이전 PR #429·통합 이력 — 아래 위치·SHA·검증 결과는 당시 기록이며 현재 BGM·T9 병합 상태와 구분한다.**
 
 **앞선 2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 기록 (당시 미커밋)**
+**2026-10-09 획득 결과 → 도감 등록 확인 (Issue #432, 미배포)**
+
+- 현재 작업은 `feat/reward-album-confirmation`, 기준 main `8aa8b724`의 별도 작업 트리다. 아래 PR #429의 미병합·미커밋 문단은 이전 작업 기록이며 이번 작업 상태가 아니다. 사용자는 모든 추가 수정·검증을 마친 뒤 최종 PR 한 건을 요청했다.
+- 등급 뽑기·이전 상자 결과·가게 코인권·코인 재뽑기에 전체 결과 후 도감 등록 확인을 연결했다. 새 수집품은 등장·도장, 중복/복구/같은 코인 반환은 보유 확인으로 구분한다. 코인 도감은 서버 보유가 있는 실제 칸을 강조하며 기존 장착·마이룸 행동을 보존한다.
+- 별도 검토에서 찾은 지연 응답, 잘못된 스크롤 위치, 새로고침 실패 후 등록 비활성 문제를 보완했다. 큰 글씨·움직임 감소·건너뛰기 및 StrictMode의 효과 재시작을 검사한다. 정확한 최종 결과와 검증 경계는 [TEST_STATUS](TEST_STATUS.md) 및 [획득 QA](REWARD_ALBUM_QA_2026-10-09.md)에 둔다.
+- 서버·확률·지급 수량·의존성 변경과 운영 배포는 없다. 연결된 Android 기기가 없어 실제 휴대전화의 진동·음향·TalkBack·기울기는 `NOT_RUN`이다. 로컬 번들 생성은 APK 설치 수용을 뜻하지 않는다.
+**2026-10-09 최신 첨부 보고서 두 개 문서 보관**
+
+- 브랜치: `docs/shared-pool-and-completion-reports-2026-10-09`, 기준 main 커밋 `8aa8b724ab460f84bf554daffb8d2dd070488b44`. 이 항목은 해당 문서 브랜치의 작업 기록이다.
+- 추가: [공유 풀 수정 보고서](PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.md), [완성 과제·수정 개선안](COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.md), 각 Word 원본은 `docs/source`에 보관.
+- PASS: 원본 일치·ZIP/XML·링크·크기·비밀값 검사. 앱 시험과 전체 gate는 NOT_RUN. 기존 앱 구현 상태를 변경하지 않는다.
+- PR #431은 닫힌 상태로 유지한다. 새 PR 생성·기존 PR 재개·main 병합은 수행하지 않는다.
+- 다음 작업: 사용자의 후속 요청이 있을 때 문서 검토와 통합을 진행한다.
+
+**2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 (미커밋)**
 
 - 위치: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`. PR #430 반영 main `a1a3eef3` 병합의 충돌 파일을 수정 중이며 Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지 및 접근성 이름을 함께 보존한다.
 - README·PROJECT_STATE의 현재 전체 합계는 사용자 요청대로 `__API__`·`__MOB__`를 유지한다. 이번 병합의 모바일 대체 단위 2148/2148와 typecheck·lint·운영 제출 준비·접근성·CI 연결 103개 파일은 PASS, `npm test`는 tsx IPC `EPERM`으로 BLOCKED다. 아래 PR #429와 Issue #412 수치는 각각 이전 작업의 기록이다. 이번 작업에서는 파일만 수정하며 Git add·commit·stash·merge·rebase·push와 배포·실기는 실행하지 않는다.
@@ -221,3 +244,9 @@ bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
 
 - 이전 날짜별 인수인계는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존한다. 오래된 33곳·A/B/C·설치본 증거는 당시 상태이며 새 배포 증거가 아니다.
 - 다음 중단 전 14절의 SHA·브랜치·PR·공개 버전·검증 결과·다음 명령을 실제 근거에 맞춰 갱신한다. TEST_STATUS 현재 측정 합계와 README·PROJECT_STATE 동일 합계 줄을 함께 고친다.
+- 이 세션은 파일만 수정하고 Git add·commit·stash·merge·rebase·push는 실행하지 않는다. 뒤에 커밋할 때는 한국어 의도 제목과 필요한 Lore trailer를 사용하며 AI 공동 작성자 서명은 넣지 않는다.
+- T8 데이터 갱신: selector는 현재 `data_date=2026-06-30`만 허용한다. 새 스냅샷 사용 전에는 날짜 guard·attribution·상세 날짜 고지를 함께 검토해 바꾸고, 검토한 전체 JSON에 `node scripts/build-showcase-wolgye-stores.mjs <full JSON>`을 실행한다. 선택 결과·빠지거나 추가되는 상호와 기존 ID의 변경 메타데이터를 확인해 seed를 갱신한다. 이 스크립트는 기존 seed를 자동으로 교체하지 않는다. ID 데이터가 충돌하면 덮어쓰지 않고 롤백한다. 공개·운영 DB를 직접 갱신하지 않는다.
+
+- 2026-09-22부터 2026-10-07까지의 날짜별 인수인계 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 그대로 보존한다. 과거 기록의 “현재”, “열린 PR”, “다음 명령”은 작성 당시의 상태다.
+- 다음 중단 전 이 14절의 기준 SHA·브랜치·PR·공개 버전·검증 상태·다음 명령만 실제 근거에 맞춰 갱신한다.
+
