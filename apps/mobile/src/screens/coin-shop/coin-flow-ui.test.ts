@@ -5,6 +5,8 @@ import { fileURLToPath, URL } from 'node:url';
 
 const shop = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
 const collection = readFileSync(fileURLToPath(new URL('../coin-collection/index.tsx', import.meta.url)), 'utf8');
+const shopRoute = readFileSync(fileURLToPath(new URL('../../app/coin-shop.tsx', import.meta.url)), 'utf8');
+const collectionRoute = readFileSync(fileURLToPath(new URL('../../app/coin-collection.tsx', import.meta.url)), 'utf8');
 
 test('사용 전 시작한 조회는 뽑기권 사용 성공 후 화면 상태를 덮지 못한다', async () => {
   const loadSource = shop.slice(shop.indexOf('const load = useCallback('), shop.indexOf('const recover ='));
@@ -12,18 +14,19 @@ test('사용 전 시작한 조회는 뽑기권 사용 성공 후 화면 상태�
     .replace('ticketId: string', 'ticketId');
   assert.match(useSource, /loadGeneration\.current \+= 1/);
   let finishGet: (value: unknown) => void = () => {};
-  const old = { tickets: [{ id: 'ticket-1', status: 'UNUSED' }] };
+  const old = { pools: [], tickets: [{ id: 'ticket-1', status: 'UNUSED' }] };
   type ShopView = typeof old;
   const used = { id: 'ticket-1', status: 'USED' };
   let visible = old;
   let loading = false;
+  let gets = 0;
   const deps = {
     useCallback: (fn: unknown) => fn,
     loadGeneration: { current: 0 }, focusEpoch: { current: 1 }, current: { current: true }, inFlight: { current: false },
     shop: { tickets: old.tickets, pools: [] },
-    api: { getShop: () => new Promise((resolve) => { finishGet = resolve; }), useTicket: async () => ({ ticket: used, coin: { id: 'coin-1' }, replayed: false }) },
+    api: { getShop: () => ++gets === 1 ? new Promise((resolve) => { finishGet = resolve; }) : Promise.resolve({ pools: [], tickets: [used] }), useTicket: async () => ({ ticket: used, coin: { id: 'coin-1', summary: {} }, replayed: false }) },
     AsyncStorage: { setItem: async () => {}, removeItem: async () => {} }, ticketUseKey: 'pending',
-    setShop: (change: (previous: ShopView) => ShopView) => { visible = change(visible); },
+    setShop: (change: ShopView | ((previous: ShopView) => ShopView)) => { visible = typeof change === 'function' ? change(visible) : change; },
     setNow: () => {}, setLoading: (value: boolean) => { loading = value; }, setMessage: () => {}, setBusy: () => {}, setPendingTicketId: () => {},
     setResult: () => {}, setResultTicketId: () => {}, setResultStatus: () => {}, setResultSourceLabel: () => {},
     classifyTicketCoinAcquisition: () => 'new', publicDataDemoStoreName: (_id: string | undefined, name: string) => name,
@@ -36,10 +39,10 @@ test('사용 전 시작한 조회는 뽑기권 사용 성공 후 화면 상태�
   await actions.openCoinTicket('ticket-1');
   finishGet(old);
   await staleLoad;
+  await new Promise(setImmediate);
   assert.equal(visible.tickets[0]?.status, 'USED');
   assert.equal(loading, false);
 });
-
 
 test('focus changes during ticket use cannot reveal an old async result', async () => {
   const useSource = shop.slice(shop.indexOf('async function openCoinTicket('), shop.indexOf('  const resultReceiptId'))
@@ -108,13 +111,57 @@ test('coin collection focus and registration state are derived from current coll
 
 test('a received ticket discloses its own merchant and exact pool probabilities before use', () => {
   assert.match(shop, /shop\.pools\.find\(\(candidate\) => candidate\.id === ticket\.poolId\)/);
-  assert.match(shop, /pool\.entries\.map/);
-  assert.equal((shop.match(/coinProbabilityText\(entry\.weight, totalWeight\)/g) ?? []).length, 2);
+  assert.match(shop, /sortCoinEntries\(pool\.entries\)\.map/);
+  assert.match(shop, /coinEntryLabel\(entry\)/);
+  assert.equal((shop.match(/entry\.probability \* 100/g) ?? []).length, 1);
+  assert.match(shop, /pool\.id === used\.ticket\.poolId \? \{ \.\.\.pool, entries: \[\] \}/);
   assert.match(shop, /disabled=\{busy \|\| result !== undefined \|\| Boolean\(pendingTicketId\) \|\| !canUse\}/);
   assert.match(shop, /기존 보유 코인은 그대로 유지돼요/);
   assert.match(shop, /parseCollectibleArtwork\(result\.summary\)/);
   assert.match(shop, /sourceLabel=\{resultSourceLabel\}/);
   assert.match(shop, /publicationId: result\.publicationId, gradeId: result\.gradeId, receiptId: resultTicketId \?\? ''/);
+});
+
+test('expired tickets leave the active locker but remain in its record', () => {
+  assert.match(shop, /ticket\.status === 'UNUSED' && Date\.parse\(ticket\.expiresAt\) > now/);
+  assert.match(shop, /setTimeout\(\(\) => setNow\(Date\.now\(\)\), Math\.max\(0, nextExpiry - Date\.now\(\)\)\)/);
+  assert.match(shop, /<Fold title="사용·만료된 뽑기권 기록">/);
+  assert.match(shop, /ticket\.status === 'USED' \? '사용 완료' : '만료'/);
+});
+
+test('switching accounts remounts the shop so a prior account’s odds cannot linger', () => {
+  assert.match(shopRoute, /<CoinShopScreen key=\{auth\.accountId\}/);
+  assert.match(collectionRoute, /<CoinCollectionScreen key=\{auth\.accountId\}/);
+});
+
+test('masked reroll odds do not prevent using an owned coin and reroll ticket', () => {
+  assert.match(collection, /option\.entries\.length \? sortCoinEntries\(option\.entries\)\.map/);
+  assert.match(collection, /coinEntryLabel\(entry\)/);
+  assert.match(collection, /현재 확률은 해당 가게의 유효한 미사용 뽑기권 보유자에게만 공개돼요/);
+  assert.match(collection, /selectedOption && confirmReroll \? <View onLayout=.*?><FloatingCard/);
+  assert.doesNotMatch(collection, /disabled=\{[^}]*option\.entries\.length/);
+  assert.match(collection, /options: maskRerollOdds\(old\.reroll\.options, Date\.now\(\), true\)/);
+  assert.match(collection, /setTimeout\(\(\) => \{[\s\S]*?options: maskRerollOdds\(old\.reroll\.options, Date\.now\(\)\)/);
+  assert.match(collection, /const generation = \+\+loadGeneration\.current;[\s\S]*?loadGeneration\.current === generation/);
+});
+
+test('reroll rows use pool and grade together for React identity and selection', () => {
+  assert.match(collection, /key=\{`\$\{option\.poolId\}:\$\{option\.grade\}`\}/);
+  assert.equal((collection.match(/sameRerollOption\(selectedOption, option\)/g) ?? []).length, 2);
+});
+
+test('ticket confirmation and result are scrolled into view after a lower ticket is tapped', () => {
+  assert.match(shop, /if \(!confirmTicket && !result\) return;/);
+  assert.match(shop, /requestAnimationFrame\(\(\) => scrollView\.current\?\.scrollTo\(\{ y: 0, animated: true \}\)\)/);
+  assert.match(shop, /<SkyScrollView ref=\{scrollView\}/);
+});
+
+test('reroll confirmation and acquired result scroll to their measured panel instead of the page end', () => {
+  assert.match(collection, /<SkyScrollView header=\{<BackHeader title="내 코인·시리즈" \/>\}[\s\S]*?ref=\{scrollRef\}/);
+  assert.match(collection, /onHeaderLayout=\{\(height\) => \{ headerHeight\.current = height; \}\}/);
+  assert.match(collection, /selectedOption && confirmReroll \? <View onLayout=\{\(event\) => \{ scrollToPanel\(event\.nativeEvent\.layout\.y\); \}\}/);
+  assert.match(collection, /rerollResult \? <View onLayout=\{\(event\) => \{[\s\S]*?scrollToPanel\(event\.nativeEvent\.layout\.y\)/);
+  assert.match(collection, /headerHeight\.current \+ y - insets\.top - 8/);
 });
 
 test('a base series coupon requires an explicit choice after the one-claim consequence is shown', () => {

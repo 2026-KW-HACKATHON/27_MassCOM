@@ -310,6 +310,16 @@ test('publishing a purpose draft through the admin service freezes its condition
     purpose: { purpose: 'REVISIT', revisitMinDays: 2, revisitWindowDays: 10 } }));
   // 초안일 때는 SQL로도 고칠 수 있다.
   await pool.query(`UPDATE campaign_purposes SET revisit_window_days = 12 WHERE campaign_id = $1`, [draft.id]);
+  await assert.rejects(admin.publishCampaign(accountId, draft.id), /ADMIN_CAMPAIGN_NOT_PUBLISHABLE/);
+  await pool.query(`INSERT INTO campaign_benefits(id, campaign_id, merchant_id, title, detail, valid_days,
+    unit_extra_cost_won, max_uses, status, consent_document_ref, consent_checklist_version)
+    VALUES ($1,$2,$3,'중지된 혜택','',7,100,10,'PAUSED','OPTIN-OLD','owner-offer-consent-v1')`,
+  [randomUUID(), draft.id, merchantId]);
+  await assert.rejects(admin.publishCampaign(accountId, draft.id), /ADMIN_CAMPAIGN_NOT_PUBLISHABLE/);
+  await pool.query(`INSERT INTO campaign_benefits(id, campaign_id, merchant_id, title, detail, valid_days,
+    unit_extra_cost_won, max_uses, status, consent_document_ref, consent_checklist_version)
+    VALUES ($1,$2,$3,'방문 혜택','',7,100,10,'ACTIVE','OPTIN-1','owner-offer-consent-v1')`,
+  [randomUUID(), draft.id, merchantId]);
   const published = await admin.publishCampaign(accountId, draft.id);
   assert.equal(published.campaign.status, 'ACTIVE');
   assert.deepEqual(published.campaign.purpose, { kind: 'REVISIT', revisitMinDays: 2, revisitWindowDays: 12 });

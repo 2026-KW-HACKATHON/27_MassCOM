@@ -369,6 +369,60 @@ async function request(fetcher, path, method = 'GET', body) {
 
 const operationsBase = merchantId => `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}`;
 
+export async function loadMerchantAlliances(fetcher, doc, merchantId, current = () => true) {
+  const list = doc.getElementById('merchant-alliance-list');
+  const status = doc.getElementById('merchant-alliance-status');
+  if (!list || !status) return;
+  list.replaceChildren();
+  status.textContent = '연합미션 초안을 불러오는 중이에요.';
+  try {
+    const payload = await request(fetcher, `${operationsBase(merchantId)}/courses`);
+    if (!current()) return;
+    if (!Array.isArray(payload.courses)) throw new Error('invalid courses');
+    status.textContent = payload.courses.length ? '우리 점포가 포함된 연합미션입니다.' : '참여를 요청받은 연합미션이 없습니다.';
+    for (const course of payload.courses) {
+      const card = doc.createElement('section');
+      const title = doc.createElement('h4'); title.textContent = `${course.title} · ${course.status === 'DRAFT' ? '비공개 초안' : '공개 상태'}`;
+      const stores = doc.createElement('p');
+      stores.textContent = `참여 가게: ${course.steps.map(step => step.merchantName).join(' · ')}. 방문 순서는 자유입니다.`;
+      const period = doc.createElement('p');
+      period.textContent = `기간: ${course.startsAt ?? '시작 제한 없음'} ~ ${course.endsAt ?? '종료 제한 없음'}`;
+      const own = doc.createElement('p');
+      own.textContent = course.ownerOptinRef ? '우리 점포 참여 동의를 등록했습니다.' : '우리 점포 참여 동의가 아직 없습니다.';
+      card.append(title, stores, period, own);
+      if (course.status === 'DRAFT') {
+        const form = doc.createElement('form');
+        const label = doc.createElement('label'); label.textContent = '참여 동의서 참조 번호 ';
+        const ref = doc.createElement('input'); ref.required = true; ref.maxLength = 40; ref.autocomplete = 'off';
+        ref.value = course.ownerOptinRef ?? '';
+        label.append(ref);
+        const consent = doc.createElement('label');
+        const box = doc.createElement('input'); box.type = 'checkbox'; box.required = true;
+        consent.append(box, doc.createTextNode?.(' 우리 점포의 이 연합미션 참여 조건을 확인하고 동의합니다.') ??
+          ' 우리 점포의 이 연합미션 참여 조건을 확인하고 동의합니다.');
+        const button = doc.createElement('button'); button.type = 'submit'; button.textContent = '참여 동의 확인·저장';
+        form.append(label, consent, button);
+        form.addEventListener('submit', async event => {
+          event.preventDefault();
+          if (!box.checked) return;
+          button.disabled = true;
+          try {
+            await request(fetcher, `${operationsBase(merchantId)}/courses/${encodeURIComponent(course.id)}/opt-in`,
+              'POST', { ownerOptinRef: ref.value.trim(), consentAccepted: true });
+            if (current()) await loadMerchantAlliances(fetcher, doc, merchantId, current);
+          } catch {
+            if (current()) { status.textContent = '참여 동의를 등록하지 못했습니다. 참조 번호와 점주 권한을 확인해 주세요.'; button.disabled = false; }
+          }
+        });
+        card.append(form);
+      }
+      list.append(card);
+    }
+  } catch {
+    if (current()) status.textContent = '연합미션을 불러오지 못했습니다.';
+  }
+}
+
 export function configureMerchantOperations(fetcher, doc, merchants) {
   const panel = doc.getElementById('merchant-operations');
   const select = doc.getElementById('merchant-operations-merchant');
@@ -404,6 +458,7 @@ export function configureMerchantOperations(fetcher, doc, merchants) {
     if (staffStatus) staffStatus.textContent = '';
     if (!select.value) return;
     const merchantId = select.value;
+    void loadMerchantAlliances(fetcher, doc, merchantId, () => active(generation) && select.value === merchantId);
     void loadCampaigns(generation, merchantId);
     try {
       const staff = await request(fetcher, `${operationsBase(merchantId)}/staff`);

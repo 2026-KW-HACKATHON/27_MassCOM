@@ -1,6 +1,6 @@
 -- 가게 사이를 잇는 코스 (Issue #412, D-093). 추가 전용이다: 새 표 3개와 감사 action 4개만 더하고
 -- 방문·보상권·코인 표(visit_events, reward_entitlements, collectible_*, coin_*)와 그 트리거는 건드리지 않는다.
--- 코스 진행은 reward_entitlements를 읽어 서버가 계산하며, 이 표들은 "어떤 코스인지"와 "열어 본 기록"만 저장한다.
+-- 코스 진행은 기간 내 유효 방문을 읽어 서버가 계산하며, 이 표들은 "어떤 코스인지"와 "열어 본 기록"만 저장한다.
 -- 이전 API는 이 표를 쓰지 않으므로 먼저 적용하거나 이전 이미지로 롤백해도 기존 쓰기를 그대로 허용한다.
 -- 파일명 순서로 0068·0069 뒤에 적용한다. migration 실행기는 번호가 이어져야 한다고 요구하지 않는다.
 
@@ -21,7 +21,7 @@ CREATE TABLE courses (
   -- 마지막 점검 시각과 그 시점의 스냅샷(직선거리·영업시간·업종 조합 등). 지금 상태가 아니라 점검한 순간의 기록이다.
   checked_at timestamptz,
   check_summary jsonb CHECK (check_summary IS NULL OR jsonb_typeof(check_summary) = 'object'),
-  -- NULL이면 게시 전 방문도 센다. 값이 있으면 그 시각 이후에 받은 보상권만 센다.
+  -- NULL이면 시작 시각부터 센다. 값이 있으면 시작·종료 기간 안에서 그 시각 이후 인정 방문만 센다.
   counts_from timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   CHECK (starts_at IS NULL OR ends_at IS NULL OR ends_at > starts_at),
@@ -56,7 +56,7 @@ CREATE TABLE course_unlocks (
   account_id text NOT NULL CHECK (length(btrim(account_id)) > 0),
   course_id uuid NOT NULL REFERENCES courses(id),
   unlocked_at timestamptz NOT NULL DEFAULT now(),
-  -- 열 때 서버가 확인한 단계별 보상권 id. 클라이언트가 완료를 주장하는 값은 저장하지 않는다.
+  -- 열 때 서버가 확인한 단계별 유효 방문 id. 클라이언트가 완료를 주장하는 값은 저장하지 않는다.
   evidence jsonb NOT NULL CHECK (jsonb_typeof(evidence) = 'object'),
   -- 운영자가 무효로 돌릴 때만 쓴다. v1 API는 쓰지 않고, 단계가 다시 모자라면 읽을 때 stale로 표시한다.
   revoked_at timestamptz,

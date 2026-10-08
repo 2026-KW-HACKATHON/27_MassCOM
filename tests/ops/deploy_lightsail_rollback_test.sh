@@ -87,13 +87,15 @@ run_remote_case() {
     printf '%s\n' "$*" >>"$scratch/docker-calls"
     case "$1" in
       image)
-        if [[ "$failure" == collision ]]; then echo "masscom-api:${new_commit:0:12}"; fi ;;
+        if [[ "$failure" == collision ]]; then echo "masscom-api:${new_commit:0:12}"; fi
+        if [[ "$failure" == worker_collision ]]; then echo "masscom-worker:${new_commit:0:12}"; fi ;;
       ps)
         case "${*: -1}" in
           *service=api) echo api-id ;;
           *service=production-web) echo web-id ;;
           *service=caddy) echo caddy-id ;;
           *service=postgres) echo postgres-id ;;
+          *service=mint-worker) if [[ -e "$scratch/worker-running" ]]; then echo worker-id; fi ;;
         esac ;;
       inspect)
         case "$*" in
@@ -118,6 +120,29 @@ run_remote_case() {
               echo '["postgres","-c","log_error_verbosity=terse","-c","log_min_error_statement=panic"]'
             else echo '["postgres"]'; fi ;;
           *api-id) echo "masscom-api:${old_commit:0:12}" ;;
+          *worker-id)
+            if [[ "$*" == *project.config_files* ]]; then
+              case "$failure" in
+                worker_label_missing) echo '<no value>' ;;
+                worker_override) echo "$old_release/infra/lightsail/compose.yml,$old_release/override.yml" ;;
+                worker_release_mismatch) echo "$new_release/infra/lightsail/compose.yml" ;;
+                *) echo "$old_release/infra/lightsail/compose.yml" ;;
+              esac
+            elif [[ "$*" == *project.working_dir* ]]; then
+              if [[ "$failure" == worker_workdir_missing ]]; then echo '<no value>'
+              elif [[ "$failure" == worker_workdir_mismatch ]]; then echo "$new_release/infra/lightsail"
+              else echo "$old_release/infra/lightsail"; fi
+            elif [[ "$*" == *'"com.docker.compose.project"'* ]]; then
+              if [[ "$failure" == worker_project_mismatch ]]; then echo other; else echo masscom; fi
+            elif [[ "$*" == *'"com.docker.compose.service"'* ]]; then
+              if [[ "$failure" == worker_service_mismatch ]]; then echo other; else echo mint-worker; fi
+            elif [[ "$*" == *'"com.docker.compose.config-hash"'* ]]; then
+              if [[ "$failure" == worker_hash_missing ]]; then echo '<no value>'
+              elif [[ "$failure" == worker_hash_mismatch ]]; then echo 'other-hash'
+              else echo 'known-hash'; fi
+            elif [[ "$*" == *State.Health.Status* ]]; then echo healthy
+            elif [[ -e "$scratch/worker-new" ]]; then echo "masscom-worker:${new_commit:0:12}"
+            else echo 'masscom-worker:local'; fi ;;
           *web-id) echo "masscom-production-web:${old_commit:0:12}" ;;
           *caddy-id)
             if [[ "$*" == *State.Running* ]]; then echo true
@@ -131,6 +156,12 @@ run_remote_case() {
         elif [[ "$*" == *pg_restore* && "$failure" == backup ]]; then return 5
         else cat >/dev/null; fi ;;
       compose)
+        if [[ "$*" == *'config --hash mint-worker'* ]]; then echo 'mint-worker known-hash'; return 0; fi
+        if [[ "$*" == *'stop mint-worker'* ]]; then rm -f "$scratch/worker-running"
+        elif [[ "$*" == *'up -d --no-deps --wait --wait-timeout 180 mint-worker'* ]]; then
+          : >"$scratch/worker-running"
+          if [[ "$*" == *"${new_commit:0:12}"* ]]; then : >"$scratch/worker-new"; else rm -f "$scratch/worker-new"; fi
+        fi
         if [[ "$*" == *'up -d --no-deps --wait --wait-timeout 120 postgres'* ]]; then
           : >"$scratch/pg-recreated"
           if [[ "$failure" == pg_up_fail && "$*" != *"${old_commit:0:12}"* ]]; then return 7; fi
@@ -213,7 +244,10 @@ reset_live_state() {
   printf 'OLD_ENV=1\n' >"$runtime"
   printf 'NEW_ENV=1\n' >"$temporary"
   : >"$scratch/docker-calls"
+  rm -f "$scratch/worker-running" "$scratch/worker-new"
 }
+line_of() { grep -n -- "$1" "$scratch/docker-calls" | head -1 | cut -d: -f1; }
+
 run_remote_case migrate
 [[ "$status" == 9 ]] || {
   echo "expected migration failure, got $status: $out" >&2
@@ -364,8 +398,6 @@ if grep -vxE 'is-enabled masscom-retention.timer|start masscom-retention.service
   exit 1
 fi
 
-line_of() { grep -n -- "$1" "$scratch/docker-calls" | head -1 | cut -d: -f1; }
-
 # PostgreSQL이 옛 로그 설정으로 떠 있으면 사전 백업 뒤 마이그레이션 앞에서 그것만 한 번 다시 만들고 확인한다.
 reset_live_state
 run_remote_case pg_old
@@ -458,5 +490,56 @@ for mode in job_install_fail job_disabled job_run_fail job_result_bad; do
   if grep -q 'FULL_DEPLOY_REVERTED' <<<"$out"; then echo "$mode rolled back a live release" >&2; exit 1; fi
   grep -qx "$new_commit" "$scratch/opt/masscom/DEPLOYED_COMMIT"
   [[ "$(readlink "$scratch/opt/masscom/current")" == "$new_release" ]]
+done
+# Worker가 꺼져 있으면 배포가 Worker를 건드리지 않는다.
+reset_live_state
+run_remote_case transient_showcase
+[[ "$status" == 0 ]] || { echo "inactive Worker deploy failed: $out" >&2; exit 1; }
+if grep -E ' (stop|build|up|run|start|restart) .*mint-worker$|masscom-worker:' "$scratch/docker-calls" | grep -q .; then
+  echo 'inactive Worker was touched by normal deploy' >&2; exit 1
+fi
+
+# 이미 켜 둔 Worker만 사전 중지하고 새 릴리스 이미지로 재기동한다.
+reset_live_state
+: >"$scratch/worker-running"
+run_remote_case transient_showcase
+[[ "$status" == 0 ]] || { echo "active Worker deploy failed: $out" >&2; exit 1; }
+[[ -e "$scratch/worker-running" && -e "$scratch/worker-new" ]] || { echo 'active Worker did not restart on new image' >&2; exit 1; }
+[[ "$(line_of 'stop mint-worker')" -lt "$(line_of 'run --rm -T migrate')" ]] || { echo 'Worker stopped after migration' >&2; exit 1; }
+grep -q "build mint-worker" "$scratch/docker-calls" || { echo 'new Worker image was not built' >&2; exit 1; }
+reset_live_state
+: >"$scratch/worker-running"
+run_remote_case pg_old
+[[ "$status" == 0 ]] || { echo "active Worker deploy with postgres recreation failed: $out" >&2; exit 1; }
+[[ "$(line_of 'stop mint-worker')" -lt "$(line_of 'wait-timeout 120 postgres')" ]] || { echo 'Worker stopped after PostgreSQL recreation' >&2; exit 1; }
+
+# 호환 가능한 실패는 이전 Worker를 다시 켠다. 비호환 migration 실패는 쓰기를 막은 채 둔다.
+reset_live_state
+: >"$scratch/worker-running"
+run_remote_case migrate
+[[ "$status" == 9 && -e "$scratch/worker-running" && ! -e "$scratch/worker-new" ]] || { echo "compatible rollback lost old Worker: $out" >&2; exit 1; }
+reset_live_state
+: >"$scratch/worker-running"
+run_remote_case prod_health
+[[ "$status" == 1 && -e "$scratch/worker-running" && ! -e "$scratch/worker-new" ]] || { echo "post-restart rollback lost old Worker: $out" >&2; exit 1; }
+[[ "$(grep -n 'stop mint-worker' "$scratch/docker-calls" | tail -1 | cut -d: -f1)" -lt "$(line_of 'up -d --no-deps --force-recreate')" ]] || { echo 'Worker did not stop before API rollback' >&2; exit 1; }
+reset_live_state
+: >"$scratch/worker-running"
+run_remote_case migrate no
+[[ "$status" == 9 && ! -e "$scratch/worker-running" ]] || { echo "forward recovery restarted Worker: $out" >&2; exit 1; }
+reset_live_state
+: >"$scratch/worker-running"
+run_remote_case worker_collision
+[[ "$status" == 1 ]] && grep -q 'IMAGE_TAG_ALREADY_EXISTS: masscom-worker:' <<<"$out" || { echo "Worker image tag collision was accepted: $out" >&2; exit 1; }
+if grep -q 'build mint-worker\|stop mint-worker' "$scratch/docker-calls"; then echo 'Worker image collision changed the live Worker' >&2; exit 1; fi
+for mode in worker_label_missing worker_override worker_release_mismatch worker_workdir_missing worker_workdir_mismatch worker_project_mismatch worker_service_mismatch worker_hash_missing worker_hash_mismatch; do
+  reset_live_state
+  : >"$scratch/worker-running"
+  run_remote_case "$mode"
+  [[ "$status" == 1 ]] && grep -Eq 'WORKER_COMPOSE_ORIGIN_UNSUPPORTED|WORKER_CONFIG_HASH_MISSING|WORKER_CONFIG_DRIFT' <<<"$out" || { echo "$mode: unsupported Worker origin was accepted: $out" >&2; exit 1; }
+  [[ -e "$scratch/worker-running" ]] || { echo "$mode: live Worker was stopped" >&2; exit 1; }
+  if grep -q 'build mint-worker\|stop mint-worker\|run --rm -T migrate' "$scratch/docker-calls"; then
+    echo "$mode: deploy mutated services before rejecting the Worker origin" >&2; exit 1
+  fi
 done
 echo 'Lightsail full rollback mock passed'

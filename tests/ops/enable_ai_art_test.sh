@@ -30,6 +30,11 @@ set +x
 set -euo pipefail
 state="${FAKE_STATE:?}"
 printf '%s\n' "$*" >>"$state/calls.log"
+if [[ -e "$state/production" ]]; then
+  cfg_key=OPENAI_API_KEY cfg_prefix= cfg_tag=MASSCOM_IMAGE_TAG cfg_project=masscom cfg_service=api cfg_image=masscom-api
+else
+  cfg_key=SHOWCASE_OPENAI_API_KEY cfg_prefix=SHOWCASE_ cfg_tag=MASSCOM_SHOWCASE_IMAGE_TAG cfg_project=masscom-showcase cfg_service=showcase-api cfg_image=masscom-showcase-api
+fi
 
 # compose가 env 파일에서 읽는 값: 마지막으로 나온 줄이 이긴다. `export`·들여쓰기·`NAME: v`·`NAME = v`도 받아들이고 따옴표 한 겹을 벗긴다.
 file_var() { # env-file 이름
@@ -50,7 +55,9 @@ effective() { # 이름 env-file
   local name="$1"
   if [[ -n "${!name+x}" ]]; then printf '%s' "${!name}"; else file_var "$2" "$name"; fi
 }
-hash_vars='MASSCOM_SHOWCASE_IMAGE_TAG SHOWCASE_OPENAI_API_KEY SHOWCASE_AI_ART_MONTHLY_BUDGET_USD SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS SHOWCASE_AI_ART_DAILY_FINALS SHOWCASE_AI_ART_DRAFT_MODEL SHOWCASE_AI_ART_FINAL_MODEL SHOWCASE_INVITED_SUBJECT_SHA256'
+hash_vars="$cfg_tag $cfg_key ${cfg_prefix}AI_ART_MONTHLY_BUDGET_USD ${cfg_prefix}AI_ART_DAILY_DRAFT_ROUNDS ${cfg_prefix}AI_ART_DAILY_FINALS ${cfg_prefix}AI_ART_DRAFT_MODEL ${cfg_prefix}AI_ART_FINAL_MODEL"
+if [[ "$cfg_project" == masscom-showcase ]]; then hash_vars="$hash_vars SHOWCASE_INVITED_SUBJECT_SHA256"; fi
+if [[ "$cfg_project" == masscom ]]; then hash_vars="$hash_vars POSTGRES_PASSWORD"; fi
 fake_hash() { # env-file compose-file
   local v
   { for v in $hash_vars; do printf '%s=%s\n' "$v" "$(effective "$v" "$1")"; done; shasum -a 256 "$2" | cut -d' ' -f1; } |
@@ -60,8 +67,8 @@ log_env() { # 하위 명령 이름: compose가 볼 수 있는 SHOWCASE_*·COMPOS
   local seen= name
   for name in $(env | cut -d= -f1 | sort); do
     case "$name" in
-      MASSCOM_SHOWCASE_IMAGE_TAG) ;;
-      SHOWCASE_* | COMPOSE_* | MASSCOM_SHOWCASE_* | OPENAI_API_KEY | AI_ART_* | DOCKER_HOST | DOCKER_CONTEXT | DOCKER_TLS_VERIFY | DOCKER_CERT_PATH) seen="$seen $name" ;;
+      "$cfg_tag") ;;
+      SHOWCASE_* | COMPOSE_* | MASSCOM_SHOWCASE_* | MASSCOM_PRODUCTION_* | MASSCOM_AI_ART_* | MASSCOM_IMAGE_TAG | OPENAI_API_KEY | AI_ART_* | DOCKER_HOST | DOCKER_CONTEXT | DOCKER_TLS_VERIFY | DOCKER_CERT_PATH) seen="$seen $name" ;;
     esac
   done
   printf 'ENV %s:%s\n' "$1" "$seen" >>"$state/calls.log"
@@ -81,6 +88,7 @@ whitelisted_env() { # 컨테이너 이름 이름들: 템플릿이 걸러 내는 
 case "${1:-}" in
   ps)
     log_env ps
+    [[ "$*" == *"label=com.docker.compose.project=$cfg_project"* ]] || { echo 'wrong project for ps' >&2; exit 1; }
     # `docker ps -a --format '{{.ID}}|{{.State}}'`: 실행 중인 컨테이너와(current) 멈춘 컨테이너(extra_ps: `id|상태` 줄)를 보여 준다.
     if [[ -f "$state/current" ]]; then
       while IFS= read -r line; do printf '%s|running\n' "$line"; done <"$state/current"
@@ -125,6 +133,7 @@ case "${1:-}" in
         *) break ;;
       esac
     done
+    [[ "$project" == "$cfg_project" ]] || { echo 'wrong compose project' >&2; exit 1; }
     sub="$1"
     case "$sub" in
       config)
@@ -149,22 +158,22 @@ case "${1:-}" in
         elif [[ "$format" == json ]]; then
           log_env config-json
           [[ ! -f "$state/json_fail" ]] || { echo 'fake json error' >&2; exit 1; }
-          key_render="$(effective SHOWCASE_OPENAI_API_KEY "$env_file")"
+          key_render="$(effective "$cfg_key" "$env_file")"
           if [[ -f "$state/render_key" ]]; then key_render="$(cat "$state/render_key")"; fi
           {
-            printf '{\n  "name": "masscom-showcase",\n  "services": {\n    "migrate": {\n      "environment": {\n'
+            printf '{\n  "name": "%s",\n  "services": {\n    "migrate": {\n      "environment": {\n' "$cfg_project"
             printf '        "DATABASE_URL": "postgresql://masscom_showcase@postgres:5432/masscom_showcase",\n'
             printf '        "%s": "DO_NOT_PRINT_FAKE_DATABASE_VALUE"\n      }\n    },\n' PGPASS"WORD"
-            printf '    "showcase-api": {\n      "environment": {\n'
-            printf '        "AI_ART_DAILY_DRAFT_ROUNDS": "%s",\n' "$(effective SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS "$env_file")"
-            printf '        "AI_ART_DAILY_FINALS": "%s",\n' "$(effective SHOWCASE_AI_ART_DAILY_FINALS "$env_file")"
-            printf '        "AI_ART_DRAFT_MODEL": "%s",\n' "$(effective SHOWCASE_AI_ART_DRAFT_MODEL "$env_file")"
-            printf '        "AI_ART_FINAL_MODEL": "%s",\n' "$(effective SHOWCASE_AI_ART_FINAL_MODEL "$env_file")"
-            printf '        "AI_ART_MONTHLY_BUDGET_USD": "%s",\n' "$(effective SHOWCASE_AI_ART_MONTHLY_BUDGET_USD "$env_file")"
+            printf '    "%s": {\n      "environment": {\n' "$cfg_service"
+            printf '        "AI_ART_DAILY_DRAFT_ROUNDS": "%s",\n' "$(effective "${cfg_prefix}AI_ART_DAILY_DRAFT_ROUNDS" "$env_file")"
+            printf '        "AI_ART_DAILY_FINALS": "%s",\n' "$(effective "${cfg_prefix}AI_ART_DAILY_FINALS" "$env_file")"
+            printf '        "AI_ART_DRAFT_MODEL": "%s",\n' "$(effective "${cfg_prefix}AI_ART_DRAFT_MODEL" "$env_file")"
+            printf '        "AI_ART_FINAL_MODEL": "%s",\n' "$(effective "${cfg_prefix}AI_ART_FINAL_MODEL" "$env_file")"
+            printf '        "AI_ART_MONTHLY_BUDGET_USD": "%s",\n' "$(effective "${cfg_prefix}AI_ART_MONTHLY_BUDGET_USD" "$env_file")"
             printf '        "AI_ART_STAFF_MAY_MANAGE": "true",\n        "NODE_ENV": "production",\n'
             printf '        "OPENAI_API_KEY": "%s",\n' "$key_render"
-            printf '        "%s": "DO_NOT_PRINT_FAKE_DATABASE_VALUE"\n      },\n      "image": "masscom-showcase-api:%s"\n    }\n  }\n}\n' \
-              PGPASS"WORD" "$(effective MASSCOM_SHOWCASE_IMAGE_TAG "$env_file")"
+            printf '        "%s": "DO_NOT_PRINT_FAKE_DATABASE_VALUE"\n      },\n      "image": "%s:%s"\n    }\n  }\n}\n' \
+              PGPASS"WORD" "$cfg_image" "$(effective "$cfg_tag" "$env_file")"
           }
         else
           echo 'fake docker: plain config output is never expected' >&2
@@ -173,9 +182,9 @@ case "${1:-}" in
         ;;
       up)
         log_env up
-        printf 'UP tag=%s env-file=%s args=%s\n' "${MASSCOM_SHOWCASE_IMAGE_TAG:-}" "$env_file" "$*" >>"$state/calls.log"
+        printf 'UP tag=%s env-file=%s args=%s\n' "${!cfg_tag:-}" "$env_file" "$*" >>"$state/calls.log"
         if [[ -f "$state/up_fail" ]]; then
-          echo "fake compose failure while reading key $(effective SHOWCASE_OPENAI_API_KEY "$env_file")" >&2
+          echo "fake compose failure while reading key $(effective "$cfg_key" "$env_file")" >&2
           exit 1
         fi
         if [[ -f "$state/no_recreate" ]]; then exit 0; fi
@@ -183,22 +192,22 @@ case "${1:-}" in
         new="c$(( $(cat "$state/counter") + 1 ))"
         echo "${new#c}" >"$state/counter"
         mkdir -p "$state/containers/$new"
-        printf 'masscom-showcase-api:%s\n' "$(effective MASSCOM_SHOWCASE_IMAGE_TAG "$env_file")" >"$state/containers/$new/image"
+        printf '%s:%s\n' "$cfg_image" "$(effective "$cfg_tag" "$env_file")" >"$state/containers/$new/image"
         cp "$state/containers/$old/config_files" "$state/containers/$new/config_files"
         cat "$state/health" >"$state/containers/$new/health"
         fake_hash "$env_file" "$compose_path" >"$state/containers/$new/hash"
-        key="$(effective SHOWCASE_OPENAI_API_KEY "$env_file")"
+        key="$(effective "$cfg_key" "$env_file")"
         if [[ -f "$state/up_wrong_key" ]]; then key='a-different-key-than-the-file'; fi
         {
           echo 'NODE_ENV=production'
           echo "DATABASE_URL=postgresql://masscom_showcase@postgres:5432/masscom_showcase"
           printf '%s=%s\n' PGPASS"WORD" DO_NOT_PRINT_FAKE_DATABASE_VALUE
           echo "OPENAI_API_KEY=$key"
-          echo "AI_ART_MONTHLY_BUDGET_USD=$(effective SHOWCASE_AI_ART_MONTHLY_BUDGET_USD "$env_file")"
-          echo "AI_ART_DAILY_DRAFT_ROUNDS=$(effective SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS "$env_file")"
-          echo "AI_ART_DAILY_FINALS=$(effective SHOWCASE_AI_ART_DAILY_FINALS "$env_file")"
-          echo "AI_ART_DRAFT_MODEL=$(effective SHOWCASE_AI_ART_DRAFT_MODEL "$env_file")"
-          echo "AI_ART_FINAL_MODEL=$(effective SHOWCASE_AI_ART_FINAL_MODEL "$env_file")"
+          echo "AI_ART_MONTHLY_BUDGET_USD=$(effective "${cfg_prefix}AI_ART_MONTHLY_BUDGET_USD" "$env_file")"
+          echo "AI_ART_DAILY_DRAFT_ROUNDS=$(effective "${cfg_prefix}AI_ART_DAILY_DRAFT_ROUNDS" "$env_file")"
+          echo "AI_ART_DAILY_FINALS=$(effective "${cfg_prefix}AI_ART_DAILY_FINALS" "$env_file")"
+          echo "AI_ART_DRAFT_MODEL=$(effective "${cfg_prefix}AI_ART_DRAFT_MODEL" "$env_file")"
+          echo "AI_ART_FINAL_MODEL=$(effective "${cfg_prefix}AI_ART_FINAL_MODEL" "$env_file")"
           echo 'AI_ART_STAFF_MAY_MANAGE=true'
         } >"$state/containers/$new/env"
         {
@@ -222,18 +231,21 @@ chmod +x "$bin/docker"
 
 # 실행 중 컨테이너 c1의 config-hash 라벨을 다시 계산한다: 실행 중 컨테이너의 키·가게 그림 설정·이미지 태그를 고정한 현재 compose 설정의 해시.
 pinned_hash() {
-  local env_file="$state/containers/c1/env" line name value
-  export MASSCOM_SHOWCASE_IMAGE_TAG=abc1234
+  local env_file="$state/containers/c1/env" line name value prefix=SHOWCASE_ key_name=SHOWCASE_OPENAI_API_KEY tag_name=MASSCOM_SHOWCASE_IMAGE_TAG service_name=showcase-api project_name=masscom-showcase
+  if [[ -e "$state/production" ]]; then
+    prefix= key_name=OPENAI_API_KEY tag_name=MASSCOM_IMAGE_TAG service_name=api project_name=masscom
+  fi
+  export "$tag_name=abc1234"
   while IFS= read -r line; do
     name="${line%%=*}"
     value="${line#*=}"
     case "$name" in
-      OPENAI_API_KEY) export SHOWCASE_OPENAI_API_KEY="$value" ;;
+      OPENAI_API_KEY) export "$key_name=$value" ;;
       AI_ART_MONTHLY_BUDGET_USD | AI_ART_DAILY_DRAFT_ROUNDS | AI_ART_DAILY_FINALS | AI_ART_DRAFT_MODEL | AI_ART_FINAL_MODEL)
-        export "SHOWCASE_$name=$value" ;;
+        export "$prefix$name=$value" ;;
     esac
   done <"$env_file"
-  FAKE_STATE="$state" "$bin/docker" compose -p masscom-showcase --env-file "$runtime" -f "$compose_file" config --hash showcase-api
+  FAKE_STATE="$state" "$bin/docker" compose -p "$project_name" --env-file "$runtime" -f "$compose_file" config --hash "$service_name"
 }
 
 refresh_hash() {
@@ -281,6 +293,7 @@ run_script() {
   local status=0
   # shellcheck disable=SC2086
   env $extra_env FAKE_STATE="$state" PATH="$bin:$PATH" MASSCOM_SHOWCASE_ROOT="$root" \
+    MASSCOM_PRODUCTION_ROOT="$root" \
     bash $shell_flags "$script" "$@" >"$out" 2>&1 || status=$?
   extra_env=''
   shell_flags=''
@@ -966,6 +979,55 @@ expect_text 'NEEDS_RECREATE_OR_CHECK'
 no_key_leak 'status non-canonical'
 
 # status는 컨테이너 환경 전체를 가져오지 않는다(가짜 docker가 걸러 내지 않은 덤프 요청을 거절한다): 위 모든 status 시험이 그 사실을 보증한다.
+
+# 운영 wrapper는 같은 보호 절차를 masscom/api/OPENAI_API_KEY에 적용한다.
+script="$repo_root/infra/lightsail/enable-ai-art.sh"
+root="$scratch/opt/masscom"
+runtime="$root/runtime.env"
+release="$root/releases/abc1234"
+compose_file="$release/infra/lightsail/compose.yml"
+mkdir -p "$(dirname "$compose_file")"
+setup MASSCOM_IMAGE_TAG=abc1234 "OPENAI_API_KEY=$fake_key"
+: >"$state/production"
+echo 'masscom-api:abc1234' >"$state/containers/c1/image"
+refresh_hash
+expect_ok 'production check before enabling' check
+expect_text 'check: OK'
+no_up_call 'production check'
+extra_env="OPENAI_API_KEY=$other_key COMPOSE_PROJECT_NAME=other AI_ART_DAILY_FINALS=51 MASSCOM_IMAGE_TAG=wrong"
+expect_ok 'production enable with inherited variables' enable
+expect_text 'api recreated: c2 (health: healthy)'
+no_key_leak 'production enable'
+[[ "$(container_key c2)" == "$fake_key" ]] || { echo 'production container has the wrong key' >&2; exit 1; }
+grep -qF "compose -p masscom --env-file $runtime -f $compose_file up -d --no-deps --no-build --pull never --force-recreate --wait --wait-timeout 180 api" "$state/calls.log" || {
+  echo 'production helper changed another service or used a build/pull' >&2; exit 1
+}
+if grep -qF 'compose -p masscom-showcase ' "$state/calls.log"; then echo 'production helper touched the showcase project' >&2; exit 1; fi
+printf 'MASSCOM_IMAGE_TAG=abc1234\nOPENAI_API_KEY=\n' >"$runtime"
+chmod 600 "$runtime"
+expect_ok 'production disable' disable
+[[ -z "$(container_key c3)" ]] || { echo 'production disable kept the key' >&2; exit 1; }
+no_key_leak 'production disable'
+expect_ok 'production status after disable' status
+expect_text 'state: DISABLED'
+
+setup MASSCOM_IMAGE_TAG=abc1234 "OPENAI_API_KEY=$fake_key"
+: >"$state/production"
+echo 'masscom-api:abc1234' >"$state/containers/c1/image"
+refresh_hash
+shell_flags='-x'
+expect_ok 'production enable under bash -x' enable
+no_key_leak 'production bash -x'
+
+setup MASSCOM_IMAGE_TAG=abc1234 "OPENAI_API_KEY=$fake_key"
+: >"$state/production"
+echo 'masscom-api:abc1234' >"$state/containers/c1/image"
+refresh_hash
+printf '%s=%s\n' POSTGRES_PASSWORD changed >>"$runtime"
+expect_fail 'production enable with unrelated configuration drift' enable
+expect_text 'config drift'
+no_up_call 'production configuration drift'
+no_key_leak 'production configuration drift'
 
 # ---- 스크립트 자체 --------------------------------------------------------------------------------------
 bash -n "$script"

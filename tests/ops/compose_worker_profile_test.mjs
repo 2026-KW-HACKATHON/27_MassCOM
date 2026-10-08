@@ -39,11 +39,9 @@ test('평소 배포(프로파일 없음)에는 Worker가 없고, 필수 키 폴�
   }
 });
 
-// 배포 스크립트가 Worker를 켜는 길을 막는다. 허용 목록 방식이다: `mint-worker`가 나오는 줄(주석 제외)은 `stop`이나 `build`여야 하고
-// `up`·`run`·`start`·`restart`·`create`가 함께 있으면 안 된다(go-live 전에 migrate 앞에서 `stop mint-worker`, 배포 때 `build mint-worker`를
-// 넣을 예정). 배열·변수에 이름을 담아 우회하는 것도 같은 규칙으로 걸린다: 그 줄에 stop/build가 없기 때문이다.
-// `nft-live`·`COMPOSE_PROFILES`는 배포 스크립트 어디에도 나오면 안 된다.
-const deployScripts = ['scripts/deploy-lightsail.sh', 'scripts/deploy-lightsail-web.sh', 'scripts/lightsail-web-rollback.sh'];
+// 웹 전용 배포와 수동 웹 복귀는 Worker를 건드리지 않는다. 전체 배포의 조건부 재기동은
+// deploy_lightsail_rollback_test.sh가 실제 제어 흐름으로 검증한다.
+const deployScripts = ['scripts/deploy-lightsail-web.sh', 'scripts/lightsail-web-rollback.sh'];
 
 function deployScriptViolations(source) {
   const violations = [];
@@ -63,7 +61,7 @@ function deployScriptViolations(source) {
   return violations;
 }
 
-test('배포 스크립트는 Worker를 stop·build 말고는 건드리지 않고, 프로파일을 켜지도 않는다', () => {
+test('웹 전용 배포와 복귀는 Worker를 건드리지 않고, 프로파일을 켜지도 않는다', () => {
   for (const file of deployScripts) {
     assert.deepEqual(deployScriptViolations(readFileSync(resolve(repoRoot, file), 'utf8')), [], file);
   }
@@ -112,6 +110,14 @@ test('배포 스크립트 가드는 임시 시료 문자열의 금지된 형태�
 test('runtime.env.example에는 COMPOSE_PROFILES가 없다(넣으면 모든 compose 명령이 발행을 켠다)', () => {
   const example = readFileSync(resolve(repoRoot, 'infra/lightsail/runtime.env.example'), 'utf8');
   assert.doesNotMatch(example, /COMPOSE_PROFILES/);
+});
+
+test('수동 Worker 재개 명령도 현재 배포 커밋의 이미지 태그를 사용한다', () => {
+  const readme = readFileSync(resolve(repoRoot, 'infra/lightsail/README.md'), 'utf8');
+  assert.match(readme, /worker_tag="\$\(cut -c1-12 \/opt\/masscom\/DEPLOYED_COMMIT\)"/);
+  for (const verb of ['build', 'up -d --no-deps']) {
+    assert.match(readme, new RegExp(`MASSCOM_WORKER_IMAGE_TAG="\\$worker_tag" docker compose [^\\n]* ${verb} mint-worker`));
+  }
 });
 
 test('운영 API는 Worker 프로파일을 켜도 발행 준비 중(PREPARING)으로 고정된다(D-054)', () => {

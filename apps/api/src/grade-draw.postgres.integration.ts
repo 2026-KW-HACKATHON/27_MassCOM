@@ -5,7 +5,6 @@ import { Pool } from 'pg';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresCoinEconomyService } from './postgres/coin-economy.js';
-import { PostgresCollectionExperienceService } from './postgres/collection-experience.js';
 import { PostgresGradeDrawService } from './postgres/grade-draw.js';
 import { runMigrations } from './postgres/migrate.js';
 import { SHOWCASE_PRACTICE_MERCHANT_ID } from './showcase/local-seed.js';
@@ -24,16 +23,15 @@ async function setup(t: TestContext) {
   await pool.query(`TRUNCATE account_deletion_requests, grade_draws, coin_draws, coin_tickets, coin_pool_entries, coin_pools,
     collectible_acquisitions, collectible_publication_grades, campaign_collectible_publications,
     collectible_publications, collectible_projects, mileage_credits, mileage_spends,
-    account_characters, account_profile, collection_experience_profiles,
+    coin_reroll_tickets, furniture_inventory, account_characters, account_profile, collection_experience_profiles,
     campaign_goals, campaigns, merchant_members, merchants CASCADE`);
   await pool.query(`INSERT INTO mileage_credits (id,account_id,amount,reason,source_id,business_date)
     VALUES ($1,$2,3000,'DRAW_BONUS','test-credit','2026-10-07')`, [randomUUID(), accountId]);
   const lifecycle = new PostgresAccountLifecycle({ hmacSecret: 'grade-draw-test-account-lifecycle-secret-32-bytes' });
-  let selected = 0;
-  const service = new PostgresGradeDrawService(pool, lifecycle, { now: () => now, randomInt: () => selected });
-  const coinEconomy = new PostgresCoinEconomyService(pool, { accountLifecycle: lifecycle, now: () => now });
-  const experience = new PostgresCollectionExperienceService(pool, lifecycle);
-  return { pool, service, coinEconomy, experience, select: (index: number) => { selected = index; } };
+  let sequence = [0, 0, 0];
+  let index = 0;
+  const service = new PostgresGradeDrawService(pool, lifecycle, { now: () => now, randomInt: () => sequence[index++]! });
+  return { pool, service, select: (...values: number[]) => { sequence = values; index = 0; }, lifecycle };
 }
 
 async function publishCoin(pool: Pool, merchantId = 'grade-shop') {
@@ -60,132 +58,134 @@ async function publishCoin(pool: Pool, merchantId = 'grade-shop') {
   return publication;
 }
 
-test('practice store publications stay out of grade draw and fresh coin catalog', async t => {
-  const { pool, service, coinEconomy } = await setup(t);
+test('practice store coins stay out of the customer catalog and general draw', async (t) => {
+  const { pool, service, lifecycle } = await setup(t);
   await publishCoin(pool, SHOWCASE_PRACTICE_MERCHANT_ID);
-  assert.equal((await service.getShop(accountId)).pools[0]!.counts.COIN, 0);
+  const coinEconomy = new PostgresCoinEconomyService(pool, { accountLifecycle: lifecycle, now: () => now });
   assert.equal((await coinEconomy.getCollection(accountId)).catalog.some(
     merchant => merchant.merchantId === SHOWCASE_PRACTICE_MERCHANT_ID), false);
-  await publishCoin(pool);
-  assert.equal((await service.getShop(accountId)).pools[0]!.counts.COIN, 1);
-  assert.equal((await coinEconomy.getCollection(accountId)).catalog.some(
-    merchant => merchant.merchantId === 'grade-shop'), true);
+  assert.equal((await service.getShop(accountId)).pools[0]!.rewards.some(
+    entry => entry.reward.kind === 'COIN'), false);
 });
 
-test('one item per draw, repeats are counted, and coins/themes join existing ownership', async (t) => {
-  const { pool, service, coinEconomy, experience, select } = await setup(t);
+test('weighted pool excludes coins and characters and grants exactly one reward per draw', async (t) => {
+  const { pool, service, select } = await setup(t);
   const publicationId = await publishCoin(pool);
   const bronze = (await service.getShop(accountId)).pools[0]!;
-  assert.equal(bronze.total, 7);
-  assert.deepEqual(bronze.counts, { CHARACTER: 3, THEME: 3, COIN: 1 });
-  assert.equal(bronze.probabilityPerItem, 1 / 7);
+  assert.deepEqual(bronze.gradeWeights, { BRONZE: 8000, SILVER: 1700, GOLD: 280, PLATINUM: 20 });
+  assert.equal(bronze.rewards.some((entry) => ['COIN', 'CHARACTER'].includes(entry.reward.kind)), false);
+  assert.equal(bronze.rewards.some((entry) => entry.rarity !== 'BRONZE' && entry.reward.kind === 'FURNITURE'), false);
+  assert.equal(bronze.categoryWeightsByRarity.SILVER.FURNITURE, 0);
+  assert.ok(Math.abs(bronze.rewards.reduce((sum, entry) => sum + entry.probability, 0) - 1) < 1e-12);
   const draw = (requestId: string) => service.draw({ accountId, grade: 'BRONZE', requestId,
     expectedPoolVersion: bronze.version });
 
-  select(0);
-  const first = await draw('character-1'); const again = await draw('character-2');
-  assert.equal(first.reward.kind, 'CHARACTER');
-  assert.deepEqual([first.duplicate, first.quantity, again.duplicate, again.quantity], [false, 1, true, 2]);
-  assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM account_characters WHERE account_id=$1`,
-    [accountId])).rows[0].n, 1);
-  assert.deepEqual((await draw('character-2')).replayed, true);
-  assert.deepEqual((await draw('character-2')).balance, again.balance);
-  await assert.rejects(service.draw({ accountId, grade: 'SILVER', requestId: 'character-2',
-    expectedPoolVersion: bronze.version }), { code: 'DRAW_REQUEST_CONFLICT' });
+  select(0, 0, 0);
+  const ticket = await draw('ticket');
+  assert.equal(ticket.reward.kind, 'REROLL_TICKET');
+  assert.equal(ticket.rarity, 'BRONZE');
+  assert.deepEqual((await pool.query(`SELECT grade,source,request_id,granted_by_account_id FROM coin_reroll_tickets
+    WHERE account_id=$1`, [accountId])).rows, [{ grade: 'BRONZE', source: 'GRADE_DRAW',
+    request_id: `grade-draw:${ticket.drawId}`, granted_by_account_id: null }]);
+  assert.equal((await draw('ticket')).replayed, true);
+  assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM coin_reroll_tickets WHERE account_id=$1`, [accountId])).rows[0].n, 1);
 
-  select(3);
-  const theme = await draw('theme-1');
+  select(0, 50, 0);
+  const mileage = await draw('mileage');
+  assert.deepEqual(mileage.reward, { kind: 'MILEAGE', id: 'mileage-bronze', name: '20P', amount: 20 });
+  assert.equal(mileage.balance, 2820);
+  assert.deepEqual((await pool.query(`SELECT amount,source_id,business_date::text FROM mileage_credits
+    WHERE account_id=$1 AND source_id=$2`, [accountId, `grade-draw:${mileage.drawId}`])).rows,
+  [{ amount: 20, source_id: `grade-draw:${mileage.drawId}`, business_date: '2026-10-07' }]);
+  assert.equal((await draw('mileage')).balance, mileage.balance);
+
+  select(0, 6050, 0);
+  const furniture = await draw('furniture');
+  assert.equal(furniture.reward.kind, 'FURNITURE');
+  if (furniture.reward.kind === 'FURNITURE') assert.equal(furniture.reward.assetId, furniture.reward.id);
+  assert.deepEqual((await draw('furniture')).reward, furniture.reward);
+  assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM furniture_inventory WHERE account_id=$1 AND item_id=$2`,
+    [accountId, furniture.reward.id])).rows[0].n, 1);
+  select(0, 8050, 0);
+  const theme = await draw('theme');
   assert.equal(theme.reward.kind, 'THEME');
-  assert.equal((await experience.getSnapshot(accountId)).progress.cosmetics
-    .find((item) => item.id === theme.reward.id)?.equippable, true);
-  assert.equal((await experience.setEquipment({ accountId, cosmetics: { hat: theme.reward.id } }))
-    .profile.cosmetics.hat, theme.reward.id);
+  assert.equal((await service.getShop(accountId)).history.find((item) => item.drawId === theme.drawId)!.reward.kind, 'THEME');
+  assert.equal((await service.getShop(accountId)).balance, 2620);
+  assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM grade_draws WHERE reward_kind='COIN' AND account_id=$1`,
+    [accountId])).rows[0].n, 0);
 
-  select(6);
-  const coin = await draw('coin-1'); const repeatCoin = await draw('coin-2');
-  assert.equal(coin.reward.kind, 'COIN');
-  assert.equal(coin.reward.kind === 'COIN' && coin.reward.publicationId, publicationId);
-  assert.deepEqual([coin.duplicate, coin.quantity, repeatCoin.duplicate, repeatCoin.quantity], [false, 1, true, 2]);
-  const owned = (await coinEconomy.getCollection(accountId)).coins.find((item) => item.publicationId === publicationId)!;
-  assert.equal(owned.quantity, 2);
-  assert.equal(owned.drawQuantity, 2);
-  assert.equal((await service.getShop(accountId)).balance, 2500);
-
-  await pool.query(`UPDATE campaigns SET status='PAUSED' WHERE id='grade-campaign'`);
-  const changed = (await service.getShop(accountId)).pools[0]!;
-  assert.equal(changed.total, 6);
-  await assert.rejects(draw('stale-pool'), { code: 'DRAW_STATE_CHANGED' });
-  assert.equal((await service.getShop(accountId)).balance, 2500);
+  // Old receipts remain readable and preserve coin ownership after the live pool excludes coins.
+  await pool.query(`INSERT INTO grade_draws(id,account_id,request_id,grade,price,pool_version,reward_kind,
+    publication_id,grade_id,duplicate,quantity,created_at)
+    VALUES($1,$2,'legacy-coin','BRONZE',100,$3,'COIN',$4,'bronze-coin',false,1,$5)`,
+  [randomUUID(), accountId, 'a'.repeat(64), publicationId, now]);
+  const history = (await service.getShop(accountId)).history.find((item) => item.reward.kind === 'COIN')!;
+  assert.equal(history.reward.kind, 'COIN');
+  assert.equal(history.rarity, null);
+  await pool.query(`INSERT INTO grade_draws(id,account_id,request_id,grade,price,pool_version,reward_kind,
+    item_id,duplicate,quantity,created_at)
+    VALUES($1,$2,'legacy-character','BRONZE',100,$3,'CHARACTER','cook-cat',false,1,$4)`,
+  [randomUUID(), accountId, 'a'.repeat(64), now]);
+  assert.equal((await service.getShop(accountId)).history.find((item) => item.reward.id === 'cook-cat')?.rarity, null);
 
   const deletion = new PostgresAccountDeletionService(pool, {
     hmacSecret: 'grade-draw-test-account-lifecycle-secret-32-bytes', policyVersion: 'test', now: () => now,
   });
   await deletion.requestDeletion({ accountId, confirmation: 'DELETE MY ACCOUNT' });
-  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM grade_draws WHERE account_id=$1', [accountId])).rows[0].n, 0);
+  for (const table of ['grade_draws', 'coin_reroll_tickets', 'furniture_inventory', 'mileage_credits']) {
+    assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM ${table} WHERE account_id=$1`,
+      [accountId])).rows[0].n, 0);
+  }
 });
 
-test('parallel requests serialize the balance and media withdrawal redacts history', async (t) => {
+test('rarity and category endpoints issue the advertised reward', async (t) => {
   const { pool, service, select } = await setup(t);
-  const publicationId = await publishCoin(pool);
+  const bronze = (await service.getShop(accountId)).pools[0]!;
+  select(9999, 0, 0);
+  const rare = await service.draw({ accountId, grade: 'BRONZE', requestId: 'prism', expectedPoolVersion: bronze.version });
+  assert.equal(rare.rarity, 'PLATINUM');
+  assert.deepEqual(rare.reward, { kind: 'REROLL_TICKET', id: 'reroll-gold', name: 'GOLD 재뽑기권', grade: 'GOLD' });
+  assert.equal((await pool.query(`SELECT grade FROM coin_reroll_tickets WHERE request_id=$1`,
+    [`grade-draw:${rare.drawId}`])).rows[0].grade, 'GOLD');
+  await assert.rejects(service.draw({ accountId, grade: 'SILVER', requestId: 'prism',
+    expectedPoolVersion: bronze.version }), { code: 'DRAW_REQUEST_CONFLICT' });
+});
+
+test('concurrent requests serialize mileage and failed award rolls back draw', async (t) => {
+  const { pool, service, select, lifecycle } = await setup(t);
   await pool.query(`UPDATE mileage_credits SET amount=100 WHERE account_id=$1`, [accountId]);
-  const poolVersion = (await service.getShop(accountId)).pools[0]!.version;
-  select(6);
+  const bronze = (await service.getShop(accountId)).pools[0]!;
+  select(0, 6000, 0);
   const results = await Promise.allSettled(['one', 'two'].map((requestId) => service.draw({ accountId,
-    grade: 'BRONZE', requestId, expectedPoolVersion: poolVersion })));
+    grade: 'BRONZE', requestId, expectedPoolVersion: bronze.version })));
   assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1);
   assert.equal(results.filter((result) => result.status === 'rejected' &&
     result.reason?.code === 'DRAW_INSUFFICIENT_MILEAGE').length, 1);
   assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM grade_draws WHERE account_id=$1`,
     [accountId])).rows[0].n, 1);
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(`SELECT set_config('masscom.collectible_media_removal','on',true)`);
-    await client.query(`DELETE FROM campaign_collectible_publications WHERE publication_id=$1`, [publicationId]);
-    await client.query(`UPDATE collectible_publications SET media_removed_at=now() WHERE id=$1`, [publicationId]);
-    await client.query(`UPDATE collectible_publication_grades SET summary='{"mediaRemoved":true}'::jsonb,
-      detail='{"mediaRemoved":true}'::jsonb WHERE publication_id=$1`, [publicationId]);
-    await client.query('COMMIT');
-  } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
-  const history = (await service.getShop(accountId)).history[0]!;
-  assert.equal(history.reward.name, '공개가 중단된 코인');
-  assert.equal(history.reward.kind === 'COIN' && history.reward.artwork, undefined);
+  const broken = new PostgresGradeDrawService(pool, lifecycle, { now: () => now,
+    randomInt: (() => { const values = [0, 50, 0]; let index = 0; return () => values[index++]!; })(),
+    nextId: (() => { let index = 0; return () => index++ === 0 ? randomUUID() : 'invalid-uuid'; })() });
+  await pool.query(`UPDATE mileage_credits SET amount=1000 WHERE account_id=$1`, [accountId]);
+  await assert.rejects(broken.draw({ accountId, grade: 'BRONZE', requestId: 'rollback',
+    expectedPoolVersion: bronze.version }));
+  assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM grade_draws WHERE request_id='rollback'`,
+    [])).rows[0].n, 0);
+  assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM mileage_credits WHERE source_id LIKE 'grade-draw:%'`,
+    [])).rows[0].n, 1);
 });
 
-test('personal trial coins stay in their owner catalogs and draw pool', async t => {
-  const { pool, service, coinEconomy, select } = await setup(t);
-  const publicationId = await publishCoin(pool);
-  const outsiderBefore = (await service.getShop(accountId)).pools[0]!;
-  const coinPoolId = randomUUID();
-  await pool.query(`INSERT INTO coin_pools (id,merchant_id,event_name,grade,price,purchase_starts_at,
-    purchase_ends_at,use_expires_at,per_account_limit,issuance_cap)
-    VALUES ($1,'grade-shop','시험','BRONZE',1,'2026-01-01','2027-01-01','2027-02-01',1,10)`, [coinPoolId]);
-  await pool.query(`INSERT INTO coin_pool_entries (pool_id,publication_id,grade_id,weight)
-    VALUES ($1,$2,'bronze-coin',1)`, [coinPoolId, publicationId]);
-  await pool.query(`INSERT INTO showcase_guest_trials (account_id,merchant_id,created_at,expires_at)
-    VALUES ('trial-owner','grade-shop','2026-10-01','2026-10-09')`);
-
-  const outsider = (await service.getShop(accountId)).pools[0]!;
-  const owner = (await service.getShop('trial-owner')).pools[0]!;
-  assert.equal(outsider.counts.COIN, 0);
-  assert.equal(owner.counts.COIN, 1);
-  assert.notEqual(outsider.version, outsiderBefore.version);
-  assert.equal(owner.version, outsiderBefore.version);
-  assert.equal((await coinEconomy.getShop(accountId)).pools.some(pool => pool.id === coinPoolId), false);
-  assert.equal((await coinEconomy.getShop('trial-owner')).pools.some(pool => pool.id === coinPoolId), true);
-  assert.equal((await coinEconomy.getCollection(accountId)).catalog.some(row => row.merchantId === 'grade-shop'), false);
-  assert.equal((await coinEconomy.getCollection('trial-owner')).catalog.some(row => row.merchantId === 'grade-shop'), true);
-  await assert.rejects(coinEconomy.purchase({ accountId, poolId: coinPoolId, requestId: 'foreign-trial' }),
-    { code: 'COIN_POOL_UNAVAILABLE' });
-  await pool.query(`INSERT INTO mileage_credits (id,account_id,amount,reason,source_id,business_date)
-    VALUES ($1,'trial-owner',10,'DRAW_BONUS','trial-credit','2026-10-07')`, [randomUUID()]);
-  assert.equal((await coinEconomy.purchase({ accountId: 'trial-owner', poolId: coinPoolId,
-    requestId: 'own-trial' })).ticket.poolId, coinPoolId);
-  select(0);
-  assert.notEqual((await service.draw({ accountId, grade: 'BRONZE', requestId: 'outsider-draw',
-    expectedPoolVersion: outsider.version })).reward.kind, 'COIN');
-  await pool.query(`UPDATE campaigns SET is_public=false WHERE id='grade-campaign'`);
-  assert.equal((await service.getShop(accountId)).pools[0]!.version, outsider.version);
-  assert.notEqual((await service.getShop('trial-owner')).pools[0]!.version, owner.version);
+test('empty furniture catalog keeps disclosed odds and actual draw aligned', async (t) => {
+  const { pool, service, select } = await setup(t);
+  await pool.query('DELETE FROM furniture_catalog');
+  const bronze = (await service.getShop(accountId)).pools[0]!;
+  assert.equal(bronze.categoryWeightsByRarity.BRONZE.FURNITURE, 0);
+  assert.equal(bronze.categoryWeightsByRarity.BRONZE.MILEAGE, 8000);
+  assert.equal(bronze.rewards.some(({ reward }) => reward.kind === 'FURNITURE'), false);
+  assert.ok(Math.abs(bronze.rewards.reduce((sum, entry) => sum + entry.probability, 0) - 1) < 1e-12);
+  select(0, 1000, 0);
+  const draw = await service.draw({ accountId, grade: 'BRONZE', requestId: 'no-furniture',
+    expectedPoolVersion: bronze.version });
+  assert.equal(draw.reward.kind, 'MILEAGE');
 });

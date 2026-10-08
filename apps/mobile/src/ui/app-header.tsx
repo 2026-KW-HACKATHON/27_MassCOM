@@ -9,15 +9,16 @@ import { ProfileStrip } from './profile-strip';
 import { useUiStyles } from './use-ui-styles';
 
 type Props = { title: string; subtitle?: string; children?: ReactNode; avatarArt?: ImageSourcePropType;
-  avatarClothing?: EquippedClothingArt | null; avatarContent?: ReactNode; showFriendsEntry?: boolean; showMailEntry?: boolean; compact?: boolean };
+  avatarClothing?: EquippedClothingArt | null; avatarContent?: ReactNode; mileageBalance?: number;
+  showFriendsEntry?: boolean; showMailEntry?: boolean; compact?: boolean };
 
 /** One account strip, followed by a compact page heading so map/game content has room. */
-export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing, avatarContent, showFriendsEntry, compact }: Props) {
+export function AppHeader({ title, subtitle, children, avatarArt, avatarClothing, avatarContent, mileageBalance, showFriendsEntry, compact }: Props) {
   const insets = useSafeAreaInsets();
   const styles = useUiStyles();
   const world = worldForScheme(useColorScheme());
   return <View style={{ paddingTop: insets.top + 8, paddingBottom: compact ? 4 : 12 }}>
-    <ProfileStrip avatarArt={avatarArt} avatarClothing={avatarClothing} avatarContent={avatarContent} />
+    <ProfileStrip avatarArt={avatarArt} avatarClothing={avatarClothing} avatarContent={avatarContent} mileageBalance={mileageBalance} />
     {title !== '홈' ? <View style={{ paddingHorizontal: 20, paddingTop: 12, gap: 3, flexDirection: 'row', alignItems: 'center' }}>
       <View style={{ flex: 1 }}><Text accessibilityRole="header" style={styles.headerTitle}>{title}</Text>
         {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}</View>

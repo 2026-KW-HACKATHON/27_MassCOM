@@ -10,6 +10,19 @@ import { fileURLToPath } from 'node:url';
 const screen = readFileSync(fileURLToPath(new URL('./index.tsx', import.meta.url)), 'utf8');
 const machine = readFileSync(fileURLToPath(new URL('./gacha-machine.tsx', import.meta.url)), 'utf8');
 
+test('confirmed grade draws and their replay update the shop header from the server balance', () => {
+  const recovery = screen.slice(screen.indexOf('const result = await drawApiRef.current.draw(stored);'), screen.indexOf('} catch (error)', screen.indexOf('const result = await drawApiRef.current.draw(stored);')));
+  const purchase = screen.slice(screen.indexOf('async function buyGrade('), screen.indexOf('} catch (error)', screen.indexOf('async function buyGrade(')));
+  assert.match(recovery, /shopRef\.current\.applyBalance\(result\.balance\)/);
+  assert.match(purchase, /shop\.applyBalance\(result\.balance\)/);
+  for (const source of [recovery, purchase]) assert.match(source, /setStoredDrawShop\(\(previous\) => previous\?\.key === drawScopeKey[\s\S]*?balance: result\.balance/);
+  for (const source of [recovery, purchase]) assert.match(source, /void refreshDrawShop\(\)/);
+  assert.match(screen, /mileageBalance=\{drawShop\?\.balance \?\? shop\.snapshot\?\.mileage\.balance\}/);
+  const strip = readFileSync(fileURLToPath(new URL('../../ui/profile-strip.tsx', import.meta.url)), 'utf8');
+  assert.match(strip, /const shownBalance = mileageBalance \?\? data\.shop\?\.mileage\.balance/);
+  assert.match(strip, /마일리지 \$\{shownBalance\} 포인트, 상점/);
+});
+
 test('가구 구매 성공 잔액은 상점과 등급 뽑기에 즉시 반영되고 낡은 조회는 버린다', () => {
   const buyFurniture = screen.slice(screen.indexOf('async function buyFurniture('), screen.indexOf('const drawScopeKey ='));
   assert.match(buyFurniture, /shop\.applyBalance\(result\.balance\)/);

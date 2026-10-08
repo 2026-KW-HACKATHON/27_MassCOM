@@ -37,7 +37,7 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
       if (!signal?.aborted) {
         const cleared = courseId && clearedCourseDetail(cause);
         if (cleared) { setCourses(cleared.courses); setSceneOpen(cleared.sceneOpen); }
-        setError('코스를 불러오지 못했어요. 다시 시도해 주세요.');
+        setError('연합 미션을 불러오지 못했어요. 다시 시도해 주세요.');
       }
     }
   }, [api, courseId]);
@@ -64,32 +64,41 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
     } finally { setUnlocking(false); }
   }
   const course = courseId && courses?.[0]?.id === courseId ? courses[0] : undefined;
-  return <SkyBackdrop><SkyScrollView header={<BackHeader title={courseId ? '코스 상세' : '동네 코스'} />}
+  const nextStep = course?.steps.find(step => !step.done && step.state === 'AVAILABLE');
+  return <SkyBackdrop><SkyScrollView header={<BackHeader title={courseId ? '연합 미션 상세' : '연합 미션'} />}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}>
-    {courses === undefined && !error ? <View style={styles.center}><ActivityIndicator color={palette.primary} /><Text style={{ color: palette.label }}>코스를 불러오는 중</Text></View> : null}
+    {courses === undefined && !error ? <View style={styles.center}><ActivityIndicator color={palette.primary} /><Text style={{ color: palette.label }}>연합 미션을 불러오는 중</Text></View> : null}
     {error ? <View style={styles.center}><Text accessibilityRole="alert" style={{ color: palette.onErrorContainer }}>{error}</Text>
       <Pressable accessibilityRole="button" onPress={errorNeedsConsent ? recheckConsent : () => void refresh()} style={[styles.button, { backgroundColor: palette.primary }]}>
         <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{errorNeedsConsent ? consentRecheckLabel : '다시 불러오기'}</Text>
       </Pressable></View> : null}
-    {courses?.length === 0 ? <FloatingCard><Text style={{ color: palette.label }}>지금 공개된 코스가 없어요.</Text></FloatingCard> : null}
+    {courses?.length === 0 ? <FloatingCard><Text style={{ color: palette.label }}>지금 공개된 연합 미션이 없어요.</Text></FloatingCard> : null}
     {!courseId ? courses?.map(item => <FloatingCard key={item.id} onPress={() => router.push({ pathname: '/courses/[courseId]', params: { courseId: item.id } })}
-      accessibilityLabel={`${item.title}, ${courseChipText(item)}, ${courseStateText(item)}`} accessibilityHint="코스 상세 보기" style={styles.card}>
+      accessibilityLabel={`${item.title}, ${courseChipText(item)}, ${courseStateText(item)}`} accessibilityHint="연합 미션 상세 보기" style={styles.card}>
       <Text selectable style={[styles.title, { color: palette.label }]}>{item.title}</Text>
       <Text style={{ color: palette.primary }}>{courseChipText(item)}</Text>
       <Text style={{ color: palette.secondaryLabel }}>{courseStateText(item)}</Text>
-      <Text style={{ color: palette.primary }}>단계 보기 →</Text>
+      <Text style={{ color: palette.primary }}>조각 보기 →</Text>
     </FloatingCard>) : null}
     {course ? <>
       <FloatingCard style={styles.card}>
         <Text selectable style={[styles.title, { color: palette.label }]}>{course.title}</Text>
         <Text selectable style={{ color: palette.secondaryLabel }}>{course.situationLabel}</Text>
         <Text accessibilityLiveRegion="polite" style={{ color: palette.label }}>{courseStateText(course)}</Text>
+        {course.state === 'UNLOCKED' ? <Text style={{ color: palette.primary, fontWeight: '800' }}>완료 배지 · {course.title}</Text> : null}
       </FloatingCard>
+      {nextStep ? <FloatingCard style={styles.card}>
+        <Text style={{ color: palette.label, fontWeight: '800' }}>다음 가게 추천 · {nextStep.merchantName}</Text>
+        <Text style={{ color: palette.secondaryLabel }}>방문 순서는 자유예요. 가게 상세에서 현재 영업 상태와 거리를 확인해 주세요.</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: nextStep.merchantId } })}
+          style={[styles.button, { backgroundColor: palette.primary }]}><Text style={[styles.buttonText, { color: palette.onPrimary }]}>가게 영업 상태·거리 보기</Text></Pressable>
+      </FloatingCard> : null}
       {course.steps.map(step => <FloatingCard key={step.position} style={styles.step}>
         <View style={styles.stepCopy}>
           <Text selectable style={{ color: palette.label, fontWeight: '800' }}>{step.position}. {step.merchantName}</Text>
-          <Text style={{ color: palette.secondaryLabel }}>{step.targetVisitCount}회 방문 · {step.pieceLabel}</Text>
-          <Text style={{ color: step.done ? palette.primary : palette.secondaryLabel }}>{step.state === 'UNAVAILABLE' ? '지금은 이용할 수 없는 가게예요' : step.done ? '완료' : step.full ? '자리 없음' : '미완료'}</Text>
+          <Text style={{ color: palette.secondaryLabel }}>인정 방문 {step.progressVisitCount ?? 0}/{step.targetVisitCount}회 · {step.pieceLabel}</Text>
+          <Text style={{ color: step.done ? palette.primary : palette.secondaryLabel }}>{step.state === 'UNAVAILABLE' ? '지금은 이용할 수 없는 가게예요' : step.done ? '조각 획득 완료' : step.full ? '자리 없음' : '조각 수집 중'}</Text>
+          {step.done && step.earnedAt ? <Text style={{ color: palette.secondaryLabel }}>{new Date(step.earnedAt).toLocaleDateString('ko-KR')} 획득</Text> : null}
         </View>
         {step.done && step.artwork ? <Image source={{ uri: step.artwork.thumbnailDataUrl }} resizeMode="contain" accessible
           accessibilityLabel={`${step.merchantName} 코인`} style={styles.coin} /> : null}
@@ -101,8 +110,9 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
         <Text style={[styles.buttonText, { color: palette.onPrimary }]}>장면 보기</Text>
       </Pressable> : null}
       {course.state === 'UNLOCKED' && sceneOpen ? <FloatingCard style={styles.card}>
-        <Text selectable style={[styles.title, { color: palette.label }]}>{course.sceneKey}</Text>
-        <Text style={{ color: palette.secondaryLabel }}>가게 코인으로 채운 코스 장면</Text>
+        <Text selectable style={[styles.title, { color: palette.label }]}>{course.title}</Text>
+        <Text style={{ color: palette.primary, fontWeight: '800' }}>연합 미션 완료 배지</Text>
+        <Text style={{ color: palette.secondaryLabel }}>각 가게 방문으로 얻은 조각을 모아 완성한 장면</Text>
         <View style={styles.sceneCoins}>{course.steps.map(step => <View key={step.position} style={styles.sceneCoin}>
           {step.artwork ? <Image source={{ uri: step.artwork.thumbnailDataUrl }} resizeMode="contain" accessible
             accessibilityLabel={`${step.merchantName} 코인`} style={styles.coin} /> : <Text style={{ color: palette.secondaryLabel }}>코인 그림 없음</Text>}

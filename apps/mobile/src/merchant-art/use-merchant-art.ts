@@ -77,6 +77,18 @@ export function useMerchantArt({ apiUrl, merchantId, credential, onSessionInvali
     [api, merchantId, gate],
   );
 
+  const accountQuota = state.status === 'ready' ? state.art.quota.account : undefined;
+  useEffect(() => {
+    if (!active || !accountQuota) return;
+    const now = Date.now();
+    const next = [accountQuota.resetsAt, accountQuota.cooldownUntil]
+      .filter((value): value is string => !!value && Date.parse(value) > now)
+      .reduce((earliest, value) => Math.min(earliest, Date.parse(value)), Infinity);
+    if (!Number.isFinite(next)) return;
+    const timer = setTimeout(() => { void refresh(); }, Math.max(0, next - Date.now()));
+    return () => clearTimeout(timer);
+  }, [active, accountQuota, refresh]);
+
   useEffect(() => { void load(); }, [load]);
 
   // Coming back to the screen (or the app): the round may have finished while nobody was polling.
@@ -113,11 +125,12 @@ export function useMerchantArt({ apiUrl, merchantId, credential, onSessionInvali
       onError: (error) => {
         if (!alive.current) return;
         dispatch({ type: 'failed', message: ownerArtErrorMessage(error) });
+        if (error instanceof OwnerArtApiError && error.status === 429) void refresh();
         // The server may already have moved on (or accepted a reply we could not read): show what it has now.
         if (needsArtReload(error)) void load(ownerArtErrorMessage(error));
       },
     }),
-    [gate, load],
+    [gate, load, refresh],
   );
 
   return {

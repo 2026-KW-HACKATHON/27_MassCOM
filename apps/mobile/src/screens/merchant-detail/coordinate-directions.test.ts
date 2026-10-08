@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { coordinateWalkTargets } from './coordinate-directions';
+import { coordinateWalkTargets, straightLineMeters } from './coordinate-directions';
+
+test('distance uses the selected origin and real store position only', () => {
+  assert.equal(straightLineMeters({latitude:37.61,longitude:127.04},{latitude:37.61,longitude:127.04}),0);
+  assert.ok(straightLineMeters({latitude:37.61,longitude:127.04},{latitude:37.62,longitude:127.05})! > 1000);
+  assert.equal(straightLineMeters(null,{latitude:37.62,longitude:127.05}),null);
+  assert.equal(straightLineMeters({latitude:NaN,longitude:127.04},{latitude:37.62,longitude:127.05}),null);
+});
 
 test('owned entrance is the exact walking destination; native route uses latitude then longitude',()=>{
   const result=coordinateWalkTargets({name:'가게',destination:{latitude:37.62,longitude:127.05},origin:{latitude:37.61,longitude:127.04}});

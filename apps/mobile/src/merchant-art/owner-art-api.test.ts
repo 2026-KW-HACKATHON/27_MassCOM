@@ -67,6 +67,14 @@ test('reads the current art, the quota and the latest round from GET /merchant/m
   assert.equal(result.round?.drafts.length, 4);
 });
 
+test('account-wide quota is parsed from the server without inventing remaining attempts', () => {
+  const account = { draftRoundsLeft: 1, finalsLeft: 2, resetsAt: '2026-10-10T15:00:00.000Z', cooldownUntil: '2026-10-09T12:00:30.000Z' };
+  assert.deepEqual(parseOwnerArt(art({ quota: { draftRoundsLeft: 2, finalsLeft: 3, account } })).quota.account, account);
+  assert.equal(parseOwnerArt(art()).quota.account, undefined);
+  assert.throws(() => parseOwnerArt(art({ quota: { draftRoundsLeft: 2, finalsLeft: 3,
+    account: { ...account, resetsAt: 'invalid' } } })), /INVALID_RESPONSE/);
+});
+
 test('a demo credential is sent the way the other clients send it', async () => {
   const { api, calls } = client(() => Response.json(art()), { credential: { kind: 'demo', accountId: 'acct-1', allowInsecureReauthentication: false } });
   await api.getArt('m1');
@@ -271,6 +279,18 @@ test('server error codes and Retry-After come through, and never leak into copy'
   await assert.rejects(capped.api.createRound('m1'), (error) => error instanceof OwnerArtApiError && error.retryAfterSeconds === 86400);
   const other = client(() => failure(503, 'AI_ART_NOT_CONFIGURED', { 'retry-after': '30' }));
   await assert.rejects(other.api.createRound('m1'), (error) => error instanceof OwnerArtApiError && error.retryAfterSeconds === undefined);
+});
+
+test('account daily and cooldown refusals retain server wait times', async () => {
+  for (const [code, seconds] of [['AI_ART_ACCOUNT_DAILY_LIMIT', 18000], ['AI_ART_COOLDOWN', 45]] as const) {
+    const { api } = client(() => failure(429, code, { 'retry-after': String(seconds) }));
+    await assert.rejects(api.createRound('m1'), (error) => error instanceof OwnerArtApiError
+      && error.code === code && error.retryAfterSeconds === seconds);
+  }
+  assert.match(artCodeMessage('AI_ART_ACCOUNT_DAILY_LIMIT', 18000), /계정.*5시간/);
+  assert.match(artCodeMessage('AI_ART_ACCOUNT_DAILY_LIMIT', 45), /45초 남았어요/);
+  assert.match(artCodeMessage('AI_ART_ACCOUNT_DAILY_LIMIT', 90), /약 2분 남았어요/);
+  assert.match(artCodeMessage('AI_ART_COOLDOWN', 45), /45초 후/);
 });
 
 test('an error body that is not JSON still becomes an HTTP_ code, and a dropped connection becomes NETWORK_ERROR', async () => {

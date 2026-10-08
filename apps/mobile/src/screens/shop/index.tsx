@@ -47,7 +47,7 @@ import { HistorySection } from './history-section';
 import { useShopStyles } from './use-shop-styles';
 
 export const SHOP_TITLE = '상점';
-export const SHOP_SUBTITLE = '코인·테마 꾸미기·캐릭터를 등급별로 뽑아요';
+export const SHOP_SUBTITLE = '마일리지·가구·꾸미기·리롤권을 등급별로 뽑아요';
 
 type Notice = { tone: 'success' | 'error'; text: string };
 
@@ -265,6 +265,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         if (!isCurrent()) return;
         await clearPendingGradeDraw(pendingScope).catch(() => undefined);
         if (!isCurrent()) return;
+        shopRef.current.applyBalance(result.balance);
+        setStoredDrawShop((previous) => previous?.key === drawScopeKey
+          ? { ...previous, value: { ...previous.value, balance: result.balance } } : previous);
         setDrawPending(undefined); setGradeResult(result); setHistoryRefreshToken((value) => value + 1);
         void refreshDrawShop(); void shopRef.current.refreshQuietly(); void refreshExperience();
       } catch (error) {
@@ -279,7 +282,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     }).catch((error) => { if (isCurrent()) setNotice({ tone: 'error', text: error instanceof Error ? error.message : shopErrorMessage(error) }); })
       .finally(() => { leaveShopPurchaseScope(lease); });
     return () => { mounted = false; recoveryGeneration.current += 1; };
-  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience, refreshDrawShop, setDrawPending, setGradeResult]);
+  }, [pendingScope, pendingScopeKey, recoveryWake, snapshotReady, refreshExperience, refreshDrawShop, setDrawPending, setGradeResult, drawScopeKey]);
 
 
   async function refresh() {
@@ -373,6 +376,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
       if (!isCurrent()) return false;
       await clearPendingGradeDraw(pendingScope).catch(() => undefined);
       if (!isCurrent()) return false;
+      shop.applyBalance(result.balance);
+      setStoredDrawShop((previous) => previous?.key === drawScopeKey
+        ? { ...previous, value: { ...previous.value, balance: result.balance } } : previous);
       setDrawPending(undefined); setGradeResult(result); setHistoryRefreshToken((value) => value + 1);
       void refreshDrawShop(); void shop.refreshQuietly(); void refreshExperience();
       return true;
@@ -432,7 +438,8 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     ]);
   }
 
-  const header = <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE} compact />;
+  const header = <AppHeader title={SHOP_TITLE} subtitle={SHOP_SUBTITLE}
+    mileageBalance={drawShop?.balance ?? shop.snapshot?.mileage.balance} compact />;
   // extra는 뽑기 연출 모달 자리다. retryScroll은 로딩/오류 화면에서만 ref와 content-size 보정을 연결한다.
   const sky = (body: ReactNode, extra?: ReactNode, retryScroll?: boolean) => (
     <SkyBackdrop>
@@ -620,7 +627,9 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
             {drawShop?.history.length ? drawShop.history.map((entry) => <View key={entry.drawId} style={styles.historyRow}>
               <View style={styles.historyCopy}>
                 <Text style={styles.historyName}>{gradeLabel(entry.grade)} · {entry.reward.name}</Text>
-                <Text style={styles.historyMeta}>{entry.reward.kind === 'COIN' ? '가게 코인' : entry.reward.kind === 'THEME' ? '테마 꾸미기' : '캐릭터'} · {new Date(entry.createdAt).toLocaleDateString('ko-KR')}</Text>
+                <Text style={styles.historyMeta}>{entry.reward.kind === 'COIN' ? '가게 코인' : entry.reward.kind === 'THEME' ? '테마 꾸미기'
+                  : entry.reward.kind === 'CHARACTER' ? '캐릭터' : entry.reward.kind === 'MILEAGE' ? '마일리지'
+                    : entry.reward.kind === 'FURNITURE' ? '가구' : '리롤권'} · {new Date(entry.createdAt).toLocaleDateString('ko-KR')}</Text>
               </View>
               <Text style={styles.historyAmount}>-{formatMileage(entry.price)}</Text>
             </View>) : <Text style={styles.historyEmpty}>아직 뽑은 기록이 없어요.</Text>}
@@ -649,10 +658,12 @@ function GradeRow({ grade, balance, busy, purchaseBusy, onBuy, styles }: {
         <View style={styles.gradeCopy}>
           <Text style={styles.gradeName}>{gradeLabel(grade.grade)} 전체 랜덤</Text>
           <Text style={styles.gradePrice}>가격 {formatMileage(grade.price)}</Text>
-          <Text style={styles.gradeOwned}>코인 {grade.counts.COIN} · 테마 {grade.counts.THEME} · 캐릭터 {grade.counts.CHARACTER}</Text>
+          <Text style={styles.gradeOwned}>마일리지 · {grade.rewards.some((entry) => entry.reward.kind === 'FURNITURE') ? '가구 · ' : ''}꾸미기 · 리롤권</Text>
         </View>
       </View>
-      <Fold title="뽑기 확률 보기"><Text style={styles.disclosure}>전체 {grade.total}종 각 {(grade.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}% · 중복 가능</Text></Fold>
+      <Fold title="뽑기 확률 보기">{grade.rewards.map((entry) => <Text key={`${entry.rarity}:${entry.reward.kind}:${entry.reward.id}`} style={styles.disclosure}>
+        {entry.reward.name} · {(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%
+      </Text>)}</Fold>
       {button.reason || (purchaseBusy && !busy) ? <Text style={styles.disabledReason}>{button.reason ?? '다른 작업을 처리하고 있어요'}</Text> : null}
       <BounceButton
         label={busy ? '뽑는 중…' : '뽑기'}

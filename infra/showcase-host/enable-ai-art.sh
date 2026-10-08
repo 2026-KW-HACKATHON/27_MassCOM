@@ -24,10 +24,18 @@ umask 077
 # 바이트 단위로 읽는다: 비ASCII 키·NUL 바이트가 문자 클래스나 길이 계산을 속이지 못하게 한다.
 export LC_ALL=C
 
-key_name=SHOWCASE_OPENAI_API_KEY
-project=masscom-showcase
-service=showcase-api
-image_repository=masscom-showcase-api
+target="${MASSCOM_AI_ART_TARGET:-showcase}"
+case "$target" in
+  showcase)
+    key_name=SHOWCASE_OPENAI_API_KEY project=masscom-showcase service=showcase-api image_repository=masscom-showcase-api
+    image_tag_name=MASSCOM_SHOWCASE_IMAGE_TAG limit_prefix=SHOWCASE_ root="${MASSCOM_SHOWCASE_ROOT:-/opt/masscom-showcase}"
+    compose_suffix=/infra/showcase-host/compose.yml ;;
+  production)
+    key_name=OPENAI_API_KEY project=masscom service=api image_repository=masscom-api
+    image_tag_name=MASSCOM_IMAGE_TAG limit_prefix= root="${MASSCOM_PRODUCTION_ROOT:-/opt/masscom}"
+    compose_suffix=/infra/lightsail/compose.yml ;;
+  *) echo 'ai-art refused: unknown target' >&2; exit 2 ;;
+esac
 startup_prefix='AI store art:'
 enabled_line='AI store art: enabled'
 disabled_line='AI store art: disabled (OPENAI_API_KEY is empty)'
@@ -57,10 +65,8 @@ if [[ $# -eq 2 ]]; then
   force_drift=1
 fi
 
-root="${MASSCOM_SHOWCASE_ROOT:-/opt/masscom-showcase}"
 runtime_env="$root/runtime.env"
 releases_prefix="$root/releases/"
-compose_suffix=/infra/showcase-host/compose.yml
 key_length=0
 key_state=absent
 key_value=
@@ -72,7 +78,7 @@ scrub_environment() {
   local name
   for name in $(compgen -v); do
     case "$name" in
-      SHOWCASE_* | COMPOSE_* | MASSCOM_SHOWCASE_* | OPENAI_API_KEY | AI_ART_* | DOCKER_HOST | DOCKER_CONTEXT | DOCKER_TLS_VERIFY | DOCKER_CERT_PATH) unset "$name" ;;
+      SHOWCASE_* | COMPOSE_* | MASSCOM_SHOWCASE_* | MASSCOM_PRODUCTION_* | MASSCOM_AI_ART_* | MASSCOM_IMAGE_TAG | OPENAI_API_KEY | AI_ART_* | DOCKER_HOST | DOCKER_CONTEXT | DOCKER_TLS_VERIFY | DOCKER_CERT_PATH) unset "$name" ;;
     esac
   done
 }
@@ -96,8 +102,8 @@ resolve_path() {
 # runtime.env 검사: 심볼릭 링크가 아닌 읽을 수 있는 일반 파일이고 권한이 정확히 600이며 NUL 바이트가 없어야 한다.
 # 폴더·파일의 있음과 읽기 가능을 따로 확인해 "없다"와 "권한이 없다(sudo로 실행)"를 구별해 알려 준다.
 check_runtime_env() {
-  [[ -d "$root" ]] || fail "showcase root not found: $root"
-  [[ -r "$root" && -x "$root" ]] || fail "cannot read the showcase root $root (run with sudo)"
+  [[ -d "$root" ]] || fail "$target root not found: $root"
+  [[ -r "$root" && -x "$root" ]] || fail "cannot read the $target root $root (run with sudo)"
   [[ -e "$runtime_env" || -L "$runtime_env" ]] || fail "runtime.env not found: $runtime_env"
   [[ ! -L "$runtime_env" ]] || fail "runtime.env must not be a symbolic link: $runtime_env"
   [[ -f "$runtime_env" ]] || fail "runtime.env must be a regular file: $runtime_env"
@@ -220,7 +226,7 @@ find_container() {
     fi
   done
   if [[ "$running" != 1 ]]; then
-    fail "expected exactly one running $service container in project $project, found $running running of $total in total (${states# }); after a failed recreate a created or exited container is left behind: check docker ps -a and docker logs <id>, fix runtime.env and run enable again, or use the manual fallback in infra/showcase-host/README.md"
+    fail "expected exactly one running $service container in project $project, found $running running of $total in total (${states# }); after a failed recreate a created or exited container is left behind: check docker ps -a and docker logs <id>, fix runtime.env and run enable again"
   fi
   printf '%s\n' "$running_id"
 }
@@ -328,7 +334,7 @@ show_limit() {
 
 print_limits() {
   echo 'effective limits (container environment, no secrets):'
-  show_limit '  monthly budget (USD, Korean month, showcase DB total)' "$c_budget" 5 '^[0-9]{1,6}(\.[0-9]{1,6})?$'
+  show_limit "  monthly budget (USD, Korean month, $target DB total)" "$c_budget" 5 '^[0-9]{1,6}(\.[0-9]{1,6})?$'
   show_limit '  daily draft rounds per store' "$c_drafts" 3 '^[0-9]{1,9}$'
   show_limit '  daily finals per store' "$c_finals" 3 '^[0-9]{1,9}$'
   show_limit '  draft model' "$c_draft_model" gpt-image-2.5-flare '^[A-Za-z0-9._:-]{1,80}$'
@@ -436,12 +442,12 @@ compute_drift() {
   local computed
   drift_computed=
   if computed="$(
-    export SHOWCASE_OPENAI_API_KEY="$c_key"
-    export SHOWCASE_AI_ART_MONTHLY_BUDGET_USD="$c_budget"
-    export SHOWCASE_AI_ART_DAILY_DRAFT_ROUNDS="$c_drafts"
-    export SHOWCASE_AI_ART_DAILY_FINALS="$c_finals"
-    export SHOWCASE_AI_ART_DRAFT_MODEL="$c_draft_model"
-    export SHOWCASE_AI_ART_FINAL_MODEL="$c_final_model"
+    export "$key_name=$c_key"
+    export "${limit_prefix}AI_ART_MONTHLY_BUDGET_USD=$c_budget"
+    export "${limit_prefix}AI_ART_DAILY_DRAFT_ROUNDS=$c_drafts"
+    export "${limit_prefix}AI_ART_DAILY_FINALS=$c_finals"
+    export "${limit_prefix}AI_ART_DRAFT_MODEL=$c_draft_model"
+    export "${limit_prefix}AI_ART_FINAL_MODEL=$c_final_model"
     compose config --hash "$service" 2>/dev/null
   )"; then
     drift_computed="${computed##* }"
@@ -466,8 +472,8 @@ check_config_drift() {
   case "$drift_status" in
     ok) ;;
     error) fail 'compose config --hash failed; nothing was changed' ;;
-    nolabel) fail "the running container has no compose config-hash label ($(drift_detail)); do a full showcase deploy first (only to stop the cost: disable --force-drift); nothing was changed" ;;
-    *) fail "the running container differs from the current release compose file or runtime.env in more than the key and the AI art settings (config drift: $(drift_detail)); do a full showcase deploy first (only to stop the cost: disable --force-drift); nothing was changed" ;;
+    nolabel) fail "the running container has no compose config-hash label ($(drift_detail)); do a full $target deploy first (only to stop the cost: disable --force-drift); nothing was changed" ;;
+    *) fail "the running container differs from the current release compose file or runtime.env in more than the key and the AI art settings (config drift: $(drift_detail)); do a full $target deploy first (only to stop the cost: disable --force-drift); nothing was changed" ;;
   esac
 }
 
@@ -499,7 +505,7 @@ do_status() {
   inspect_container "$container_id"
   read_container_ai_env "$container_id"
   read_container_key "$container_id"
-  echo "showcase-api container: ${container_id:0:12} (health: $health)"
+  echo "$service container: ${container_id:0:12} (health: $health)"
   echo "image tag: $image_tag"
   echo "release dir: $release_dir"
   line="$(startup_line "$container_id")"
@@ -541,17 +547,16 @@ do_change() {
   check_docker_endpoint
   old_id="$(find_container)"
   inspect_container "$old_id"
-  echo "showcase-api container: ${old_id:0:12}"
+  echo "$service container: ${old_id:0:12}"
   echo "image tag: $image_tag"
   echo "release dir: $release_dir"
 
   # 이미지는 지금 실행 중인 태그로 고정해 키 한 줄 때문에 이미지가 바뀌지 않게 한다(셸 환경이 --env-file보다 우선한다).
-  file_tag="$(awk '/^MASSCOM_SHOWCASE_IMAGE_TAG=/ { v = $0 } END { print v }' "$runtime_env" || true)"
-  file_tag="${file_tag#MASSCOM_SHOWCASE_IMAGE_TAG=}"
+  file_tag="$(awk -v name="$image_tag_name" 'index($0, name "=") == 1 { v = substr($0, length(name) + 2) } END { print v }' "$runtime_env" || true)"
   if [[ "$file_tag" != "$image_tag" ]]; then
     echo "note: runtime.env image tag (${file_tag:-unset}) differs from the running tag; keeping the running tag $image_tag"
   fi
-  export MASSCOM_SHOWCASE_IMAGE_TAG="$image_tag"
+  export "$image_tag_name=$image_tag"
 
   compose_version="$(docker compose version --short 2>/dev/null)" || fail 'docker compose is not available'
   # 렌더만 해 보고 출력은 버린다. 빈 필수 값이나 잘못된 보간이면 여기서 멈춘다(아직 아무것도 바꾸지 않았다).
@@ -571,7 +576,7 @@ do_change() {
   if ! up_output="$(compose up -d --no-deps --no-build --pull never \
     --force-recreate --wait --wait-timeout 180 "$service" 2>&1)"; then
     redact "$up_output" >&2
-    fail "compose up failed; the old container may be gone or a new one left in the created state: check docker ps -a and docker logs <id>. To go back, restore the previous runtime.env key line and run this script again, or use the manual fallback in infra/showcase-host/README.md; $0 status shows the current state"
+    fail "compose up failed; the old container may be gone or a new one left in the created state: check docker ps -a and docker logs <id>. To go back, restore the previous runtime.env key line and run this script again; $0 status shows the current state"
   fi
 
   new_id="$(find_container)"
@@ -589,11 +594,11 @@ do_change() {
   if [[ "$line" != "$expected" ]]; then
     redact "startup log: ${line:-(no known '$startup_prefix' line found)}" >&2
     if [[ "$mode" == enable ]]; then
-      fail "startup log is not '$enabled_line'; the container was recreated with the key, fix runtime.env (key format and SHOWCASE_AI_ART_* values) and run enable again, or empty the key line and run disable"
+      fail "startup log is not '$enabled_line'; the container was recreated with the key, fix runtime.env (key format and ${limit_prefix}AI_ART_* values) and run enable again, or empty the key line and run disable"
     fi
     fail "startup log is not '$disabled_line'; the key line may still be set or the config is invalid"
   fi
-  echo "showcase-api recreated: ${new_id:0:12} (health: $health)"
+  echo "$service recreated: ${new_id:0:12} (health: $health)"
   redact "startup log: $line"
   read_container_ai_env "$new_id"
   print_limits
@@ -618,10 +623,10 @@ do_check() {
   check_docker_endpoint
   container_id="$(find_container)"
   inspect_container "$container_id"
-  echo "showcase-api container: ${container_id:0:12} (health: $health)"
+  echo "$service container: ${container_id:0:12} (health: $health)"
   echo "image tag: $image_tag"
   echo "release dir: $release_dir"
-  export MASSCOM_SHOWCASE_IMAGE_TAG="$image_tag"
+  export "$image_tag_name=$image_tag"
   compose_version="$(docker compose version --short 2>/dev/null)" || fail 'docker compose is not available'
   echo "docker compose: $compose_version"
   if ! compose config --quiet >/dev/null 2>&1; then

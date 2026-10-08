@@ -19,7 +19,8 @@ export type ArtRound = {
   failureCode: string | null;
   createdAt: string;
 };
-export type ArtQuota = { draftRoundsLeft: number; finalsLeft: number };
+export type ArtQuota = { draftRoundsLeft: number; finalsLeft: number;
+  account?: { draftRoundsLeft: number; finalsLeft: number; resetsAt: string; cooldownUntil: string | null } };
 export type OwnerArt = {
   configured: boolean;
   current: { artUrl: string } | null;
@@ -217,7 +218,13 @@ function parseCurrent(value: unknown): { artUrl: string } | null {
 
 function parseQuota(value: unknown): ArtQuota {
   if (!isRecord(value) || !isCount(value.draftRoundsLeft) || !isCount(value.finalsLeft)) throw invalidResponse();
-  return { draftRoundsLeft: value.draftRoundsLeft, finalsLeft: value.finalsLeft };
+  const account = value.account;
+  if (account !== undefined && (!isRecord(account) || !isCount(account.draftRoundsLeft) || !isCount(account.finalsLeft)
+    || typeof account.resetsAt !== 'string' || !Number.isFinite(Date.parse(account.resetsAt))
+    || (account.cooldownUntil !== null && (typeof account.cooldownUntil !== 'string'
+      || !Number.isFinite(Date.parse(account.cooldownUntil)))))) throw invalidResponse();
+  return { draftRoundsLeft: value.draftRoundsLeft, finalsLeft: value.finalsLeft,
+    ...(account !== undefined ? { account: account as ArtQuota['account'] } : {}) };
 }
 
 function parseRetryAfter(header: string | null): number | undefined {
@@ -266,6 +273,14 @@ export function artCodeMessage(code: string | null | undefined, retryAfterSecond
       return retryAfterSeconds === undefined
         ? '오늘은 더 만들 수 없어요. 내일 다시 해 주세요.'
         : `오늘은 더 만들 수 없어요. 내일 다시 해 주세요. (약 ${Math.max(1, Math.ceil(retryAfterSeconds / 3600))}시간 뒤부터 가능해요)`;
+    case 'AI_ART_ACCOUNT_DAILY_LIMIT':
+      return retryAfterSeconds === undefined
+        ? '이 계정의 오늘 그림 만들기 횟수를 다 썼어요. 한국 시간 자정 후 다시 해 주세요.'
+        : `이 계정의 오늘 그림 만들기 횟수를 다 썼어요. 한국 시간 자정 후 다시 해 주세요. (${retryAfterSeconds < 60 ? `${retryAfterSeconds}초` : retryAfterSeconds < 3600 ? `약 ${Math.ceil(retryAfterSeconds / 60)}분` : `약 ${Math.ceil(retryAfterSeconds / 3600)}시간`} 남았어요)`;
+    case 'AI_ART_COOLDOWN':
+      return retryAfterSeconds === undefined
+        ? '연속 생성은 1분 간격으로 할 수 있어요. 잠시 후 다시 해 주세요.'
+        : `연속 생성은 1분 간격으로 할 수 있어요. ${retryAfterSeconds}초 후 다시 해 주세요.`;
     case 'AI_ART_ROUND_IN_PROGRESS':
       return '이미 그림을 만들고 있어요. 조금만 기다려 주세요.';
     case 'AI_ART_ROUND_STATE':

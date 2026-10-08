@@ -1,8 +1,8 @@
 import * as Crypto from 'expo-crypto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RegistrationAlbum } from '@/acquisition/registration-album';
@@ -14,7 +14,7 @@ import { useExperience } from '@/experience/use-experience';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { classifyTicketCoinAcquisition, type CoinAcquisitionStatus } from '@/shop/coin-acquisition';
-import { CoinApiError, coinProbabilityText, createCoinApiClient, coinErrorMessage, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
+import { CoinApiError, coinEntryLabel, createCoinApiClient, coinErrorMessage, sortCoinEntries, type CoinPool, type CoinShop, type OwnedCoin } from '@/shop/coin-api';
 import { clearCoinPending, coinPendingKey, readCoinPending, writeCoinPending, type CoinPending } from '@/shop/coin-pending';
 import { pendingFocusSnapshot } from '@/shop/pending-focus';
 import { colorsForScheme } from '@/theme/palette';
@@ -26,7 +26,7 @@ import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { CoinReveal } from './coin-reveal';
 
-const gradeName = { BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '플래티넘' } as const;
+const gradeName = { BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '프리즘' } as const;
 const dateText = (value: string) => new Date(value).toLocaleString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 const rejectedPurchase = (error: unknown) => error instanceof CoinApiError && [
   'COIN_POOL_UNAVAILABLE', 'COIN_POOL_EXPIRED', 'COIN_POOL_LIMIT_REACHED', 'COIN_INSUFFICIENT_MILEAGE',
@@ -63,6 +63,21 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const inFlight = useRef(false);
   const focusEpoch = useRef(0);
   const loadGeneration = useRef(0);
+  const scrollView = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (!confirmTicket && !result) return;
+    const frame = requestAnimationFrame(() => scrollView.current?.scrollTo({ y: 0, animated: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [confirmTicket, result]);
+
+  useEffect(() => {
+    const nextExpiry = shop?.tickets.filter((ticket) => ticket.status === 'UNUSED' && Date.parse(ticket.expiresAt) > now)
+      .reduce((next, ticket) => Math.min(next, Date.parse(ticket.expiresAt)), Infinity);
+    if (nextExpiry === undefined || !Number.isFinite(nextExpiry)) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.max(0, nextExpiry - Date.now()));
+    return () => clearTimeout(timer);
+  }, [shop, now]);
 
   const load = useCallback(async (showLoading = false) => {
     const generation = ++loadGeneration.current;
@@ -163,7 +178,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       if (!stillCurrent()) return;
       loadGeneration.current += 1;
       setLoading(false);
-      setShop((old) => old && { ...old, tickets: old.tickets.map((ticket) => ticket.id === ticketId ? used.ticket : ticket) });
+      setShop((old) => old && { ...old, pools: old.pools.map((pool) => pool.id === used.ticket.poolId ? { ...pool, entries: [] } : pool), tickets: old.tickets.map((ticket) => ticket.id === ticketId ? used.ticket : ticket) });
       setResultStatus(classifyTicketCoinAcquisition({ coin: used.coin, replayed: used.replayed }));
       setResultSourceLabel(sourceLabel);
       setResult(used.coin);
@@ -171,6 +186,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       // Keep the replay marker until this focus has received the authoritative result.
       await AsyncStorage.removeItem(ticketUseKey);
       if (stillCurrent()) setPendingTicketId(undefined);
+      void load();
     } catch (error) {
       if (error instanceof CoinApiError && error.status >= 400 && error.status < 500) {
         await AsyncStorage.removeItem(ticketUseKey).catch(() => undefined);
@@ -186,7 +202,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
   const resultReceiptId = result ? resultTicketId ?? `${result.publicationId}:${result.gradeId}` : undefined;
   const resultRegistrationStatus = resultReceiptId && settledRegistrationReceiptId === resultReceiptId ? 'owned' : resultStatus;
 
-  return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 코인 뽑기권" />}
+  return <SkyBackdrop><SkyScrollView ref={scrollView} header={<BackHeader title="가게 코인 뽑기권" />}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} progressViewOffset={insets.top} onRefresh={() => {
       setRefreshing(true); void load().then(() => recover()).finally(() => { if (current.current) setRefreshing(false); });
     }} />}>
@@ -245,22 +261,23 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       action={{ label: '다시 불러오기', onPress: () => void load(true) }} /> : null}
     {shop ? <>
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>받은 뽑기권</Text>
-      {shop.tickets.filter((ticket) => ticket.status === 'UNUSED').length === 0 ? <StateScene kind="empty" title="아직 사용할 뽑기권이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
-        shop.tickets.filter((ticket) => ticket.status === 'UNUSED').map((ticket) => {
+      {shop.tickets.filter((ticket) => ticket.status === 'UNUSED' && Date.parse(ticket.expiresAt) > now).length === 0 ? <StateScene kind="empty" title="아직 사용할 뽑기권이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
+        shop.tickets.filter((ticket) => ticket.status === 'UNUSED' && Date.parse(ticket.expiresAt) > now).map((ticket) => {
           const pool = shop.pools.find((candidate) => candidate.id === ticket.poolId);
-          const totalWeight = pool?.entries.reduce((sum, item) => sum + item.weight, 0) ?? 0;
           const merchantName = publicDataDemoStoreName(pool?.merchantId, pool?.merchantName ?? '가게 확인 필요');
-          const canUse = Boolean(pool) && pool?.unavailableReason !== 'MEDIA_REMOVED' && Date.parse(ticket.expiresAt) > now;
+          const canUse = Boolean(pool?.entries.length) && pool?.unavailableReason !== 'MEDIA_REMOVED' && Date.parse(ticket.expiresAt) > now;
           return <Fold key={ticket.id} title={`${merchantName} · ${ticket.eventName} · ${gradeName[ticket.grade]}`}
             summary={`사용 기한 ${dateText(ticket.expiresAt)} · 코인 확률 보기`}>
             <FloatingCard style={styles.card}>
               <Text style={{ color: palette.secondaryLabel }}>이 권리는 {merchantName}의 {gradeName[ticket.grade]} 풀에서 코인 한 개를 뽑아요.</Text>
+              {pool?.remaining !== undefined ? <Text style={{ color: palette.secondaryLabel }}>현재 가게 공동 재고 {pool.remaining}개 · {pool.cycle}번째 회차</Text> : null}
               {pool ? <>
-                {pool.entries.map((entry) => <View key={`${entry.publicationId}:${entry.gradeId}`} style={styles.entryRow}>
+                {sortCoinEntries(pool.entries).map((entry) => <View key={`${entry.publicationId}:${entry.gradeId}`} style={styles.entryRow}>
                   {parseCollectibleArtwork(entry.summary) ? <Image source={{ uri: parseCollectibleArtwork(entry.summary)!.thumbnailDataUrl }}
                     accessibilityLabel={`${entry.name} 코인 그림`} style={styles.entryImage} resizeMode="contain" /> : null}
-                  <Text style={{ color: palette.label, flex: 1 }}>{entry.name} · {coinProbabilityText(entry.weight, totalWeight)}</Text>
+                  <Text style={{ color: palette.label, flex: 1 }}>{coinEntryLabel(entry)} · {(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%{entry.remaining !== undefined ? ` · 남은 ${entry.remaining}개` : ''}</Text>
                 </View>)}
+                {pool.entries.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>현재 확률을 확인하지 못했어요. 새로고침 후 사용해 주세요.</Text> : null}
               </> : <Text style={{ color: palette.error }}>이 티켓의 가게 정보를 확인하지 못했어요. 새로고침 후 사용해 주세요.</Text>}
               {pool?.unavailableReason === 'MEDIA_REMOVED' ? <Text style={{ color: palette.error }}>수집품 이미지가 내려가 이 티켓은 사용할 수 없어요.</Text> : null}
               <Pressable accessibilityRole="button" accessibilityLabel={`${merchantName} ${ticket.eventName} ${gradeName[ticket.grade]} 뽑기권 사용`}
@@ -272,19 +289,21 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
             </FloatingCard>
           </Fold>;
         })}
+      {shop.tickets.some((ticket) => ticket.status !== 'UNUSED' || Date.parse(ticket.expiresAt) <= now) ?
+        <Fold title="사용·만료된 뽑기권 기록">{shop.tickets.filter((ticket) => ticket.status !== 'UNUSED' || Date.parse(ticket.expiresAt) <= now)
+          .map((ticket) => <Text key={ticket.id} style={{ color: palette.secondaryLabel }}>
+            {ticket.eventName} · {gradeName[ticket.grade]} · {ticket.status === 'USED' ? '사용 완료' : '만료'} · {dateText(ticket.expiresAt)}
+          </Text>)}</Fold> : null}
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>판매 중인 뽑기권</Text>
       {shop.pools.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>현재 운영 중인 가게 뽑기권이 없어요. 실제 가게가 등록하면 여기서 확인할 수 있어요.</Text> :
         shop.pools.map((pool) => {
-          const totalWeight = pool.entries.reduce((sum, item) => sum + item.weight, 0);
           const available = pool.status === 'ACTIVE' && !pool.unavailableReason && Date.parse(pool.purchaseStartsAt) <= now && Date.parse(pool.purchaseEndsAt) > now && pool.issuedCount < pool.issuanceCap;
           return <FloatingCard key={pool.id} style={styles.card}>
             <Text style={[styles.name, { color: palette.label }]}>{publicDataDemoStoreName(pool.merchantId, pool.merchantName)} · {pool.eventName}</Text>
             <Text style={{ color: palette.label }}>{gradeName[pool.grade]} · {pool.price.toLocaleString()}P</Text>
             <Text style={{ color: palette.secondaryLabel }}>구매 {dateText(pool.purchaseStartsAt)} ~ {dateText(pool.purchaseEndsAt)}</Text>
-            <Text style={{ color: palette.secondaryLabel }}>사용 기한 {dateText(pool.useExpiresAt)} · 1인 {pool.perAccountLimit}장 · 전체 {pool.issuanceCap}장</Text>
-            {pool.entries.map((entry) => <Text key={`${entry.publicationId}:${entry.gradeId}`} style={{ color: palette.secondaryLabel }}>
-              {entry.name} · {coinProbabilityText(entry.weight, totalWeight)}
-            </Text>)}
+            <Text style={{ color: palette.secondaryLabel }}>구매 후 7일 안에 사용 · 1인 {pool.perAccountLimit}장 · 전체 {pool.issuanceCap}장</Text>
+            <Text style={{ color: palette.secondaryLabel }}>코인별 현재 확률은 유효한 미사용 뽑기권을 보유한 동안 확인할 수 있어요.</Text>
             <Pressable accessibilityRole="button" accessibilityLabel={`${publicDataDemoStoreName(pool.merchantId, pool.merchantName)} ${pool.eventName} ${gradeName[pool.grade]} 뽑기권 구매`}
               accessibilityState={{ disabled: busy || Boolean(pending) || !available || shop.mileage.balance < pool.price }}
               disabled={busy || Boolean(pending) || !available || shop.mileage.balance < pool.price}

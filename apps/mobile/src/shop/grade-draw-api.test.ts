@@ -4,16 +4,26 @@ import { createGradeDrawApi, parseGradeDrawResult, parseGradeDrawShop } from './
 import { ShopApiError } from './shop-api';
 
 const reward = { kind: 'CHARACTER', id: 'cook-cat', name: '요리사 냥이' };
-const pool = { grade: 'BRONZE', price: 100, version: 'version-1', total: 1, probabilityPerItem: 1,
-  rewards: [reward], counts: { COIN: 0, THEME: 0, CHARACTER: 1 } };
-const result = { drawId: 'draw-1', grade: 'BRONZE', price: 100, reward, duplicate: true, quantity: 2, balance: 300, replayed: true };
+const pool = { grade: 'BRONZE', price: 100, version: 'version-1', total: 1,
+  rewards: [{ rarity: 'BRONZE', reward: { kind: 'MILEAGE', id: 'mileage-bronze', name: '20P', amount: 20 }, probability: 1 }],
+  gradeWeights: { BRONZE: 10000 }, categoryWeightsByRarity: { BRONZE: { MILEAGE: 10000, FURNITURE: 0, THEME: 0, REROLL_TICKET: 0 } } };
+const result = { drawId: 'draw-1', grade: 'BRONZE', rarity: 'BRONZE', price: 100, reward, duplicate: true, quantity: 2, balance: 300, replayed: true };
 
-test('the entire grade pool includes owned items at the disclosed 1/N chance', () => {
+test('the weighted pool exposes each reward chance and rejects invalid totals', () => {
   const parsed = parseGradeDrawShop({ balance: 400, pools: [pool], history: [] });
-  assert.deepEqual(parsed.pools[0]?.rewards, [reward]);
-  assert.equal(parsed.pools[0]?.probabilityPerItem, 1);
-  assert.throws(() => parseGradeDrawShop({ balance: 400, pools: [{ ...pool, probabilityPerItem: 0.5 }], history: [] }), ShopApiError);
+  assert.deepEqual(parsed.pools[0]?.rewards, pool.rewards);
+  assert.equal(parsed.pools[0]?.rewards[0]?.probability, 1);
+  assert.throws(() => parseGradeDrawShop({ balance: 400, pools: [{ ...pool, rewards: [{ ...pool.rewards[0], probability: 0.5 }] }], history: [] }), ShopApiError);
   assert.throws(() => parseGradeDrawShop({ balance: 400, pools: [{ ...pool, total: 2 }], history: [] }), ShopApiError);
+});
+
+test('new reward kinds parse while historical coin and character draws remain readable', () => {
+  const history = [{ drawId: 'old', grade: 'BRONZE', rarity: null, price: 100, reward, createdAt: '2026-01-01T00:00:00Z' }];
+  assert.equal(parseGradeDrawShop({ balance: 400, pools: [pool], history }).history[0]?.rarity, null);
+  assert.equal(parseGradeDrawResult({ ...result, rarity: null }).rarity, null);
+  assert.equal(parseGradeDrawResult({ ...result, reward: { kind: 'REROLL_TICKET', id: 'reroll-bronze', name: '브론즈 리롤권', grade: 'BRONZE' } }).reward.kind, 'REROLL_TICKET');
+  assert.equal(parseGradeDrawResult({ ...result, reward: { kind: 'FURNITURE', id: 'chair', name: '의자', assetId: 'oak-chair' } }).reward.kind, 'FURNITURE');
+  assert.throws(() => parseGradeDrawResult({ ...result, reward: { kind: 'FURNITURE', id: 'chair', name: '의자' } }), ShopApiError);
 });
 
 test('a replayed duplicate is still one reward with its persisted quantity', () => {

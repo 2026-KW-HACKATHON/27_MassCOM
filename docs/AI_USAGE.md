@@ -1,4 +1,12 @@
-# AI 사용 기록
+## 2026-10-09 통합 main b37063c0 → 9545b503 검증
+
+최신 통합본 API 677/677, 모바일 2220/2220, 사이트 493/493; API·모바일 type/build와 lint warning 0 통과. PostgreSQL fresh schema 75/75, runner 600 PASS/3 SKIP이며 SKIP 3개는 각각 fresh host-seed DB에서 1/1로 통과했다(단일 603 PASS run 아님). 최신 독립 merge review는 7개 core·19개 UI target APPROVE.
+
+43c0 이전 캡처는 positive feature flow를 검증한다. main 통합 뒤 화면은 development mode이며 가상 A/B/C가 표시된다([manifest](evidence/alliance-draw-2026-10-09/integration-9545b503.json)); hosted real-only UI를 시각 검증한 결과가 아니다. real-only filtering은 integration tests로 확인했다. Android 실기·유료 OpenAI 생성·신규 source 배포는 NOT_RUN.
+
+## 2026-10-09 Codex — 통합 기능 및 점주 AI 사용량 제한
+
+사용자가 요청한 연합 미션, 공유 음식점 마스코트 뽑기, 일반 보상 상자·재뽑기와 계정당 AI 이미지 생성 제한을 병렬 구현했다. AI 제한은 여러 가게를 운영하는 한 계정에 합산하며, KST 날짜별 시안 3회·최종 3회와 요청 사이 60초 쿨다운을 PostgreSQL 거래에서 검사한다. 응답은 계정 잔여량·초기화·쿨다운을 전달하고 초과 요청은 `429`와 `Retry-After`를 보낸다. 점포별 제한과 월 예산도 계속 적용된다.
 
 ## 2026-10-09 친구 그림 버튼·날짜 선택기·글 방명록 (Issue #436)
 
@@ -52,11 +60,11 @@ Codex가 `ci/parallel-jobs`에서 기존 15분 직렬 CI를 API·PostgreSQL 2샤
 
 ## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (직접 요청, 미커밋)
 
-사용자의 직접 요청으로 Codex가 `feat/collectible-reeded-edge`에서 main `a1a3eef3`의 T3 혜택·T4 코스·T8 공공자료 시연 점포와 PR #429의 편집기·Flame 오라·옆면 변경을 함께 보존하도록 충돌 파일을 수정한다. 가게명이 표시되는 곳의 공공자료 시연 고지와 접근성 이름을 유지하고 문서 원장·합계 자리표시자·인수인계를 정리한다. 실행 결과는 [TEST_STATUS](TEST_STATUS.md)에 구분해 기록한다. Git add·commit·stash·merge·rebase·push와 운영 배포·실기 검수는 실행하지 않는다.
+자동 검증은 API 675/675, 모바일 2165/2165, 사이트 493/493, 별도 PostgreSQL 기능 시험(공유 풀 11/11·상자 15/15·연합 코스 24/24·AI 제한 71건) PASS다. 전체 PostgreSQL 통합 600건 중 597 PASS/0 FAIL/3 SKIP이며 SKIP 3건도 fresh host-seed DB에서 각각 1/1 PASS로 재실행했다(단일 runner 600/600 PASS로 합산 표기하지 않음). 실제 로컬 브라우저에서 일반 상자·공유 풀·재뽑기·보유 상세·권 만료·시연 코스 완주·AI quota 표시까지 확인했고 visual verdict 93 PASS다([캡처](evidence/alliance-draw-2026-10-09/README.md)). 시연 가상 방문은 실제 점주 동의나 현장 방문 증거가 아니다. 두 서버에 OpenAI 키를 설정해 기존 이미지의 API health를 확인했지만 실제 유료 이미지는 생성하지 않았다. 신규 소스/migration/APK는 운영·시연에 배포하지 않았다. 새 개인정보 안내의 동시 릴리스 조건과 NOT_RUN 항목은 [HANDOFF](HANDOFF.md), [TEST_STATUS](TEST_STATUS.md)를 따른다.
 
-## 2026-10-09 PR #429 CI worklet 수정 (직접 요청, 미커밋)
+## 2026-10-09 T4·T3 병합 충돌 해결 (Issue #412)
 
-사용자의 직접 요청으로 Codex가 `feat/collectible-reeded-edge`에서 Flame animated props의 SVG 수식을 인라인하고 기존 시험 assertion을 유지한 채 실제 callback parity 시험을 추가했다. 결정 D-102와 자동 시험 합계·인수인계·환경 차단 기록을 갱신했다. 별도 읽기 전용 code-reviewer가 수식·worklet helper 체인·결정 참조를 확인하고 대상39/39 시험을 통과했다. 전체 결과와 소켓 제한은 [TEST_STATUS](TEST_STATUS.md)에 기록한다. staging·commit·stash·merge·rebase·push·배포·과금·실기 검수는 실행하지 않았다.
+이번 사용자의 명시적인 Codex 요청에 따라 `feat/cross-store-courses`와 PR #425가 포함된 main `055d0523`의 충돌을 파일 수정만으로 해결했다. 기본 세션이 README·PROJECT_STATE·HANDOFF·감사 시험·운영 migration 수를 통합하고 별도 executor 세션이 AI_USAGE·DECISIONS·TEST_STATUS의 양쪽 기록을 보존했다. 운영 문서 회귀·CI 연결(94개 시험 파일)·API typecheck는 PASS다. API·모바일 단위 시험 합계는 통합 재측정 대기 그대로 두고 오케스트레이터가 채운다. add·commit·stash·rebase·push·운영 배포는 실행하지 않았다.
 
 같은 PR의 추가 직접 요청으로 Codex가 모바일·웹 Flame 렌더링을 활성 앞4개로 제한하고 입력 보존·64개 상한 시험을 추가했다. 별도 executor가 깊이 시험의 polygon 좌표 assertion을 복원했으며 임시 복사본 변이3종(깊이 붕괴·비대칭·cap 이동)으로 검증했다. 모바일2113/2113·typecheck·lint·접근성 PASS, 사이트324 PASS·6 소켓 BLOCKED/330. 기존 미커밋 변경을 보존하고 Git 쓰기 작업과 배포는 실행하지 않았다. [최신 검증](TEST_STATUS.md)을 따른다.
 
@@ -540,6 +548,18 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 - Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
 - 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.
+
+
+## 2026-10-09 미완성 보완·운영/시연 OpenAI 키 연결
+
+Codex가 real-world 쓰기의 기존 계정별 제한 재사용, CSV/고지·동의 버전 정합, 활성 Worker 배포·복구 보호, 기존 AI 관리 스크립트의 운영 wrapper와 fake-Docker 회귀를 보완했다. 소유자가 직접 입력한 키는 값 출력 없이 SSH 입력으로 서버 비밀 파일에 전달했다. 두 API의 기존 이미지 유지·healthy·ENABLED를 확인했고 웹 v1 라우트 401을 확인했다. 유료 이미지 생성·새 API/DB 소스·설치본 배포는 하지 않았다. 독립 코드/아키텍처 리뷰의 Worker 복구 지적은 실행 정의·해시 사전 검사로 보완했다.
+
+
+## 2026-10-09 PR #446 최종 통합 검증
+
+main `9282477d`의 수집 후 다음 행동과 `2cfcc8e8`의 병렬 CI를 `48ad22be`까지 병합했다. 최종 API677/677(이후 API 소스 변경 없음), 모바일2233/2233, 사이트495/495, 타입·빌드·lint 경고0를 확인했다. 새 PostgreSQL migration75/75와 전체600 PASS/3 SKIP 뒤 해당 호스트 시드3건을 독립된 새 DB에서 각각 통과해 고유603건의 근거를 확보했다. CI 연결에서 빠진 연합 미션 사이트 시험을 추가해105개 연결 검증과 병렬 CI 시험2/2·로컬게이트가 통과했다. API·Worker 생산 의존성 audit0, 모바일은 저장소의 기한 있는 기존 예외를 적용한 audit PASS다. GitHub CI 결과는 별도로 확인하며 아직 자동 통과를 주장하지 않는다.
+
+이전 양성 시연 캡처는8aa8b724/43c0cee0 기준이고 최신 개발 화면·시험은 [병합 검수](evidence/alliance-draw-2026-10-09/integration-9545b503.json)와 구분했다. 새 API/DB/설치본 배포·유료 이미지 생성·Android 실기기는 NOT_RUN이다.
 
 ## 2026-10-09 시연 지갑·지도 설정 복구 (Issue #447)
 

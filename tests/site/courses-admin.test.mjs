@@ -52,8 +52,12 @@ test('코스 초안은 2~4개 서로 다른 가게·목표·점주 참조를 API
   });
   assert.throws(() => courseDraftPayload(new Map(values).set('merchantId2', 'a')), /서로 다른 가게/);
   assert.throws(() => courseDraftPayload(new Map(values).set('ownerOptinRef1', '123-45-67890')), /참조 번호/);
-  assert.throws(() => courseDraftPayload(new Map(values).set('ownerOptinRef2', '')), /참조 번호/);
+  assert.equal(courseDraftPayload(new Map(values).set('ownerOptinRef2', '')).steps[1].ownerOptinRef, null);
   assert.throws(() => courseDraftPayload(new Map(values).set('stepCount', '5')), /2~4곳/);
+  assert.equal(courseDraftPayload(new Map(values).set('startsAt', '2026-10-10T00:00')).countsFrom,
+    new Date('2026-10-10T00:00').toISOString());
+  assert.throws(() => courseDraftPayload(new Map(values).set('startsAt', '2026-10-11T00:00')
+    .set('endsAt', '2026-10-10T00:00')), /종료 시각/);
 });
 
 test('관리 화면은 실제 점포만 고르고 저장된 점검 스냅샷과 공개·중지 동작을 표시한다', async () => {
@@ -86,6 +90,7 @@ test('코스 화면은 입력 이름표와 상태 안내를 두고 인라인 이
   const html = readFileSync(new URL('../../apps/production-web/admin.html', import.meta.url), 'utf8');
   assert.match(html, /id="admin-course-create"/);
   assert.match(html, /id="admin-course-status" role="status" aria-live="polite"/);
-  assert.match(html, /방문 인정 시작을 비우면 코스 공개 전의 유효한 방문 보상도 셉니다/);
+  assert.match(html, /시작 시각 이후 인정된 방문만 셉니다/);
+  assert.match(html, /식사\+카페 2곳.*골목 3곳.*동네 4곳/);
   assert.doesNotMatch(html, /\son(?:click|change|submit)\s*=/i);
 });

@@ -53,8 +53,10 @@ deployment_paths=(
   apps/api/tsconfig.json
   apps/api/src
   apps/api/migrations
+  apps/worker
   apps/production-web
   infra/lightsail
+  infra/showcase-host/enable-ai-art.sh
 )
 public_source_paths=(
   scripts/build-public-site.mjs
@@ -177,11 +179,47 @@ api_id="$(service_id api)"
 web_id="$(service_id production-web)"
 caddy_id="$(service_id caddy)"
 postgres_id="$(service_id postgres)"
+worker_id="$(service_id mint-worker)"
 for id in "$api_id" "$web_id" "$caddy_id" "$postgres_id"; do
   [[ -n "$id" && "$id" != *$'\n'* ]]
 done
 [[ "$(sudo docker inspect --format '{{.Config.Image}}' "$api_id")" == "masscom-api:${old_api_commit:0:12}" ]]
 [[ "$(sudo docker inspect --format '{{.Config.Image}}' "$web_id")" == "masscom-production-web:${old_web_commit:0:12}" ]]
+old_worker_image=''
+if [[ -n "$worker_id" ]]; then
+  [[ "$worker_id" != *$'\n'* ]]
+  worker_compose_files="$(sudo docker inspect --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}' "$worker_id")"
+  worker_workdir="$(sudo docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "$worker_id")"
+  worker_project="$(sudo docker inspect --format '{{index .Config.Labels "com.docker.compose.project"}}' "$worker_id")"
+  worker_service="$(sudo docker inspect --format '{{index .Config.Labels "com.docker.compose.service"}}' "$worker_id")"
+  if [[ "$worker_compose_files" != "$old_api_release/infra/lightsail/compose.yml" ||
+        "$worker_workdir" != "$old_api_release/infra/lightsail" ||
+        "$worker_project" != masscom || "$worker_service" != mint-worker ]] ||
+     ! sudo test -d "$worker_workdir"; then
+    echo 'WORKER_COMPOSE_ORIGIN_UNSUPPORTED: running Worker must use the current API release compose file with project masscom and service mint-worker; refusing to change it' >&2
+    exit 1
+  fi
+  old_worker_image="$(sudo docker inspect --format '{{.Config.Image}}' "$worker_id")"
+  [[ "$old_worker_image" =~ ^masscom-worker:[A-Za-z0-9_.-]+$ ]] || {
+    echo 'WORKER_IMAGE_UNKNOWN: cannot safely restore the running Worker' >&2
+    exit 1
+  }
+  worker_config_hash="$(sudo docker inspect --format '{{index .Config.Labels "com.docker.compose.config-hash"}}' "$worker_id")"
+  [[ -n "$worker_config_hash" && "$worker_config_hash" != '<no value>' ]] || {
+    echo 'WORKER_CONFIG_HASH_MISSING: cannot verify the running Worker definition' >&2
+    exit 1
+  }
+  if ! expected_worker_hash="$(sudo env MASSCOM_IMAGE_TAG="${old_api_commit:0:12}" MASSCOM_WEB_IMAGE_TAG="${old_web_commit:0:12}" MASSCOM_WORKER_IMAGE_TAG="${old_worker_image#masscom-worker:}" \
+    docker compose -p masscom --env-file "$runtime_env" -f "$old_api_release/infra/lightsail/compose.yml" --profile nft-live config --hash mint-worker 2>/dev/null)" ||
+     [[ "${expected_worker_hash##* }" != "$worker_config_hash" ]]; then
+    echo 'WORKER_CONFIG_DRIFT: running Worker differs from the current release compose or runtime.env; refusing to change it' >&2
+    exit 1
+  fi
+  if grep -Fxq "masscom-worker:$release_id" <<<"$images"; then
+    echo "IMAGE_TAG_ALREADY_EXISTS: masscom-worker:$release_id" >&2
+    exit 1
+  fi
+fi
 old_caddy_image="$(sudo docker inspect --format '{{.Config.Image}}' "$caddy_id")"
 [[ "$old_caddy_image" == 'caddy:2.10.2-alpine' ]]
 old_site_source="$(sudo docker inspect --format '{{range .Mounts}}{{if eq .Destination "/srv/masscom"}}{{.Source}}{{end}}{{end}}' "$caddy_id")"
@@ -233,6 +271,20 @@ compose_old_caddy() {
 compose_no_stdin() {
   compose_new "$@" </dev/null
 }
+compose_worker_new() {
+  sudo env MASSCOM_IMAGE_TAG="$release_id" MASSCOM_WEB_IMAGE_TAG="$release_id" MASSCOM_WORKER_IMAGE_TAG="$release_id" \
+    docker compose -p masscom --env-file "$runtime_env" -f "$compose_file" --profile nft-live "$@" </dev/null
+}
+compose_worker_old() {
+  sudo env MASSCOM_IMAGE_TAG="${old_api_commit:0:12}" MASSCOM_WEB_IMAGE_TAG="${old_web_commit:0:12}" MASSCOM_WORKER_IMAGE_TAG="${old_worker_image#masscom-worker:}" \
+    docker compose -p masscom --env-file "$runtime_env" -f "$old_api_release/infra/lightsail/compose.yml" --profile nft-live "$@" </dev/null
+}
+worker_healthy() {
+  local id
+  id="$(service_id mint-worker)" && [[ -n "$id" && "$id" != *$'\n'* ]] || return 1
+  [[ "$(sudo docker inspect --format '{{.Config.Image}}' "$id")" == "$1" ]] &&
+    [[ "$(sudo docker inspect --format '{{.State.Health.Status}}' "$id")" == healthy ]]
+}
 compose_old_caddy config --quiet
 retry_health() {
   local attempt
@@ -278,6 +330,7 @@ postgres_check_failed() {
   echo "POSTGRES_DATA_CHECK_FAILED: $1" >&2
 }
 postgres_recreated=false
+worker_stopped=false
 
 rollback_started=false
 migration_started=false
@@ -287,14 +340,19 @@ rollback() {
   # 새 원장과 하위 비호환인 배포는 migration 시작부터 구 API 복귀를 금지한다.
   if [[ "$migration_started" == true && "$backward_compatible" == no ]]; then
     compose_no_stdin stop api || failed=true
-    echo "FORWARD_RECOVERY_REQUIRED: API writes stopped; keep new env/schema; release=$release backup=$db_backup; inspect applied migrations and recover with a compatible API; do not restart the old API or restore the backup over new writes" >&2
+    if [[ -n "$old_worker_image" ]]; then compose_worker_new stop mint-worker || failed=true; fi
+    echo "FORWARD_RECOVERY_REQUIRED: API and Worker writes stopped; keep new env/schema; release=$release backup=$db_backup; inspect applied migrations and recover with compatible API and Worker; do not restart old writers or restore the backup over new writes" >&2
     if [[ "$failed" == true ]]; then
-      echo 'API_WRITE_STOP_FAILED: block API traffic before manual recovery' >&2
+      echo 'WRITER_STOP_FAILED: block API and Worker writes before manual recovery' >&2
       exit 1
     fi
     exit "$code"
   fi
   if [[ "$rollback_started" == true ]]; then
+    if [[ "$worker_stopped" == true ]] && ! compose_worker_new stop mint-worker; then
+      echo 'WORKER_WRITE_STOP_FAILED: do not restart old services until the Worker is stopped' >&2
+      exit 1
+    fi
     sudo install -o root -g root -m 600 "$env_backup" "$runtime_env" || failed=true
     if [[ "$postgres_recreated" == true ]]; then
       # 이전 릴리스의 compose 정의로 PostgreSQL을 되돌린다(이 배포가 다시 만들었으므로 한 번 더 짧게 다시 뜬다).
@@ -324,6 +382,10 @@ rollback() {
     [[ "$(sudo docker inspect --format '{{if index .NetworkSettings.Networks "masscom_showcase_edge"}}true{{end}}' "$caddy_id")" == true ]] || failed=true
     retry_health curl -fsS --max-time 8 https://api.masscom.kr/health || failed=true
     retry_health curl -fsS --max-time 8 https://www.masscom.kr/app/ || failed=true
+    if [[ "$worker_stopped" == true ]]; then
+      compose_worker_old up -d --no-deps --wait --wait-timeout 180 mint-worker || failed=true
+      worker_healthy "$old_worker_image" || failed=true
+    fi
     # 시연 API는 운영 릴리스의 되돌림 성공 조건이 아니다(Issue #263): 시연 장애가 겹쳐도 운영이 이전 릴리스로 돌아왔으면 되돌림은 성공이다.
     retry_health curl -fsS --max-time 8 https://demo-api.masscom.kr/health ||
       echo 'SHOWCASE_HEALTH_WARNING: the production rollback is complete but the showcase API (demo-api.masscom.kr) is not answering; check it separately' >&2
@@ -347,6 +409,12 @@ trap 'rollback "$?"' ERR
 sudo install -o root -g root -m 600 "$temporary_env" "$runtime_env"
 rm -f "$temporary_env"
 compose_new build api production-web
+if [[ -n "$old_worker_image" ]]; then
+  compose_worker_new build mint-worker
+  # PostgreSQL 재생성과 migration 동안 이전 코드가 DB에 쓰지 못하게 한다.
+  worker_stopped=true
+  compose_worker_new stop mint-worker
+fi
 # 사전 백업이 검증된 뒤에만 PostgreSQL을 다시 만든다. 로그 설정이 이미 맞으면 건드리지 않는다.
 # 아래 확인은 `… || { postgres_check_failed 이름; false; }`로 쓴다: 옛 bash(3.2)는 홑 `[[ ]]`의 실패로 ERR 트랩을 걸지 않고, 명령 치환 안의 실패가
 # 트랩을 두 번(하위 셸과 부모) 돌리지 않게 하기 위해서다. `false`는 부모에서 한 번만 ERR를 건다.
@@ -384,6 +452,10 @@ compose_no_stdin exec -T production-web node -e \
 retry_health curl -fsS --max-time 8 https://api.masscom.kr/health
 retry_health curl -fsS --max-time 8 https://www.masscom.kr/app/
 retry_health curl -fsS --max-time 8 https://www.masscom.kr/merchant/
+if [[ "$worker_stopped" == true ]]; then
+  compose_worker_new up -d --no-deps --wait --wait-timeout 180 mint-worker
+  worker_healthy "masscom-worker:$release_id" || { echo 'WORKER_HEALTH_FAILED' >&2; false; }
+fi
 
 sudo ln -sfn "$release" /opt/masscom/current
 printf '%s\n' "$commit" | sudo tee /opt/masscom/DEPLOYED_COMMIT >/dev/null

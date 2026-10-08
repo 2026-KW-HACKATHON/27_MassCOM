@@ -18,8 +18,8 @@ import { mascotArt } from './mascot-art';
  * Account strip on every header. Its numbers come from the discovery provider (one set of requests per focus for the whole app);
  * the mileage chip opens after the first coin and the mail icon only with unread mail or the friends/mail opt-in (Issue #412).
  */
-export function ProfileStrip({ avatarArt, avatarClothing, avatarContent }: {
-  avatarArt?: ImageSourcePropType; avatarClothing?: EquippedClothingArt | null; avatarContent?: ReactNode;
+export function ProfileStrip({ avatarArt, avatarClothing, avatarContent, mileageBalance }: {
+  avatarArt?: ImageSourcePropType; avatarClothing?: EquippedClothingArt | null; avatarContent?: ReactNode; mileageBalance?: number;
 }) {
   const auth = useAuthSession();
   const scheme = useColorScheme();
@@ -30,6 +30,7 @@ export function ProfileStrip({ avatarArt, avatarClothing, avatarContent }: {
   const world = worldForScheme(scheme);
   const credential = auth.credential;
   const { stage, optIn, strip: data } = useDiscovery();
+  const shownBalance = mileageBalance ?? data.shop?.mileage.balance;
   useDiscoveryOnFocus();
   if (!credential) return null;
   const art = avatarArt ?? (data?.shop?.avatar ? friendArt[data.shop.avatar] : undefined) ?? mascotArt['logo-badge'];
@@ -44,9 +45,9 @@ export function ProfileStrip({ avatarArt, avatarClothing, avatarContent }: {
         <Text numberOfLines={wrap ? undefined : 1} style={{ color: world.skyMuted, fontSize: 12, lineHeight: 17 }}>{data.intro || '한 줄 소개를 적어 보세요'} ✎</Text>
       </View>
     </Pressable></Link>
-    {atLeast(stage, 'after-first') ? <Link href="/shop" asChild><Pressable accessibilityRole="button" accessibilityLabel={data.shop ? `마일리지 ${data.shop.mileage.balance} 포인트, 상점` : '마일리지 조회, 상점'}
+    {atLeast(stage, 'after-first') ? <Link href="/shop" asChild><Pressable accessibilityRole="button" accessibilityLabel={shownBalance !== undefined ? `마일리지 ${shownBalance} 포인트, 상점` : '마일리지 조회, 상점'}
       style={StyleSheet.flatten([styles.mileage, { backgroundColor: palette.accentContainer }])}>
-      <Text style={{ color: palette.onAccentContainer, fontSize: 13, fontWeight: '800' }}>Ⓟ {data.shop ? data.shop.mileage.balance.toLocaleString('ko-KR') : '—'}</Text>
+      <Text style={{ color: palette.onAccentContainer, fontSize: 13, fontWeight: '800' }}>Ⓟ {shownBalance !== undefined ? shownBalance.toLocaleString('ko-KR') : '—'}</Text>
     </Pressable></Link> : null}
     {mailEntryVisible(optIn, data.unread) ? <Link href="/mail" asChild><Pressable accessibilityRole="button" accessibilityLabel={data.unread ? `우편, 읽지 않은 우편 ${data.unread}개` : '우편'} style={styles.action}>
       <TabGlyph name="mail" color={world.skyInk} size={25} />

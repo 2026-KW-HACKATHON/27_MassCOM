@@ -1,5 +1,5 @@
 // 가게 사이를 잇는 코스(Issue #412, D-093). DB 없이 시험할 수 있는 순수 규칙·타입만 둔다.
-// 코스 진행은 이 파일이 reward_entitlements 목록에서 계산한다: 클라이언트가 완료를 주장하는 경로는 없다.
+// 코스 진행은 이 파일이 기간 내 인정 방문에서 계산한다: 클라이언트가 완료를 주장하는 경로는 없다.
 import type { CollectibleArtwork } from './collectible-project.js';
 import { normalizeDocumentReference } from './store-go-live-rules.js';
 
@@ -117,33 +117,31 @@ export function parseSuggestedHour(raw: unknown): number | null {
 // ---------- 진행 계산 ----------
 
 export type StepKey = { position: number; merchantId: string; targetVisitCount: number };
-// reward_entitlements 한 행의 필요한 부분. status가 CANCELED이면 세지 않는다(방문 취소가 보상권을 취소한다).
-export type StepEntitlement = {
-  entitlementId: string;
+export type CountedCourseVisit = {
+  courseId: string;
+  visitEventId: string;
   merchantId: string;
-  targetVisitCount: number;
-  earnedAt: Date;
-  status: string;
+  occurredAt: Date;
 };
-export type StepProgress = { position: number; done: boolean; entitlementId: string | null; earnedAt: string | null };
+export type StepProgress = { position: number; done: boolean; visitEventIds: string[]; earnedAt: string | null; visitCount: number };
 
 /**
- * 단계 완료 = 그 가게(merchant) × 목표 방문 횟수의 취소되지 않은 보상권이 있다.
- * 리롤로 코인을 잃어도 보상권은 남으므로 단계는 되돌아가지 않는다(코인 보유가 아니라 보상권 존재로 판정한다).
- * countsFrom이 있으면 그 시각 이후에 받은 보상권만 센다. 없으면 게시 전 방문도 센다.
+ * 단계 완료 = 미션 기간에 그 가게에서 인정된 방문이 목표 횟수 이상이다.
+ * 방문의 VALID·progress_counted·본인 적립 제외는 SQL에서 적용한다.
  */
 export function evaluateSteps(
-  steps: readonly StepKey[], entitlements: readonly StepEntitlement[], countsFrom: Date | null,
+  steps: readonly StepKey[], visits: readonly CountedCourseVisit[], countsFrom: Date | null, endsAt: Date | null,
 ): StepProgress[] {
   return steps.map(step => {
-    const first = entitlements
-      .filter(entitlement => entitlement.status !== 'CANCELED' && entitlement.merchantId === step.merchantId &&
-        entitlement.targetVisitCount === step.targetVisitCount &&
-        (countsFrom === null || entitlement.earnedAt.getTime() >= countsFrom.getTime()))
-      .sort((left, right) => left.earnedAt.getTime() - right.earnedAt.getTime() ||
-        left.entitlementId.localeCompare(right.entitlementId))[0];
-    return { position: step.position, done: first !== undefined, entitlementId: first?.entitlementId ?? null,
-      earnedAt: first?.earnedAt.toISOString() ?? null };
+    const counted = visits.filter(visit => visit.merchantId === step.merchantId &&
+      (countsFrom === null || visit.occurredAt >= countsFrom) &&
+      (endsAt === null || visit.occurredAt < endsAt))
+      .sort((left, right) => left.occurredAt.getTime() - right.occurredAt.getTime() ||
+        left.visitEventId.localeCompare(right.visitEventId));
+    const evidence = counted.slice(0, step.targetVisitCount);
+    const done = evidence.length === step.targetVisitCount;
+    return { position: step.position, done, visitEventIds: done ? evidence.map(visit => visit.visitEventId) : [],
+      earnedAt: done ? evidence.at(-1)!.occurredAt.toISOString() : null, visitCount: counted.length };
   });
 }
 
@@ -302,7 +300,8 @@ export function buildCheckSummary(input: {
 // ---------- 게시 체크리스트 ----------
 
 export type PublishReason =
-  | 'COURSE_STATE' | 'COURSE_STEP_COUNT' | 'COURSE_OPTIN_MISSING' | 'COURSE_WINDOW_ENDED'
+  | 'COURSE_STATE' | 'COURSE_STEP_COUNT' | 'COURSE_OPTIN_MISSING' | 'COURSE_WINDOW_MISSING'
+  | 'COURSE_COUNT_WINDOW' | 'COURSE_WINDOW_ENDED'
   | 'COURSE_CHECK_MISSING' | 'COURSE_CHECK_STALE' | 'COURSE_CHECK_FAILED';
 
 /**
@@ -310,13 +309,17 @@ export type PublishReason =
  * 실패 항목이 없어야 하며, 모든 단계에 점주 동의 참조가 있어야 한다. 경고(WARN)는 막지 않는다.
  */
 export function publishBlockers(input: {
-  status: CourseStatus; stepCount: number; stepsWithoutOptin: number; endsAt: Date | null;
+  status: CourseStatus; stepCount: number; stepsWithoutOptin: number;
+  startsAt: Date | null; endsAt: Date | null; countsFrom: Date | null;
   checkedAt: Date | null; stored: CourseCheckSummary | null; live: CourseCheckSummary; now: Date;
 }): PublishReason[] {
   const reasons: PublishReason[] = [];
   if (input.status !== 'DRAFT' && input.status !== 'PAUSED') reasons.push('COURSE_STATE');
   if (input.stepCount < COURSE_MIN_STEPS || input.stepCount > COURSE_MAX_STEPS) reasons.push('COURSE_STEP_COUNT');
   if (input.stepsWithoutOptin > 0) reasons.push('COURSE_OPTIN_MISSING');
+  if (input.startsAt === null || input.endsAt === null) reasons.push('COURSE_WINDOW_MISSING');
+  if (input.countsFrom === null || (input.startsAt !== null && input.countsFrom < input.startsAt) ||
+    (input.endsAt !== null && input.countsFrom >= input.endsAt)) reasons.push('COURSE_COUNT_WINDOW');
   if (input.endsAt !== null && input.endsAt.getTime() <= input.now.getTime()) reasons.push('COURSE_WINDOW_ENDED');
   if (input.checkedAt === null || input.stored === null) reasons.push('COURSE_CHECK_MISSING');
   else if (input.now.getTime() - input.checkedAt.getTime() > COURSE_CHECK_FRESH_MS ||
@@ -337,7 +340,7 @@ export type CourseStepView = {
   state: 'AVAILABLE' | 'UNAVAILABLE';
   done: boolean;
   earnedAt: string | null;
-  // 이 가게의 진행 중인 캠페인에서 센 방문 일수(없으면 null). 단계 완료 판정에는 쓰지 않는다.
+  // 이 미션 기간에 인정된 방문 수(최대 5). 단계 완료와 같은 방문 집합에서 계산한다.
   progressVisitCount: number | null;
   // 아직 안 한 단계의 가게 정원이 찼으면 true("자리 없음").
   full: boolean;
@@ -370,6 +373,10 @@ export type AdminCourse = {
   checkedAt: string | null; checkSummary: CourseCheckSummary | null; createdAt: string;
   steps: AdminCourseStep[];
 };
+export type MerchantCourse = Pick<AdminCourse, 'id' | 'title' | 'status' | 'startsAt' | 'endsAt'> & {
+  steps: Pick<AdminCourseStep, 'position' | 'merchantId' | 'merchantName' | 'targetVisitCount' | 'pieceLabel'>[];
+  ownerOptinRef: string | null;
+};
 
 export interface CourseService {
   adminList(actorAccountId: string): Promise<AdminCourse[]>;
@@ -377,6 +384,8 @@ export interface CourseService {
   adminCheck(actorAccountId: string, courseId: string, suggestedHour: number | null): Promise<AdminCourse>;
   adminPublish(actorAccountId: string, courseId: string): Promise<AdminCourse>;
   adminPause(actorAccountId: string, courseId: string): Promise<AdminCourse>;
+  merchantList(accountId: string, merchantId: string): Promise<MerchantCourse[]>;
+  merchantOptIn(accountId: string, merchantId: string, courseId: string, ownerOptinRef: string): Promise<MerchantCourse>;
   list(accountId: string): Promise<CourseView[]>;
   get(accountId: string, courseId: string): Promise<CourseView>;
   unlock(accountId: string, courseId: string): Promise<{ course: CourseView; replayed: boolean }>;

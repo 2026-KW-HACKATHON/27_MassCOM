@@ -219,6 +219,8 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
 }
 
 export function HomeMissionsScreen({ apiUrl, credential, onSessionInvalid }: Omit<Props, 'accountId'>) {
+  const router = useRouter();
+  const palette = colorsForScheme(useColorScheme());
   const avatar = useShopAvatarAppearance(apiUrl, credential);
   const avatarArt = avatar?.art;
   const badgeApi = useMemo(
@@ -229,6 +231,13 @@ export function HomeMissionsScreen({ apiUrl, credential, onSessionInvalid }: Omi
     <SkyBackdrop>
       <SkyScrollView header={<BackHeader title="미션" />}>
         <HomeMissionsPanel badgeApi={badgeApi} companionArt={avatarArt} />
+        <View style={{ paddingHorizontal: uiMetrics.pageInset }}>
+          <FloatingCard onPress={() => router.push('/courses')} accessibilityLabel="연합 미션 보기" style={{ gap: 6 }}>
+            <Text accessibilityRole="header" style={{ color: palette.label, fontSize: 18, fontWeight: '800' }}>연합 미션</Text>
+            <Text style={{ color: palette.secondaryLabel }}>여러 가게의 인정 방문으로 조각을 모아 장면을 완성해요.</Text>
+            <Text style={{ color: palette.primary }}>진행과 완성 배지 보기 →</Text>
+          </FloatingCard>
+        </View>
       </SkyScrollView>
     </SkyBackdrop>
   );

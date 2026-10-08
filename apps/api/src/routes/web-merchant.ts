@@ -50,6 +50,29 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
       throw new RequestError(403, 'MERCHANT_CSRF_FORBIDDEN');
     }
     const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
+    const courseMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/courses(?:\/([^/]+)\/opt-in)?$/);
+    if (courseMatch) {
+      if (!deps.courses) throw new RequestError(503, 'COURSES_NOT_CONFIGURED');
+      const merchantId = decodePathParameter(courseMatch[1]!);
+      if (request.method === 'GET' && !courseMatch[2]) {
+        sendJson(response, 200, { courses: await deps.courses.merchantList(accountId, merchantId) });
+        return true;
+      }
+      if (request.method === 'POST' && courseMatch[2]) {
+        const decision = merchantOperationLimiter.consume(accountId);
+        if (!decision.allowed) {
+          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+          throw new RequestError(429, 'MERCHANT_OPERATIONS_RATE_LIMITED');
+        }
+        const body = await readJson(request);
+        if (Object.keys(body).some(key => key !== 'ownerOptinRef' && key !== 'consentAccepted') ||
+            body.consentAccepted !== true) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, { course: await deps.courses.merchantOptIn(accountId, merchantId,
+          decodePathParameter(courseMatch[2]), requireString(body, 'ownerOptinRef')) });
+        return true;
+      }
+      throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+    }
     const benefitStatusMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/campaigns\/([^/]+)\/benefit-status$/);
     if (benefitStatusMatch && request.method === 'GET') {
       if (!campaignBenefits) throw new RequestError(503, 'CAMPAIGN_BENEFITS_NOT_CONFIGURED');

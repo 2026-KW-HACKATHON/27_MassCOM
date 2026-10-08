@@ -1,0 +1,31 @@
+{
+  "recordedAt": "2026-10-09 KST",
+  "scope": "Owner-authorized OpenAI image key configuration for operating and showcase APIs; existing images and schemas retained",
+  "openAiAuthentication": { "method": "GET /v1/models", "status": "PASS", "httpStatus": 200 },
+  "operating": {
+    "image": "masscom-api:687427c26d78",
+    "state": "ENABLED", "health": "healthy",
+    "keyStorage": "runtime.env, mode 600; value never printed",
+    "containerKeyMatchesRuntime": true,
+    "monthlyBudgetUsd": 5, "dailyDraftRoundsPerStore": 3, "dailyFinalsPerStore": 3,
+    "draftModel": "gpt-image-2.5-flare", "finalModel": "gpt-image-2.5-sunburst",
+    "staffMayManageArt": false
+  },
+  "showcase": {
+    "image": "masscom-showcase-api:2d483ed",
+    "state": "ENABLED", "health": "healthy",
+    "keyStorage": "runtime.env, mode 600; value never printed",
+    "containerKeyMatchesRuntime": true,
+    "monthlyBudgetUsd": 5, "dailyDraftRoundsPerStore": 3, "dailyFinalsPerStore": 3,
+    "draftModel": "gpt-image-2.5-flare", "finalModel": "gpt-image-2.5-sunburst",
+    "staffMayManageArt": true
+  },
+  "webProxy": {
+    "status": "PASS", "merchantProfileUnauthenticatedHttpStatus": 401,
+    "caddyConfigSha256": "3d7a35d712be757b1fb1590cbbfeecc74c8229d5b2c5e0ffa8816253ec5f7ea4",
+    "change": "Added /api/web/v1/* to web-session and private-surface matchers in the running release; Caddy validated and restarted with admin API disabled"
+  },
+  "paidImageGeneration": "NOT_RUN",
+  "newApplicationCodeDeployment": "NOT_RUN",
+  "databaseMigration": "NOT_RUN"
+}

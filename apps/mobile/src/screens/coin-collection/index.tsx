@@ -1,6 +1,6 @@
 import * as Crypto from 'expo-crypto';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,7 +10,7 @@ import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
-import { coinErrorMessage, createCoinApiClient, finalRerollFailure, type CoinCollection, type CoinRerollOption, type CoinSource, type CoinSeries, type OwnedCoin, type SeriesTier } from '@/shop/coin-api';
+import { coinEntryLabel, coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, sameRerollOption, sortCoinEntries, type CoinCollection, type CoinRerollOption, type CoinSource, type CoinSeries, type OwnedCoin, type SeriesTier } from '@/shop/coin-api';
 import { classifyRerollCoinAcquisition, snapshotCoinQuantities, type CoinAcquisitionStatus } from '@/shop/coin-acquisition';
 import { clearCoinRerollPending, coinRerollPendingKey, readCoinRerollPending, startOrResumeCoinReroll, type CoinRerollPending } from '@/shop/coin-reroll-pending';
 import { pendingFocusSnapshot } from '@/shop/pending-focus';
@@ -24,6 +24,9 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
 import { CoinCouponUse } from './coupon-use';
+import { CollectibleDetail } from '@/screens/collection/collectible-detail';
+
+const rerollGradeName = { NORMAL: '일반', BRONZE: '브론즈', SILVER: '실버', GOLD: '골드' } as const;
 
 export function coinCollectionDisplayState(coins: readonly Pick<OwnedCoin, 'quantity'>[], sources: readonly Pick<CoinSource, 'nftStatus'>[]) {
   const hasCoins = coins.some((coin) => coin.quantity > 0);
@@ -49,12 +52,14 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
   const [busyId, setBusyId] = useState<string>();
   const [message, setMessage] = useState<string>();
   const [usingCoupon, setUsingCoupon] = useState<CoinSeries>();
+  const [coinDetail, setCoinDetail] = useState<{ publicationId: string; gradeId: string; merchantId: string; merchantName: string }>();
   const [selectedSource, setSelectedSource] = useState<CoinSource>();
   const [selectedOption, setSelectedOption] = useState<CoinRerollOption>();
   const [confirmReroll, setConfirmReroll] = useState(false);
   const [rerollPending, setRerollPending] = useState<CoinRerollPending>();
   const [rerollResult, setRerollResult] = useState<OwnedCoin>();
   const [rerollResultId, setRerollResultId] = useState<string>();
+  const [rerollBefore, setRerollBefore] = useState<OwnedCoin>();
   const [rerollResultStatus, setRerollResultStatus] = useState<CoinAcquisitionStatus>('owned');
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [settledRegistrationReceiptId, setSettledRegistrationReceiptId] = useState<string>();
@@ -66,6 +71,10 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
   const inFlight = useRef(false);
   const focusEpoch = useRef(0);
   const loadGeneration = useRef(0);
+  const headerHeight = useRef(0);
+  const scrollToPanel = (y: number) => requestAnimationFrame(() => scrollRef.current?.scrollTo({
+    y: Math.max(0, headerHeight.current + y - insets.top - 8), animated: motionEnabled,
+  }));
   const rerollScrolledFor = useRef<string | undefined>(undefined);
   const merchantOffsets = useRef(new Map<string, number>());
   const typeOffsets = useRef(new Map<string, number>());
@@ -82,7 +91,10 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
     const generation = ++loadGeneration.current;
     try {
       const value = await api.getCollection();
-      if (current.current && focusEpoch.current === epoch && loadGeneration.current === generation) { setCollection(value); setMessage(undefined); }
+      if (current.current && focusEpoch.current === epoch && loadGeneration.current === generation) {
+        setCollection({ ...value, reroll: { ...value.reroll, options: maskRerollOdds(value.reroll.options, Date.now()) } });
+        setMessage(undefined);
+      }
       return value;
     }
     catch (error) { if (current.current && focusEpoch.current === epoch && loadGeneration.current === generation) setMessage(coinErrorMessage(error)); return undefined; }
@@ -92,12 +104,31 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
     const epoch = focusEpoch.current;
     const generation = ++loadGeneration.current;
     const fresh = await api.getCollection();
-    if (current.current && focusEpoch.current === epoch && loadGeneration.current === generation) setCollection(fresh);
+    if (current.current && focusEpoch.current === epoch && loadGeneration.current === generation)
+      setCollection({ ...fresh, reroll: { ...fresh.reroll, options: maskRerollOdds(fresh.reroll.options, Date.now()) } });
     return fresh.series.find((series) => series.id === usingCoupon?.id);
   }, [api, usingCoupon?.id]);
+  const loadCoinDetail = useCallback(() => api.getOwnedDetail(coinDetail!.publicationId, coinDetail!.gradeId),
+    [api, coinDetail]);
+  useEffect(() => {
+    const nextExpiry = collection?.reroll.options.reduce((next, option) => option.entries.length && option.oddsExpiresAt
+      ? Math.min(next, Date.parse(option.oddsExpiresAt)) : next, Infinity);
+    if (nextExpiry === undefined || !Number.isFinite(nextExpiry)) return;
+    const timer = setTimeout(() => {
+      setCollection((old) => old && { ...old, reroll: { ...old.reroll,
+        options: maskRerollOdds(old.reroll.options, Date.now()) } });
+      setSelectedOption((old) => old && maskRerollOdds([old], Date.now())[0]);
+      void load();
+    }, Math.max(0, nextExpiry - Date.now()));
+    return () => clearTimeout(timer);
+  }, [collection, load]);
   useFocusEffect(useCallback(() => {
     const epoch = ++focusEpoch.current;
-    current.current = true; void load();
+    current.current = true;
+    setCollection((old) => old && { ...old, reroll: { ...old.reroll,
+      options: maskRerollOdds(old.reroll.options, Date.now(), true) } });
+    setSelectedOption((old) => old && maskRerollOdds([old], Date.now(), true)[0]);
+    void load();
     if (!inFlight.current) setBusyId(undefined);
     void pendingFocusSnapshot(() => readCoinRerollPending(pendingKey), () => inFlight.current)
       .then(({ pending, busy }) => {
@@ -117,7 +148,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
     const epoch = focusEpoch.current;
     inFlight.current = true; setBusyId('reroll'); setMessage(undefined);
     try {
-      const before = !saved && collection ? snapshotCoinQuantities(collection.coins) : undefined;
+      const beforeQuantities = !saved && collection ? snapshotCoinQuantities(collection.coins) : undefined;
       const attempt = await startOrResumeCoinReroll(pendingKey, saved ? undefined : () => {
         const ticket = collection?.reroll.tickets.find((item) => item.status === 'UNUSED' && item.grade === selectedOption?.grade);
         return selectedSource && selectedOption && ticket
@@ -129,9 +160,11 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
         return;
       }
       setRerollPending(attempt);
+      const beforeCoin = collection?.coins.find((coin) => coin.publicationId === attempt.source.publicationId && coin.gradeId === attempt.source.gradeId);
+      setRerollBefore(beforeCoin);
       const result = await api.reroll(attempt.ticketId, attempt.source, attempt.poolId, attempt.requestId);
       if (!current.current || focusEpoch.current !== epoch) return;
-      setRerollResultStatus(classifyRerollCoinAcquisition({ before, consumed: attempt.source, coin: result.coin, replayed: result.replayed }));
+      setRerollResultStatus(classifyRerollCoinAcquisition({ before: beforeQuantities, consumed: attempt.source, coin: result.coin, replayed: result.replayed }));
       setRerollResult(result.coin); setRerollResultId(result.rerollId); setRegistrationOpen(false);
       setConfirmReroll(false); setSelectedSource(undefined); setSelectedOption(undefined);
       // A stale focus must leave the request available for idempotent recovery.
@@ -191,6 +224,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
   const displayState = coinCollectionDisplayState(collection?.coins ?? [], collection?.reroll.sources ?? []);
   return <SkyBackdrop><SkyScrollView header={<BackHeader title="내 코인·시리즈" />}
     ref={scrollRef}
+    onHeaderLayout={(height) => { headerHeight.current = height; }}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} progressViewOffset={insets.top} onRefresh={() => { setRefreshing(true); void load(); }} />}>
     <Text style={[styles.intro, { color: palette.secondaryLabel }]}>방문으로 얻은 코인과 뽑기로 얻은 코인을 함께 모아요. 쿠폰을 받아도 코인은 사라지지 않아요.</Text>
     {message ? <Text accessibilityLiveRegion="polite" style={[styles.message, { color: palette.label, backgroundColor: palette.primaryContainer }]}>{message}</Text> : null}
@@ -250,6 +284,10 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
                   accessibilityLabel={`${grade.name} 코인`} style={styles.gradeImage} resizeMode="contain" /> : null}
                 <Text style={{ color: palette.label, textAlign: 'center' }}>{grade.name}</Text>
                 <Text style={{ color: palette.secondaryLabel, textAlign: 'center' }}>{grade.quantity > 0 ? `보유 ${grade.quantity}개` : '미보유'}</Text>
+                {grade.quantity > 0 ? <Pressable accessibilityRole="button" onPress={() => setCoinDetail({ publicationId: grade.publicationId,
+                  gradeId: grade.gradeId, merchantId: merchant.merchantId, merchantName: merchant.merchantName })} style={styles.link}>
+                  <Text style={{ color: palette.primary, textAlign: 'center' }}>크게 보기 · 뒷면 · 3D ›</Text>
+                </Pressable> : null}
                 {grade.quantity === 0 ? <Text style={{ color: palette.secondaryLabel, textAlign: 'center' }}>획득 정보: 가게 상세·뽑기권에서 확인</Text> : null}
                 {focused && focusedReceiptId ? <Text accessibilityLiveRegion="polite" style={{ color: palette.primary, textAlign: 'center', fontWeight: '800' }}>방금 등록한 코인</Text> : null}
                 {grade.quantity > 0 ? <Text style={{ color: palette.secondaryLabel, textAlign: 'center' }}>
@@ -308,7 +346,8 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인 리롤</Text>
       <Text style={{ color: palette.secondaryLabel }}>기존 코인 1개를 회수하고 리롤권 1장을 사용해 같은 가게 풀에서 다시 뽑아요. 같은 코인이나 낮은 등급도 나올 수 있어요.</Text>
       <Text style={{ color: palette.secondaryLabel }}>NFT 받기를 완료하면 해당 코인은 회수하거나 리롤할 수 없어요. 발급이 진행 중일 때도 리롤은 잠시 잠겨요.</Text>
-      <Text style={{ color: palette.label }}>일반 {collection.reroll.tickets.filter((ticket) => ticket.status === 'UNUSED' && ticket.grade === 'NORMAL').length}장 · 실버 {collection.reroll.tickets.filter((ticket) => ticket.status === 'UNUSED' && ticket.grade === 'SILVER').length}장</Text>
+      <Text style={{ color: palette.label }}>{(['NORMAL', 'BRONZE', 'SILVER', 'GOLD'] as const).map((grade) =>
+        `${rerollGradeName[grade]} ${collection.reroll.tickets.filter((ticket) => ticket.status === 'UNUSED' && ticket.grade === grade).length}장`).join(' · ')}</Text>
       {rerollPending ? <Pressable accessibilityRole="button" disabled={Boolean(busyId)} onPress={() => void performReroll(rerollPending)} style={[styles.button, { backgroundColor: palette.primary }]}>
         <Text style={[styles.buttonText, { color: palette.onPrimary }]}>이전 리롤 결과 다시 확인</Text>
       </Pressable> : null}
@@ -333,32 +372,46 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
           <Text style={{ color: palette.secondaryLabel }}>이 가게에 지금 사용할 수 있는 리롤 풀과 권리가 없어요.</Text> : null}
         {collection.reroll.options.filter((option) => option.merchantId === selectedSource.merchantId &&
           collection.reroll.tickets.some((ticket) => ticket.status === 'UNUSED' && ticket.grade === option.grade)).map((option) =>
-          <Pressable key={option.poolId} accessibilityRole="button" accessibilityState={{ selected: selectedOption?.poolId === option.poolId }}
+          <Pressable key={`${option.poolId}:${option.grade}`} accessibilityRole="button" accessibilityState={{ selected: sameRerollOption(selectedOption, option) }}
             onPress={() => { setSelectedOption(option); setConfirmReroll(false); }} style={[styles.sourceRow,
-              { backgroundColor: selectedOption?.poolId === option.poolId ? palette.primaryContainer : palette.surface }]}>
-            <Text style={{ color: palette.label }}>{option.grade === 'NORMAL' ? '일반' : '실버'} 리롤권 · {option.eventName}</Text>
-            <Text style={{ color: palette.secondaryLabel }}>{option.entries.map((entry) => `${entry.name} ${(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}%`).join(' · ')}</Text>
+              { backgroundColor: sameRerollOption(selectedOption, option) ? palette.primaryContainer : palette.surface }]}>
+            <Text style={{ color: palette.label }}>{rerollGradeName[option.grade]} 리롤권 · {option.eventName}</Text>
+            <Text style={{ color: palette.secondaryLabel }}>{option.entries.length ? sortCoinEntries(option.entries).map((entry) => `${coinEntryLabel(entry)} ${(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%`).join(' · ')
+              : '현재 확률은 해당 가게의 유효한 미사용 뽑기권 보유자에게만 공개돼요.'}</Text>
           </Pressable>)}
         {selectedOption && !confirmReroll ? <Pressable accessibilityRole="button" onPress={() => setConfirmReroll(true)} style={[styles.button, { backgroundColor: palette.primary }]}>
           <Text style={[styles.buttonText, { color: palette.onPrimary }]}>리롤 조건 확인</Text>
         </Pressable> : null}
-        {selectedOption && confirmReroll ? <FloatingCard style={styles.card}>
+        {selectedOption && confirmReroll ? <View onLayout={(event) => { scrollToPanel(event.nativeEvent.layout.y); }}><FloatingCard style={styles.card}>
           <Text accessibilityRole="header" style={[styles.name, { color: palette.label }]}>회수하고 다시 뽑을까요?</Text>
-          <Text style={{ color: palette.secondaryLabel }}>선택한 코인은 사라지고 {selectedOption.grade === 'NORMAL' ? '일반' : '실버'} 리롤권 1장을 사용해요. 결과는 같거나 낮은 등급일 수 있어요.</Text>
+          <Text style={{ color: palette.secondaryLabel }}>선택한 코인 1개를 회수하고 {rerollGradeName[selectedOption.grade]} 리롤권 1장을 사용해요. 결과는 같거나 낮은 등급일 수 있어요.</Text>
           <Pressable accessibilityRole="button" disabled={Boolean(busyId) || Boolean(rerollPending)} onPress={() => void performReroll()} style={[styles.button, { backgroundColor: palette.primary }]}>
             <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{busyId ? '처리 중…' : rerollPending ? '이전 결과를 먼저 확인해 주세요' : '회수하고 다시 뽑기'}</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => setConfirmReroll(false)} style={styles.link}><Text style={{ color: palette.primary }}>취소</Text></Pressable>
-        </FloatingCard> : null}
+        </FloatingCard></View> : null}
       </> : null}
       {rerollResult ? <View onLayout={(event) => {
         const key = `${rerollResult.publicationId}:${rerollResult.gradeId}:${rerollResultId ?? ''}`;
         if (rerollScrolledFor.current === key) return;
         rerollScrolledFor.current = key;
-        scrollRef.current?.scrollTo({ y: Math.max(event.nativeEvent.layout.y - 24, 0), animated: motionEnabled });
+        scrollToPanel(event.nativeEvent.layout.y);
       }}><FloatingCard style={styles.card}>
         <Text accessibilityRole="header" style={[styles.name, { color: palette.label }]}>새 코인을 획득했어요</Text>
         <Text style={{ color: palette.label }}>{rerollResult.name} · 보유 {rerollResult.quantity}개{rerollResultStatus === 'new' ? ' · 신규' : rerollResultStatus === 'duplicate' ? ' · 중복 수집' : ' · 확인됨'}</Text>
+        <View style={styles.gradeRow}>
+          <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+            {rerollBefore && parseCollectibleArtwork(rerollBefore.summary) ? <Image source={{ uri: parseCollectibleArtwork(rerollBefore.summary)!.thumbnailDataUrl }}
+              accessibilityLabel={`${rerollBefore.name} 회수한 코인`} style={styles.coinImage} resizeMode="contain" /> : null}
+            <Text style={{ color: palette.secondaryLabel, textAlign: 'center' }}>회수 완료 · {rerollBefore?.name ?? '이전 코인'}</Text>
+          </View>
+          <Text style={{ color: palette.label, alignSelf: 'center' }}>→</Text>
+          <View style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+            {parseCollectibleArtwork(rerollResult.summary) ? <Image source={{ uri: parseCollectibleArtwork(rerollResult.summary)!.thumbnailDataUrl }}
+              accessibilityLabel={`${rerollResult.name} 새 코인`} style={styles.coinImage} resizeMode="contain" /> : null}
+            <Text style={{ color: palette.label, textAlign: 'center' }}>획득 · {rerollResult.name}</Text>
+          </View>
+        </View>
         {!rerollCanRegister ? <Text style={{ color: palette.secondaryLabel }}>도감 새로고침이 끝나야 등록 확인을 열 수 있어요. 새로고침 후 다시 확인해 주세요.</Text> : null}
         {rerollResultId ? <Pressable accessibilityRole="button" disabled={experience.saving} onPress={() => {
           void experience.save({ coinSource: { sourceKind: 'REROLL', sourceId: rerollResultId } }).then((saved) => {
@@ -388,6 +441,9 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
       </Pressable> : null}
     </> : null}
   </SkyScrollView>
+    {coinDetail ? <CollectibleDetail key={`${coinDetail.publicationId}:${coinDetail.gradeId}`}
+      entitlementId={`${coinDetail.publicationId}:${coinDetail.gradeId}`} merchantId={coinDetail.merchantId}
+      merchantName={coinDetail.merchantName} load={loadCoinDetail} onClose={() => setCoinDetail(undefined)} onUnavailable={() => void load()} /> : null}
     {rerollResult ? <FullScreenModal visible={registrationOpen} animationType={motionEnabled ? 'slide' : 'none'} onRequestClose={() => { if (rerollReceiptId) setSettledRegistrationReceiptId(rerollReceiptId); setRegistrationOpen(false); }}>
       <View style={[styles.modalRoot, { backgroundColor: palette.background, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
         <ScrollView contentContainerStyle={styles.modalContent}>

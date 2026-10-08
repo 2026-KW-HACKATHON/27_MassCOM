@@ -84,7 +84,8 @@ export function respondWithError(response: ServerResponse, error: unknown): void
   if (error instanceof CoinEconomyError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
       : error.code === 'COIN_TICKET_NOT_FOUND' || error.code === 'COIN_REROLL_TICKET_NOT_FOUND'
-        || error.code === 'COIN_REROLL_SOURCE_NOT_FOUND' ? 404 : 409, { code: error.code }); return;
+        || error.code === 'COIN_REROLL_SOURCE_NOT_FOUND' || error.code === 'COIN_OWNED_DETAIL_NOT_FOUND'
+        ? 404 : 409, { code: error.code }); return;
   }
   if (error instanceof GradeDrawError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
@@ -325,7 +326,7 @@ function statusForFriend(code: string): number {
 
 function statusForMerchantArt(code: string): number {
   if (code === 'AI_ART_ROUND_NOT_FOUND') return 404;
-  if (code === 'AI_ART_DAILY_LIMIT') return 429;
+  if (code === 'AI_ART_DAILY_LIMIT' || code === 'AI_ART_ACCOUNT_DAILY_LIMIT' || code === 'AI_ART_COOLDOWN') return 429;
   if (code === 'AI_ART_TRIAL_DISABLED') return 403;
   if (code === 'AI_ART_NOT_CONFIGURED' || code === 'AI_ART_BUDGET_EXHAUSTED') return 503;
   if (code === 'ACCOUNT_DELETED') return 410;

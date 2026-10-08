@@ -74,7 +74,7 @@ test('course terms and steps stay guarded at the database boundary', async t => 
   }
 });
 
-test('the final migration accepts all 21 platform audit actions', async t => {
+test('the final migration accepts all 23 platform audit actions', async t => {
   const pool = new Pool({ connectionString });
   t.after(() => pool.end());
   await runMigrations(pool);
@@ -89,10 +89,10 @@ test('the final migration accepts all 21 platform audit actions', async t => {
       'ACCOUNT_DELETION_PROCESSED', 'ACCOUNT_DELETION_REJECTED', 'ACCOUNT_DELETION_RECONCILED',
       'MERCHANT_PUBLISHED', 'MERCHANT_OWNER_GRANTED', 'MERCHANT_OWNER_REVOKED',
       'REWARD_OFFER_CREATED', 'REWARD_OFFER_PAUSED', 'CAMPAIGN_PUBLISHED', 'CAMPAIGN_PAUSED',
-      'CAMPAIGN_EXTENDED', 'CAMPAIGN_PURPOSE_SET',
+      'CAMPAIGN_EXTENDED', 'CAMPAIGN_PURPOSE_SET', 'CAMPAIGN_BENEFIT_CREATED', 'CAMPAIGN_BENEFIT_PAUSED',
       'COURSE_CREATED', 'COURSE_CHECKED', 'COURSE_PUBLISHED', 'COURSE_PAUSED',
     ];
-    assert.equal(new Set(actions).size, 21);
+    assert.equal(new Set(actions).size, 23);
     for (const action of actions) {
       const accountDeletion = action.startsWith('ACCOUNT_DELETION_');
       const owner = action.startsWith('MERCHANT_OWNER_');
@@ -102,7 +102,7 @@ test('the final migration accepts all 21 platform audit actions', async t => {
         owner ? 'merchant-owner' : null]);
     }
     assert.equal((await client.query('SELECT count(*)::int AS count FROM platform_admin_audit WHERE actor_account_id=$1',
-      ['audit-actor'])).rows[0]?.count, 21);
+      ['audit-actor'])).rows[0]?.count, 23);
   } finally {
     await client.query('ROLLBACK');
     client.release();

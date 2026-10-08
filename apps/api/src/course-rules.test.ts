@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import {
   buildCheckSummary, CourseError, courseChipText, courseReasonText, courseUserState, evaluateSteps, parseCourseDraft,
   parseSuggestedHour, publishBlockers, straightLineMeters, summarizeProgress,
-  type CourseMerchantFact, type StepEntitlement,
+  type CountedCourseVisit, type CourseMerchantFact,
 } from './course-rules.js';
 
 const draft = () => ({
@@ -89,9 +89,8 @@ test('suggested hour is an hour of the day or absent', () => {
   for (const value of [24, -1, 1.5, '13']) assert.throws(() => parseSuggestedHour(value), CourseError);
 });
 
-const entitlement = (merchantId: string, targetVisitCount: number, earnedAt: string, extra: Partial<StepEntitlement> = {}): StepEntitlement => ({
-  entitlementId: `e-${merchantId}-${targetVisitCount}-${earnedAt}`, merchantId, targetVisitCount, earnedAt: new Date(earnedAt),
-  status: 'GRANTED', ...extra,
+const visit = (merchantId: string, occurredAt: string, suffix = ''): CountedCourseVisit => ({
+  courseId: 'course-1', visitEventId: `v-${merchantId}-${occurredAt}${suffix}`, merchantId, occurredAt: new Date(occurredAt),
 });
 const steps = [
   { position: 1, merchantId: 'm-bowl', targetVisitCount: 1 },
@@ -99,49 +98,35 @@ const steps = [
   { position: 3, merchantId: 'm-bag', targetVisitCount: 1 },
 ];
 
-test('a step is done by a non-cancelled entitlement for that store and that goal, not by anything else', () => {
+test('a step completes only after its own store reaches the in-window visit count', () => {
   const progress = evaluateSteps(steps, [
-    entitlement('m-bowl', 1, '2026-10-01T00:00:00Z'),
-    entitlement('m-cup', 1, '2026-10-01T00:00:00Z'),
-    entitlement('m-bag', 1, '2026-10-02T00:00:00Z', { status: 'CANCELED' }),
-  ], null);
+    visit('m-bowl', '2026-10-01T00:00:00Z'), visit('m-cup', '2026-10-01T00:00:00Z'),
+  ], new Date('2026-10-01T00:00:00Z'), new Date('2026-10-10T00:00:00Z'));
   assert.deepEqual(progress.map(step => step.done), [true, false, false]);
-  assert.equal(progress[0]!.entitlementId, 'e-m-bowl-1-2026-10-01T00:00:00Z');
+  assert.equal(progress[0]!.visitEventIds[0], 'v-m-bowl-2026-10-01T00:00:00Z');
+  assert.equal(progress[1]!.visitCount, 1);
   assert.deepEqual(summarizeProgress(progress), { done: 1, total: 3, complete: false, nextPosition: 2 });
 });
 
-test('every non-cancelled status counts, including mint states, because the right was earned', () => {
-  for (const status of ['GRANTED', 'MINT_REQUESTED', 'FULFILLED']) {
-    assert.equal(evaluateSteps([steps[0]!], [entitlement('m-bowl', 1, '2026-10-01T00:00:00Z', { status })], null)[0]!.done, true, status);
-  }
-});
-
-test('a reversal that cancels the entitlement un-completes the step (the list no longer carries it as live)', () => {
-  const live = [entitlement('m-bowl', 1, '2026-10-01T00:00:00Z'), entitlement('m-cup', 3, '2026-10-02T00:00:00Z'),
-    entitlement('m-bag', 1, '2026-10-03T00:00:00Z')];
-  assert.equal(summarizeProgress(evaluateSteps(steps, live, null)).complete, true);
-  const reversed = live.map(item => item.merchantId === 'm-cup' ? { ...item, status: 'CANCELED' } : item);
-  assert.deepEqual(summarizeProgress(evaluateSteps(steps, reversed, null)), { done: 2, total: 3, complete: false, nextPosition: 2 });
-});
-
-test('counts_from keeps older entitlements out and counts the boundary instant; null counts everything', () => {
-  const entitlements = [entitlement('m-bowl', 1, '2026-10-01T00:00:00Z')];
-  assert.equal(evaluateSteps([steps[0]!], entitlements, null)[0]!.done, true);
-  assert.equal(evaluateSteps([steps[0]!], entitlements, new Date('2026-10-01T00:00:01Z'))[0]!.done, false);
-  assert.equal(evaluateSteps([steps[0]!], entitlements, new Date('2026-10-01T00:00:00Z'))[0]!.done, true);
-  assert.equal(evaluateSteps([steps[0]!], entitlements, new Date('2026-09-30T00:00:00Z'))[0]!.done, true);
-});
-
-test('when a store has several qualifying entitlements the earliest is the evidence', () => {
-  const progress = evaluateSteps([steps[0]!], [entitlement('m-bowl', 1, '2026-10-05T00:00:00Z'), entitlement('m-bowl', 1, '2026-10-02T00:00:00Z')], null);
-  assert.equal(progress[0]!.earnedAt, '2026-10-02T00:00:00.000Z');
+test('past visits cannot finish a 3-visit step, and the end instant is excluded', () => {
+  const visits = [visit('m-cup', '2026-09-29T00:00:00Z'), visit('m-cup', '2026-09-30T00:00:00Z'),
+    visit('m-cup', '2026-10-01T00:00:00Z'), visit('m-cup', '2026-10-10T00:00:00Z')];
+  assert.equal(evaluateSteps([steps[1]!], visits, new Date('2026-10-01T00:00:00Z'),
+    new Date('2026-10-10T00:00:00Z'))[0]!.done, false);
+  const complete = evaluateSteps([steps[1]!], [...visits, visit('m-cup', '2026-10-02T00:00:00Z'),
+    visit('m-cup', '2026-10-03T00:00:00Z')], new Date('2026-10-01T00:00:00Z'),
+    new Date('2026-10-10T00:00:00Z'))[0]!;
+  assert.equal(complete.done, true);
+  assert.equal(complete.earnedAt, '2026-10-03T00:00:00.000Z');
+  assert.equal(complete.visitEventIds.length, 3);
 });
 
 test('user state: unlocked but missing a step is STALE, otherwise it follows progress', () => {
-  const none = summarizeProgress(evaluateSteps(steps, [], null));
-  const some = summarizeProgress(evaluateSteps(steps, [entitlement('m-bowl', 1, '2026-10-01T00:00:00Z')], null));
-  const all = summarizeProgress(evaluateSteps(steps, [entitlement('m-bowl', 1, '2026-10-01T00:00:00Z'),
-    entitlement('m-cup', 3, '2026-10-01T00:00:00Z'), entitlement('m-bag', 1, '2026-10-01T00:00:00Z')], null));
+  const none = summarizeProgress(evaluateSteps(steps, [], null, null));
+  const some = summarizeProgress(evaluateSteps(steps, [visit('m-bowl', '2026-10-01T00:00:00Z')], null, null));
+  const all = summarizeProgress(evaluateSteps(steps, [visit('m-bowl', '2026-10-01T00:00:00Z'),
+    visit('m-cup', '2026-10-01T00:00:00Z'), visit('m-cup', '2026-10-02T00:00:00Z'),
+    visit('m-cup', '2026-10-03T00:00:00Z'), visit('m-bag', '2026-10-01T00:00:00Z')], null, null));
   assert.equal(courseUserState(none, false), 'NOT_STARTED');
   assert.equal(courseUserState(some, false), 'IN_PROGRESS');
   assert.equal(courseUserState(all, false), 'READY');
@@ -249,7 +234,9 @@ const NOW = new Date('2026-10-09T03:00:00Z');
 const okSummary = summarize([fact(1), fact(2)]);
 const failSummary = summarize([fact(1), fact(2, { demo: true })]);
 const publishable = {
-  status: 'DRAFT' as const, stepCount: 2, stepsWithoutOptin: 0, endsAt: null, checkedAt: new Date('2026-10-09T02:30:00Z'),
+  status: 'DRAFT' as const, stepCount: 2, stepsWithoutOptin: 0,
+  startsAt: new Date('2026-10-01T00:00:00Z'), endsAt: new Date('2026-11-30T00:00:00Z'),
+  countsFrom: new Date('2026-10-01T00:00:00Z'), checkedAt: new Date('2026-10-09T02:30:00Z'),
   stored: okSummary, live: okSummary, now: NOW,
 };
 
@@ -267,6 +254,9 @@ test('each missing precondition is reported', () => {
   assert.deepEqual(publishBlockers({ ...publishable, stepCount: 1 }), ['COURSE_STEP_COUNT']);
   assert.deepEqual(publishBlockers({ ...publishable, stepCount: 5 }), ['COURSE_STEP_COUNT']);
   assert.deepEqual(publishBlockers({ ...publishable, stepsWithoutOptin: 1 }), ['COURSE_OPTIN_MISSING']);
+  assert.deepEqual(publishBlockers({ ...publishable, startsAt: null }), ['COURSE_WINDOW_MISSING']);
+  assert.deepEqual(publishBlockers({ ...publishable, countsFrom: null }), ['COURSE_COUNT_WINDOW']);
+  assert.deepEqual(publishBlockers({ ...publishable, countsFrom: new Date('2026-09-30T23:59:59Z') }), ['COURSE_COUNT_WINDOW']);
   assert.deepEqual(publishBlockers({ ...publishable, endsAt: new Date('2026-10-09T03:00:00Z') }), ['COURSE_WINDOW_ENDED']);
   assert.deepEqual(publishBlockers({ ...publishable, checkedAt: null, stored: null }), ['COURSE_CHECK_MISSING']);
 });

@@ -822,9 +822,9 @@ export function ClaimRedeemScreen({
               onPress={() => router.navigate({ pathname: '/courses/[courseId]', params: { courseId: nextCourse.course.id } })}
               style={styles.textLink}><Text style={styles.textLinkText}>{courseChipText(nextCourse.course)} · 단계 보기 →</Text></Pressable> : null}
             {courseReadError === redeemed.claimSlotId ? <View>
-              <Text style={styles.successBody}>코스 진행을 확인하지 못했어요. 방문 완료 기록은 그대로예요.</Text>
+              <Text style={styles.successBody}>연합 미션 진행을 확인하지 못했어요. 방문 완료 기록은 그대로예요.</Text>
               <Pressable accessibilityRole="button" onPress={() => setCourseRetry((value) => value + 1)} style={styles.textLink}>
-                <Text style={styles.textLinkText}>코스 다시 불러오기</Text>
+                <Text style={styles.textLinkText}>연합 미션 다시 불러오기</Text>
               </Pressable>
             </View> : null}
             {campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'error' ? <View>

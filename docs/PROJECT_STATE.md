@@ -1,3 +1,5 @@
+현재 자동 시험 합계(2026-10-09 KST, main `97d351bd`을 병합한 `fix/ai-image-gap-fixes`, 최종 통합 `2cc31120` 기준): API 단위 677/677 · 모바일 2246/2246. 사이트495/495, PostgreSQL 고유603건(전체600 PASS/3 SKIP 후 해당3건 독립 PASS), 타입·빌드·lint 경고0·게이트 PASS. 필수36개 시험 ID는31 PASS / 2 BLOCKED / 3 NOT_RUN이며 실기기·유료 생성·새 소스 배포 검증을 대신하지 않습니다.
+
 # 프로젝트 상태
 
 ## 2026-10-09 PR #440 리뷰 지적9건 수정 (미커밋·미배포)
@@ -74,36 +76,12 @@ HEAD `04f9ea2a` 후속 리뷰 수정 6건은 파일로 반영했다. ENDED/PAUSE
 
 앞선 `feat/collectible-reeded-edge`의 HEAD `9a433fee`에서 main `a1a3eef3`를 병합한 당시 기록이다. PR #429의 회전·움직임 분리·Flame 오라·reeded edge와 main의 T3 혜택·T4 코스·T8 공공자료 시연 점포를 보존한다. 공공자료 점포명이 보이는 상세 화면의 고지와 접근성 이름을 함께 유지한다. Git index는 의도대로 미병합 상태다. 모바일 typecheck·lint·동일 glob 대체 단위 2148/2148, 대상 32/32, 운영 제출 준비·CI 연결 103개 파일·접근성은 PASS다. `npm test`는 tsx IPC `EPERM`으로 BLOCKED이고 운영·시연 배포 및 실제 설치본 수용은 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). 당시 전체 합계 자리표시자는 유지했다. 현재 T9와 main `8aa8b724` 병합의 전체 합계는 오케스트레이터가 확정한다.
 
-## 2026-10-09 앞선 T3 혜택·T4 코스·T8 시연 점포 통합 (Issue #412, 배포하지 않음)
 
-앞선 `integ/t3b-t4-t8`의 HEAD `ac285339`에서 T3 혜택·T4 코스·T8 시연 점포를 보존하고, PR #418·#424·#426 반영 main `a8ed0dd1`을 병합한 당시 기록이다. migration 적용 순서는 0068 → 0069 → 0072 → 0075이며, 0072 감사 CHECK는 T3 혜택 action을 유지해야 한다. 코드·문서 충돌은 작업 트리 파일에서 해결했고 Git index는 미병합 상태다. API typecheck, 모바일 typecheck·lint·대체 단위 2132/2132, 대상 26/26, 운영 제출 준비·CI 연결·접근성은 PASS다. 지정 사이트 선택 350건 중 344 PASS / 6 소켓 환경 BLOCKED이고, `npm test`는 tsx IPC `EPERM`으로 BLOCKED다([TEST_STATUS](TEST_STATUS.md)). 당시 전체 합계 자리표시자는 그대로 뒀다. 운영·시연 배포와 실제 설치본 수용은 그 통합으로 확인되지 않았다.
+## 2026-10-09 최신 통합 main 기준 (HEAD `9545b503`, main `b37063c0`)
 
-PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
+API 단위 677/677, 모바일 2220/2220, 사이트 493/493 PASS. API·모바일 typecheck/build와 모바일 lint(경고 0)도 PASS했다. PostgreSQL은 fresh schema 75/75에서 603개 중 600 PASS·3 SKIP이며, SKIP 3개를 fresh host-seed DB에서 각 1/1로 별도 통과시켰다. 이를 단일 603/603 실행으로 합쳐 표기하지 않는다. 통합 독립 리뷰는 7개 핵심 경로와 19개 UI 대상을 APPROVE했다.
 
-## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8, D-100)
-
-브랜치 `feat/showcase-wolgye-stores`의 시연 seed는 기존 가상 점포 A/B/C에 월계1·2·3동의 실제 상가정보 기반 점포 30곳을 더해 총 33곳을 구성한다. 공공 원본 487곳 중 월계역에서 가까운 순으로 선정했으며, 구내식당·유흥주점 제외, 중분류별 최대 6곳, 상호 중복 제거를 적용했다. 30곳의 분포는 중분류별 6/6/6/5/3/2/2곳이고 거리는 약 28–823m다. 이 값은 실제 MassCOM 참여를 뜻하지 않는다. 상세 `merchant.story`에는 [D-100](DECISIONS.md)의 고정 고지를 두고, 확인되지 않은 영업시간·메뉴·가격·소개는 비워 둔다. 원본은 2026-06-30 기준 소상공인시장진흥공단 상가(상권)정보이며 영업 여부 확인과 LOCALDATA 교차 확인은 하지 않았다.
-
-`is_demo = true`와 `showcase-wolgye-<SEMAS id>`로 식별하며, 기존 showcase DB 이름 가드가 있는 공통 로컬·hosted seed 트랜잭션에서 캠페인·공개 코인까지 만든다. A/B/C의 seed·스태프 권한·코스는 그대로다. 운영은 `is_demo` 점포를 제외한다. 앱 목록은 거리순(거리 미상은 뒤)이며 기존 필터를 유지한다. 화면 요청 크기 40 안에 33곳이 들어가며 `/play/`도 같은 API를 사용한다. 새 데이터와 코드는 미배포 상태다. 원본 충돌은 seed가 조용히 덮어쓰지 않고 트랜잭션 롤백한다.
-
-갱신은 현재 2026-06-30 날짜만 허용하는 selector guard, attribution, 상세의 날짜 고지를 새 자료에 맞게 함께 검토한 뒤 진행한다. 검토한 전체 JSON을 인자로 `node scripts/build-showcase-wolgye-stores.mjs <full JSON>`을 실행하고 빠진/추가된 상호와 ID별 변경 메타데이터를 확인한다. 선택 스크립트는 기존 seed를 자동 교체하지 않으며 기존 ID의 정규 데이터가 달라지면 seed가 덮어쓰지 않고 트랜잭션을 롤백한다. 스냅샷의 영업 여부 미확인도 유지한다([D-100](DECISIONS.md)).
-
-T8 월계동 공공 상가정보 시연 점포 측정 기록(2026-10-09 KST, `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`): API 단위 615/615 · PostgreSQL 549건 중 546 PASS / 0 FAIL / 3 SKIP · 모바일 2105/2105 (PASS). SKIP 대상 hosted 전용 시험 3건은 전용 disposable runner에서 3/3 PASS. CI wiring·접근성·웹 export·문서 검사와 전체 gate PASS. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`(자세한 내용은 `docs/TEST_STATUS.md`). 이전 기준선·브랜치별 로컬 검증 수치는 `docs/HANDOFF_HISTORY.md`에 보존했습니다.
-
-## 2026-10-09 캠페인 혜택과 추가 원가 상한 (Issue #412 T3 PR 2, 배포 동결)
-
-기준 main `055d0523`(T3 PR 1, PR #425 병합) 위의 `feat/campaign-benefits` 작업이다. 예약 번호 migration `0069_campaign_benefits.sql`과 [D-094](DECISIONS.md)를 사용했다. D-093·다른 브랜치의 0068·0072는 손대지 않았다.
-
-- 관리자 동의 다섯 항목·문서 참조로 혜택을 만들고 중지한다. 단일 원가 집계 질의는 중지된 과거 혜택도 반환해 새 혜택 생성 뒤 이전 약속을 숨기지 않는다. 고객은 별도 수령 경로와 기존 쿠폰/QR 모양을 사용하고 비용 금액을 받지 않는다.
-- 목적별 적격·KST 다음 사용 시작·상한 조건부 증가·재전송·방문 취소의 무효화/상한 반환·직원 조회/사용·10분 되돌리기·삭제 가명화를 연결했다. 방문 확정 거래는 그대로다. 상한과 중지는 기존 쿠폰을 취소하지 않는다.
-- 단순화: 기존 동의 정규화·쿠폰 UI·직원 조회·계정 수명주기/권한 검사를 재사용하고, 새 의존성과 방문 거래의 보상 발급을 추가하지 않았다. API unit 625/625, PostgreSQL 557건 중 554 pass / 0 fail / 3 skip, 모바일 2098/2098, 사이트 584/584(Chrome 1건 BLOCKED)다. typecheck·API build·모바일 lint와 자세한 gate 결과는 [TEST_STATUS](TEST_STATUS.md) 맨 위가 정본이다.
-
-운영 API·DB·웹·Android와 시연 API·DB·웹·Android는 배포/설치하지 않았다(소유자 결정 A). 공통 고객 코드가 두 variant에 적용되지만 실제 둘의 기기 수용은 각각 NOT_RUN이다. 결과 카드·설문·파일럿 설정/안내물은 T3 후속 PR 범위이며, 지정 스키마에 되돌리기 재생 원장이 없어 두 번째 undo는 COUPON_NOT_REDEEMED다.
-## Issue #412 T4 A — 가게 사이를 잇는 코스 (2026-10-08, 배포하지 않음)
-
-브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 2–4개 점포 코스의 관리자 초안·점검 스냅샷·게시·중지, 보상권 기반 고객 진행·장면 열기, 추천 우선순위, 관리자 웹과 최소 모바일 목록·상세·장면을 구현했다. migration `0072_courses.sql`은 추가 전용이며 D-093을 따른다. 코스 완성은 재화·쿠폰을 지급하지 않는다. 시연 코스는 시연 DB seed에만 있고 운영 fixture는 없다. 수령·방문 보상·취소·0034 트리거를 바꾸지 않았다. 검증 결과는 [TEST_STATUS](TEST_STATUS.md)의 최상단 항목이다. Studio 배치·실제 브라우저/기기·배포는 `NOT_RUN`이다.
-
-2026-10-09 리뷰 수정: 검토 시작 HEAD `29644366`에서 관리자 4개 쓰기의 트랜잭션 안 권한 재검사, 삭제 큐레이터 ID의 제한된 복구, 고객 코스 최대 50개 배치 조회와 그림 없는 추천 힌트, 이용 불가 단계·중지/종료 장면 접근 규칙, DB 고유키·가드·감사 action, 앱 캐시 해제·구 API 호환·가게 상세 코스 칩을 보강했다. API 634/634, PG 553건 중 550 PASS·0 FAIL·기존 3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139다. 후속 커밋은 오케스트레이터가 담당한다.
+이전 `43c0cee0` 기준 브라우저 캡처는 긍정 기능 검증이다. 최신 통합 화면은 development 모드라 가상 A/B/C 점포가 보이며, hosted real-only 고객 화면의 시각적 비노출 증거가 아니다. 최신 [integration manifest와 캡처](evidence/alliance-draw-2026-10-09/integration-9545b503.json)를 따른다. real-only filtering은 integration/PG 시험으로 확인했으며 새 소스는 운영·시연에 미배포다. 운영·시연 AI 키는 기존 이미지 API에서 health 확인됐으나 실제 유료 생성은 `NOT_RUN`이다.
 
 ## 2026-10-08 점주 웹 제작기와 가상 가게 QA (PR #418, Issue #416·#417)
 

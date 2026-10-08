@@ -129,6 +129,39 @@ test('관리자 웹 코인 쓰기: 서비스 없음은 503, 제한(시간당 60�
   assert.match(String(limited.headers['retry-after']), /^\d+$/);
 });
 
+test('real-world web writes share the merchant profile account limit while GET and unauthenticated requests stay outside it', async (t) => {
+  let profiles = 0, updates = 0;
+  const realWorld = {
+    profile: async () => { profiles++; return { profile: {} }; },
+    updateProfile: async () => { updates++; return {}; },
+    resolveReport: async () => { updates++; return {}; },
+  };
+  const server = createApiServer(...positionalArgs(developmentHeaderAccountResolver, {
+    webAuth: { resolveSession: async (cookie: string) => cookie },
+    merchantAccess: { requirePermission: async () => ({}) },
+    experienceServices: { realWorld },
+  }) as Parameters<typeof createApiServer>);
+  const port = await listen(t, server);
+  const profile = '/api/web/v1/merchant/merchants/m1/real-world-profile';
+  const unauthenticated = await send(port, 'PUT', profile, { headers: {
+    host: webHeaders.host, origin: webHeaders.origin, 'content-type': webHeaders['content-type'],
+  }, body: '{}' });
+  assert.equal(unauthenticated.status, 401);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    assert.equal((await send(port, 'PUT', profile, { headers: webHeaders, body: '{}' })).status, 400);
+  }
+  const limited = await send(port, 'POST', '/api/web/v1/merchant/merchants/m1/reports/r1/resolve',
+    { headers: webHeaders, body: '{}' });
+  assert.deepEqual(result(limited), { status: 429, json: { code: 'MERCHANT_PROFILE_RATE_LIMITED' } });
+  assert.ok(Number(limited.headers['retry-after']) > 0);
+  assert.equal(updates, 0);
+  assert.equal((await send(port, 'GET', profile, { headers: webHeaders })).status, 200);
+  assert.equal(profiles, 1);
+  assert.equal((await send(port, 'PUT', profile, { headers: { ...webHeaders, cookie: 'web_session=other' }, body: '{}' })).status, 400);
+  const legacyProfile = await send(port, 'PUT', '/api/web/merchant/merchants/m1/profile', { headers: webHeaders, body: '{}' });
+  assert.deepEqual(result(legacyProfile), { status: 429, json: { code: 'MERCHANT_PROFILE_RATE_LIMITED' } });
+});
+
 // ---- 마일리지 상점 쓰기 ----
 
 function shopFixture() {

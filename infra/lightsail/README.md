@@ -83,7 +83,7 @@
 
 ## NFT 발행 Worker (프로파일 `nft-live`, D-089)
 
-`compose.yml`의 `mint-worker`는 접수된 NFT 발행 작업을 계속 처리하는 상시 실행 서비스입니다(동작은 [Worker README](../../apps/worker/README.md)의 "상시 실행(반복) 모드"). **평소 배포에서는 뜨지 않습니다.** `profiles: [nft-live]`라서 `--profile nft-live`를 붙이지 않으면 `up`, `config`, 배포 스크립트의 어떤 단계에도 나타나지 않고, 배포 스크립트는 서비스를 이름으로 지정해 올리므로 이 서비스를 건드리지 않습니다(`tests/ops/compose_worker_profile_test.mjs`가 고정). 운영 API는 프로파일과 관계없이 `NFT_MINTING_MODE: PREPARING`이라 새 발행 요청을 계속 거절합니다([D-054](../../docs/DECISIONS.md)).
+`compose.yml`의 `mint-worker`는 접수된 NFT 발행 작업을 계속 처리하는 상시 실행 서비스입니다(동작은 [Worker README](../../apps/worker/README.md)의 "상시 실행(반복) 모드"). **평소 배포에서는 뜨지 않습니다.** `profiles: [nft-live]`라서 수동 활성화 전에는 배포가 이미지를 빌드하거나 서비스를 켜지 않습니다. 이미 실행 중인 Worker가 있으면 전체 API 배포만 그 상태를 보존하며 새 릴리스로 교체합니다. 웹 전용 배포는 Worker를 건드리지 않습니다(`tests/ops/deploy_lightsail_rollback_test.sh`, `compose_worker_profile_test.mjs`). 운영 API는 프로파일과 관계없이 `NFT_MINTING_MODE: PREPARING`이라 새 발행 요청을 계속 거절합니다([D-054](../../docs/DECISIONS.md)).
 
 **켜기 전 조건(go-live, 아직 `NOT_RUN`):** [B-027](../../docs/BLOCKERS.md)의 전제(권리 만료 migration, 발행 서버·메인넷·NFT 시리즈 준비)를 거치고, 그 뒤 `NFT_MINTING_MODE`를 바꾸는 변경은 이 서비스를 켜는 일과 별개로 소유자 승인으로 합니다. 메인넷·운영 민터 키 생성은 소유자만 합니다.
 
@@ -96,9 +96,10 @@
 **켜고 끄기(go-live 때, 배포 스크립트와 별개의 수동 절차):**
 
 ```bash
-# 켜기: 현재 릴리스의 compose 파일 경로를 쓴다(위 "서버에서 바로 켜려면"과 같은 방식).
-docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live build mint-worker
-docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live up -d --no-deps mint-worker
+# 켜기: 현재 릴리스의 compose 파일 경로와 배포 커밋의 Worker 이미지 태그를 함께 쓴다.
+worker_tag="$(cut -c1-12 /opt/masscom/DEPLOYED_COMMIT)"
+MASSCOM_WORKER_IMAGE_TAG="$worker_tag" docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live build mint-worker
+MASSCOM_WORKER_IMAGE_TAG="$worker_tag" docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live up -d --no-deps mint-worker
 docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live ps mint-worker   # healthy 확인
 docker logs --tail 50 masscom-mint-worker-1                                                                                # MINT_WORKER_LOOP_STARTED
 
@@ -106,8 +107,4 @@ docker logs --tail 50 masscom-mint-worker-1                                     
 docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live stop mint-worker
 ```
 
-**go-live 전제 조건(후속, 켜기 전에 반드시 먼저):** `scripts/deploy-lightsail.sh`는 `mint-worker`를 건드리지 않으므로(이 PR은 동작을 바꾸지 않았습니다) 켜 둔 Worker가 있으면 다음 두 가지가 비어 있습니다.
-- **migration 전에 `mint-worker`를 멈춥니다.** 배포가 `migrate`를 돌리는 동안 이전 스키마를 기대하는 Worker가 DB를 쓰지 않도록 배포 절차에서 `--profile nft-live stop mint-worker`를 migrate 앞에 넣고, 배포가 끝난 뒤 다시 켜는 절차를 정합니다(배포 스크립트의 `no` 호환 릴리스가 API를 멈추는 것과 같은 이유).
-- **배포 때 `mint-worker` 이미지를 다시 빌드합니다.** 배포 스크립트는 `build api production-web`만 하므로 Worker 이미지(`masscom-worker:${MASSCOM_WORKER_IMAGE_TAG:-local}`)가 새 릴리스 코드와 어긋난 채 남습니다.
-
-이 둘과 이미지 태그 관리, 롤백 절차를 배포 스크립트에 넣는 일은 아직 만들지 않았습니다(후속). 컨테이너 리허설(일회용 DB·임의 키)과 자동 시험 결과는 [TEST_STATUS](../../docs/TEST_STATUS.md)에 적습니다. 실제 서버 배포와 실제 Base Sepolia·메인넷 전송은 `NOT_RUN`입니다.
+**전체 API 배포 중 처리:** `scripts/deploy-lightsail.sh`는 실행 중인 Worker의 이미지 태그와 Compose 출처를 확인합니다. 현재 API 릴리스의 단일 Compose 파일·`masscom` 프로젝트·`mint-worker` 서비스에서 실행되지 않았다면 복구 설정을 확정할 수 없어 배포 전에 거절합니다. 활성 상태일 때만 새 커밋 태그(`masscom-worker:<12자리 커밋>`)로 이미지를 빌드합니다. PostgreSQL 재생성 또는 migration 전에 Worker를 멈추고, 새 API와 웹의 건강 확인 뒤 새 Worker를 띄워 이미지와 건강 상태를 확인합니다. 호환 가능한 실패에서는 백업한 환경과 옛 API로 복귀한 뒤 기존 이미지의 Worker를 다시 켭니다. 하위 비호환 migration 이후 실패에서는 API와 Worker를 중지한 채 전진 복구를 요구합니다. 수동으로 멈춰 둔 Worker는 새로 켜지지 않습니다. 컨테이너 리허설(일회용 DB·임의 키)과 자동 시험 결과는 [TEST_STATUS](../../docs/TEST_STATUS.md)에 적습니다. 실제 서버 배포와 실제 Base Sepolia·메인넷 전송은 `NOT_RUN`입니다.

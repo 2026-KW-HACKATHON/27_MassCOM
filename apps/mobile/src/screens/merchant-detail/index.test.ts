@@ -45,7 +45,9 @@ test('campaign benefit appears only from an account-backed response and claims t
 
 test('authenticated detail adds an optional ACTIVE-course merchant chip without surfacing course failures',()=>{
   assert.match(source,/createCourseApiClient\(\{apiUrl,credential,onSessionInvalid\}\)\.list\(controller\.signal\)/);
-  assert.match(source,/merchantCourseChip\(courses,merchantId\)/);
+  assert.match(source,/merchantCourseChip\(\[course\],merchantId\)/);
   assert.match(source,/\.catch\(\(\)=>undefined\)/);
-  assert.match(source,/courseChip\?<Text style=\{ds\.courseChip\}>\{courseChip\}<\/Text>/);
+  assert.match(source,/courseChip\?<Pressable accessibilityRole="button"/);
+  assert.match(source,/pathname:'\/courses\/\[courseId\]',params:\{courseId:courseChip\.id\}/);
+  assert.match(source, /merchant\.distance\?\.meters\?\?straightLineMeters\(discoveryState\.snapshot\(\)\.origin,merchant\.position\)/);
 });

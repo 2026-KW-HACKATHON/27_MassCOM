@@ -1,4 +1,21 @@
-# 테스트 상태
+## 2026-10-09 latest integration main `b37063c0` → HEAD `9545b503`
+
+현재 자동 합계는 README·PROJECT_STATE의 동일한 줄과 일치한다: API 677/677, 모바일 2220/2220. 사이트 493/493, API·모바일 typecheck/build 및 모바일 lint(경고 0)도 PASS. 필수 36개 운영 판정은 `31 PASS / 2 BLOCKED / 3 NOT_RUN` 그대로다.
+
+- fresh PostgreSQL schema migration 75/75 PASS. 전체 통합은 603개 중 600 PASS / 0 FAIL / 3 SKIP이며, 각 SKIP은 fresh host-seed 환경에서 별도로 1/1 PASS했다. 근거는 600+별도3이며 단일 603 PASS라 표기하지 않는다.
+- 최신 독립 merge review는 핵심 7개 경로와 UI 대상 19개 모두 APPROVE.
+- 이전 HEAD `43c0cee0` 기준의 [기능 캡처](evidence/alliance-draw-2026-10-09/README.md)는 일반 상자·공유 재고·재뽑기·보유 상세·7일권 만료·가상 A/B/C 시연 코스·AI 잔여량 표시를 확인한 긍정 검증이다. main `b37063c0` 병합 후 최신 [development 캡처·manifest](evidence/alliance-draw-2026-10-09/integration-9545b503.json)는 개발 화면이므로 가상 A/B/C가 보인다. 이를 hosted real-only 화면의 시각적 비노출 근거로 쓰지 않는다. real-only filtering은 integration 시험으로 검증했다.
+- 유료 OpenAI 생성·Android 실기·신규 source의 운영/시연 배포는 `NOT_RUN`. 두 기존 서버의 키 설정과 health 확인은 [별도 증거](evidence/openai-ai-art-enable-2026-10-09.json)다.
+
+## 2026-10-09 통합 기능 구현·검증 (HEAD `43c0cee0`, 신규 소스 미배포)
+
+현재 자동 합계는 README·PROJECT_STATE 첫 줄과 동일하다: API 675/675, 모바일 2163/2163, 사이트 493/493. API·모바일 typecheck/build와 모바일 lint 통과(lint warning 0개). 필수 36개 운영 상태는 `31 PASS / 2 BLOCKED / 3 NOT_RUN`으로 유지했다.
+
+- 전체 PostgreSQL 통합: 64개 시험 파일, 600건 중 597 PASS / 0 FAIL / 3 SKIP. 세 SKIP은 55435 hosted-showcase seed 컨테이너가 필요한 기존 시험이며, 세 항목 모두 fresh host-seed DB에서 각각 별도 재실행해 1/1 PASS했다. 따라서 전체 고유 시험에 실패는 없지만 한 번의 runner 결과를 600/600 PASS로 표현하지 않는다. 로그: `.tmp/hostseed-host-seed-existing`, `host-seed`, `store-collectibles-43c0cee0.log`.
+- 기능 격리 PostgreSQL: 공유 풀 11/11, 일반 상자 15/15, 연합 코스 24/24, AI 계정 쿼터 71건 PASS. AI 제한 P2 독립 리뷰 APPROVE; 완료 최종 행이 새 계정 한도에 소급 적용되지 않는 점은 WATCH다.
+- 로컬 브라우저의 실제 local API·PostgreSQL: 골드 상자 400P 소모·80P 마일리지 결과, 공유 점포 B에서 브론즈 1회 후 전체 99개 잔여 표시, 7일 미사용권 만료 표시 확인. 재뽑기와 연합 미션 흐름의 최종 캡처는 아직 진행 중이다.
+- 신규 API·migration·앱 소스는 운영·시연에 미배포. 실제 Android 기기와 유료 OpenAI 생성은 `NOT_RUN`. 서버 키 연결과 기존 이미지 health 확인은 별도 운영 증거([OpenAI 설정](evidence/openai-ai-art-enable-2026-10-09.json))에 기록한다.
+
 
 ## 2026-10-09 지갑·지도 설정 복구 (Issue #447)
 
@@ -475,106 +492,16 @@ Git add·commit·stash·merge·rebase·push는 실행하지 않았다. 파일의
 | PostgreSQL·Anvil 통합, 운영·시연 배포·설치본 | 오케스트레이터 범위 | NOT_RUN |
 
 새 회귀를 고치기 전 대상 시험은 2개 실패했다(영구 오류 코드가 interface mismatch, gas estimate가 retryable RPC 오류). 수정 뒤 기존 단언을 유지한 채 통과했다. 롤백 SQL은 옛 `integer` 열을 `numeric(20,0)`으로 넓힌 뒤 NULL을 uint64 최댓값으로 채우고 NOT NULL을 복구한다. 실제 DB 실행은 이 세션에서 하지 않았다.
-## 2026-10-09 캠페인 혜택·추가 원가 상한 (Issue #412 T3 PR 2, 배포하지 않음)
+## 2026-10-09 T4·T3 병합 충돌 해결 (Issue #412, 배포하지 않음)
 
-환경: macOS/zsh, worktree `.worktrees/t3-benefits`, 브랜치 `feat/campaign-benefits`, 기준 main `055d0523`(PR #425로 목적형 캠페인 PR 1 병합). 아래 숫자는 이 작업의 실제 실행 결과다. 데이터베이스 URL은 제공된 비공개 파일에서 환경 변수로만 읽었고 출력하지 않았다. 최종 0069의 DELETE guard가 실제 시험에 포함되도록 일회용 T3 `_test` DB의 새 혜택 표/함수/0069 원장만 초기화한 뒤 파일 전체를 다시 적용했다. 이전 migration은 유지했다.
+환경: macOS, `feat/cross-store-courses`에 PR #425 포함 main `055d0523` 병합 중. 파일 수정만 수행했으며 Git index의 미병합 상태는 유지했다.
 
-| 대상 | 결과 | 실제 명령·숫자·경계 |
-| --- | --- | --- |
-| API 단위·타입·빌드 | PASS | `npm run typecheck --prefix apps/api`, `npm test --prefix apps/api`, `npm run build --prefix apps/api`: 625/625, 0 fail/skip. 새 순수 규칙 2건·라우트 8건(기준 615에서 +10). `/private/tmp/t3b-api-typecheck-final.log`, `t3b-api-unit-verified.log`, `t3b-api-build.log` |
-| PostgreSQL migration | PASS | `DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate --prefix apps/api`: 최종 0069 적용. URL·비밀번호 비출력. 기존 배포 API와 기존 캠페인의 표/응답 계약 보존 |
-| PostgreSQL 통합 | PASS | `npm run test:postgres --prefix apps/api`(`--test-concurrency=1`): 557건 중 554 pass / 0 fail / 3 skip. 기준 543에서 +14(혜택 서비스 7·수명주기 7). skip 3건은 기존의 전용 hosted seed 컨테이너 요구 시험. `/private/tmp/t3b-pg-final.log` |
-| 모바일 단위·타입·lint | PASS | `npm test --prefix apps/mobile`, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`: 2098/2098(2093에서 +5), typecheck/lint exit 0. 공통 코드 검사이며 variant 설치/실기 증거는 아니다 |
-| 사이트(Chrome 제외 전체) | PASS | 사이트 `.test.mjs`/`_test.mjs` 전체에서 `verify_showcase_theme_test.mjs`만 별도로 분리: 584/584, 0 fail/skip. 새 혜택 가짜 DOM 7건, 모듈 제공 허용 목록·기존 소스 문구 검사 포함. `/private/tmp/t3b-site-final.log`. 실제 첫 전체 실행 585건 중 583 pass/2 fail에서 새 모듈의 404는 허용 목록 수정으로 해결 |
-| 기존 Chrome 시연 테마 | BLOCKED | 전체 실행과 단독 `node --test tests/site/verify_showcase_theme_test.mjs` 모두 Chrome 시작 SIGABRT. 총 사이트 585건의 나머지 1건은 CSS 단언 전 실패이며 PASS로 세지 않는다. `/private/tmp/t3b-site-theme.log`, [환경 최소 재현](BLOCKERS.md#2026-10-09-issue-412-t3-pr-2-로컬-chrome-테마-시험) |
-| CI 연결·접근성·지갑 표면 | PASS | `bash tests/ci/ci_wiring_test.sh`(시험 파일 94개), `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh` |
-| 문서·빠른 gate | PASS(환경 지정) | `bash tests/bootstrap/verify_operations_docs_test.sh`와 `LC_ALL=C bash tools/gate.sh` exit 0. 기본 C.UTF-8 환경의 plain gate는 기존 `check-large-files.sh:91`의 `$checked개` Bash 변수 해석 오류로 종료 1(새 코드 변경 없음). 미커밋 상태여서 HEAD 기준 큰 파일 검사는 0개이며 별도 크기 검사로 모든 변경 파일이 3 MiB 이하이고 증거 바이너리 추가가 없음을 확인. `/private/tmp/t3b-operations-docs.log`, `t3b-gate.log`, `t3b-gate-c.log` |
-| 독립 소스 검토 | 지적 반영 | 별도 code-reviewer 세션이 늦은 재방문 수령의 과거 만료·중지 후 새 동의 양식·적격 필터 전 100개 제한·UUID DB500을 지적했고 수정분을 재검토해 남은 소스 지적 없음. LSP/AST 도구는 이 세션에 없었으므로 도구 검토 승인을 꾸미지 않았다. fresh typecheck/build/통합 시험과 별도 근거다 |
-| Git 커밋 | BLOCKED | 코드 staging 성공 뒤 `git commit --file /private/tmp/t3b-feature-commit-message.txt`가 shared Git `index.lock` 생성 Operation not permitted로 끝났다. 변경은 미커밋 상태로 보존했고 push/stash/rebase는 하지 않았다. 전체 파일 목록은 HANDOFF 11절 |
-| 배포·설치본·실제 입력 | NOT_RUN | 결정 A. 운영/시연 모두 변경 배포 안 함. 관리자/점주 실제 브라우저 입력, 고객/직원 휴대전화 종단 흐름, 두 variant 설치·TalkBack, screenshot 비교는 실행 안 함 |
+- `bash tests/bootstrap/operations_submission_readiness_test.sh`: PASS(추가 migration 27개·전체 70개).
+- `bash tests/ci/ci_wiring_test.sh`: PASS(시험 파일 94개 모두 연결).
+- `cd apps/api && npm run typecheck`: PASS(exit 0).
+- 양쪽 날짜별 기록·감사 단언 보존, README·PROJECT_STATE 합계 줄 동일, HANDOFF 14절, 텍스트 충돌 표시 없음, `git diff --check`: PASS.
+- API·모바일 단위 시험과 PostgreSQL 통합 실행·실기·배포: NOT_RUN. 합계 통합 재측정 대기는 오케스트레이터가 채운다.
 
-새 PG 시험은 5명 대 상한 2·동일 계정 첫 수령 8개(1발급/7재생)·실제 잠금 대기를 확인한 점포 숨김/발급 중지 경합·이미 발급한 쿠폰의 상한 후 사용·실제 수령→방문 취소→새 방문→재수령·수령/취소 경합·되돌리기 10분 창·조기 사용·만료·직원 본인 사용·카운터와 비무효 행 수 일치·고객/사용/무효 처리자 삭제 가명화·실제 원가/만료 fixture·늦은 재방문 수령·terms UPDATE/DELETE guard·과거 중지 혜택 비용 보존을 확인한다. bigint 경로와 KST 적격·금액 있는 동의 안내는 순수 규칙 시험, 고객 비용 비노출은 직렬화/소스/파서 시험으로 확인한다. 기존 캠페인/방문 회귀는 전체 PG 시험에 포함됐다.
-
-**바꾼 기존 단언과 이유.**
-
-| 파일 | 바뀐 단언·이유 |
-| --- | --- |
-| `apps/api/src/admin-store-go-live.postgres.integration.ts` | 감사 CHECK 개수 17→19, 두 혜택 action 허용 단언·시험명: 새 migration이 이전 17개를 보존하고 두 개만 더함 |
-| `apps/api/src/migrate.test.ts` | 기존 SET LOCAL 5초 검사 목록·시험명에 0069 추가: 새 SQL도 운영 잠금 대기를 제한해야 함 |
-| `apps/mobile/src/screens/merchant-detail/index.test.ts` | focus cleanup의 정확한 소스 단언에 `setBenefitBusy(false)` 추가: 화면을 떠날 때 수령 버튼도 풀림 |
-| `apps/mobile/src/screens/play/play-content.test.ts` | "일곱 번째를 버리고 첫 여섯 개" 단언을 고정 날짜의 여섯 실제/서로 다른 점포 단언으로 변경: 제품은 KST 날짜별 회전이며 10월 9일 전환 때 기존 기대가 실패함. 제품 로직은 바꾸지 않음 |
-| `tests/site/merchant-copy-no-newcomer.test.mjs` | 기존 소스 검사 목록/필수 대상에 새 API·웹·모바일 혜택 파일을 추가: 앱 기록을 생애 처음 방문으로 과장하지 않는 문구 계약을 동일하게 적용 |
-
-단순화: 기존 동의·권한·쿠폰·QR·거래 패턴 재사용, 새 의존성 없음, 방문 확정 거래 변경 없음. 남은 위험/후속: 실제 설치본·현장 수용, Chrome 환경 재검증, 지정 스키마에 없는 undo 재생 감사(두 번째 요청은 COUPON_NOT_REDEEMED), T3 PR 3 결과/설문과 PR 4 파일럿 안내물.
-
-## 2026-10-09 코스 리뷰 지적 수정 (Issue #412 T4 A, 배포하지 않음)
-
-환경: macOS Codex App sandbox, 브랜치 `feat/cross-store-courses`, 검토 시작 HEAD `29644366`(기준 main `8841efea` 위 4개 커밋). 후속 커밋은 오케스트레이터가 담당하며 이 세션은 Git 쓰기를 실행하지 않는다. 변경된 미배포 0072를 반영하려고 제공된 전용 테스트 DB의 public schema만 재생성한 뒤 filename 순으로 migration을 적용했다. 연결 URL은 출력하지 않았다.
-
-| 대상 | 결과 | 명령·증거 |
-| --- | --- | --- |
-| API 단위·typecheck | PASS | `cd apps/api && npm run typecheck && npm test`: 634/634, FAIL·SKIP 0 |
-| PostgreSQL 전체 | PASS | `cd apps/api && npm run test:postgres`: 총 553건, 550 PASS / 0 FAIL / 3 SKIP, 254.923초. 코스 22건과 DB 가드·감사 2건 포함. SKIP은 변경하지 않은 기존 disposable hosted-showcase 55435 컨테이너 조건 3건이다 |
-| 모바일 | PASS | `cd apps/mobile && npm test && npm run typecheck && npm run lint`: 2094/2094, FAIL·SKIP 0 |
-| 요청된 사이트 | PASS | `node --test tests/site/courses-admin.test.mjs tests/site/verify_production_web_test.mjs`: 139/139, FAIL·SKIP 0 |
-| CI 연결 | PASS | `bash tests/ci/ci_wiring_test.sh`: 시험 파일 92개 연결 |
-| 문서·접근성·gate | PASS | `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tools/gate.sh` 종료 0 |
-| 설치·시각 수용·배포 | NOT_RUN | 실제 기기·브라우저 코스 시각 수용과 배포는 이번 범위에서 실행하지 않았다 |
-
-기존 assertion의 기대값·거절 조건을 삭제하거나 약화하지 않았다. 기존 코스 PG freshness assertion의 서비스 fixture에 lifecycle을 공급해 새 권한 검사 이후에도 기존 freshness 조건을 시험한다. 기존 코스 PG 초안 fixture는 단계별 동의 참조를 고유하게 하고, 기존 모바일 코스 fixture에는 step state를 더했다. 기존 추천 PG fixture에는 실제 서비스가 제공하는 단계 목표와 AVAILABLE state를 더해 원래의 next-store hint assertion을 유지했다. 기존 artwork assertion은 그대로 두고 캠페인 종료 후 UNAVAILABLE·done=false 단언을 추가했다.
-
-회귀는 권한 취소·삭제 후 관리자 4개 쓰기 거절, 삭제 계정 unlock의 ACCOUNT_DELETED(기존 HTTP 410 매핑), 큐레이터 원장 복구의 상한·멱등성, 50개 목록 상한과 5개 배치 읽기, 그림 없는 3개 hint 읽기, goal-1 실제 코스 추천과 실패 fallback, 게시 후 점포·캠페인 변경, cutoff 포함 경계, DB 가드·21개 감사 action, 앱 캐시 해제·구 API 404/503·가게 코스 칩을 확인한다. 독립 code-reviewer가 조각 키 중복 입력의 DB 23505→500 가능성을 찾아 parser 거절과 시험으로 수정했다. 전체 PG와 표적 PG가 겹친 실행은 공유 fixture 충돌로 판정했다. 첫 전체 실행에서는 기존 추천 fixture에 목표가 없어 hint assertion이 실패했고, 기대값을 유지하며 실제 계약 필드를 채운 뒤 전체를 순차 재실행해 PASS했다. 최종 로그는 `/private/tmp/t4-review-api-unit-final.log`, `/private/tmp/t4-review-api-pg-final.log`, `/private/tmp/t4-mobile-test.log`, `/private/tmp/t4-review-site.log`다. README와 PROJECT_STATE의 현재 합계 줄은 동일하다.
-
-## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8, 검증 완료·미배포)
-
-브랜치 `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`. 시연 seed에 30개 공공 상가정보 점포를 추가해 기존 A/B/C와 총 33곳으로 구성한다. [D-100](DECISIONS.md)의 공개 고지·미확인 정보 제한을 적용한다. 구현·검증 결과는 다음과 같다. 서버 배포·APK 공개는 `NOT_RUN`이다.
-
-| 범위 | 결과 | 증거·경계 |
-| --- | --- | --- |
-| API unit/typecheck/build | PASS | `npm test --prefix apps/api` 615/615; `npm run typecheck --prefix apps/api`; `npm run build --prefix apps/api`. |
-| PostgreSQL 통합 | PASS | migration 적용 뒤 `npm run test:postgres`: 전체 549건 중 546 PASS / 0 FAIL / 3 SKIP, 총 실행 시간 571,422.879667 ms. SKIP 세 건은 별도 fresh Docker hosted runner에서 각각 실행해 3/3 PASS했다. 접속 URL과 비밀값은 기록하지 않는다. |
-| 모바일 시험/typecheck/lint | PASS | 최초 T8 `npm test --prefix apps/mobile` 2094/2094. 리뷰 고지 수정(HEAD `29afaf46` + 미커밋 변경): 동일 glob의 `node --import tsx --test 'src/**/*.test.ts'` 2105/2105, `npm run typecheck`, `npm run lint` PASS(`apps/mobile`에서 실행). 정확한 `npm test`는 sandbox의 tsx CLI IPC socket `listen EPERM`으로 시험 시작 전 BLOCKED; Node loader는 같은 시험 파일 전부를 실행한다. |
-| 원본 선택기·생성 데이터 | PASS | 선택기 시험 2/2; 생성 JSON 30개. 기준일이 아닌 입력과 좌표 범위 오류는 거절한다. |
-| CI·접근성·웹 체험 export | PASS | CI wiring 94개 시험 파일 연결, 모바일 accessibility semantics 검사, `/play/`이 사용하는 showcase 웹 export PASS. export 빌드는 `EXPO_NO_DOTENV=1 CI=1 MASSCOM_BUILD_SOURCE_COMMIT=055d05237a6f65cfe4b00e29ce95c26d6eb67ece`와 test-only OAuth client id `123-demo.apps.googleusercontent.com`을 사용해 uncommitted working tree를 컴파일했다. 이 빌드 출처 표식은 release provenance가 아니다. 컴파일 경로 확인이며 실제 로그인·브라우저 수용·공개 반영 증거도 아니다. |
-| 운영 문서 검사 | PASS | `bash tests/bootstrap/verify_operations_docs_test.sh`; README와 PROJECT_STATE의 현재 합계 문장 일치 검사 포함. |
-| 전체 gate | PASS | `LC_ALL=C bash tools/gate.sh` 종료 0, 모든 subgate PASS. |
-| 공개 서버·앱·웹 반영 | `NOT_RUN` | 배포·릴리스는 이 작업 범위에 없다. 기존 공개 `/play/`와 설치본이 33개를 제공한다고 주장하지 않는다. |
-
-**리뷰 차단 고지 수정(2026-10-09, HEAD `29afaf46` + 미커밋 변경).** 모바일 공통 helper는 `showcase-wolgye-` ID에만 “실제 가게 정보로 만든 시연 · 참여하지 않은 가게”를 붙인다. 탐색 목록·지도 선택/클러스터/제안 행·provider 마커 제목, 추천, 홈 첫 가게/뽑기권/방문 목표, 동네 지도 pin/overflow/callout, 코스·교체 선택·도착 행, 식사 초대 선택/상세, 시연 방문 선택/미리보기/축하, 방문 기록·도장판·친구 여권, 수집품/시리즈/상세/뒷면/봉투/공유 카드, 코인 도감·뽑기권 상점·뽑기 결과, 마이룸/친구 방/이웃 목록·공유 이미지, 놀이 가게/발견 코인, 쿠폰·사용 요약·보상 상자에 적용했다. `/play/` 웹 체험은 같은 Expo renderer를 사용한다. 명시적 접근성 이름에도 고지를 넣고 고지가 있는 가게명은 줄 수로 자르지 않는다. 가게 상세 `story`의 전체 고지, 원본 API 이름, API/schema/서버 권한·보상 규칙은 그대로다.
-
-신규 모바일 시험 11건(분류 helper와 production JSX/접근성 이름·마커/도장·공유 view model)으로 2094→2105건이다. 기존 source 단언은 가게명 helper 호출을 정확히 확인하도록 바꾸되 기존 주소·시연 표식·상태·진행·링크·줄바꿈·대비 단언을 유지했다. 친구 여권의 과거 `merchantId: null` 행은 ID가 없어 공공자료 점포를 분류할 수 없다. 실제 T8 seed ID가 있는 행은 분류된다. API/schema 변경은 하지 않았다. API/PostgreSQL/웹 export는 위 최초 T8 증거를 유지하며 이번 수정에서 다시 실행하지 않았다. 실제 Android/TalkBack/브라우저 렌더·새 웹 export·배포는 `NOT_RUN`이다. `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh` PASS; 전체 gate `LC_ALL=C bash tools/gate.sh` 종료 0 PASS(위 행 참조). 사용자 지시로 Git add/commit/stash/rebase/push를 실행하지 않았다.
-
-**변경한 기존 단언:**
-
-| 파일 | 변경 | 이유 |
-| --- | --- | --- |
-| `local-seed.postgres.integration.ts` | 가게·캠페인·목표 합계를 `3/3/9`에서 `33/33/99`로 바꾸고, 기존 A/B/C 세 곳과 Wolgye 30곳을 별도로 확인 | showcase 전체 seed가 33곳으로 확장됨 |
-| `host-seed.postgres.integration.ts` | 전체 가게·캠페인·목표를 `3/3/9`에서 `33/33/99`로 바꿈 | hosted seed도 같은 33곳을 공개함 |
-| `host-seed-existing.postgres.integration.ts` | 재시드 뒤 전체 수와 연결 공개물을 `3/3/9`·3에서 `33/33/99`·33으로 바꿈 | 기존 방문 보존 검증에 새 점포의 공개 seed도 포함 |
-| `store-collectibles.postgres.integration.ts` | 공개물·등급 행·캠페인 연결 수를 `3/3/9/3`에서 `33/33/99/33`으로 바꿈; A/B/C 그림 검증은 해당 캠페인에 한정 | 각 추가 캠페인에도 표준 코인 게시물·세 등급 스냅샷이 생김 |
-| `guest-trials.postgres.integration.ts` | 가게 목록과 추천 후보 기대값 `3`을 `33`으로 바꿈 | 새 공개 demo stores는 보이지만 숨겨진 임시 체험 점포는 계속 제외됨 |
-| `all-access.postgres.integration.ts` | fresh campaign map size `3`을 `33`으로 바꾸고 33개 전체 기간을 확인; 기존 A/B/C 3개와 Wolgye ID 30개를 별도 확인. 집계 helper는 검증된 T8 기준 `[30,30,90,30]`을 전체값에서 빼도록 바꾸고 기존 exact `3/3/9/3` 단언을 유지 | 새 캠페인 30개도 기간·집계 보호를 받되, 기존 동시성·재시드 시나리오의 A/B/C 기준 의미도 보존 |
-
-합계 assertion을 늘렸지만 기존 보존·격리 검증을 삭제하거나 약화하지 않았다. 신규 Wolgye 범위와 A/B/C 회귀 기대값을 분리했다.
-
-## 2026-10-08 가게 사이를 잇는 코스 (Issue #412 T4 A, 배포하지 않음)
-
-환경: macOS Codex App sandbox, `.worktrees/t4-courses`, 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. migration `0072_courses.sql`은 준비된 전용 PostgreSQL 16 `_test` DB에 적용했다. 연결 정보는 출력하지 않았고 DB는 오케스트레이터가 삭제한다. 결정은 D-093이다.
-
-| 대상 | 결과 | 증거·경계 |
-| --- | --- | --- |
-| API 단위 | PASS | `npm run typecheck --prefix apps/api`, `npm test --prefix apps/api`: 633/633. `npm run build --prefix apps/api` PASS. 새 순수 규칙·경로·추천·보존 시험을 포함한다 |
-| 코스 PostgreSQL 표적 시험 | PASS | `npx tsx --test --test-concurrency=1 src/course.postgres.integration.ts`: 13/13. 실제 staff 수령의 보상권 제외, 실제 방문 취소의 STALE, 동시/중복 열기 1행, 삭제, cutoff/게시 전 방문, 과거 코인 그림, ACTIVE 가드, 모집·점주 확인 위치·점검/참조·중지, 보존 row cap을 확인했다 |
-| PostgreSQL 전체 | PASS | `npm run test:postgres --prefix apps/api`: 총 541건, 538 PASS / 0 FAIL / 3 SKIP, 167.975초. skip은 별도 hosted showcase DB가 필요한 기존 3건이다. 첫 실행의 감사 union 기대값 16은 새 규칙에 맞게 21로 수정하고 5개 새 action INSERT 검증을 추가한 뒤 전체를 재실행했다 |
-| 모바일 | PASS | `npm test --prefix apps/mobile` 2086/2086, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile` exit 0. 선택 course 필드와 기존 reasonCode 거절, 코스 파서/화면, 동의 갱신·수령 후 별도 조회·재시도를 확인한다 |
-| 관련 관리자 사이트 | PASS | `node --test tests/site/courses-admin.test.mjs tests/site/commercial-admin.test.mjs tests/site/store-go-live-admin.test.mjs tests/site/nft-metadata-admin.test.mjs tests/site/verify_production_web_test.mjs` 168/168. fake DOM으로 코스 편집·점검·게시·중지를 확인한다 |
-| 전체 사이트 추가 검사 | BLOCKED | `node --test tests/site/*.test.mjs tests/site/*_test.mjs`: 566건 중 565 PASS/1 FAIL. 기존 Chrome theme 시험은 시작 직후 SIGABRT로 assertion 전 실패했고 한 파일 재실행도 같은 결과다. 관련 기대값을 낮추지 않았으며 [BLOCKERS](BLOCKERS.md)에서 환경 원인을 분리한다 |
-| CI 연결·접근성·문서·gate | PASS | `bash tests/ci/ci_wiring_test.sh`(92개 시험 파일), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tools/gate.sh` exit 0. README·PROJECT_STATE 합계 줄 동일. 기존 large-file guard의 두 한국어 인접 변수에 중괄호를 추가해 locale 의존 오류를 고쳤고 기존 `check_large_files_test.sh` PASS. 이 guard는 커밋 차이만 보므로 미커밋 파일도 별도 크기 검사로 모두 3 MiB 이하임을 확인했다 |
-| 독립 코드 리뷰 | 지적 반영 | 별도 code-reviewer 세션이 반복 시연 seed, 과거 획득 그림, 동의 갱신/조회 재시도, 실제 수령·취소 시험과 보존 복합 PK를 검토했다. 지적은 반영됐고 보호된 redeem·방문 보상·취소·0034·coin grant 파일 변경은 없다. 리뷰는 사람 수용을 대신하지 않는다 |
-| Git 기록 | 오케스트레이터 담당 | 브랜치 `feat/cross-store-courses`, 검토 시작 HEAD `29644366`(기준 main `8841efea` 위 4개 커밋). 이번 세션은 Git 쓰기를 실행하지 않으며 후속 커밋은 오케스트레이터가 담당한다. [검증 기록](evidence/t4-courses-2026-10-08.md) |
-| 설치·배포·시각 수용 | NOT_RUN | 운영/시연 서버·실제 DB·APK·Play·push를 변경하지 않았다. 실제 브라우저/기기 코스 수용과 screenshot 비교는 하지 않았다. 별도 hosted showcase DB가 필요한 3개 시험은 전체 PG의 skip으로 구분한다. Studio 장면 배치는 후속 범위다 |
-
-기존 assertion 변경은 세 가지뿐이다. `admin-store-go-live.postgres.integration.ts`의 감사 action 수 16→21(0068 호환 + COURSE_* 4개), 모바일 `merchant-art/customer-display.test.ts`의 인라인 그림 허용 목록에 파서 검증을 거친 코스 화면 추가, `ui/components.test.ts`의 RefreshControl 수 19→20(새 코스 화면). 나머지 기존 기대값은 유지했다. 원래 남아 있던 미추적 코스 입력 시험의 빈 opt-in 참조 처리는 초안 입력 계약에 맞췄다.
 
 ## 2026-10-08 제작 순서·두께48·재생 속도 (PR #418)
 
@@ -1800,3 +1727,15 @@ Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되�
 첫 export는 agent 편집 중 아직 생성되지 않은 `collectible-motion` import로 실패했고 파일 안정화 뒤 운영·시연 두 번 모두 통과했다. 최초 모바일 검사의 기존 plugin/인라인 이미지 기대값은 새 계약에 맞춰 수정하고 전체 785개를 다시 실행했다. 필수 v3 36개 제품 시험의 기존 31 PASS / 2 BLOCKED / 3 NOT_RUN은 바꾸지 않는다. Android는 완성된 재질 정면을 회전하며 웹처럼 각도마다 홀로그램·메탈릭 재질을 다시 계산하지 않는다.
 
 원격 `dd1dc050`의 [PR 전체 CI run453](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36663494995)은 모든 단계 SUCCESS다. Ubuntu/Node24.10.0·PostgreSQL16.10에서 컨테이너·Chrome·API/PG·Worker/Anvil·Android 운영/시연 번들까지 통과했다. 위 Windows의 넓은 묶음 실패는 당시 로컬 환경 기록으로 유지하며 원격 CI의 통과와 구분한다. 이후 첨부 이미지 UI 반영분은 별도 로컬/브라우저 검수와 해당 커밋의 CI가 필요하다.
+
+
+## 2026-10-09 PR #446 최종 통합 검증
+
+main `9282477d`의 수집 후 다음 행동과 `2cfcc8e8`의 병렬 CI를 `48ad22be`까지 병합했다. 최종 API677/677(이후 API 소스 변경 없음), 모바일2233/2233, 사이트495/495, 타입·빌드·lint 경고0를 확인했다. 새 PostgreSQL migration75/75와 전체600 PASS/3 SKIP 뒤 해당 호스트 시드3건을 독립된 새 DB에서 각각 통과해 고유603건의 근거를 확보했다. CI 연결에서 빠진 연합 미션 사이트 시험을 추가해105개 연결 검증과 병렬 CI 시험2/2·로컬게이트가 통과했다. API·Worker 생산 의존성 audit0, 모바일은 저장소의 기한 있는 기존 예외를 적용한 audit PASS다. GitHub CI 결과는 별도로 확인하며 아직 자동 통과를 주장하지 않는다.
+
+이전 양성 시연 캡처는8aa8b724/43c0cee0 기준이고 최신 개발 화면·시험은 [병합 검수](evidence/alliance-draw-2026-10-09/integration-9545b503.json)와 구분했다. 새 API/DB/설치본 배포·유료 이미지 생성·Android 실기기는 NOT_RUN이다.
+
+
+## 2026-10-09 우표 영상 병합 후 최종 확인
+
+PR #446 HEAD `2cc31120`은 main `97d351bd`의 우표 영상·효과음·움직임 줄이기를 기존 가중치 보상과 함께 보존했다. API/DB·사이트 소스는 직전 검증 이후 변경하지 않았다. 모바일 전체2246/2246·타입·lint 경고0 PASS, 충돌 경로 대상20/20 PASS다. API677·사이트495·PostgreSQL 고유603 근거는 그대로 유효하다. 직전 HEAD8336b185의 GitHub CI run37839448989은7/7 SUCCESS였으며, 최신 병합에 대한 CI는 별도 재실행 중이다. Android 실기 재생·청음·새 소스 배포는 NOT_RUN이다.

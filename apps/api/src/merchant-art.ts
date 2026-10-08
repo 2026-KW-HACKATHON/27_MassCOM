@@ -16,12 +16,13 @@ export type ArtRoundView = {
 export type MerchantArtState = {
   configured: boolean;
   current: { artUrl: string } | null;
-  quota: { draftRoundsLeft: number; finalsLeft: number };
+  quota: { draftRoundsLeft: number; finalsLeft: number;
+    account?: { draftRoundsLeft: number; finalsLeft: number; resetsAt: string; cooldownUntil: string | null } };
   round: ArtRoundView | null;
 };
 
 export interface MerchantArtService {
-  getState(merchantId: string): Promise<MerchantArtState>;
+  getState(merchantId: string, accountId?: string): Promise<MerchantArtState>;
   createRound(input: { merchantId: string; accountId: string }): Promise<ArtRoundView>;
   getRound(input: { merchantId: string; roundId: string }): Promise<ArtRoundView>;
   // 그림을 바꾸는 네 메서드는 accountId의 현재 멤버십·MANAGE_ART를 자기 트랜잭션 안에서 다시 확인한다(잃었으면 MerchantAccessError).
@@ -36,6 +37,8 @@ export type MerchantArtErrorCode =
   | 'AI_ART_NOT_CONFIGURED'
   | 'AI_ART_ROUND_IN_PROGRESS'
   | 'AI_ART_DAILY_LIMIT'
+  | 'AI_ART_ACCOUNT_DAILY_LIMIT'
+  | 'AI_ART_COOLDOWN'
   | 'AI_ART_BUDGET_EXHAUSTED'
   | 'AI_ART_ROUND_STATE'
   | 'AI_ART_ROUND_NOT_FOUND'

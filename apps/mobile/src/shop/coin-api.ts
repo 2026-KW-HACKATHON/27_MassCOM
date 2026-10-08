@@ -1,11 +1,13 @@
 import { headersForCredential, type AccountCredential } from '@/auth/account-credential';
 import { shouldInvalidateSession } from '@/auth/session-invalid';
+import { parsePublishedCollectible, type PublishedCollectible } from '@/commerce/collectible-artwork';
 
 export type CoinGrade = 'BRONZE' | 'SILVER' | 'GOLD' | 'PLATINUM';
-export type CoinEntry = { publicationId: string; gradeId: string; name: string; weight: number; probability: number; summary: Record<string, unknown> };
+export type CoinEntry = { publicationId: string; gradeId: string; name: string; weight: number; probability: number; remaining?: number; summary: Record<string, unknown> };
 export type CoinPool = { id: string; merchantId: string; merchantName: string; eventName: string; grade: CoinGrade; price: number;
   purchaseStartsAt: string; purchaseEndsAt: string; useExpiresAt: string; perAccountLimit: number; issuanceCap: number;
-  issuedCount: number; status: 'ACTIVE' | 'PAUSED'; unavailableReason?: 'MEDIA_REMOVED' | 'PUBLICATION_UNAVAILABLE'; entries: CoinEntry[] };
+  issuedCount: number; status: 'ACTIVE' | 'PAUSED'; unavailableReason?: 'MEDIA_REMOVED' | 'PUBLICATION_UNAVAILABLE';
+  cycle?: number; remaining?: number; entries: CoinEntry[] };
 export type CoinTicket = { id: string; poolId: string; merchantId: string; eventName: string; grade: CoinGrade;
   acquiredAt: string; expiresAt: string; status: 'UNUSED' | 'USED' | 'EXPIRED' };
 export type OwnedCoin = { publicationId: string; gradeId: string; name: string; summary: Record<string, unknown>;
@@ -14,9 +16,13 @@ export type CoinSource = { sourceKind: 'VISIT' | 'STORE_DRAW' | 'GRADE_DRAW' | '
   publicationId: string; gradeId: string; merchantId: string; nftStatus: 'NOT_REQUESTED' | 'PENDING' | 'COMPLETED'; rerollEligible: boolean };
 export type CoinCatalog = { merchantId: string; merchantName: string; types: { publicationId: string; name: string;
   grades: { publicationId: string; gradeId: string; name: string; summary: Record<string, unknown>; quantity: number; sources: CoinSource[] }[] }[] }[];
-export type CoinRerollTicket = { id: string; grade: 'NORMAL' | 'SILVER'; status: 'UNUSED' | 'USED'; acquiredAt: string };
+export type CoinRerollGrade = 'NORMAL' | 'BRONZE' | 'SILVER' | 'GOLD';
+export type CoinRerollTicket = { id: string; grade: CoinRerollGrade; status: 'UNUSED' | 'USED'; acquiredAt: string };
 export type CoinRerollOption = { poolId: string; merchantId: string; merchantName: string; eventName: string;
-  grade: 'NORMAL' | 'SILVER'; entries: { publicationId: string; gradeId: string; name: string; probability: number; weight: number }[] };
+  grade: CoinRerollGrade; oddsExpiresAt?: string;
+  entries: { publicationId: string; gradeId: string; name: string; probability: number; weight: number; remaining?: number }[] };
+export const sameRerollOption = (a: Pick<CoinRerollOption, 'poolId' | 'grade'> | undefined,
+  b: Pick<CoinRerollOption, 'poolId' | 'grade'>) => a?.poolId === b.poolId && a.grade === b.grade;
 export type CoinSeries = { id: string; title: string; merchantId: string; merchantName: string; endsAt: string;
   base: SeriesTier; prism: SeriesTier; claimable: 'BASE' | 'PRISM' | null;
   coupon: null | { id: string; tier: 'BASE' | 'PRISM'; title: string; detail: string; expiresAt: string;
@@ -27,8 +33,20 @@ export type CoinShop = { mileage: { earned: number; spent: number; balance: numb
 export type CoinCollection = { coins: OwnedCoin[]; series: CoinSeries[]; catalog: CoinCatalog;
   reroll: { tickets: CoinRerollTicket[]; sources: CoinSource[]; options: CoinRerollOption[] } };
 
-export function coinProbabilityText(weight: number, totalWeight: number): string {
-  return `${(weight / totalWeight * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}% · ${weight}/${totalWeight}`;
+const coinGradeLabels: Record<string, string> = { bronze: '브론즈', silver: '실버', gold: '골드', prism: '프리즘', platinum: '프리즘' };
+const coinGradeOrder: Record<string, number> = { bronze: 0, silver: 1, gold: 2, prism: 3, platinum: 3 };
+export function coinEntryLabel(entry: { name: string; gradeId: string; summary?: Record<string, unknown> }): string {
+  const published = entry.summary?.gradeName;
+  const grade = typeof published === 'string' && published.trim() ? published.trim() : coinGradeLabels[entry.gradeId.toLowerCase()];
+  return grade ? `${entry.name} · ${grade}` : entry.name;
+}
+export function sortCoinEntries<T extends { gradeId: string }>(entries: readonly T[]): T[] {
+  return [...entries].sort((a, b) => (coinGradeOrder[a.gradeId.toLowerCase()] ?? 4) - (coinGradeOrder[b.gradeId.toLowerCase()] ?? 4));
+}
+
+export function maskRerollOdds(options: CoinRerollOption[], now: number, clearAll = false): CoinRerollOption[] {
+  return options.map((option) => clearAll || !option.oddsExpiresAt || Date.parse(option.oddsExpiresAt) <= now
+    ? { ...option, entries: [] } : option);
 }
 
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -51,11 +69,13 @@ function parsePool(v: unknown): CoinPool {
     || !num(v.price) || !date(v.purchaseStartsAt) || !date(v.purchaseEndsAt) || !date(v.useExpiresAt)
     || !num(v.perAccountLimit) || !num(v.issuanceCap) || !num(v.issuedCount)
     || !oneOf(v.status, ['ACTIVE', 'PAUSED']) || (v.unavailableReason !== undefined && !oneOf(v.unavailableReason, ['MEDIA_REMOVED', 'PUBLICATION_UNAVAILABLE']))
-    || !Array.isArray(v.entries) || !v.entries.length) throw invalid();
+    || (v.cycle !== undefined && !num(v.cycle)) || (v.remaining !== undefined && !num(v.remaining))
+    || !Array.isArray(v.entries)) throw invalid();
   return { ...v, entries: v.entries.map((entry: unknown) => {
     if (!record(entry) || !str(entry.publicationId) || !str(entry.gradeId) || !str(entry.name)
       || !num(entry.weight) || entry.weight === 0 || typeof entry.probability !== 'number'
-      || !Number.isFinite(entry.probability) || entry.probability < 0 || entry.probability > 1 || !record(entry.summary)) throw invalid();
+      || !Number.isFinite(entry.probability) || entry.probability < 0 || entry.probability > 1 || !record(entry.summary)
+      || (entry.remaining !== undefined && !num(entry.remaining))) throw invalid();
     return entry as CoinEntry;
   }) } as CoinPool;
 }
@@ -91,17 +111,20 @@ export function parseCoinCollection(v: unknown): CoinCollection {
       }) };
     }) };
   }), reroll: { tickets: reroll.tickets.map((ticket: unknown) => {
-    if (!record(ticket) || !str(ticket.id) || !oneOf(ticket.grade, ['NORMAL', 'SILVER'])
+    if (!record(ticket) || !str(ticket.id) || !oneOf(ticket.grade, ['NORMAL', 'BRONZE', 'SILVER', 'GOLD'])
       || !oneOf(ticket.status, ['UNUSED', 'USED']) || !date(ticket.acquiredAt)) throw invalid();
     return ticket as CoinRerollTicket;
   }), sources: reroll.sources.map(parseCoinSource), options: (reroll.options ?? []).map((option: unknown) => {
     if (!record(option) || !str(option.poolId) || !str(option.merchantId) || !str(option.merchantName)
-      || !str(option.eventName) || !oneOf(option.grade, ['NORMAL', 'SILVER']) || !Array.isArray(option.entries)) throw invalid();
+      || !str(option.eventName) || !oneOf(option.grade, ['NORMAL', 'BRONZE', 'SILVER', 'GOLD']) || !Array.isArray(option.entries)
+      || (option.oddsExpiresAt !== undefined && !date(option.oddsExpiresAt))) throw invalid();
     return { poolId: option.poolId, merchantId: option.merchantId, merchantName: option.merchantName,
-      eventName: option.eventName, grade: option.grade as CoinRerollOption['grade'], entries: option.entries.map((entry: unknown) => {
+      eventName: option.eventName, grade: option.grade as CoinRerollOption['grade'],
+      ...(option.oddsExpiresAt ? { oddsExpiresAt: option.oddsExpiresAt } : {}), entries: option.entries.map((entry: unknown) => {
         if (!record(entry) || !str(entry.publicationId) || !str(entry.gradeId) || !str(entry.name)
           || !num(entry.weight) || typeof entry.probability !== 'number' || !Number.isFinite(entry.probability)
-          || entry.probability < 0 || entry.probability > 1) throw invalid();
+          || entry.probability < 0 || entry.probability > 1
+          || (entry.remaining !== undefined && !num(entry.remaining))) throw invalid();
         return entry as CoinRerollOption['entries'][number];
       }) };
   }) } };
@@ -188,6 +211,11 @@ export function createCoinApiClient(options: { apiUrl: string; credential: Accou
   }
   return {
     getShop: async (): Promise<CoinShop> => parseCoinShop(await request('/coin-shop')),
+    getOwnedDetail: async (publicationId: string, gradeId: string): Promise<PublishedCollectible> => {
+      const detail = parsePublishedCollectible(await request(`/me/coins/${encodeURIComponent(publicationId)}/grades/${encodeURIComponent(gradeId)}/detail`));
+      if (!detail) throw invalid();
+      return detail;
+    },
     purchase: async (poolId: string, requestId: string) => {
       const v = await request('/coin-shop/purchases', { poolId, requestId });
       if (!record(v) || typeof v.balance !== 'number' || !Number.isSafeInteger(v.balance)

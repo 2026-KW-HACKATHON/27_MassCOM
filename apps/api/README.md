@@ -1,5 +1,11 @@
 # MassCOM API
 
+## 점주 체험 AI 이미지 계정 한도 (2026-10-09, 미배포 소스)
+
+체험 점주가 소유한 계정 전체에 한국 날짜 기준 시안 3회와 최종 이미지 3회를 허용한다. 가게를 바꿔도 계정 한도를 공유한다. 성공적으로 예약된 생성만 횟수에 반영하며, 생성 요청 사이 최소 60초를 둔다. 시안 4장 생성은 한 라운드로 센다. 쿼터 조회는 점포별 한도와 계정 한도(`quota.account`)를 함께 반환하며, `resetsAt`은 다음 KST 자정, `cooldownUntil`은 다음 요청 가능 시각이다. 계정 제한 초과는 `429 AI_ART_ACCOUNT_DAILY_LIMIT`, 쿨다운은 `429 AI_ART_COOLDOWN`; 둘 다 `Retry-After`를 제공한다. 잠금 획득 후 현재 KST 시각으로 검사해 여러 API 인스턴스·가게 전환에도 한도를 공유한다. 이미 저장된 최종 생성 기록은 소급 집계하지 않는다.
+
+새 한도 구현은 API 소스와 DB migration에 반영됐지만 운영·시연 서버에는 아직 배포되지 않았다. 두 서버의 기존 키 연결, 기존 점포별 한도(시안·최종 각 3회/일), USD 5 월 예산은 별도 운영 증거를 따른다. 실제 OpenAI 이미지 생성은 `NOT_RUN`이다.
+
 ## 친구 행동·글 방명록 (Issue #436, D-104)
 
 Migration `0076_room_guestbook_actions.sql`을 새 API보다 먼저 적용한다. 일반 글 방명록·읽음·신고와 `ROOM_GUESTBOOK` 보상 이유를 추가하며, 같은 방의 KST 하루 첫 글5P·방명록 전체 하루25P를 우정과 별도로 제한한다. 반복 글은 허용하고 요청 ID로 재시도 중복을 막는다. 기존 칭찬 스탬프와 `NEIGHBORS` 설정은 보존한다. 새 공개 선택은 `PUBLIC`·`FRIENDS`·`PRIVATE`이며, 공개 방도 로그인·현재 동의·차단 검사를 적용한다.
@@ -278,7 +284,7 @@ npm run start:local
 
 점주 권한이 있는 사람이 가게 이름·메뉴 이름(서버가 가진 값, 자유 문장 없음)으로 스타일이 다른 시안 4장(도장·스티커·수채화·판화)을 받고, 하나를 고르면 같은 그림을 고품질로 다시 그려 고객 앱의 가게 그림으로 쓴다. 설계·근거는 [`docs/superpowers/specs/2026-09-29-ai-store-art-design.md`](../../docs/superpowers/specs/2026-09-29-ai-store-art-design.md).
 
-점주용 경로는 모두 `Authorization: Bearer <세션 토큰>`(고객 인증)과 그 가게의 활성 멤버십 `MANAGE_ART` 권한이 필요하다. `MANAGE_ART`는 **활성 OWNER**에게 주고, 활성 STAFF에게는 `AI_ART_STAFF_MAY_MANAGE=true`인 환경에서만 준다(기본 `false`). 시연 compose만 `true`로 켜고(시연은 CLI로 소유자 계정에만 STAFF를 준다) **운영은 켜지 않는다**. 운영 OWNER는 관리자 웹의 확인 절차로 생길 수 있지만(D-054), **운영 `OPENAI_API_KEY`는 정책(D-050)상 비워 둔다**: 키가 비어 있으면 생성 API는 `503 AI_ART_NOT_CONFIGURED`이고, 키를 넣는 일은 소유자가 운영 예산·사용을 따로 승인한 뒤에 한다. 이 권한은 `context` 응답의 `permissions` 목록에는 싣지 않는다(설치된 앱 파서가 모르는 값을 거절하기 때문). 권한이 없거나 다른 가게면 `403 MERCHANT_ACCESS_DENIED`다. 시안 받기·고르기·적용·되돌리기는 요청 시작의 이 검사와 별개로 **자기 트랜잭션 안에서 계정의 현재 멤버십·역할을 가게 행 `FOR SHARE`로 다시 확인**하므로(#264), 검사 뒤에 회수·강등돼도 같은 `403`이고 상태는 바뀌지 않는다. 모든 JSON 응답은 `no-store`다.
+점주용 경로는 모두 `Authorization: Bearer <세션 토큰>`(고객 인증)과 그 가게의 활성 멤버십 `MANAGE_ART` 권한이 필요하다. `MANAGE_ART`는 **활성 OWNER**에게 주고, 활성 STAFF에게는 `AI_ART_STAFF_MAY_MANAGE=true`인 환경에서만 준다(기본 `false`). 시연 compose만 `true`로 켜고(시연은 CLI로 소유자 계정에만 STAFF를 준다) **운영은 켜지 않는다**. 운영 OWNER는 관리자 웹의 확인 절차로 생길 수 있지만(D-054), 2026-10-09 소유자가 운영·시연 두 서버의 OpenAI 키 적용을 승인해 기존 예산으로 활성화했다([결정](../../docs/DECISIONS.md), [실측](../../docs/evidence/openai-ai-art-enable-2026-10-09.json)). 키가 비어 있으면 생성 API는 `503 AI_ART_NOT_CONFIGURED`다. 실제 유료 생성은 별도 미실행이며 운영은 OWNER 권한을 그대로 요구한다. 이 권한은 `context` 응답의 `permissions` 목록에는 싣지 않는다(설치된 앱 파서가 모르는 값을 거절하기 때문). 권한이 없거나 다른 가게면 `403 MERCHANT_ACCESS_DENIED`다. 시안 받기·고르기·적용·되돌리기는 요청 시작의 이 검사와 별개로 **자기 트랜잭션 안에서 계정의 현재 멤버십·역할을 가게 행 `FOR SHARE`로 다시 확인**하므로(#264), 검사 뒤에 회수·강등돼도 같은 `403`이고 상태는 바뀌지 않는다. 모든 JSON 응답은 `no-store`다.
 
 | 경로 | 성공 | 오류 |
 | --- | --- | --- |
