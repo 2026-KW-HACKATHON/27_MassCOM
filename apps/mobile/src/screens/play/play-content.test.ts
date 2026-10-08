@@ -103,13 +103,11 @@ test('memory tokens are the coins of distinct visited stores, each naming its st
   assert.equal(content.memoryTokens[0]?.uri, 'data:image/png;base64,a');
 });
 
-test('seven stores fill six distinct cards without practice pictures', () => {
+test('six stores fill every card and a seventh is ignored', () => {
+  // 카드 선택은 KST 날짜마다 돌아가므로 날짜를 고정한다(2026-10-08 기준 회전 없음).
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
   const content = playContent(ids.map((id) => coin(id)), ids.map((id) => store(id)), apiUrl, new Date('2026-10-08T03:00:00Z'));
-  const shown = content.memoryTokens.map((item) => item.merchantId);
-  assert.equal(shown.length, 6);
-  assert.equal(new Set(shown).size, 6);
-  assert.ok(shown.every((id) => id && ids.includes(id)));
+  assert.deepEqual(content.memoryTokens.map((item) => item.merchantId), ['a', 'b', 'c', 'd', 'e', 'f']);
 });
 
 test('one store never supplies two cards, even with several coins or repeated entries', () => {
