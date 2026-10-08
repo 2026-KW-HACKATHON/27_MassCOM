@@ -54,7 +54,6 @@ export type MintRequestErrorCode =
   | 'IDEMPOTENCY_KEY_REQUIRED'
   | 'IDEMPOTENCY_CONFLICT'
   | 'MINT_PENDING'
-  | 'CAPACITY_UNAVAILABLE'
   | 'ACCOUNT_DELETED'
   | 'MINT_JOB_NOT_FOUND'
   // 운영이 발행 준비 중(NFT_MINTING_MODE=PREPARING, D-054)이라 새 발행 요청을 받지 않는다.

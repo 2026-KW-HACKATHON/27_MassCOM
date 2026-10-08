@@ -57,7 +57,7 @@ test('W07 M01-M08 finalize once and reject an unconfirmed reorg event on Anvil',
   await contract.waitForDeployment();
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('worker-anvil-series');
-  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://worker/', 4));
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://worker/'));
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
 
   const rewardKeys = [id('worker-reward-1'), id('worker-reward-2'), id('worker-reward-3')];

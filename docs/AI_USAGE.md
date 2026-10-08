@@ -4,6 +4,12 @@
 
 사용자의 이번 직접 요청으로 Codex가 `feat/merchant-dual-studio` 작업 트리에서 리뷰 지적 1~10의 코드·시험·문서를 수정했다. 기존 임시 모델 운용 정책에 대한 이번 작업 범위의 직접 요청을 근거로 실행했다. API·웹 편집기·불필요한 v1 자산/로컬 QA 경로·기존 모바일 시험의 결정적 시간 입력을 bounded native 서브에이전트로 나눴다. API·모바일·사이트 및 전용 scratch PostgreSQL 검증 결과는 [TEST_STATUS](TEST_STATUS.md)에 따로 기록한다. 실제 이미지 생성·과금·배포·운영 DB 접속·기기 검수는 수행하지 않았다. staging·commit·stash·rebase·push는 오케스트레이터 몫으로 남겼다.
 
+## 2026-10-09 PR #424 검토 지적 수정
+
+- 사용자의 이번 Codex 작업 지시에 따라 코드·시험·문서 지적 8개를 고쳤다. 메인 세션은 Worker 오류 분류·회귀 시험·검증·PR 본문 갱신을, executor 서브에이전트는 문서와 Foundry 시험을 각각 맡았다. code-reviewer는 구현과 다른 세션에서 Worker·계약 시험 변경을 읽고 차단 결함을 찾지 않았다. 현재 세션은 2026-10-08의 일반 Codex 중지 기록을 상시 정책 변경으로 해석하지 않는다.
+- 검증: API 615/615, Worker 85/85(새 3개)·대상 41/41, API·Worker·모바일 typecheck PASS, `bash scripts/forge.sh test` 10/10(fuzz 128회), 운영 제출 준비·운영 문서·bootstrap·CI 연결 PASS, gate는 기본 locale에서 기존 Bash 변수 파싱 오류 뒤 `LC_ALL=C`로 PASS. 새 시험은 수정 전 2개 실패하고 수정 뒤 통과했다. PostgreSQL·Anvil 통합과 실제 배포·설치본 검증은 NOT_RUN(오케스트레이터 범위).
+- 사용자가 금지한 staging·commit·stash·rebase·push는 실행하지 않았다. 수량 상한 재도입·새 통제·새 의존성·운영 키·운영 DB 변경은 없다.
+
 ## 2026-10-08 — 재생 회전·속도 조절 후속 직접 요청 (PR #418)
 
 소유자가 같은 제작기의 재생 회전·속도 조절과 PR 수정을 직접 요청했다. Codex가 웹 미리보기 시계·속도 UI·저장 렌더링을 구현하고 native 서브에이전트에 API/앱의 선택 속도 계약과 회귀를 나눴다. 다른 읽기 전용 세션의 검토에서 정지 뒷면 스티커 드래그 검사를 고쳤다. 실제 브라우저 조작과 격리 합성 점주 게시, 단위·타입·lint 시험을 수행했다. 추가 직접 요청에 따라 이름·애니메이션의 단계 이동과 굵은 제목·두께48도 구현했다. API/앱 경계와 웹 회귀는 독립 담당이 검증했고 별도 읽기 전용 리뷰가 찾은 빈 이름 저장·녹음 단계 조건도 수정했다. 이번 후속에는 이미지 생성·추가 의존성·실제 과금·운영 배포가 없다. [캡처·시험·계약](evidence/rotation-playback-2026-10-08/README.md).
@@ -123,6 +129,11 @@ Claude Opus 5.5가 지휘·통합·커밋을 맡았고 Codex `gpt-6.1-sol`이 �
 
 이 문서 갱신은 제공 사실과 `git log --oneline 8b336ece..HEAD`를 근거로 README·시험 상태·프로젝트 상태·AI 사용·현재 인수인계만 정리한다. git 상태 변경은 하지 않는다. 로컬 검증은 [TEST_STATUS](TEST_STATUS.md), 배포 조건은 [HANDOFF](HANDOFF.md)에 구분하며 PR·CI·공개 반영 완료를 주장하지 않는다.
 
+## 2026-10-08 — NFT 시리즈 발행 수량 상한 해제 (D-095)
+
+- Claude Sonnet 5.5가 컨트랙트 `createSeries`의 상한 인자·오류 제거, API 발행 신청의 수량 검사·`CAPACITY_UNAVAILABLE` 제거, migration 0075, 관련 시험(Foundry·API·Worker)과 문서 수정을 구현했다. 소유자가 오프라인 회의의 합의와 "상한을 보존하지 않고 코드를 고친다"는 결정을 지시했다.
+- 검증: `forge test` 8개, API PostgreSQL 통합 524 통과·0 실패·3 건너뜀(건너뛴 3개는 `_merchant_test` DB 전용이라 따로 돌려 4개 통과), Worker Anvil 12/12, Worker PostgreSQL 30/30. 변경 전 커밋 `8841efea`에서도 같은 모바일 15개·Worker 5개·API 단위 1개가 실패한다(Windows 줄바꿈 CRLF·미적용 패치·권한 시험). 독립 코드 검토는 하지 않았다.
+
 ## 2026-10-07 등급 전체 뽑기 오류 문구 구분
 
 Claude Code가 뽑기 실패가 모두 "요청을 처리하지 못했어요"로 보이던 문제를 재현 조사했다. 로컬 DB에서 뽑기 서비스 자체는 성공했고, 앱이 동의 필요·뽑기 미준비·서버 오류 코드의 안내 문구를 갖지 않던 점만 `shop-api.ts`와 시험에 고쳤다. 서버 규칙·보상·확률은 바꾸지 않았다. 모바일 `shop-api` 시험 10/10과 타입 통과, 전체 모바일은 main에도 있는 기존 실패 7건 외 변화 없음. 실제 원인 계정의 동의 상태는 `NOT_RUN`.
@@ -133,16 +144,13 @@ Codex가 23개 UI 보드/67개 상태와 최신 원장을 대조하고 공통 �
 
 모바일 단위·타입·린트, API 단위·타입·빌드, 전용 PostgreSQL, 로컬 가상 계정 HTTP 흐름을 검증했다. 브라우저/Android 번들/실기/공개 배포를 같은 증거로 보지 않는다. 정확한 최종 명령·개수·미실행 범위는 [UI QA](UI_BOARDS_QA_2026-10-07.md)에 기록한다. 운영 DB·서버·Play·서명 키를 변경하지 않았다.
 
-
 ## 2026-10-07 PR·이슈 점검 및 Issue #315
 
 Codex가 7개 열린 이슈와 PR #396의 필요성을 점검했다. 독립 구현/검토로 #315의 공통 renderer 2개 파일과 회귀 시험을 수정했다. 사이트 519/519, 실제 Canvas 비교와 게시 sprite 생성으로 검증했다. #396 목업은 main 미병합, #395의 다른 작업트리는 보존했다. AI를 팀원·공동 작성자로 기재하지 않는다.
 
-
 ## 2026-10-07 PR #397 추가 독립 검토
 
 Codex가 리뷰 중 방문 취소로 생긴 음수 잔액을 새 parser가 거부하는 결함을 재현해 잔액 검사만 수정했다. 두 회귀를 추가하고 모바일1805개·타입/lint 및 독립 재검토로 확인했다. 지급 규칙·기존 권리는 변경하지 않았다.
-
 
 ## 2026-10-07 등급 전체 뽑기·놀이·코인 재질 (Issue #395)
 
@@ -400,11 +408,6 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드) | Issue #316 계정 삭제 처리 시험의 고정 시계 시한폭탄 수정 | 시험 하나에서 서비스 시계를 옛 INSERT 행의 `requested_at`에 맞춤(운영 코드 무변경) | CI와 같은 비밀번호 인증 PostgreSQL로 통합 시험 전체 실행, Codex 검토 |
 | 2026-10-02 | Claude Code(Opus 5.5 메인 스레드 오케스트레이션, Sonnet 5.5 executor) | 운영·시연 서버 재배포(`a39b983`) 기록(Issue #321 서버 부분) | 메인 스레드가 확인한 배포·브라우저 결과를 증거 JSON(`deployment-a39b983-2026-10-02.json`)과 HANDOFF·PROJECT_STATE·TEST_STATUS·README·두 인프라 README·BLOCKERS로 정리(Sonnet 문서 작업, 서버 접근 없음) | `python3 -m json.tool`, `bash tools/gate.sh`, 사람이 검토할 수 있는 PR |
 
-## 2026-10-03 Issue #329 Task 5 수정 2차
-
-- Codex: R18 지정 설계에 따라 merchant 앵커의 fragment 이력 생성 방지, workspaceHash 제거, fake DOM 회귀 시험 수정. 커밋 없음.
-- 검증: studio 전체 33/33, merchant 앵커 선택 시험 1/1, 변경 모듈 문법·diff 검사 PASS. 전체 production-web 시험은 sandbox의 localhost listen EPERM으로 BLOCKED. 실제 브라우저 시험 NOT_RUN.
-
 ## 팀 설명 체크리스트
 
 각 컴포넌트가 구현될 때 팀원이 다음을 설명할 수 있도록 Issue 또는 문서에 기록합니다.
@@ -416,6 +419,11 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 - 보안·개인정보 한계
 - 실제 시연 방법
 
+
+## 2026-10-03 Issue #329 Task 5 수정 2차
+
+- Codex: R18 지정 설계에 따라 merchant 앵커의 fragment 이력 생성 방지, workspaceHash 제거, fake DOM 회귀 시험 수정. 커밋 없음.
+- 검증: studio 전체 33/33, merchant 앵커 선택 시험 1/1, 변경 모듈 문법·diff 검사 PASS. 전체 production-web 시험은 sandbox의 localhost listen EPERM으로 BLOCKED. 실제 브라우저 시험 NOT_RUN.
 
 ## 2026-10-03 — Issue #340 모바일 수집품 기본 뒷면·두께
 

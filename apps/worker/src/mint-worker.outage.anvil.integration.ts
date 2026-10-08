@@ -359,13 +359,13 @@ async function recreateSeries(
   const contract = new Contract(
     contractAddress,
     [
-      'function createSeries(bytes32 seriesId,string baseTokenURI,uint64 maxEverMinted)',
+      'function createSeries(bytes32 seriesId,string baseTokenURI)',
       'function activateSeries(bytes32 seriesId)',
     ],
     adminSigner,
   );
   await waitFor(
-    await contract.getFunction('createSeries').send(seriesKey, 'ipfs://worker-outage/', 1),
+    await contract.getFunction('createSeries').send(seriesKey, 'ipfs://worker-outage/'),
   );
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
 }

@@ -45,7 +45,7 @@
 ## NFT 계약
 
 - `DEFAULT_ADMIN_ROLE`, `MINTER_ROLE`, `PAUSER_ROLE`을 분리하고 민터는 역할을 스스로 올릴 수 없습니다.
-- 활성 시리즈만 발행하며 `maxEverMinted`와 누적 `everMinted`를 계약이 직접 비교합니다.
+- 활성 시리즈만 발행합니다. 시리즈 발행 수량 상한은 없습니다(D-095). `everMinted`는 누적 발행 수를 세기만 합니다.
 - 32바이트 `rewardKey`는 한 번만 소비되고 이미 사용한 키는 다른 수령인·시리즈에도 다시 쓸 수 없습니다.
 - ERC-5192 `locked=true`와 함께 approve·setApprovalForAll·transfer·safeTransfer의 모든 경로를 거절합니다.
 - 시리즈 설정 변경, 업그레이드 프록시, 소각, 교환, 관리자 회수를 제공하지 않습니다.

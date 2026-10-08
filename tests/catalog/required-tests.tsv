@@ -25,7 +25,7 @@ M06	indexer-chain	PASS	이벤트 반복 수집·재조직	중복 없음, 확정 
 M07	db-worker	PASS	민팅 도중 프로필 지갑 변경	이미 고정한 수령인 유지	docs/TEST_STATUS.md
 M08	restore	PASS	DB 백업 복원 후 재처리	기존 NFT를 다시 발행하지 않음	docs/TEST_STATUS.md
 C01	foundry-contract	PASS	비민터 발행·민터 권한 상승	계약에서 거절	docs/TEST_STATUS.md
-C02	foundry-property	PASS	누적 상한 경계·중복 발행 키	상한·일회성 유지	docs/TEST_STATUS.md
+C02	foundry-property	PASS	상한 없음·중복 발행 키	상한은 해제(D-095), 일회성 유지	docs/TEST_STATUS.md
 C03	foundry-contract	PASS	모든 전송·우회 경로	잠긴 NFT는 이전 불가	docs/TEST_STATUS.md
 C04	foundry-contract	PASS	시리즈 활성화 후 조건 변경	동결된 값 변경 불가	docs/TEST_STATUS.md
 D01	api-worker	PASS	발급 중 탈퇴	미전송·제출됨을 구분	docs/TEST_STATUS.md
