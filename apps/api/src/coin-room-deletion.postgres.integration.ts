@@ -16,6 +16,12 @@ test('account deletion removes public room relations and coin rights without del
   await pool.query(`INSERT INTO room_stamps(id,room_id,author_account_id,kind,business_date,created_at)
     VALUES ($1,$2,'other','COZY','2026-10-07',now()),($3,$4,'delete-me','COOL','2026-10-07',now())`, [stamp, room, otherStamp, otherRoom]);
   await pool.query(`INSERT INTO room_stamp_reports(reporter_account_id,stamp_id) VALUES ('other',$1),('delete-me',$2)`, [stamp, otherStamp]);
+  const entry = randomUUID(), otherEntry = randomUUID();
+  await pool.query(`INSERT INTO room_guestbook_entries(id,room_id,author_account_id,request_id,message,business_date,created_at,credited_mileage,owner_read_at)
+    VALUES($1,$2,'other','first','안녕하세요','2026-10-07',now(),5,now()),
+      ($3,$4,'delete-me','first','안녕하세요','2026-10-07',now(),5,NULL)`, [entry,room,otherEntry,otherRoom]);
+  await pool.query(`INSERT INTO room_guestbook_reports(reporter_account_id,entry_id,created_at)
+    VALUES('other',$1,now()),('delete-me',$2,now())`, [entry,otherEntry]);
   await pool.query(`INSERT INTO room_visits(id,visitor_account_id,room_id,business_date,visited_at)
     VALUES ($1,'other',$2,'2026-10-07',now()),($3,'delete-me',$4,'2026-10-07',now())`, [randomUUID(), room, randomUUID(), otherRoom]);
   await pool.query(`INSERT INTO room_blocks(blocker_account_id,blocked_account_id) VALUES ('other','delete-me')`);
@@ -35,7 +41,7 @@ test('account deletion removes public room relations and coin rights without del
     hmacSecret: 'coin-room-deletion-test-secret-at-least-32-bytes', policyVersion: 'test', now: () => new Date('2026-10-07T01:00:00Z'),
   });
   await deletion.requestDeletion({ accountId: 'delete-me', confirmation: 'DELETE MY ACCOUNT' });
-  for (const table of ['room_stamps', 'room_stamp_reports', 'room_visits', 'room_blocks', 'coin_tickets', 'coin_series_coupons']) {
+  for (const table of ['room_guestbook_entries','room_guestbook_reports','room_stamps', 'room_stamp_reports', 'room_visits', 'room_blocks', 'coin_tickets', 'coin_series_coupons']) {
     assert.equal((await pool.query(`SELECT count(*)::integer AS n FROM ${table}`)).rows[0].n, 0, table);
   }
   assert.equal((await pool.query('SELECT account_id FROM public_rooms')).rows[0].account_id, 'other');

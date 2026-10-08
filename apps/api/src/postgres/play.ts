@@ -251,7 +251,7 @@ export class PostgresPlayService implements PlayService {
       const stillFriends = await client.query(`SELECT 1 FROM friendships WHERE id=$1 AND account_low=$2 AND account_high=$3`,
         [input.friendshipId, pair.account_low, pair.account_high]);
       if (!stillFriends.rowCount) throw new PlayError('FRIEND_STUDIO_NOT_FOUND');
-      const room = (await client.query<{ id: string; visibility: 'PRIVATE'|'FRIENDS'|'NEIGHBORS' }>(
+      const room = (await client.query<{ id: string; visibility: 'PRIVATE'|'FRIENDS'|'NEIGHBORS'|'PUBLIC' }>(
         'SELECT id,visibility FROM public_rooms WHERE account_id=$1 FOR SHARE', [friendId])).rows[0];
       const consent = await client.query(`SELECT 1 FROM account_consents WHERE account_id=$1
         AND terms_version=$2 AND privacy_version=$3`, [friendId,CURRENT_TERMS_VERSION,CURRENT_PRIVACY_VERSION]);

@@ -9,6 +9,8 @@ import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { createRecommendationApiClient } from '@/recommendation/recommendation-api';
 import { createStudioApiClient, displayStudioItems } from '@/studio/studio-api';
 import { StudioScene } from '@/studio/studio-scene';
+import { GuestbookUnreadDot } from '@/studio/guestbook-modal';
+import { useGuestbookStatus } from '@/studio/use-guestbook-status';
 import { homeErrorText, markHomePending, needsFirstStoreRecommendation, pickFirstStore, settleHomeSection, startHomeLoad, type HomeData, type HomeSection, type HomeValues } from './home-load';
 import { homeVisitGoal } from './visit-goal';
 import { visibleHomeMerchantItems } from './showcase-visibility';
@@ -57,6 +59,7 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const clearance = useTabBarClearance();
   const scrim = useStatusBarScrim();
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
+  const guestbook = useGuestbookStatus(apiUrl, credential, onSessionInvalid);
   // GET /collection, /coin-shop and /shop are asked once per focus by the discovery provider; Home reads the same answers.
   const discovery = useDiscovery();
   const { stage, optIn, loadCollection, loadCoinShop } = discovery;
@@ -151,8 +154,10 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         {compactHome ? quickRow : null}
         {showRoom ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text accessibilityRole="header" style={heading}>마이룸</Text>
-          <Link href="/studio" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ minHeight: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: 'center', backgroundColor: world.card })}>
+          <Link href="/studio" asChild><Pressable accessibilityRole="button" accessibilityLabel={guestbook.unreadCount ? `꾸미기, 새 방명록 ${guestbook.unreadCount}개` : '꾸미기'}
+            style={StyleSheet.flatten({ minHeight: 48, paddingHorizontal: 16, borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', backgroundColor: world.card })}>
             <Text style={{ color: palette.primary, fontWeight: '800' }}>꾸미기</Text>
+            {guestbook.unreadCount ? <GuestbookUnreadDot /> : null}
           </Pressable></Link>
         </View> : null}
         {showRoom ? data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={roomItems}

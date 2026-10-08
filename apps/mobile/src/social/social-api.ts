@@ -49,6 +49,11 @@ export type FriendshipGiftResult = {
   receivedAt: string | null;
 };
 
+export type FriendshipReceiveAndReplyResult = {
+  received: FriendshipGiftResult;
+  reply: FriendshipGiftResult | null;
+};
+
 export type MailListItem = {
   id: string;
   type: MailType;
@@ -169,6 +174,10 @@ export function createSocialApiClient(options: Options) {
     async receiveFriendshipGift(input: { giftId: string; requestId: string }): Promise<FriendshipGiftResult> {
       assertId(input.giftId);
       return parseGiftResult((await request(`/me/gifts/${input.giftId}/receive`, json('POST', { requestId: input.requestId }))).payload);
+    },
+    async receiveAndReplyFriendshipGift(input: { giftId: string; requestId: string }): Promise<FriendshipReceiveAndReplyResult> {
+      assertId(input.giftId);
+      return parseReceiveAndReplyResult((await request(`/me/friendship-gifts/${input.giftId}/receive-and-reply`, json('POST', { requestId: input.requestId }))).payload);
     },
     async listMail(cursor?: string): Promise<MailList> {
       const suffix = cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`;
@@ -345,6 +354,17 @@ function parseGiftResult(value: unknown): FriendshipGiftResult {
     createdAt: value.createdAt,
     receivedAt: value.receivedAt,
   };
+}
+
+function parseReceiveAndReplyResult(value: unknown): FriendshipReceiveAndReplyResult {
+  if (!isRecord(value)) throw invalidResponse();
+  const received = parseGiftResult(value.received);
+  const reply = value.reply === null ? null : parseGiftResult(value.reply);
+  if (received.direction !== 'RECEIVED' || received.status !== 'RECEIVED' || received.receivedAt === null
+    || (reply !== null && (reply.direction !== 'SENT' || reply.replayed !== received.replayed
+      || (reply.status === 'RECEIVED' ? !reply.replayed || reply.receivedAt === null : reply.receivedAt !== null)
+      || reply.friendshipId !== received.friendshipId || reply.giftId === received.giftId))) throw invalidResponse();
+  return { received, reply };
 }
 
 function parseMailListItem(value: unknown): MailListItem {

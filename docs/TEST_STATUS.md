@@ -1,5 +1,28 @@
 # 테스트 상태
 
+## 2026-10-09 Issue #436 친구 그림 버튼·날짜 선택기·글 방명록
+
+환경: Windows PowerShell, `C:/Hackerton/27_MassCOM-friend-actions`, `feat/friend-actions-guestbook`. 시작 기준은 PR #433 반영 `c7632b35`이고, 후속 fetch에서 확인한 PR #434 반영 `origin/main` `3645c4c7`의 통합은 진행 중이다. 아래는 통합 전 작업 트리의 실제 실행 결과이며 이전 작업의 합계를 재사용하지 않았다. 상세 재현·화면·데이터 경계는 [검증 증거](evidence/friend-actions-2026-10-09/README.md)에 있다.
+
+| 검사 | 상태 | 실행·결과 |
+| --- | --- | --- |
+| API 전체 단위 | PASS | `npm test --prefix apps/api`: 677/677, 실패·skip0. 이후 방 기능 대상 재검사57/57도 통과 |
+| 모바일 전체 단위 | PASS | `npm test --prefix apps/mobile`: 2182/2182, 실패·skip0. 마일리지·친구 수 갱신 후 대상31/31·44/44, 독립 검토 대상20/20 재검사 PASS |
+| 타입·정적 검사·빌드 | PASS | `npm run typecheck --prefix apps/api`, `npm run typecheck --prefix apps/mobile`, `npm run build --prefix apps/api`, `npm run lint --prefix apps/mobile`. lint 오류0, 기존 무관한 `collectible-aura.test.ts`의 미사용 `runInNewContext` 경고1 |
+| 우정 PostgreSQL | PASS | 전용 로컬 테스트 DB에서 우정 통합53/53. 원자 받기/답장·재시도·보내기 한도·날짜 경계·이미 수령된 답장 재응답 확인 |
+| 방·친구·삭제 대상 | PASS | 방명록/공개 범위/친구/계정 삭제 관련 HTTP·단위·PostgreSQL 대상57/57. 반복 작성·중복 보상·동시 요청·차단·동의·읽음 경합·신고/숨김 확인 |
+| 개인정보·관련 웹 | PASS | 관련 웹 시험173/173, 모바일 동의 시험8/8. 서버·앱·운영 웹·공개 처리방침 버전 일치 |
+| Android export 두 variant | PASS | 운영·시연 각각 `expo export --platform android`; 출력 `.omx/android-production`, `.omx/android-showcase`. APK 빌드·서명·설치 판정과 구분 |
+| 브라우저 화면·동작 | PASS | 합성 계정·로컬 응답, 폭320/360/390 × 밝은/어두운 테마의 화면48장. 오른쪽 버튼·하트 상태·숫자 휠·방명록 작성/재작성·작성자 팝업·읽음 표시 확인, JS 오류0 |
+| 비밀·CI 연결 | PASS | `bash scripts/check-secrets.sh`, `bash tests/ci/ci_wiring_test.sh`: 시험 파일103개 연결 |
+| 실제 배포·기기 | NOT_RUN | 운영/시연 배포, 운영 데이터, 새 APK/서명/설치, Android 손가락 드래그·TalkBack·실제 Google 로그인·Play 게시 |
+
+**최종 기록 대기:** 전체 `npm run test:postgres --prefix apps/api`, 최신 main `3645c4c7` 통합 후 필요한 재검사, 공개 설정 변경·헤더 갱신 브라우저 후속 확인, 독립 검토 최종 판정, 실제 PR 제목·본문의 한국어 검사와 PR URL. 진행 중인 검사를 PASS로 간주하지 않는다.
+
+초기 전체 모바일 실행의 기존 소스 문자열 검사는 Windows 체크아웃 CRLF 때문에 실패했다. 해당 파일의 작업 트리 줄바꿈만 LF로 맞춘 뒤 전체2182/2182가 통과했으며 내용 차이는 없다. 전체 PostgreSQL은 전용 로컬 클러스터·테스트 DB에서 실행하며 운영 DB에 접근하지 않는다. DB 기본 시간대는 UTC, 보상 날짜는 서비스의 KST 규칙으로 별도 검증한다.
+
+**이하 이전 작업 이력 — 아래 숫자·환경·제한은 각 실행 당시 기록이다.**
+
 
 ## 2026-10-09 T9 시연 가상 점포 은퇴·공공자료 30곳 전환 (미커밋·미배포)
 

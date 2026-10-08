@@ -26,7 +26,7 @@ import {
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { countedVisitFilterSql, countedVisitFromSql } from './badge-rewards.js';
 import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
-import { canViewRoom, sharedRoomMerchants } from './room-access.js';
+import { canViewRoom, checkedGuestbookEntry, sharedRoomMerchants } from './room-access.js';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../account-consent.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -260,23 +260,35 @@ export class PostgresFriendService implements FriendService {
       }
       const room = (await client.query<{ visibility: string }>(`SELECT visibility FROM public_rooms
         WHERE id=$1 AND account_id=$2 FOR SHARE`, [input.roomId, target])).rows[0];
-      if (room?.visibility !== 'NEIGHBORS') throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      if (room?.visibility !== 'NEIGHBORS' && room?.visibility !== 'PUBLIC') throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
       const consent = await client.query<{ account_id: string }>(`SELECT account_id FROM account_consents
         WHERE account_id=ANY($1::text[]) AND terms_version=$2 AND privacy_version=$3`,
       [[me,target],CURRENT_TERMS_VERSION,CURRENT_PRIVACY_VERSION]);
-      if (consent.rows.length !== 2 || !(await canViewRoom(client, me, target, 'NEIGHBORS')))
+      if (consent.rows.length !== 2 || !(await canViewRoom(client, me, target, room.visibility)))
         throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
       const { low, high } = orderAccountPair(me, target);
       const existing = (await client.query<{ id: string }>(
         'SELECT id FROM friendships WHERE account_low=$1 AND account_high=$2', [low, high])).rows[0];
       if (existing) return { kind: 'added' as const, friendshipId: existing.id, created: false };
-      if (!(await sharedRoomMerchants(client, me, target)).length) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      if (room.visibility === 'NEIGHBORS' && !(await sharedRoomMerchants(client, me, target)).length) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
       return this.insertFriendship(client, me, target, this.now());
     });
     const snapshot = await this.list(me);
     const friend = snapshot.friends.find(candidate => candidate.friendshipId === outcome.friendshipId);
     if (!friend) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
     return { friend, created: outcome.created };
+  }
+
+  async addGuestbookAuthor(input: { accountId: string; entryId: string }): Promise<AddedFriend> {
+    const outcome = await this.transaction(async client => {
+      const entry = await checkedGuestbookEntry(client,this.accountLifecycle,input.accountId,input.entryId);
+      if (entry.author_account_id === input.accountId) throw new FriendError('FRIEND_SELF');
+      return this.insertFriendship(client,input.accountId,entry.author_account_id,this.now());
+    });
+    const snapshot = await this.list(input.accountId);
+    const friend = snapshot.friends.find(candidate => candidate.friendshipId === outcome.friendshipId);
+    if (!friend) throw new FriendError('FRIEND_NOT_FOUND');
+    return { friend,created: outcome.created };
   }
 
   private async insertFriendship(client: PoolClient, me: string, target: string, now: Date): Promise<Extract<AddOutcome, { kind: 'added' }>> {

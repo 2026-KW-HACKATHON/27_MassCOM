@@ -92,9 +92,9 @@ export function respondWithError(response: ServerResponse, error: unknown): void
   }
   if (error instanceof RoomCommunityError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410
-      : error.code === 'ROOM_NOT_FOUND' || error.code === 'ROOM_STAMP_NOT_FOUND' ? 404
+      : error.code === 'ROOM_NOT_FOUND' || error.code === 'ROOM_STAMP_NOT_FOUND' || error.code === 'ROOM_GUESTBOOK_NOT_FOUND' ? 404
       : error.code === 'ROOM_RATE_LIMITED' ? 429 : error.code === 'ROOM_CONSENT_REQUIRED' ? 403
-      : error.code === 'ROOM_STAMP_LIMIT' ? 409 : 400, { code: error.code }); return;
+      : error.code === 'ROOM_STAMP_LIMIT' || error.code === 'ROOM_REQUEST_CONFLICT' ? 409 : 400, { code: error.code }); return;
   }
   if (error instanceof FurnitureError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410

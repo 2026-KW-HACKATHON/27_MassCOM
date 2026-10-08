@@ -37,7 +37,9 @@ function fixture(configure?: (args: Parameters<typeof createApiServer>) => void)
     grantRerollTicket: capture, useRerollTicket: capture } as unknown as CoinEconomyService;
   const rooms = { getSettings: capture, setVisibility: capture, randomRoom: capture, getRoom: capture,
     visit: capture, stamp: capture, removeStamp: capture, reportStamp: capture, blockRoom: capture,
-    neighbors: capture, visitors: capture } as unknown as RoomCommunityService;
+    neighbors: capture, visitors: capture, getGuestbook: capture, getMyGuestbook: capture,
+    postGuestbook: capture, readGuestbook: capture, getGuestbookAuthor: capture,
+    removeGuestbook: capture, reportGuestbook: capture, listGuestbookReports: capture, moderateGuestbook: capture } as unknown as RoomCommunityService;
   const gradeDraw = { getShop: capture, draw: capture } as unknown as GradeDrawService;
   const consent: ConsentService = { appSource: 'ANDROID', status: async id => ({ required: id === 'old',
     termsVersion: CURRENT_TERMS_VERSION, privacyVersion: CURRENT_PRIVACY_VERSION }),
@@ -61,13 +63,58 @@ const routes = [
   ['POST', `/coin-reroll-tickets/${id}/use`, { poolId: id, sourceKind: 'VISIT', sourceId: id, requestId: 'reroll-1' }],
   ['GET', '/me/room-publication', undefined], ['PUT', '/me/room-publication', { visible: true }],
   ['PUT', '/me/room-publication', { visibility: 'FRIENDS' }],
+  ['PUT', '/me/room-publication', { visibility: 'PUBLIC' }],
   ['GET', '/rooms/neighbors', undefined], ['GET', '/me/room-visitors', undefined],
   ['GET', '/me/furniture', undefined], ['POST', '/me/furniture/purchases', { itemId: id, requestId: 'furniture-1' }],
   ['GET', '/rooms/random', undefined], ['GET', `/rooms/${id}`, undefined], ['POST', `/rooms/${id}/visits`, {}],
   ['POST', `/rooms/${id}/stamps`, { kind: 'COZY' }], ['DELETE', `/room-stamps/${id}`, {}],
   ['POST', `/room-stamps/${id}/reports`, {}], ['POST', `/rooms/${id}/block`, {}],
   ['POST', `/rooms/${id}/friendship`, {}],
+  ['GET', `/rooms/${id}/guestbook`, undefined], ['GET', '/me/room-guestbook', undefined],
+  ['POST', `/rooms/${id}/guestbook`, { requestId: 'one', message: '좋은 방' }],
+  ['POST', '/me/room-guestbook/read', { entryIds: [id] }], ['GET', `/room-guestbook/${id}/author`, undefined],
+  ['POST', `/room-guestbook/${id}/friendship`, {}], ['POST', `/room-guestbook/${id}/reports`, {}],
+  ['DELETE', `/room-guestbook/${id}`, {}],
 ] as const;
+
+test('guestbook routes use authenticated identity, explicit read ids and opaque author entry references', async () => {
+  const f = fixture(args => {
+    args[21] = { addGuestbookAuthor: async () => ({ friend: { friendshipId: id }, created: true }) } as unknown as FriendService;
+  });
+  assert.equal((await request(f.server,'POST',`/rooms/${id}/guestbook`,'customer',{ requestId: 'one',message: '좋아요' })).status,200);
+  assert.deepEqual(f.calls.at(-1),{ accountId: 'customer',roomId: id,requestId: 'one',message: '좋아요' });
+  assert.equal((await request(f.server,'GET',`/rooms/${id}/guestbook?cursor=opaque`,'customer')).status,200);
+  assert.deepEqual(f.calls.at(-1),{ accountId: 'customer',roomId: id,cursor: 'opaque' });
+  assert.equal((await request(f.server,'POST','/me/room-guestbook/read','customer',{ entryIds: [id] })).status,200);
+  assert.deepEqual(f.calls.at(-1),{ accountId: 'customer',entryIds: [id] });
+  assert.equal((await request(f.server,'GET',`/room-guestbook/${id}/author`,'customer')).status,200);
+  assert.deepEqual(f.calls.at(-1),{ accountId: 'customer',entryId: id });
+  assert.equal((await request(f.server,'POST',`/room-guestbook/${id}/friendship`,'customer',{})).status,201);
+  for (const body of [{ requestId: 'x',message: 'hello',amount: 5 },{ requestId: 'x',message: 'hello',accountId: 'other' }])
+    assert.equal((await request(f.server,'POST',`/rooms/${id}/guestbook`,'customer',body)).status,400);
+  assert.equal((await request(f.server,'POST','/me/room-guestbook/read','customer',{ entryIds: [3] })).status,400);
+  assert.equal((await request(f.server,'GET','/me/room-guestbook?cursor=a&cursor=b','customer')).status,400);
+  f.rooms.postGuestbook = async () => { throw new RoomCommunityError('ROOM_REQUEST_CONFLICT'); };
+  assert.equal((await request(f.server,'POST',`/rooms/${id}/guestbook`,'customer',{ requestId: 'one',message: 'changed' })).status,409);
+  f.rooms.getGuestbookAuthor = async () => { throw new RoomCommunityError('ROOM_GUESTBOOK_NOT_FOUND'); };
+  assert.equal((await request(f.server,'GET',`/room-guestbook/${id}/author`,'customer')).status,404);
+});
+
+test('text guestbook moderation requires the existing admin session and CSRF boundary', async () => {
+  const f = fixture(args => {
+    args[14] = { resolveSession: async () => 'verified-admin' } as unknown as NonNullable<typeof args[14]>;
+    args[17] = { isAdmin: async () => true } as unknown as NonNullable<typeof args[17]>;
+  });
+  const headers = { host: 'masscom.kr',origin: 'https://masscom.kr',cookie: 'web_session=test-cookie' };
+  const path = `/api/web/admin/room-guestbook/${id}/hide`;
+  assert.equal((await request(f.server,'POST',path,undefined,{}, { ...headers,origin: 'https://foreign.example' })).status,403);
+  assert.equal((await request(f.server,'POST',path,undefined,{ actorAccountId: 'forged' },headers)).status,400);
+  assert.deepEqual(f.calls,[]);
+  assert.equal((await request(f.server,'POST',path,undefined,{},headers)).status,204);
+  assert.deepEqual(f.calls.at(-1),{ actorAccountId: 'verified-admin',entryId: id });
+  assert.equal((await request(f.server,'GET','/api/web/admin/room-guestbook-reports',undefined,undefined,headers)).status,200);
+  assert.equal(f.calls.at(-1),'verified-admin');
+});
 
 test('coin and community routes require authenticated current consent before reading or writing', async () => {
   const f = fixture();

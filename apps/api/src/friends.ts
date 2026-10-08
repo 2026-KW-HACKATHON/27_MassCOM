@@ -8,6 +8,7 @@ export interface FriendService {
   list(accountId: string): Promise<FriendsSnapshot>;
   addByCode(input: { accountId: string; code: string }): Promise<AddedFriend>;
   addNeighbor?(input: { accountId: string; roomId: string }): Promise<AddedFriend>;
+  addGuestbookAuthor?(input: { accountId: string; entryId: string }): Promise<AddedFriend>;
   remove(input: { accountId: string; friendshipId: string }): Promise<void>;
   rotateCode(accountId: string): Promise<{ code: string }>;
   setNickname(input: { accountId: string; nickname: string }): Promise<{ nickname: string }>;
