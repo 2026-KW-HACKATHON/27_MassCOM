@@ -58,6 +58,38 @@ export const SPRITE_SIZE_LADDER = Object.freeze([
   Object.freeze({ side: 256, quality: .7 }),
 ]);
 const decodedBytes = dataUrl => { const data = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0); };
+export const photoFileLimits = Object.freeze({ inputBytes: 20 * MiB, inputSide: 12000, inputPixels: 48_000_000, storedBytes: 3 * MiB, storedSide: 4096 });
+export function photoImportPlan(file, width, height) {
+  if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('JPG·PNG·WebP 사진을 선택해 주세요.');
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > photoFileLimits.inputBytes) throw new Error('사진은 20 MB 이하로 선택해 주세요.');
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || Math.max(width, height) > photoFileLimits.inputSide || width * height > photoFileLimits.inputPixels) throw new Error('사진은 4,800만 픽셀·한 변 12,000픽셀 이하로 선택해 주세요.');
+  const scale = Math.min(1, photoFileLimits.storedSide / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)), normalize: scale < 1 || file.size > photoFileLimits.storedBytes };
+}
+export async function preparePhotoFile(file) {
+  // Decode only after the bounded byte/type check, then reject oversized dimensions before canvas allocation.
+  photoImportPlan(file, 1, 1);
+  const dataUrl = await readFile(file), dimensions = await inspectImage(dataUrl);
+  const plan = photoImportPlan(file, dimensions.width, dimensions.height);
+  if (!plan.normalize) return { dataUrl, ...dimensions, normalized: false };
+  const image = await new Promise((resolve, reject) => {
+    const value = new Image(); value.onload = () => resolve(value); value.onerror = () => reject(new Error('사진을 읽지 못했어요. 다른 사진으로 다시 시도해 주세요.')); value.src = dataUrl;
+  });
+  const canvas = document.createElement('canvas');
+  try {
+    for (const scale of [1, .75, .5]) {
+      canvas.width = Math.max(1, Math.round(plan.width * scale)); canvas.height = Math.max(1, Math.round(plan.height * scale));
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('이 브라우저에서 사진을 줄이지 못했어요. 작은 사진을 선택해 주세요.');
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      for (const quality of [.92, .82, .7]) {
+        const encoded = canvas.toDataURL('image/webp', quality);
+        if (/^data:image\/(?:webp|png);base64,/.test(encoded) && decodedBytes(encoded) <= photoFileLimits.storedBytes) return { dataUrl: encoded, width: canvas.width, height: canvas.height, normalized: true };
+      }
+    }
+    throw new Error('사진을 저장 가능한 크기로 줄이지 못했어요. 작은 사진을 선택해 주세요. 기존 편집은 그대로 있어요.');
+  } finally { canvas.width = 0; canvas.height = 0; image.src = ''; }
+}
 export function publishSizeProblem(revision) {
   for (const assets of Object.values(revision.derived || {})) {
     for (const [name, max] of [['imageDataUrl', mediaLimits.image], ['baseDataUrl', mediaLimits.image], ['thumbnailDataUrl', mediaLimits.thumbnail], ['backImageDataUrl', mediaLimits.back]]) {
@@ -93,6 +125,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   let campaigns = initialCampaigns;
   let campaignSequence = 0;
   const base = `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/collectible-projects`;
+  const aiBase = `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/art`;
+  let aiRound = null, aiSequence = 0, aiPollTimer = 0;
   // 기기 보관 자동 저장 키. 계정 구분값이 없으면(로그아웃 상태에 가까운 호출 등) 자동 저장·복원 자체를 하지 않는다.
   const draftsEnabled = Boolean(accountScope);
   const draftKey = draftsEnabled ? draftStorageKey(merchantId, accountScope) : '';
@@ -136,8 +170,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     <p data-view="notice" class="ce-notice" role="status" aria-live="polite"></p>
     <div class="ce-grid"><div class="ce-controls">
       <label class="ce-field">수집품 이름<input data-control="name" maxlength="80" required></label>
-      <label class="ce-field">대표 사진 · JPG, PNG, WebP<input data-control="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
-      <p class="ce-help">가게·메뉴·간판·그림도 좋아요. 원본은 그대로 보관해 다시 자를 수 있어요. 사진은 3 MB, 한 변 4,096픽셀까지 지원해요. 게시한 사진·음성은 이미 받은 손님의 도감에 남을 수 있어요. 사용할 권한이 있는 자료를 골라 주세요.</p>
+      <label class="ce-field">대표 사진 · JPG, PNG, WebP · 20 MB까지<input data-control="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+      <p class="ce-help">가게·메뉴·간판·그림도 좋아요. 최근 사진을 골라 주세요. JPG·PNG·WebP, 20 MB·4,800만 픽셀·한 변 12,000픽셀까지 받아요. 큰 사진은 편집용으로 줄여 저장하며 기기의 원본 파일은 그대로예요. 편집용 사진으로 다시 자를 수 있어요. 게시한 사진·음성은 이미 받은 손님의 도감에 남을 수 있어요. 사용할 권한이 있는 자료를 골라 주세요.</p>
       <label class="ce-field">모양<select data-control="shape"><option value="circle">원형 동전</option><option value="stamp">우표</option><option value="serrated">뾰족한 톱니</option></select></label>
       <canvas data-view="crop" width="512" height="512" aria-label="사진 자르기와 붓 편집. 사진을 드래그해 옮기거나 아래 이동 조절을 이용하세요."></canvas>
       <label class="ce-field">사진 확대 <output data-value="zoom"></output><input data-control="zoom" type="range" min="1" max="8" step="0.05" value="1"></label>
@@ -886,6 +920,63 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     mutate(() => { project.photo = { originalDataUrl: image.dataUrl, width: image.width, height: image.height }; project.crop = { x: 0, y: 0, zoom: 1 }; project.photoEdits.strokes = []; });
     clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice(message);
   }
+  function stopAi() { aiSequence++; clearTimeout(aiPollTimer); aiPollTimer = 0; }
+  function showAiRound(round, sequence, sourceProject, polls = 0) {
+    if (!active || sequence !== aiSequence || project !== sourceProject) return;
+    aiRound = round;
+    const drafts = (round.drafts || []).filter(draft => Number.isSafeInteger(draft.index) && typeof draft.label === 'string' && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(draft.imageDataUrl));
+    if (round.final?.imageDataUrl && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(round.final.imageDataUrl)) drafts.push({ index: -1, label: '완성 그림', imageDataUrl: round.final.imageDataUrl });
+    if (round.status === 'FAILED') {
+      studio.showAi(collectibleErrorMessage({ code: round.failureCode }, 'AI 그림을 만들지 못했어요. 준비한 이미지로 계속하거나 새 초안을 다시 요청해 주세요.'), drafts); return;
+    }
+    if (!['DRAFTING', 'FINALIZING'].includes(round.status)) { studio.showAi('마음에 드는 그림을 골라 스튜디오에서 모양과 효과를 다듬어 주세요.', drafts); return; }
+    studio.showAi('AI가 그림을 만들고 있어요. 준비한 이미지로 먼저 시작해도 돼요.');
+    if (polls >= 60) { studio.showAi('생성이 오래 걸리고 있어요. 잠시 뒤 생성 상태를 다시 확인하거나 준비한 이미지로 계속해 주세요.'); return; }
+    aiPollTimer = setTimeout(async () => {
+      try { showAiRound(await request(`${aiBase}/rounds/${encodeURIComponent(round.id)}`), sequence, sourceProject, polls + 1); }
+      catch (error) {
+        if (!active || sequence !== aiSequence || project !== sourceProject) return;
+        studio.showAi(collectibleErrorMessage(error, '생성 상태를 읽지 못했어요. 상태 다시 확인을 눌러 주세요.'));
+        if (error?.status === 403) onAccessDenied?.(error);
+      }
+    }, 5000);
+  }
+  async function startAi(forceNew = false) {
+    stopAi(); stopHiddenMedia(); studio.showHome(false); studio.showAi('AI 생성 상태를 확인하고 있어요…');
+    const sequence = aiSequence, sourceProject = project;
+    setBusy(true);
+    try {
+      const state = await request(aiBase);
+      if (!active || sequence !== aiSequence || project !== sourceProject) return;
+      if (!state.configured) throw { code: 'AI_ART_NOT_CONFIGURED' };
+      if ((forceNew || !state.round) && !(state.quota?.draftRoundsLeft > 0)) throw { code: 'AI_ART_DAILY_LIMIT' };
+      const round = !forceNew && state.round ? state.round : await request(`${aiBase}/rounds`, { method: 'POST', body: {} });
+      showAiRound(round, sequence, sourceProject);
+    } catch (error) {
+      if (!active || sequence !== aiSequence || project !== sourceProject) return;
+      aiRound = null; studio.showAi(collectibleErrorMessage(error, 'AI 초안을 준비하지 못했어요. 준비한 이미지로 스튜디오에 들어갈 수 있어요.'));
+      if (error?.status === 403) onAccessDenied?.(error);
+    } finally { if (active && sequence === aiSequence) setBusy(false); }
+  }
+  async function latestPhoto() {
+    const sequence = ++uploadSequence, sourceProject = project;
+    setBusy(true); notice('최근 등록한 가게 사진을 확인하고 있어요…');
+    try {
+      const profileBase = `/api/web/v1/merchant/merchants/${encodeURIComponent(merchantId)}`;
+      const profile = await request(`${profileBase}/real-world-profile`);
+      if (!active || sequence !== uploadSequence || project !== sourceProject) return;
+      const photo = profile.photos?.[0]; // Server returns uploads newest first.
+      if (!photo || typeof photo.id !== 'string' || !photo.id || photo.id.length > 100) throw new Error('등록한 가게 사진이 없어요. 준비한 이미지를 직접 선택해 주세요.');
+      const response = await fetch(`${profileBase}/photos/${encodeURIComponent(photo.id)}/image`, { credentials: 'same-origin', signal });
+      if (!response.ok) throw Object.assign(new Error(), { status: response.status });
+      const image = await importImage(await response.blob(), photoFileLimits.storedBytes);
+      if (!active || sequence !== uploadSequence || project !== sourceProject || !confirmDiscardIfDirty()) return;
+      resetToNewDraft('', true); await usePhoto(image, '최근 등록한 가게 사진을 가져왔어요. 위치와 모양을 맞춰 주세요.'); studio.showStep(1);
+    } catch (error) {
+      if (active && sequence === uploadSequence && project === sourceProject) notice(error.status ? collectibleErrorMessage(error, '가게 사진을 가져오지 못했어요. 준비한 이미지를 선택해 주세요.') : error.message, true);
+      if (active && error?.status === 403) onAccessDenied?.(error);
+    } finally { if (active) setBusy(false); }
+  }
   function stopHiddenMedia() {
     navigationSequence++;
     playing = false; storyPlaying = false; pointer = null;
@@ -908,6 +999,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     return accepted;
   }
   function resetToNewDraft(menuName = '', suggested = false) {
+    stopAi(); studio.hideAi();
     stopHiddenMedia(); project = createMerchantStarterProject({ merchantName, menuName, suggested, campaigns, preferredCampaignId }); project.theme.name = studio.newTheme;
     campaignSelectionTouched = false;
     wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
@@ -950,6 +1042,25 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'pause') { playing = false; schedulePreview(); return; }
     if (action === 'story-stop') { storyPlaying = false; storyCanvas.hidden = true; return; }
     if (busy || loading) return;
+    if (action === 'ai-start' || action === 'ai-create') { await startAi(action === 'ai-create'); return; }
+    if (action === 'latest-photo') { await latestPhoto(); return; }
+    if (action === 'prepared-photo') {
+      if (!confirmDiscardIfDirty()) return;
+      resetToNewDraft('', true); studio.showStep(1); control('photo').click(); await drawCrop(); schedulePreview(); return;
+    }
+    if (action === 'ai-use') {
+      const draft = Number(id) === -1 ? aiRound?.final : aiRound?.drafts?.find(item => item.index === Number(id));
+      if (!draft || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(draft.imageDataUrl) || decodedBytes(draft.imageDataUrl) > photoFileLimits.storedBytes) { notice('AI 그림 형식을 읽지 못했어요. 생성 상태를 다시 확인해 주세요.', true); return; }
+      const sequence = aiSequence, sourceProject = project; setBusy(true);
+      try {
+        const dimensions = await inspectImage(draft.imageDataUrl);
+        if (Math.max(dimensions.width, dimensions.height) > photoFileLimits.storedSide) throw new Error('AI 그림이 너무 커요. 준비한 이미지로 계속해 주세요.');
+        if (!active || sequence !== aiSequence || project !== sourceProject || !confirmDiscardIfDirty()) return;
+        resetToNewDraft('', true); await usePhoto({ dataUrl: draft.imageDataUrl, ...dimensions }, 'AI 초안을 가져왔어요. 스튜디오에서 자유롭게 다듬고 저장해 주세요.'); studio.showStep(1);
+      } catch (error) { if (active && sequence === aiSequence) notice(error.message, true); }
+      finally { if (active) setBusy(false); }
+      return;
+    }
     if (action === 'home') { stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(); return; }
     if (action === 'resume') { navigateStep(studio.step); return; }
     if (action === 'step' || action === 'previous-step' || action === 'next-step') { navigateStep(action === 'step' ? id : studio.step + (action === 'next-step' ? 1 : -1)); return; }
@@ -1200,8 +1311,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (field === 'project-list') { await loadProject(target.value); return; }
       if (field === 'photo') {
         if (!target.files[0]) return; const sequence = ++uploadSequence, sourceProject = project;
-        const image = await importImage(target.files[0], 3 * 1024 * 1024); if (!active || sequence !== uploadSequence || project !== sourceProject) return;
-        await usePhoto(image, '사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
+        const image = await preparePhotoFile(target.files[0]); if (!active || sequence !== uploadSequence || project !== sourceProject) return;
+        await usePhoto(image, image.normalized ? '큰 사진을 편집용 크기로 줄여 가져왔어요. 기기의 원본 파일은 그대로예요.' : '사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
       }
       if (field === 'audio') {
         const file = target.files[0]; if (!file) return;
@@ -1457,6 +1568,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   // 'discard' → 사용자가 명시적으로 버리기로 한 이 초안만 지운다. 로그아웃·계정 전환으로 그 계정의 모든 점포
   // 보관본을 지우는 일은 제작기가 열려 있지 않아도 일어나야 하므로 merchant.mjs가 clearCollectibleDrafts로 직접 한다.
   const dispose = (reason = 'navigate') => {
+    stopAi(); aiRound = null;
     clearTimeout(autosaveTimer);
     if (reason === 'discard') clearDraftStorage();
     else saveDraftLocally();

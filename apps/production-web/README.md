@@ -25,6 +25,10 @@ Issue #365 운영 화면: `/admin/`의 캠페인 목록은 서버 `generatedAt` 
 
 ## 사진 제작기와 보유품 상세
 
+Issue #417: 제작기 홈에서 **AI로 초안 생성 후 스튜디오 하기**와 **미리 준비한 이미지 넣어서 스튜디오 가기**를 선택합니다. AI는 기존 이름·메뉴 기반 생성 서비스를 HttpOnly 점주 세션과 `MANAGE_ART` 권한으로 호출하고, 선택한 초안만 사진 배치에 가져옵니다. 가게 대표 그림 적용·수집품 게시를 자동으로 실행하지 않습니다. AI 설정·예산이 없으면 준비한 이미지 경로를 안내합니다. 사진·음성은 AI로 전송하지 않습니다.
+
+웹 대표 사진은 JPG·PNG·WebP, 20 MiB·4,800만 픽셀·한 변 12,000픽셀까지 입력합니다. 큰 사진은 브라우저에서 3 MiB·한 변 4,096픽셀 이하로 줄이며 서버의 이미지 검증과 8 MiB 저장 본문 제한은 유지합니다. 최근 등록 사진은 점주 전용 프로필·이미지 API로 읽고 최신 업로드 순서를 사용합니다. 제작기를 연 데스크톱 페이지는 넓은 작업 공간을 사용하며 휴대폰 웹은 기존 단계 화면을 유지합니다. [검증 증거](../../docs/evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)에서 합성 UI·실계정·실제 DB 검증 범위를 구분합니다.
+
 점주 Google 웹 세션의 `MANAGE_ART` 권한으로 `/merchant/`에 제작기를 엽니다. 대표 사진·선택 입력을 편집하고 초안을 명시적으로 저장합니다. 같은 계정의 세션 재확인에는 초안을 유지하고, 계정·권한 변경/로그아웃/페이지 이탈에는 미디어와 녹음을 해제합니다. 게시할 캠페인은 공개 `/merchants`(운영 프록시가 캠페인·점포 ID를 지운다)가 아니라 점주 권한의 `GET /api/web/merchant/merchants/:id/collectible-campaigns`에서 받고, 선택한 캠페인에 있는 방문 목표 외형 연결을 화면에서 직접 고릅니다. 저장·게시 응답의 `project`를 새 기준으로 삼아 게시 뒤 "저장하지 않은 변경"이 남지 않으며, 게시 중지·삭제(확인 뒤 `expectedVersion` 요청)와 지금 나가는 캠페인 이름을 보여 줍니다. 게시용 이미지는 WebP(0.9)로 만들어 8 MiB 본문 안에 넣고, 서버 오류 코드마다 고유 문구(429는 `Retry-After` 초)를 보입니다(`assets/collectible-errors.mjs`). 고객 `/app/` 도감은 정적 썸네일을 먼저 표시하고 상세를 열 때만 보유자 API를 호출합니다. 음성·장면은 자동 재생하지 않습니다.
 
 편집/재생 모듈은 허용된 정적 자산 경로에만 포함되며 CSP는 인라인 raster 그림·선택 음성 data/blob만 허용합니다. 원본은 외부 AI에 전송하지 않습니다. `collectible-model.mjs`의 DOM 없는 모델, 로컬 canvas 렌더러, 편집기, 상세 재생기를 분리했습니다. `node --test tests/site/collectible-*.test.mjs tests/site/verify_production_web_test.mjs`로 새 구조와 기존 점주·고객 기능을 함께 검사합니다. 편집기 저장·게시·복사·충돌·삭제 흐름은 최소 DOM 위의 행동 시험(`collectible-editor-flow.test.mjs`)이고, 화면 검수용 `tests/fixtures/collectible-qa-server.mjs`(`COLLECTIBLE_QA_PORT`로 포트 지정)는 운영 프록시와 같은 `/merchants` 모양을 돌려줍니다. [전체 계약](../../docs/COLLECTIBLE_CREATOR.md)을 참고하세요.

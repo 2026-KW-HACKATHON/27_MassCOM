@@ -939,6 +939,17 @@ export function createApiServer(
             accountScope: createHash('sha256').update(`collectible-editor:${accountId}`).digest('hex') });
           return;
         }
+        const webArtMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/art(\/.*)?$/);
+        const webArtRoute = webArtMatch ? matchMerchantArtRoute(request.method, webArtMatch[2] ?? '') : undefined;
+        if (webArtMatch && webArtRoute) {
+          if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+          const merchantId = decodePathParameter(webArtMatch[1]!);
+          await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
+          if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+          if (!merchantArt) throw new RequestError(503, 'AI_ART_NOT_CONFIGURED');
+          await runMerchantArtRoute(merchantArt, webArtRoute, merchantId, accountId, request, response);
+          return;
+        }
         const collectibleCampaigns = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/collectible-campaigns$/);
         if (collectibleCampaigns && request.method === 'GET') {
           if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
@@ -2130,28 +2141,7 @@ export function createApiServer(
         const merchantId = decodePathParameter(artMatch[1]!);
         await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
         if (!merchantArt) throw new RequestError(503, 'AI_ART_NOT_CONFIGURED');
-        const roundId = 'roundId' in artRoute ? decodePathParameter(artRoute.roundId) : '';
-        if (artRoute.kind === 'state') {
-          sendJson(response, 200, await merchantArt.getState(merchantId));
-        } else if (artRoute.kind === 'create') {
-          requireEmptyBody(await readJson(request, true));
-          sendJson(response, 202, await merchantArt.createRound({ merchantId, accountId }));
-        } else if (artRoute.kind === 'get') {
-          sendJson(response, 200, await merchantArt.getRound({ merchantId, roundId }));
-        } else if (artRoute.kind === 'choose') {
-          const body = await readJson(request);
-          if (Object.keys(body).some(key => key !== 'index')) throw new RequestError(400, 'INVALID_REQUEST');
-          const index = requireNumber(body, 'index');
-          if (index < 0 || index > 3) throw new RequestError(400, 'INVALID_REQUEST');
-          sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index, accountId }));
-        } else if (artRoute.kind === 'apply') {
-          requireEmptyBody(await readJson(request, true));
-          sendJson(response, 200, await merchantArt.apply({ merchantId, roundId, accountId }));
-        } else {
-          requireEmptyBody(await readJson(request, true));
-          await merchantArt.reset({ merchantId, accountId });
-          sendJson(response, 200, { status: 'RESET' });
-        }
+        await runMerchantArtRoute(merchantArt, artRoute, merchantId, accountId, request, response);
         return;
       }
 
@@ -2767,6 +2757,38 @@ function matchMerchantArtRoute(method: string | undefined, tail: string): Mercha
   const roundId = round[1]!;
   if (round[2] === undefined) return method === 'GET' ? { kind: 'get', roundId } : undefined;
   return method === 'POST' ? { kind: round[2] as 'choose' | 'apply', roundId } : undefined;
+}
+
+async function runMerchantArtRoute(
+  merchantArt: MerchantArtService,
+  artRoute: MerchantArtRoute,
+  merchantId: string,
+  accountId: string,
+  request: IncomingMessage,
+  response: ServerResponse,
+): Promise<void> {
+  const roundId = 'roundId' in artRoute ? decodePathParameter(artRoute.roundId) : '';
+  if (artRoute.kind === 'state') {
+    sendJson(response, 200, await merchantArt.getState(merchantId));
+  } else if (artRoute.kind === 'create') {
+    requireEmptyBody(await readJson(request, true));
+    sendJson(response, 202, await merchantArt.createRound({ merchantId, accountId }));
+  } else if (artRoute.kind === 'get') {
+    sendJson(response, 200, await merchantArt.getRound({ merchantId, roundId }));
+  } else if (artRoute.kind === 'choose') {
+    const body = await readJson(request);
+    if (Object.keys(body).some(key => key !== 'index')) throw new RequestError(400, 'INVALID_REQUEST');
+    const index = requireNumber(body, 'index');
+    if (index < 0 || index > 3) throw new RequestError(400, 'INVALID_REQUEST');
+    sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index, accountId }));
+  } else if (artRoute.kind === 'apply') {
+    requireEmptyBody(await readJson(request, true));
+    sendJson(response, 200, await merchantArt.apply({ merchantId, roundId, accountId }));
+  } else {
+    requireEmptyBody(await readJson(request, true));
+    await merchantArt.reset({ merchantId, accountId });
+    sendJson(response, 200, { status: 'RESET' });
+  }
 }
 
 const consentBodyKeys = ['termsVersion', 'privacyVersion', 'ageConfirmed', 'termsAccepted', 'privacyAccepted'] as const;

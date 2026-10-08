@@ -12,6 +12,9 @@ const campaign = { id: 'qa-collectible-campaign', title: '로컬 방문 캠페�
 const port = Number(process.env.COLLECTIBLE_QA_PORT) || 4173;
 const projects = new Map();
 const projectDelayMs = Math.min(5000, Math.max(0, Number(process.env.COLLECTIBLE_QA_DELAY_MS) || 0));
+// 실제 생성·과금·인증을 흉내 내지 않는다. 명시적으로 켠 경우 화면 흐름에만 합성 그림을 제공한다.
+const syntheticAi = process.env.COLLECTIBLE_QA_AI === '1';
+let aiRound = null;
 let published;
 const json = (response, body, status = 200) => { response.writeHead(status, {'content-type':'application/json','cache-control':'no-store'}); response.end(JSON.stringify(body)); };
 const full = project => ({ id: randomUUID(),merchantId:merchant.id,version:1,status:'DRAFT',publicationId:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),project });
@@ -23,6 +26,16 @@ createServer(async (request,response) => {
       if (request.method !== 'GET') { const chunks=[]; for await (const chunk of request) chunks.push(chunk); body=JSON.parse(Buffer.concat(chunks).toString()||'{}'); }
       if (path === '/api/web/merchant/me') return json(response,{accountScope:'synthetic-local-qa-owner',merchants:[merchant]});
       if (path === '/api/web/merchant/registration-merchants') return json(response,{merchants:[merchant]});
+      const artBase = `/api/web/merchant/merchants/${merchant.id}/art`;
+      if (path === artBase && request.method === 'GET') return json(response, { configured: syntheticAi, current: null, quota: { draftRoundsLeft: 1, finalsLeft: 1 }, round: aiRound });
+      if (path === `${artBase}/rounds` && request.method === 'POST') {
+        if (!syntheticAi) return json(response, { code: 'AI_ART_NOT_CONFIGURED' }, 503);
+        const bytes = await readFile(new URL('assets/mascot-stamp.png', root));
+        aiRound = { id: 'synthetic-ui-round', status: 'DRAFTS_READY', chosenIndex: null, final: null, failureCode: null, createdAt: new Date().toISOString(),
+          drafts: [{ index: 0, style: 'watercolor', label: '합성 QA 초안 · 실제 AI 생성 아님', imageDataUrl: `data:image/png;base64,${bytes.toString('base64')}` }] };
+        return json(response, aiRound, 201);
+      }
+      if (path === `${artBase}/rounds/synthetic-ui-round` && aiRound) return json(response, aiRound);
       if (path === '/api/web/admin/me') return json(response, { role: 'ADMIN' });
       if (path === '/api/web/admin/merchants') return json(response, { merchants: [] });
       if (path === '/api/web/admin/account-deletion-intakes') return json(response, { intakes: [] });

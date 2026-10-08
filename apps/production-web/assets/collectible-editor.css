@@ -42,6 +42,14 @@
 .collectible-editor .ce-create-card { display: grid; gap: .6rem; justify-items: center; padding: 1.6rem .9rem; border-radius: 1.2rem; box-shadow: 0 8px 20px #075ee52b; }
 .ce-create-card strong { font-size: 1.15rem; }
 .ce-create-card > span:last-child { font-weight: 400; font-size: .85rem; }
+.page-narrow:has(.collectible-editor) { width: var(--mc-page); max-width: 1200px; }
+#merchant-creator-editor { max-width: none; width: 100%; }
+.ce-entry-options { display: grid; gap: .75rem; min-width: 0; }
+.ce-entry-options .ce-create-card { text-align: left; justify-items: start; padding: 1rem; }
+.ce-ai-drafts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .8rem; }
+.ce-ai-draft { display: grid; gap: .5rem; text-align: left; min-width: 0; }
+.ce-ai-draft img { width: 100%; aspect-ratio: 1; object-fit: contain; border-radius: .65rem; background: #edf4ff; }
+.ce-ai-draft span { font-size: .85rem; font-weight: 400; }
 .ce-camera-icon { display: grid; place-items: center; font-size: 2rem; width: 54px; height: 44px; border: 3px solid #fff; border-radius: .75rem; line-height: 1; }
 .ce-starter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; }
 .collectible-editor .ce-starter-choice { display: grid; gap: .35rem; min-width: 0; padding: 0 0 .8rem; overflow: hidden; text-align: left; border-color: var(--ce-line); }
@@ -168,6 +176,7 @@
 @media (max-width: 820px) {
   .ce-heading { flex-direction: column; }
   .ce-studio-hero { grid-template-columns: minmax(0, 1fr) 95px; padding: 1rem; gap: .8rem; }
+  .ce-entry-options { grid-column: 1 / -1; }
   .collectible-editor .ce-create-card { grid-column: 1 / -1; padding: 1rem; gap: .35rem; }
   .ce-camera-icon { width: 44px; height: 34px; font-size: 1.5rem; }
   .ce-project-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }

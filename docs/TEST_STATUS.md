@@ -1,5 +1,19 @@
 # 테스트 상태
 
+## 2026-10-08 점주 제작기 웹 두 갈래 진입과 가상 점포 QA (Issue #417)
+
+기준 main `e06c97cdad8d03b4e69b4008a91d39bedbbd874d`에서 브랜치 `feat/merchant-dual-studio`로 작업했다. 점주 웹 제작기 홈에 `AI로 초안 생성 후 스튜디오 하기`와 `미리 준비한 이미지 넣어서 스튜디오 가기`를 추가하고, AI 초안 선택·최근 등록 사진·웹 큰 사진 입력 정규화·최신 점포 사진 정렬·점주 웹 AI art API를 구현했다. 가상 점포 QA는 로컬 PostgreSQL/API 전용이며 운영 DB·공개 앱에는 넣지 않았다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 인터넷·최신 원격 확인 | PASS | 2026-10-08 KST 재확인: `api.masscom.kr/health` 200, `demo-api.masscom.kr/health` 200, `www.masscom.kr/merchant/` 200, GitHub 원격 `origin/main` = `e06c97cd`. 비로그인 GitHub REST 404는 private 저장소 특성이고 인증된 `gh repo view`는 `2026-KW-HACKATHON/27_MassCOM main` PASS |
+| 점주 실계정 웹 | BLOCKED | `msocs1324@gmail.com` Google 로그인은 성공했지만 승인된 점포가 없다는 운영 화면이 표시되어 실제 계정의 제작·저장·게시 종단 검증은 하지 못했다. 권한을 임의 부여하지 않았다 |
+| 웹 제작기 단위·회귀 | PASS | `node --test tests/site/collectible-dual-studio.test.mjs tests/site/collectible-merchant-starter.test.mjs tests/site/collectible-editor-flow.test.mjs tests/site/collectible-studio-layout.test.mjs tests/site/collectible-errors.test.mjs` → 142/142 PASS |
+| API 단위·타입 | PASS | `npm --prefix apps/api run typecheck` PASS, `npx --prefix apps/api tsx --test apps/api/src/server.test.ts` → 123/123 PASS |
+| 실제 PostgreSQL 통합 | PASS | 임시 `_test` DB에서 `TEST_DATABASE_URL=… tsx --test apps/api/src/real-world.postgres.integration.ts` → 1/1 PASS. 최신 사진 정렬 fixture는 profile 좌표와 DB check constraint를 맞춰 고쳤다 |
+| 로컬 가상 점포 QA | PASS | `.\apps\api\node_modules\.bin\tsx.cmd tests/qa/merchant-dual-studio-qa.mts` → `QA_PASS … qa-wolgye-dalbit-bakery-20261008`. `/merchants`, `/v1/discovery/search`, 상세, game-content, 사진 URL을 확인했다. 증거는 `docs/evidence/merchant-dual-studio-2026-10-08/` |
+| 브라우저 UI QA | PASS(합성 fixture) | `COLLECTIBLE_QA_AI=1 tests/fixtures/collectible-qa-server.mjs` 기반 Codex in-app Chromium에서 두 진입 카드, 합성 AI 초안 선택 후 저장, 준비 이미지 선택 후 저장, 데스크톱·모바일 가로 넘침 없음 확인. 실제 AI 생성·실제 점포 권한·배포는 `NOT_RUN/BLOCKED` |
+
 ## 2026-10-08 첫 사용 경험: 웹 첫 화면·동의·첫 코인·가게 사실 표시 (Issue #412, 배포 동결)
 
 기준 main `b572184e`(PR #411 병합) 위에서 만든 작업 브랜치 `feat/first-use-v2`이며, PR #413·#414가 병합된 main `108f6b38` 위로 리베이스했다. 앱 코드와 CI 한 줄이 바뀌었고 API·DB는 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행한 결과다. 배포·게시는 하지 않았다(소유자 결정 A). 결정은 [D-083~D-087](DECISIONS.md)이다.

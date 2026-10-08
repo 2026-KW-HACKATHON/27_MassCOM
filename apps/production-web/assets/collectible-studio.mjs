@@ -74,9 +74,21 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const home = node('div', 'ce-studio-home'); home.dataset.view = 'studio-home';
   const hero = node('section', 'ce-studio-hero');
   const heroText = node('div', 'ce-hero-copy'); heroText.append(node('span', 'ce-eyebrow', '사진으로 만드는 우리 가게의 이야기'), node('h3', '', '들를 때마다,\n하나씩 모으는 즐거움'), node('p', '', '가게, 메뉴, 간판, 그림도 좋아요.\n사진 한 장으로 쉽게 시작하세요.'));
-  const create = action('', 'new', undefined, 'ce-create-card'); create.append(node('span', 'ce-camera-icon', '＋'), node('strong', '', '새 수집품 만들기'), node('span', '', '사진으로 쉽게 시작해요 →'));
+  const create = node('div', 'ce-entry-options');
+  const aiEntry = action('', 'ai-start', undefined, 'ce-create-card');
+  aiEntry.append(node('strong', '', 'AI로 초안 생성 후 스튜디오 하기'), node('span', '', '가게 이름과 메뉴로 그림을 만들고 골라요 →'));
+  const photoEntry = action('', 'prepared-photo', undefined, 'ce-create-card');
+  photoEntry.append(node('strong', '', '미리 준비한 이미지 넣어서 스튜디오 가기'), node('span', '', '사진·그림을 직접 골라 바로 편집해요 →'));
+  create.append(aiEntry, photoEntry);
   const mascot = node('img', 'ce-hero-mascot'); mascot.src = '/assets/mascot-stamp.png'; mascot.alt = ''; mascot.width = 140; mascot.height = 140;
   hero.append(heroText, mascot, create); home.append(hero);
+  const aiPanel = section('AI 초안 고르기', '가게 이름과 등록된 메뉴로 만들어요. 사진과 음성은 AI에 보내지 않아요. 고른 그림은 스튜디오 초안에만 들어가요.');
+  aiPanel.dataset.view = 'ai-panel'; aiPanel.hidden = true;
+  const aiStatus = node('p', 'ce-help'); aiStatus.setAttribute('role', 'status'); aiStatus.dataset.view = 'ai-status';
+  const aiDrafts = node('div', 'ce-ai-drafts'); aiDrafts.dataset.view = 'ai-drafts';
+  aiPanel.append(aiStatus, aiDrafts, action('생성 상태 다시 확인', 'ai-start', undefined, 'ce-text-button'), action('AI 새 초안 만들기', 'ai-create', undefined, 'ce-text-button'));
+  home.append(aiPanel);
+  home.append(action('최근 등록한 가게 사진으로 시작', 'latest-photo', undefined, 'ce-text-button'));
   {
     const starters = section('가게에서 시작하기');
     const choices = node('div', 'ce-starter-grid');
@@ -307,10 +319,19 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     }
   }
   function setBusy(value) {
-    for (const tile of container.querySelectorAll('[data-action="home"],[data-action="step"],[data-action="resume"],[data-action="open-project"],[data-action="previous-step"],[data-action="next-step"],[data-action="season"],[data-action="theme"]')) tile.disabled = value;
+    for (const tile of container.querySelectorAll('[data-action="home"],[data-action="step"],[data-action="resume"],[data-action="open-project"],[data-action="previous-step"],[data-action="next-step"],[data-action="season"],[data-action="theme"],[data-action="prepared-photo"],[data-action="latest-photo"],[data-action="ai-start"],[data-action="ai-create"],[data-action="ai-use"]')) tile.disabled = value;
   }
   return {
     showStep, showHome, renderProjects, setBusy, dispose: restoreBackground,
+    showAi(message, drafts = []) {
+      aiPanel.hidden = false; aiStatus.textContent = message; aiDrafts.replaceChildren();
+      for (const draft of drafts) {
+        const tile = action('', 'ai-use', String(draft.index), 'ce-ai-draft');
+        const image = node('img'); image.src = draft.imageDataUrl; image.alt = `${draft.label} AI 초안`;
+        tile.append(image, node('strong', '', draft.label), node('span', '', '이 그림으로 스튜디오 가기 →')); aiDrafts.append(tile);
+      }
+    },
+    hideAi() { aiPanel.hidden = true; aiDrafts.replaceChildren(); },
     setHistoryEntry(value) { historyEntry = value; },
     // 홈 버튼의 늦은 기록 이동은 재진입한 작업 영역을 닫지 않는다.
     consumePendingBack() { const pending = pendingBack; pendingBack = false; return pending; },

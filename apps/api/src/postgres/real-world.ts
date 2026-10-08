@@ -116,7 +116,7 @@ export class PostgresRealWorldService {
     const result = await this.pool.query<PhotoRow & { merchant_id: string }>(
       `SELECT merchant_id, id, digest, mime_type, width, height, kind, caption, updated_at
        FROM merchant_real_world_photos WHERE merchant_id = ANY($1::text[]) AND deleted_at IS NULL
-       ORDER BY created_at, id`, [merchantIds]);
+       ORDER BY created_at DESC, id DESC`, [merchantIds]);
     const byMerchant = new Map<string, MerchantPhoto[]>();
     for (const row of result.rows) byMerchant.set(row.merchant_id, [...byMerchant.get(row.merchant_id) ?? [], toPhoto(row)]);
     return byMerchant;
@@ -308,7 +308,7 @@ export class PostgresRealWorldService {
     const at = this.now();
     const photos = await client.query<PhotoRow>(
       `SELECT id, digest, mime_type, width, height, kind, caption, updated_at
-       FROM merchant_real_world_photos WHERE merchant_id = $1 AND deleted_at IS NULL ORDER BY created_at, id`, [merchant.id]);
+       FROM merchant_real_world_photos WHERE merchant_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC, id DESC`, [merchant.id]);
     const profile = profileFor(merchant);
     const publicPhotos = photos.rows.map(toPhoto);
     const campaigns = await this.campaigns([merchant.id], at, client);
