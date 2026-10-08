@@ -21,7 +21,7 @@ async function flush() {
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
-function fixture(options: { stored?: string | null; prepare?: () => Promise<void>; read?: () => Promise<string | null>; music?: boolean; musicLoaded?: boolean } = {}) {
+function fixture(options: { stored?: string | null; prepare?: () => Promise<void>; read?: () => Promise<string | null>; music?: boolean; musicLoaded?: boolean; deferUiPlayers?: boolean } = {}) {
   const events: string[] = [];
   const players = new Map<string, SoundPlayer>();
   const musicPlayers = new Map<MusicSoundName, SoundPlayer & { finish?: () => void; load?: () => void }>();
@@ -66,6 +66,7 @@ function fixture(options: { stored?: string | null; prepare?: () => Promise<void
       async setItem(key, value) { writes.push({ key, value }); },
     },
     now: () => clock,
+    deferUiPlayers: options.deferUiPlayers,
   });
   return { controller, events, players, musicPlayers, writes, advance: (ms: number) => { clock += ms; } };
 }
@@ -393,6 +394,8 @@ test('volume, haptic mode and reset persist together while updating live players
   const { controller, players, musicPlayers, writes } = fixture({ music: true });
   const stop = controller.start(true);
   await flush();
+  controller.setDrawMusicFocused(true);
+  await flush();
   controller.setSoundEffectsVolume(0.8);
   controller.setBgmVolume(0.6);
   controller.setHapticMode('DRAW_ONLY');
@@ -407,4 +410,85 @@ test('volume, haptic mode and reset persist together while updating live players
   assert.equal(controller.getSnapshot().hapticMode, 'ALL');
   assert.ok(writes.some((write) => parsed(write.value).hapticMode === 'DRAW_ONLY'));
   stop();
+});
+
+test('music players are not created until the draw screen is first focused', async () => {
+  const { controller, events, players, musicPlayers } = fixture({ music: true });
+  const stop = controller.start(true);
+  await flush();
+  assert.equal(players.size, UI_SOUND_NAMES.length, 'native-style start still creates the seven UI players');
+  assert.equal(musicPlayers.size, 0, 'no BGM player before the draw screen');
+  controller.setForeground(false);
+  controller.setForeground(true);
+  controller.setBgmVolume(0.5);
+  await flush();
+  assert.equal(musicPlayers.size, 0, 'foreground and volume changes do not create BGM players');
+  controller.setDrawMusicFocused(true);
+  await flush();
+  assert.deepEqual([...musicPlayers.keys()].sort(), ['drawIntro', 'drawLoop']);
+  assert.equal(musicPlayers.get('drawIntro')!.volume, 0.5, 'a volume chosen before creation is applied at creation');
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  stop();
+  assert.ok(events.includes('drawIntro:remove') && events.includes('drawLoop:remove'));
+});
+
+test('draw focus before the audio backend is ready creates the music players once it is', async () => {
+  const pending = deferred<void>();
+  const { controller, events, musicPlayers } = fixture({ music: true, prepare: () => pending.promise });
+  const stop = controller.start(true);
+  await flush();
+  controller.setDrawMusicFocused(true);
+  assert.equal(musicPlayers.size, 0);
+  pending.resolve();
+  await flush();
+  assert.equal(musicPlayers.size, 2);
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawIntro:play']);
+  stop();
+});
+
+test('deferred UI players are created only on the first gesture, then play like normal ones', async () => {
+  const { controller, events, players } = fixture({ deferUiPlayers: true });
+  const stop = controller.start(true);
+  await flush();
+  assert.equal(players.size, 0, 'nothing is created (or downloaded) at start');
+  controller.play('tap');
+  await flush();
+  assert.equal(events.some((event) => event.endsWith(':play')), false, 'a sound before the gesture is silent, not an error');
+  controller.loadUiPlayers();
+  assert.equal(players.size, UI_SOUND_NAMES.length);
+  controller.loadUiPlayers();
+  assert.equal(players.size, UI_SOUND_NAMES.length, 'a second call creates nothing more');
+  controller.play('success');
+  await flush();
+  assert.equal(events.filter((event) => event === 'success:play').length, 1);
+  stop();
+  assert.equal(events.filter((event) => event.endsWith(':remove')).length, UI_SOUND_NAMES.length);
+});
+
+test('a gesture that arrives before the audio backend is ready still creates the UI players afterwards', async () => {
+  const pending = deferred<void>();
+  const { controller, players } = fixture({ deferUiPlayers: true, prepare: () => pending.promise });
+  const stop = controller.start(true);
+  controller.loadUiPlayers();
+  assert.equal(players.size, 0);
+  pending.resolve();
+  await flush();
+  assert.equal(players.size, UI_SOUND_NAMES.length);
+  stop();
+});
+
+test('loadUiPlayers is harmless before start and after stop, and the effect volume is applied at creation', async () => {
+  const { controller, players, advance } = fixture({ deferUiPlayers: true });
+  assert.doesNotThrow(() => controller.loadUiPlayers());
+  assert.equal(players.size, 0, 'not mounted yet');
+  const stop = controller.start(true);
+  await flush();
+  assert.equal(players.size, UI_SOUND_NAMES.length, 'a gesture seen before start is remembered');
+  stop();
+  players.clear();
+  const again = controller.start(true);
+  await flush();
+  assert.equal(players.size, UI_SOUND_NAMES.length, 'a restart re-creates them without waiting for another gesture');
+  advance(1);
+  again();
 });

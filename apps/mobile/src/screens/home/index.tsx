@@ -1,13 +1,15 @@
-import { Link, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
-import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
-import { createCoinApiClient, type CoinShop } from '@/shop/coin-api';
-import { createStudioApiClient, displayStudioItems, type StudioSnapshot } from '@/studio/studio-api';
+import { createCommerceApiClient } from '@/commerce/commerce-api';
+import { createMerchantApiClient } from '@/merchant/merchant-api';
+import { createRecommendationApiClient } from '@/recommendation/recommendation-api';
+import { createCoinApiClient } from '@/shop/coin-api';
+import { createStudioApiClient, displayStudioItems } from '@/studio/studio-api';
 import { StudioScene } from '@/studio/studio-scene';
+import { homeErrorText, markHomePending, needsFirstStoreRecommendation, pickFirstStore, settleHomeSection, startHomeLoad, type HomeData, type HomeSection, type HomeValues } from './home-load';
 import { homeVisitGoal } from './visit-goal';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createBadgeApiClient, type BadgeApiClient, type BadgeBook, type OpenedReward } from '@/gamification/badge-api';
@@ -41,14 +43,12 @@ type Props = {
   onSessionInvalid: () => Promise<void>;
 };
 
-type HomeData = { loadedAt: number; studio?: StudioSnapshot; coinShop?: CoinShop; collection?: CollectionSnapshot;
-  merchants?: readonly PublicMerchant[]; rewardCount?: number; errors: string[] };
-
 export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const scheme = useColorScheme();
   const palette = colorsForScheme(scheme);
   const world = worldForScheme(scheme);
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { width, height: viewportHeight, fontScale } = useWindowDimensions();
   const compactHome = viewportHeight < 740 || fontScale >= 1.5;
   const sceneWidth = Math.min(width - 32, 500);
@@ -61,26 +61,41 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const clients = useMemo(() => {
     const options = { apiUrl, credential, onSessionInvalid };
     return { studio: createStudioApiClient(options), coins: createCoinApiClient(options), rewards: createStoreTicketApiClient(options),
-      collection: createCommerceApiClient(options), merchants: createMerchantApiClient(apiUrl) };
+      collection: createCommerceApiClient(options), merchants: createMerchantApiClient(apiUrl), recommendations: createRecommendationApiClient(options) };
   }, [apiUrl, credential, onSessionInvalid]);
   const [loaded, setLoaded] = useState<{ clients: typeof clients; value: HomeData }>();
   const [refreshing, setRefreshing] = useState(false);
   const generation = useRef(0);
+  const loadedRef = useRef(loaded);
+  useEffect(() => { loadedRef.current = loaded; }, [loaded]);
   const load = useCallback(async (refresh = false) => {
     const request = ++generation.current;
     if (refresh) setRefreshing(true);
-    const results = await Promise.allSettled([clients.studio.getMine(), clients.coins.getShop(), clients.rewards.listStoreTickets(),
-      clients.collection.getCollection(), clients.merchants.listMerchants()]);
-    if (request !== generation.current) return;
-    const [studio, coins, rewards, collection, merchants] = results;
-    setLoaded({ clients, value: { loadedAt: Date.now(),
-      ...(studio.status === 'fulfilled' ? { studio: studio.value } : {}),
-      ...(coins.status === 'fulfilled' ? { coinShop: coins.value } : {}),
-      ...(rewards.status === 'fulfilled' ? { rewardCount: rewards.value.length } : {}),
-      ...(collection.status === 'fulfilled' ? { collection: collection.value } : {}),
-      ...(merchants.status === 'fulfilled' ? { merchants: merchants.value } : {}),
-      errors: results.flatMap((result, index) => result.status === 'rejected' ? [['마이룸', '뽑기권', '방문 보상', '도감', '가게'][index]!] : []),
-    } }); setRefreshing(false);
+    const hadRecommendations = loadedRef.current?.clients === clients && loadedRef.current.value.recommendations !== undefined;
+    const apply = (update: (data: HomeData) => HomeData) => {
+      if (request !== generation.current) return;
+      setLoaded((current) => ({ clients, value: update(current?.clients === clients ? current.value : startHomeLoad(undefined, Date.now())) }));
+    };
+    setLoaded((current) => ({ clients, value: startHomeLoad(current?.clients === clients ? current.value : undefined, Date.now()) }));
+    // Each request settles into its own slot, so the sky, the CTA and the store info show as soon as they arrive.
+    const track = <K extends HomeSection>(section: K, run: Promise<HomeValues[K]>) => run.then(
+      (value) => apply((data) => settleHomeSection(data, section, { ok: true, value })),
+      () => apply((data) => settleHomeSection(data, section, { ok: false })));
+    await Promise.all([
+      track('studio', clients.studio.getMine()),
+      track('coins', clients.coins.getShop()),
+      track('rewards', clients.rewards.listStoreTickets().then((tickets) => tickets.length)),
+      track('collection', clients.collection.getCollection().then((collection) => {
+        // Only someone with no visit yet needs a first store, and a revisit keeps the one already shown; a superseded load asks for nothing.
+        if (request === generation.current && needsFirstStoreRecommendation(collection.visits.length, hadRecommendations)) {
+          apply((data) => markHomePending(data, 'recommendations'));
+          void track('recommendations', clients.recommendations.listRecommendations());
+        }
+        return collection;
+      })),
+      track('merchants', clients.merchants.listMerchants()),
+    ]);
+    if (request === generation.current) setRefreshing(false);
   }, [clients]);
   useFocusEffect(useCallback(() => { void load(); return () => { generation.current++; }; }, [load]));
   const data = loaded?.clients === clients ? loaded.value : undefined;
@@ -93,6 +108,10 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
     else ticketGroups.set(ticket.merchantId, { name: pool?.merchantName ?? ticket.eventName, count: 1, grade: ticket.grade });
   }
   const goal = data?.collection && data.merchants ? homeVisitGoal(data.merchants, data.collection, data.loadedAt) : undefined;
+  const failed = (section: HomeSection) => data?.errors.includes(section) === true;
+  const firstStore = pickFirstStore(data, goal);
+  const emptyRoom = data?.studio && displayStudioItems(data.studio).length === 0;
+  const collectedCount = data?.collection?.collectibles.length ?? 0;
   const heading = { color: world.cardInk, fontSize: 21, fontWeight: '800' as const };
   const body = { color: world.cardMuted, fontSize: 13, lineHeight: 19 };
   const quick = { flex: 1, minHeight: 66, borderRadius: 20, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4, backgroundColor: world.card };
@@ -108,6 +127,13 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           <TabGlyph name="explore" color={palette.onPrimary} size={24} />
           <Text style={{ color: palette.onPrimary, fontWeight: '800', fontSize: 16 }}>가게 찾기</Text>
         </Pressable></Link> : null}
+        {firstStore ? <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: firstStore.merchantId, from: 'recommendation' } }} asChild>
+          <Pressable accessibilityRole="button" accessibilityLabel={`처음이라면 ${firstStore.name}부터. ${firstStore.reason} 코인과 방문 조건을 확인해요`}
+            style={StyleSheet.flatten({ backgroundColor: palette.primaryContainer, borderRadius: 18, padding: 14, minHeight: 56, gap: 2 })}>
+            <Text style={{ color: palette.onPrimaryContainer, fontSize: 12, fontWeight: '800' }}>처음이라면 이 가게부터</Text>
+            <Text style={{ color: palette.onPrimaryContainer, fontSize: 17, fontWeight: '900' }}>{firstStore.name}</Text>
+            <Text style={{ color: palette.onPrimaryContainer, fontSize: 13 }}>{firstStore.reason} 첫 코인과 방문 조건 보기 ›</Text>
+          </Pressable></Link> : null}
         {compactHome ? <View style={{ flexDirection: 'row', gap: 12 }}>
           <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link>
           <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>
@@ -120,10 +146,11 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         </View>
         {data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={displayStudioItems(data.studio)}
           furnitureItems={data.studio.furnitureItems} avatar={data.studio.avatar} clothing={equippedClothingArt(shop.snapshot)} apiUrl={apiUrl}
-          width={sceneWidth} height={sceneHeight} experienceProfile={experience.snapshot?.profile} /></View>
+          width={sceneWidth} height={sceneHeight} experienceProfile={experience.snapshot?.profile}
+          emptyAction={emptyRoom && collectedCount > 0 ? { label: `수집품 ${collectedCount}개 · 방에 놓기`, onPress: () => router.push('/studio') } : undefined} /></View>
           : <View style={{ height: sceneHeight, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-            <Text style={body}>{data ? '마이룸을 불러오지 못했어요.' : '마이룸을 불러오고 있어요.'}</Text>
-            {data ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: palette.primary }}>다시 불러오기</Text></Pressable> : null}
+            <Text style={body}>{failed('studio') ? '마이룸을 불러오지 못했어요.' : '마이룸을 불러오고 있어요.'}</Text>
+            {failed('studio') ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: palette.primary }}>다시 불러오기</Text></Pressable> : null}
           </View>}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text accessibilityRole="header" style={heading}>보유 뽑기권</Text>
@@ -138,10 +165,10 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
             <Text style={{ color: world.cardInk, fontWeight: '800' }}>{ticket.name}</Text>
             <Text style={{ color: palette.primary, fontWeight: '800' }}>{ticket.count}장</Text>
           </Pressable></Link>)}
-        </ScrollView> : <FloatingCard><Text style={body}>{data?.coinShop ? '아직 뽑기권이 없어요. 가게를 둘러보고 열려 있는 뽑기를 확인해 보세요.' : data ? '뽑기권을 불러오지 못했어요.' : '뽑기권 확인 중'}</Text></FloatingCard>}
+        </ScrollView> : <FloatingCard><Text style={body}>{data?.coinShop ? '아직 뽑기권이 없어요. 가게를 둘러보고 열려 있는 뽑기를 확인해 보세요.' : failed('coins') ? '뽑기권을 불러오지 못했어요.' : '뽑기권 확인 중'}</Text></FloatingCard>}
         <Link href="/home/missions" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ backgroundColor: world.card, padding: 16, borderRadius: 20, gap: 10 })}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <View><Text style={{ ...heading, fontSize: 17 }}>방문 목표</Text><Text style={body}>{goal ? `${goal.name} · ${goal.count}회 방문` : goal === null ? '첫 가게에서 시작해 보세요' : '방문 목표 확인 중'}</Text></View>
+            <View><Text style={{ ...heading, fontSize: 17 }}>방문 목표</Text><Text style={body}>{goal ? `${goal.name} · ${goal.count}회 방문` : goal === null ? '첫 가게에서 시작해 보세요' : failed('collection') || failed('merchants') ? '방문 목표를 불러오지 못했어요' : '방문 목표 확인 중'}</Text></View>
             <View style={{ flexDirection: 'row', gap: 12 }}>{(goal?.goals ?? []).map((count) => <View key={count} style={{ alignItems: 'center', gap: 4 }}>
               <View style={{ width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: (goal?.count ?? 0) >= count ? palette.primary : palette.primaryContainer }}>
                 <Text style={{ color: (goal?.count ?? 0) >= count ? palette.onPrimary : palette.primary, fontWeight: '800' }}>{(goal?.count ?? 0) >= count ? '✓' : count}</Text>
@@ -161,8 +188,8 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           <Link href="/home/exhibit" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>동행·코인 전시</Text></Pressable></Link>
           <Link href="/room-explore" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>가게 이웃 만나기</Text></Pressable></Link>
         </View>
-        {data?.errors.length ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}>
-          <Text accessibilityLiveRegion="polite" style={{ ...body, color: palette.error }}>{data.errors.join('·')} 조회 실패 · 다시 시도</Text>
+        {homeErrorText(data?.errors ?? []) ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}>
+          <Text accessibilityLiveRegion="polite" style={{ ...body, color: palette.error }}>{homeErrorText(data?.errors ?? [])}</Text>
         </Pressable> : null}
       </View>
     </ScrollView><StatusBarScrim scrollY={scrim.scrollY} />

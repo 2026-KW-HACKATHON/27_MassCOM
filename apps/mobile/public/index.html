@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="color-scheme" content="light dark" />
+    <title>%WEB_TITLE%</title>
+    <!-- The react-native-web recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
+    <style id="expo-reset">
+      /* These styles make the body full-height */
+      html,
+      body {
+        height: 100%;
+      }
+      /* These styles disable body scrolling if you are using <ScrollView> */
+      body {
+        overflow: hidden;
+      }
+      /* These styles make the root element full-height */
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+    </style>
+    <!-- 첫 화면 대기 안내: 앱 번들이 내려오는 동안만 보이고, React가 #root를 그리면 통째로 사라진다. 스크립트 없이 CSS만 쓴다(/play/ CSP: script-src 'self'). 색은 src/theme/world.ts의 page/skyInk와 같다. -->
+    <style id="boot-style">
+      html,
+      body {
+        margin: 0;
+        background: #f1f5ed;
+        color: #123e49;
+      }
+      .boot {
+        margin: auto;
+        padding: 24px 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        text-align: center;
+        font: 600 16px/1.5 system-ui, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+        word-break: keep-all;
+      }
+      .boot-mark {
+        width: 88px;
+        height: 88px;
+        border-radius: 24px;
+        background: #12303d url(data:image/png;base64,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) center / 56px no-repeat;
+      }
+      .boot-spin {
+        width: 28px;
+        height: 28px;
+        box-sizing: border-box;
+        border: 3px solid currentColor;
+        border-top-color: transparent;
+        border-radius: 50%;
+        opacity: 0.7;
+        animation: boot-spin 0.9s linear infinite;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        html,
+        body {
+          background: #142a26;
+          color: #f0f7f1;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-spin {
+          animation: none;
+        }
+      }
+    </style>
+    <noscript>
+      <style>
+        .boot {
+          display: none;
+        }
+      </style>
+    </noscript>
+  </head>
+
+  <body>
+    <noscript>
+      <p style="margin: 24px 16px; font: 600 16px/1.5 system-ui, sans-serif; word-break: keep-all">
+        이 앱을 쓰려면 브라우저에서 JavaScript를 켜 주세요.
+      </p>
+    </noscript>
+    <!-- The root element for your Expo app. React clears the boot splash when it renders. -->
+    <div id="root">
+      <div class="boot" role="status">
+        <div class="boot-mark" aria-hidden="true"></div>
+        <div class="boot-spin" aria-hidden="true"></div>
+        <span>불러오는 중…</span>
+      </div>
+    </div>
+  </body>
+</html>

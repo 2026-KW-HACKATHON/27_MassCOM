@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import { ConsentApiError, type ConsentState } from './consent-api';
 import { consentChecks, CONSENT_PRIVACY_VERSION, CONSENT_TERMS_VERSION } from './consent-copy';
 import {
-  canSubmitConsent, consentRequiredMessage, consentRecheckLabel, loadConsentState, needsConsentRecheck,
-  noChecks, shouldAskConsent, stateFromServer, submitConsent, type ConsentChecks,
+  canSubmitConsent, consentRequiredMessage, consentRecheckLabel, loadConsentState, masterConsentState, needsConsentRecheck,
+  noChecks, shouldAskConsent, stateFromServer, submitConsent, toggleAllConsent, type ConsentChecks,
 } from './consent-flow';
 
 const bearer = { kind: 'bearer', sessionToken: 'session' } as const;
@@ -114,4 +114,26 @@ test('a 403 consent error asks to re-check the current Korean notice through the
   assert.equal(needsConsentRecheck({ status: 401, code: 'CONSENT_REQUIRED' }), false);
   assert.equal(ask({ consentedAccountId: 'acct-a' }), false);
   assert.equal(ask({ consentedAccountId: undefined }), true, 'clearing the root cache re-checks the server');
+});
+
+test('전체 동의: the master state is true, mixed or false, and a press turns everything on unless everything is already on', () => {
+  assert.equal(masterConsentState(noChecks), false);
+  assert.equal(masterConsentState(all), true);
+  for (const key of ['ageConfirmed', 'termsAccepted', 'privacyAccepted'] as const) {
+    assert.equal(masterConsentState({ ...noChecks, [key]: true }), 'mixed', `only ${key}`);
+    assert.equal(masterConsentState({ ...all, [key]: false }), 'mixed', `all but ${key}`);
+  }
+  // All off -> all on; partial (one or two) -> all on; all on -> all off.
+  assert.deepEqual(toggleAllConsent(noChecks), all);
+  assert.deepEqual(toggleAllConsent({ ...noChecks, termsAccepted: true }), all);
+  assert.deepEqual(toggleAllConsent({ ...all, privacyAccepted: false }), all);
+  assert.deepEqual(toggleAllConsent(all), noChecks);
+  // It never invents or drops a key: the result is exactly the required set, and it enables or disables the start button as a whole.
+  assert.deepEqual(Object.keys(toggleAllConsent(noChecks)).sort(), consentChecks.map(({ key }) => key).sort());
+  assert.equal(canSubmitConsent(toggleAllConsent(noChecks)), true);
+  assert.equal(canSubmitConsent(toggleAllConsent(all)), false);
+  // The input is not mutated.
+  const before = { ...noChecks };
+  toggleAllConsent(noChecks);
+  assert.deepEqual(noChecks, before);
 });

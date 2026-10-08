@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { consentSummary } from '../../privacy/consent-copy';
+
 const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
 
 test('each required box is a checkbox that tells assistive technology whether it is checked', () => {
@@ -85,8 +87,43 @@ test('the check box grows with the system font scale instead of capping the text
   assert.match(screen, /\{ width: boxSize, height: boxSize, minWidth: boxSize, minHeight: boxSize \}/);
 });
 
-test('the notice shows all four items above the boxes', () => {
+test('the full four-item notice (collapsed under 자세히 보기) and the always-visible summary both come before the boxes', () => {
   assert.match(screen, /consentNotice\.map/);
   assert.ok(screen.indexOf('consentNotice.map') < screen.indexOf('consentChecks.map'));
   assert.match(screen, /consentCopy\.noticeTitle/);
+  // The summary is not behind the toggle: it is rendered before the `detailsOpen` conditional and covers the mandatory items.
+  assert.ok(screen.indexOf('consentSummary.map') < screen.indexOf('{detailsOpen ? ('), 'summary is always rendered');
+  assert.deepEqual(consentSummary.map((item) => item.heading), ['목적·항목', '보유 기간', '동의하지 않으면']);
+  // The full notice stays unmounted while collapsed, on purpose, and the code says why.
+  assert.match(screen, /전체 안내는 접힌 동안 렌더하지 않는다\(의도\)/);
+});
+
+test('a three-line summary comes first, and the full notice sits behind a collapsed 자세히 보기 that exposes aria-expanded', () => {
+  assert.match(screen, /consentSummary\.map/);
+  assert.ok(screen.indexOf('consentSummary.map') < screen.indexOf('consentNotice.map'), 'summary before the full notice');
+  assert.match(screen, /const \[detailsOpen, setDetailsOpen\] = useState\(false\)/, 'collapsed by default');
+  assert.match(screen, /aria-expanded=\{detailsOpen\}/);
+  assert.match(screen, /accessibilityState=\{\{ expanded: detailsOpen \}\}/);
+  assert.match(screen, /accessibilityLabel=\{consentCopy\.details\}/);
+  assert.match(screen, /\{detailsOpen \? \(\s*<View style=\{styles\.detailsGroup\}>\s*\{consentNotice\.map/, 'the notice only shows when expanded');
+  assert.ok(screen.indexOf('aria-expanded') < screen.indexOf('consentChecks.map'), 'the toggle sits above the boxes');
+});
+
+test('전체 동의 is a checkbox with a mixed state, aria-checked and a web-only Space handler, driven by the pure consent-flow functions', () => {
+  assert.match(screen, /accessibilityLabel=\{consentCopy\.agreeAll\}/);
+  assert.match(screen, /const masterChecked = masterConsentState\(checks\);/);
+  assert.match(screen, /aria-checked=\{masterChecked\}/);
+  assert.match(screen, /accessibilityState=\{\{ checked: masterChecked, disabled: busy \}\}/);
+  assert.match(screen, /onPress=\{toggleAll\}/);
+  assert.match(screen, /\{\.\.\.\(Platform\.OS === 'web' \? \{ onKeyDown: spaceToggles\(toggleAll\) \} : \{\}\)\}/);
+  // A busy screen never toggles; the toggle writes through the pure function, so the required keys come from the copy table.
+  assert.match(screen, /const toggleAll = \(\) => \{ if \(!busy\) setChecks\(toggleAllConsent\); \};/);
+  // The mixed state is drawn (a dash) as well as announced.
+  assert.match(screen, /masterChecked === 'mixed' \? '–' : masterChecked \? '✓' : ''/);
+  // The summary sits above the master box, the master box above the individual rows, which stay under their own label.
+  assert.ok(screen.indexOf('consentSummary.map') < screen.indexOf('consentCopy.agreeAll'), 'summary above 전체 동의');
+  assert.ok(screen.indexOf('consentCopy.agreeAll') < screen.indexOf('consentCopy.individualHeading'));
+  assert.ok(screen.indexOf('consentCopy.individualHeading') < screen.indexOf('consentChecks.map'));
+  // Submit still sends the three checks as they are.
+  assert.match(screen, /submitConsent\(client, credential, checks\)/);
 });

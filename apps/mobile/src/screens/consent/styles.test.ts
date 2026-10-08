@@ -72,3 +72,13 @@ test('the consent screen sits on the sky page in every state, with the sky heade
   assert.match(source, /<FloatingCard style=\{styles\.noticeCard\}>/);
   assert.doesNotMatch(source, /header=\{undefined\}/);
 });
+
+test('the summary toggle and 전체 동의 row are 48dp targets and the 개별 확인 label is readable on the page', () => {
+  for (const [palette, world] of [[lightColors, lightWorld], [darkColors, darkWorld]] as const) {
+    const styles = makeConsentStyles(palette) as Record<string, Record<string, unknown>>;
+    for (const name of ['detailsToggle', 'masterRow']) assert.ok((styles[name]!.minHeight as number) >= 48, name);
+    for (const surface of [world.page, world.sky[2]]) {
+      assert.ok(contrast(styles.individualHeading!.color as string, surface) >= 4.5, `${styles.individualHeading!.color} on ${surface}`);
+    }
+  }
+});

@@ -59,7 +59,7 @@ export function AuthRequiredScreen({ state, canStartGuestTrial, onGuestSignIn, o
       contentContainerStyle={[styles.content, { paddingBottom: Math.max(40 + insets.bottom, clearance) }]}
     >
       <Text style={styles.eyebrow}>웹 체험</Text>
-      <Mascot pose="wave" size={96} accessibilityLabel="손을 흔드는 마스코트" />
+      <Mascot pose="wave" size={96} accessibilityLabel="손을 흔드는 마스코트" decorativeOnWeb />
       <Text selectable style={styles.title}>로그인 없이{`\n`}둘러볼 수 있어요.</Text>
       <Text selectable style={styles.body}>
         로그인 없이 체험하기를 누르면 임시 계정으로 탐색과 방문 도감을 바로 써 볼 수 있어요.{`\n`}

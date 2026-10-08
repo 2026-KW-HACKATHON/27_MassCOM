@@ -67,7 +67,7 @@ export function CollectibleReveal({ entitlementIds, merchantName, load, collecti
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={onSkip}>
       {cards ? (
-        <EnvelopeReveal cards={cards} merchantName={merchantName} series={batchSeries} milestone={milestone} onSkip={onSkip} onCardShown={onCardShown} onOpenDetail={onOpenDetail} />
+        <EnvelopeReveal cards={cards} merchantName={merchantName} series={batchSeries} milestone={milestone} collectibles={collectibles} onSkip={onSkip} onCardShown={onCardShown} onOpenDetail={onOpenDetail} />
       ) : failure ? (
         <View style={styles.loadingFrame}>
           <SkipButton onPress={onSkip} />

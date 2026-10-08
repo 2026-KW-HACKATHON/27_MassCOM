@@ -12,6 +12,7 @@ test('real discovery uses theme text/background tokens in light and dark and 48d
     assert.equal(s.input.backgroundColor,world.card);
     assert.ok(contrast(s.name.color,world.card)>=4.5);
     assert.ok(contrast(s.muted.color,world.card)>=4.5);
+    assert.ok(contrast(s.warning.color,world.card)>=4.5);
     assert.ok(contrast(s.buttonText.color,s.button.backgroundColor)>=4.5);
   }
 });

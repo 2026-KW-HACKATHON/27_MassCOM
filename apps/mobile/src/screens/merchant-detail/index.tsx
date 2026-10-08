@@ -7,10 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
 import { recommendMerchant } from '@/friends/recommend-share';
-import { fetchCollectiblePreview, type CollectiblePreview } from '@/merchant/collectible-preview-api';
+import { fetchCollectiblePreview, type CollectiblePreview, type CollectiblePreviewGoal } from '@/merchant/collectible-preview-api';
 import { sendDiscoveryDetailView } from '@/merchant/discovery-detail-view';
 import { detailViewSource } from '@/merchant/detail-view-api';
 import { businessLabel, campaignLabel, enrollmentLabel, openingPeriodLabel, photoKindLabel, rewardLabel } from '@/merchant/real-world-labels';
+import { merchantCardFacts, missingFactsNotice } from '@/merchant/merchant-card-facts';
+import { coinAvailability, conditionSourceLabel, visitConditions } from '@/merchant/visit-conditions';
 import { discoveryState } from '@/merchant/discovery-state';
 import { useAppForeground } from '@/merchant-art/use-merchant-art';
 import { colorsForScheme } from '@/theme/palette';
@@ -68,6 +70,13 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const photos=merchant.photos;
   const leadPhoto=photos.find(photo=>publishedPhotoUri(apiUrl,photo.url));
   const campaign=merchant.campaign;
+  const facts=merchantCardFacts(merchant);
+  const factOf=(key:'business'|'lastOrder'|'reward'|'minimumSpend')=>facts.critical.find(fact=>fact.key===key);
+  const lastOrderGap=factOf('lastOrder');
+  const missingNotice=missingFactsNotice(facts.missing);
+  const targets=campaign?[...campaign.goals].sort((a,b)=>a.targetVisitCount-b.targetVisitCount):[];
+  const leadVisit=targets[0]?.targetVisitCount;
+  const coinNow=coinAvailability(campaign);
   const source=detailViewSource(from);
   const saveGoal=async(targetVisitCount:1|3|5)=>{
     if(!studioApi||!campaign||campaign.state!=='ACTIVE'||campaign.rewardAvailability!=='AVAILABLE'||!preview?.publicationId||preview.campaignId!==campaign.id||!preview.goals.some(goal=>goal.visitCount===targetVisitCount))return;
@@ -97,28 +106,36 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
       <FloatingCard>{leadPhoto?<View style={{gap:4,marginBottom:12}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,leadPhoto.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(leadPhoto.kind)}{leadPhoto.caption?` · ${leadPhoto.caption}`:''}</Text></View>:null}<Text accessibilityRole="header" style={ds.heading}>{merchant.name}{merchant.demo?' · 시연 데이터':''}</Text><Text selectable style={ds.body}>{merchant.story}</Text><Text style={ds.muted}>{merchant.category??'업종 정보 없음'}</Text>
         <Pressable accessibilityRole="button" onPress={()=>{void recommendMerchant({id:merchant.id,name:merchant.name,demo:merchant.demo});}} style={ds.action}><Text style={ds.actionText}>친구에게 추천</Text></Pressable></FloatingCard>
       {error?<Text accessibilityRole="alert" style={ds.muted}>{error} 화면을 아래로 당겨 다시 확인하세요.</Text>:null}
-      {photos.some(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url))?<FloatingCard><Text accessibilityRole="header" style={ds.section}>가게 사진 더 보기</Text><View style={{gap:10}}>{photos.filter(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View></FloatingCard>:!leadPhoto?<FloatingCard><Text style={ds.muted}>점주 제공 사진이 아직 없습니다</Text></FloatingCard>:null}
-      <FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 준비</Text><Line label="주소" value={merchant.roadAddress}/><Line label="위치" value={merchant.position?'확인된 위치':'위치 확인 필요 · 지도로 표시하지 않습니다'}/>
+      {photos.some(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url))?<FloatingCard><Text accessibilityRole="header" style={ds.section}>가게 사진 더 보기</Text><View style={{gap:10}}>{photos.filter(photo=>photo.id!==leadPhoto?.id&&publishedPhotoUri(apiUrl,photo.url)).map(photo=><View key={photo.id} style={{gap:4}}><View style={ds.photoFrame}><Image source={{uri:publishedPhotoUri(apiUrl,photo.url)!}} resizeMode="cover" style={{width:'100%',height:'100%'}}/></View><Text style={ds.muted}>점주 제공 실제 사진 · {photoKindLabel(photo.kind)}{photo.caption?` · ${photo.caption}`:''}</Text></View>)}</View></FloatingCard>:null}
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>{leadVisit===1?'첫 방문 기념 코인':'방문 기념 코인'}</Text>
+        {campaign?<><Text style={ds.body}>{campaign.title} · {campaignLabel(campaign.state)}</Text><Text style={ds.muted}>{new Date(campaign.startsAt).toLocaleDateString('ko-KR')} – {new Date(campaign.endsAt).toLocaleDateString('ko-KR')} · {enrollmentLabel(campaign.enrollment)} · {rewardLabel(campaign.rewardAvailability)}</Text>
+          {coinNow.kind==='ok'?null:<Text style={ds.warn}>⚠ {coinNow.reason}</Text>}
+          {targets.map(goal=>{const lead=goal.targetVisitCount===leadVisit;const art=preview?.campaignId===campaign.id?preview.goals.find(item=>item.visitCount===goal.targetVisitCount):undefined;
+            return <View key={goal.targetVisitCount} style={lead?ds.coinLead:ds.coinLater}><CoinArt goal={art} size={lead?132:56}/>
+              <View style={{flex:1,minWidth:0,gap:4}}><Text style={lead?ds.leadName:ds.body}>{goal.targetVisitCount}회 방문 · {goal.displayName}</Text>{art?<Text style={ds.muted}>{art.gradeName}</Text>:null}
+                {studioApi&&campaign.state==='ACTIVE'&&campaign.rewardAvailability==='AVAILABLE'&&preview?.campaignId===campaign.id&&preview.publicationId&&preview.goals.some(item=>item.visitCount===goal.targetVisitCount)?<Pressable accessibilityRole="button" accessibilityState={{disabled:goalBusy}} disabled={goalBusy} onPress={()=>{void saveGoal(goal.targetVisitCount);}} style={ds.action}><Text style={ds.actionText}>{goalBusy?'저장 중':`${goal.displayName} 목표로 저장`}</Text></Pressable>:null}</View></View>;})}</>:<Text style={ds.muted}>현재 진행 중인 캠페인이 없습니다. 기존 방문·수집 권리는 도감에서 확인할 수 있습니다.</Text>}
+        {campaign&&campaign.state!=='ACTIVE'?<Text style={ds.muted}>현재 캠페인이 진행 중이지 않아 새 수집품 목표를 저장할 수 없습니다.</Text>:null}
+        {goalMessage?<Text accessibilityRole="alert" style={ds.muted}>{goalMessage}</Text>:null}
+        {preview?.goals.length?<Text style={ds.muted}>AI 생성 수집품 그림 · 실제 가게 사진과 다릅니다</Text>:null}
+        <Link href="/collection" asChild><Pressable accessibilityRole="button" style={ds.action}><Text style={ds.actionText}>내 방문과 수집품 확인</Text></Pressable></Link>
+      </FloatingCard>
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 인정 조건</Text><Text style={ds.muted}>코인은 방문이 인정될 때 받아요.</Text>
+        {visitConditions(merchant).map((condition,index)=><Text key={condition.key} style={ds.body}>{`${index+1}. ${condition.text} ${conditionSourceLabel(condition.source)}`}</Text>)}
+      </FloatingCard>
+      <FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 준비</Text><Line label="주소" value={merchant.roadAddress}/>
         {merchant.floor?<Line label="층·호수" value={`${merchant.floor}${merchant.location?.unit?` · ${merchant.location.unit}`:''}`}/>:null}
         {merchant.entranceNote?<Line label="입구" value={merchant.entranceNote}/>:null}
-        <Line label="영업" value={`${businessLabel(merchant.business)}${merchant.business.informationUpdatedAt?` · ${new Date(merchant.business.informationUpdatedAt).toLocaleString('ko-KR')} 확인`:''}`}/>
-        {merchant.business.lastOrderAt?<Line label="마지막 주문 시각" value={new Date(merchant.business.lastOrderAt).toLocaleString('ko-KR')}/>:null}
+        <Line label="영업" warn={factOf('business')?.tone==='warning'} value={`${businessLabel(merchant.business)}${merchant.business.informationUpdatedAt?` · ${new Date(merchant.business.informationUpdatedAt).toLocaleString('ko-KR')} 확인`:''}`}/>
+        {merchant.business.lastOrderAt?<Line label="마지막 주문 시각" warn={lastOrderGap?.tone==='warning'} value={new Date(merchant.business.lastOrderAt).toLocaleString('ko-KR')}/>:lastOrderGap&&!lastOrderGap.known?<Line label={lastOrderGap.label} warn={lastOrderGap.tone==='warning'} value={lastOrderGap.value}/>:null}
         {merchant.business.nextChangeAt?<Line label="다음 변경" value={new Date(merchant.business.nextChangeAt).toLocaleString('ko-KR')}/>:null}
-        {merchant.todayOverride?<Line label="임시 영업 안내" value={`${merchant.todayOverride.state==='OPEN'?'임시 영업':'임시 휴업'} · ${merchant.todayOverride.note}`}/>:null}
-        {merchant.schedule?<View style={{gap:3}}><Text style={ds.section}>요일별 시간 · 한국 시간</Text>{merchant.schedule.weekly.map(day=><Text key={day.weekday} style={ds.body}>{'월화수목금토일'[day.weekday-1]}요일 · {day.periods.length?day.periods.map(openingPeriodLabel).join(', '):'휴무'}</Text>)}{merchant.schedule.exceptions.filter(exception=>Date.parse(exception.date)>=Date.parse(merchant.business.evaluatedAt)-86400000).slice(0,5).map(exception=><Text key={exception.date} style={ds.body}>{exception.date} 예외 · {exception.periods.length?exception.periods.map(openingPeriodLabel).join(', '):'휴무'}{exception.note?` · ${exception.note}`:''}</Text>)}</View>:<Text style={ds.muted}>정형 영업시간은 아직 확인되지 않았습니다. {merchant.legacyBusinessHours}</Text>}
+        {merchant.todayOverride?<Line label="임시 영업 안내" warn={merchant.todayOverride.state==='CLOSED'} value={`${merchant.todayOverride.state==='OPEN'?'임시 영업':'임시 휴업'} · ${merchant.todayOverride.note}`}/>:null}
+        {merchant.schedule?<View style={{gap:3}}><Text style={ds.section}>요일별 시간 · 한국 시간</Text>{merchant.schedule.weekly.map(day=><Text key={day.weekday} style={ds.body}>{'월화수목금토일'[day.weekday-1]}요일 · {day.periods.length?day.periods.map(openingPeriodLabel).join(', '):'휴무'}</Text>)}{merchant.schedule.exceptions.filter(exception=>Date.parse(exception.date)>=Date.parse(merchant.business.evaluatedAt)-86400000).slice(0,5).map(exception=><Text key={exception.date} style={ds.body}>{exception.date} 예외 · {exception.periods.length?exception.periods.map(openingPeriodLabel).join(', '):'휴무'}{exception.note?` · ${exception.note}`:''}</Text>)}</View>:merchant.legacyBusinessHours?<Text style={ds.muted}>가게가 적어 둔 영업시간: {merchant.legacyBusinessHours}</Text>:null}
         {merchant.contact.phone?<Line label="전화" value={merchant.contact.phone}/>:null}{merchant.contact.website?<Line label="웹사이트" value={merchant.contact.website}/>:null}
         <Line label="최소 이용" value={`${merchant.minimumSpendWon.toLocaleString('ko-KR')}원`}/><Text style={ds.muted}>{merchant.visitInstructions||'방문 전에 가게의 최신 조건을 확인하세요.'}</Text>
+        {missingNotice?<View style={ds.missingBox}><Text accessibilityRole="header" style={ds.missingTitle}>정보가 더 필요한 항목</Text><Text style={ds.missingText}>{missingNotice}</Text></View>:null}
         <Pressable accessibilityRole="button" accessibilityState={{disabled:merchant.demo}} disabled={merchant.demo} onPress={()=>{void openRoute();}} style={ds.action}><Text style={ds.actionText}>{merchant.demo?'시연 점포 길찾기 없음':merchant.position?'좌표로 도보 길찾기':'주소로 지도 검색'}</Text></Pressable>
       </FloatingCard>
       <FloatingCard><Text accessibilityRole="header" style={ds.section}>메뉴·가격</Text>{merchant.menuItems.length?merchant.menuItems.map(item=><Line key={item.id} label={item.name} value={item.priceWon===null?(item.priceNote??'가격 문의'):`${item.priceWon.toLocaleString('ko-KR')}원${item.priceNote?` · ${item.priceNote}`:''}`}/>):<Text style={ds.muted}>등록된 메뉴가 없습니다.</Text>}</FloatingCard>
-      <FloatingCard><Text accessibilityRole="header" style={ds.section}>수집품과 캠페인</Text>
-        {campaign?<><Text style={ds.body}>{campaign.title} · {campaignLabel(campaign.state)}</Text><Text style={ds.muted}>{new Date(campaign.startsAt).toLocaleDateString('ko-KR')} – {new Date(campaign.endsAt).toLocaleDateString('ko-KR')} · {enrollmentLabel(campaign.enrollment)} · {rewardLabel(campaign.rewardAvailability)}</Text>
-          {campaign.goals.map(goal=><View key={goal.targetVisitCount}><Text style={ds.body}>{goal.targetVisitCount}회 방문 · {goal.displayName}</Text>{studioApi&&campaign.state==='ACTIVE'&&campaign.rewardAvailability==='AVAILABLE'&&preview?.campaignId===campaign.id&&preview.publicationId&&preview.goals.some(item=>item.visitCount===goal.targetVisitCount)?<Pressable accessibilityRole="button" accessibilityState={{disabled:goalBusy}} disabled={goalBusy} onPress={()=>{void saveGoal(goal.targetVisitCount);}} style={ds.action}><Text style={ds.actionText}>{goalBusy?'저장 중':`${goal.displayName} 목표로 저장`}</Text></Pressable>:null}</View>)}</>:<Text style={ds.muted}>현재 진행 중인 캠페인이 없습니다. 기존 방문·수집 권리는 도감에서 확인할 수 있습니다.</Text>}
-        {campaign&&campaign.state!=='ACTIVE'?<Text style={ds.muted}>현재 캠페인이 진행 중이지 않아 새 수집품 목표를 저장할 수 없습니다.</Text>:null}
-        {goalMessage?<Text accessibilityRole="alert" style={ds.muted}>{goalMessage}</Text>:null}
-        {preview?.goals.length?<View style={{gap:8}}><Text style={ds.muted}>AI 생성 수집품 그림 · 실제 가게 사진과 다릅니다</Text>{preview.goals.map(goal=><View key={goal.visitCount} style={{flexDirection:'row',alignItems:'center',gap:8}}>{goal.thumbnailDataUrl?<Image source={{uri:goal.thumbnailDataUrl}} style={{width:64,height:64}}/>:<View style={ds.previewEmpty}/>}<Text style={ds.body}>{goal.visitCount}회 · {goal.gradeName}</Text></View>)}</View>:null}
-        <Link href="/collection" asChild><Pressable accessibilityRole="button" style={ds.action}><Text style={ds.actionText}>내 방문과 수집품 확인</Text></Pressable></Link>
-      </FloatingCard>
       {credential&&accountId?<FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 후 의견</Text><MyVisitorFeedback key={`${merchant.id}:${accountId}`} merchantId={merchant.id} apiUrl={apiUrl} credential={credential} onSessionInvalid={onSessionInvalid}/></FloatingCard>:null}
       <FloatingCard><Text accessibilityRole="header" style={ds.section}>이용했다면</Text><Text style={ds.body}>점주가 만든 1회 코드로 방문과 보상권을 확인합니다. 실제 지급 여부는 방문 인증 결과로 결정됩니다.</Text>
         <Link href={{pathname:'/claim',params:{merchantId:merchant.id}}} asChild><Pressable accessibilityRole="button" style={ds.action}><Text style={ds.actionText}>방문 코드 받기</Text></Pressable></Link></FloatingCard>
@@ -126,7 +143,9 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
 }
 
 function Frame({children}:{children:React.ReactNode}) {return <SkyBackdrop><SkyScrollView header={<BackHeader title="가게 상세"/>}><View style={{padding:16}}>{children}</View></SkyScrollView></SkyBackdrop>;}
-function Line({label,value}:{label:string;value:string}) {const ds=useRealDetailStyles();return <View style={ds.line}><Text style={ds.muted}>{label}</Text><Text selectable style={ds.body}>{value}</Text></View>;}
+function Line({label,value,warn=false}:{label:string;value:string;warn?:boolean}) {const ds=useRealDetailStyles();return <View style={[ds.line,warn&&ds.lineWarn]}><Text style={ds.muted}>{label}</Text><Text selectable style={warn?ds.warn:ds.body}>{warn?'⚠ ':''}{value}</Text></View>;}
+/** The coin picture is decorative: the grade name beside it says the same thing. */
+function CoinArt({goal,size}:{goal:CollectiblePreviewGoal|undefined;size:number}) {const ds=useRealDetailStyles();return goal?.thumbnailDataUrl?<Image source={{uri:goal.thumbnailDataUrl}} accessible={false} style={{width:size,height:size}}/>:<View style={[ds.previewEmpty,{width:size,height:size}]}/>;}
 function useRealDetailStyles() {
   const scheme=useColorScheme();
   const palette=colorsForScheme(scheme);
@@ -142,6 +161,14 @@ function useRealDetailStyles() {
     photoEmpty:{height:120,backgroundColor:world.paper,borderRadius:12,justifyContent:'center' as const,alignItems:'center' as const},
     previewEmpty:{width:64,height:64,backgroundColor:world.paper},
     line:{paddingVertical:7,borderBottomWidth:1,borderColor:palette.separator},
+    lineWarn:{borderLeftWidth:3,borderLeftColor:palette.error,paddingLeft:8},
+    warn:{fontSize:15,lineHeight:23,fontWeight:'700' as const,color:palette.error},
+    leadName:{fontSize:17,lineHeight:25,fontWeight:'800' as const,color:world.cardInk},
+    coinLead:{flexDirection:'row' as const,alignItems:'center' as const,gap:12,paddingVertical:10},
+    coinLater:{flexDirection:'row' as const,alignItems:'center' as const,gap:10,paddingVertical:6},
+    missingBox:{marginTop:8,padding:12,borderRadius:12,backgroundColor:palette.accentContainer,gap:4},
+    missingTitle:{fontSize:15,fontWeight:'800' as const,color:palette.onAccentContainer},
+    missingText:{fontSize:14,lineHeight:21,color:palette.onAccentContainer},
   }),[palette,world]);
 }
 

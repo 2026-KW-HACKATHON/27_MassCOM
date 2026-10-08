@@ -49,6 +49,18 @@ export function canSubmitConsent(checks: ConsentChecks): boolean {
   return consentChecks.every(({ key }) => checks[key] === true);
 }
 
+/** "전체 동의" 상자의 상태: 세 개를 모두 눌렀으면 true, 한두 개만이면 'mixed'(일부), 하나도 없으면 false. */
+export function masterConsentState(checks: ConsentChecks): boolean | 'mixed' {
+  const count = consentChecks.filter(({ key }) => checks[key] === true).length;
+  return count === consentChecks.length ? true : count > 0 ? 'mixed' : false;
+}
+
+/** "전체 동의"를 눌렀을 때의 값: 모두 눌려 있으면 모두 해제하고, 없거나 일부만이면 필수 세 개를 모두 켠다. 키는 문구 표(consentChecks)에서 가져온다. */
+export function toggleAllConsent(checks: ConsentChecks): ConsentChecks {
+  const next = masterConsentState(checks) !== true;
+  return Object.fromEntries(consentChecks.map(({ key }) => [key, next])) as ConsentChecks;
+}
+
 export function stateFromServer(state: ConsentState): ConsentGateState {
   if (!state.required) return { kind: 'accepted' };
   return state.termsVersion === CONSENT_TERMS_VERSION && state.privacyVersion === CONSENT_PRIVACY_VERSION

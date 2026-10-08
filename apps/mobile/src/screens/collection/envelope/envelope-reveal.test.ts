@@ -58,3 +58,11 @@ test('the idle envelope attaches panResponder to a wrapping View, not to the Pre
 test('the end card opens the first actually-loaded card, not a forwarded no-arg callback', () => {
   assert.match(source, /onOpenDetail=\{\(\) => onOpenDetail\(cards\[0\]!\.entitlementId\)\}/);
 });
+
+// The first-coin offer sits in the end card only; it never replaces 자세히 보기/닫기 and never gates the reveal.
+test('the end card hosts the first-coin placement offer below its own buttons, so the late-mounting offer never moves them', () => {
+  const end = source.slice(source.indexOf('function EndCard'), source.indexOf('function SkipButton'));
+  assert.match(end, /<FirstCoinPlacement cards=\{cards\} collectibles=\{collectibles\} onClose=\{onSkip\} \/>/);
+  assert.ok(end.indexOf('<FirstCoinPlacement') > end.indexOf('<Control label="닫기"'));
+  assert.match(end, /<Control label="닫기" onPress=\{onSkip\} \/>/);
+});
