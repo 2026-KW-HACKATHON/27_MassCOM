@@ -1,0 +1,33 @@
+{
+  "sourceCommit": "2a541d736ba8f9eb272eed3725afbc36620e5d37",
+  "browser": "Google Chrome 154.0.8037.98",
+  "platform": "Microsoft Windows 11 Home 10.0.26200 64비트",
+  "node": "v24.15.0",
+  "viewportHeights": 844,
+  "viewportWidths": [
+    320,
+    360,
+    390
+  ],
+  "colorSchemes": [
+    "light",
+    "dark"
+  ],
+  "friendSweepContexts": 6,
+  "roomSweepContexts": 6,
+  "finalFocusedContexts": 2,
+  "pageErrors": 0,
+  "screenshots": 48,
+  "screenshotBytes": 2321889,
+  "friendSendHeaderMileage": 405,
+  "friendReceiveHeaderMileage": 415,
+  "guestbookHeaderMileage": 405,
+  "fixtureProcessId": 37496,
+  "postgresProcessId": 47012,
+  "testData": "Local synthetic fixtures only. Browser requests limited to fixture web/API origins.",
+  "limitations": [
+    "Web browser viewport QA; no native Android device interaction tested.",
+    "Actual reward/auth/security behavior covered separately by PostgreSQL integration tests."
+  ],
+  "webExport": "PASS, development export with --clear"
+}

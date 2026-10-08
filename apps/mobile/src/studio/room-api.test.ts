@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createRoomApiClient, normalizeRoomMessage, parsePublicRoom, parseRoomSettings, parseRoomStamp, parseRoomVisitors, roomErrorMessage, RoomApiError } from './room-api';
+import { createRoomApiClient, normalizeGuestbookMessage, normalizeRoomMessage, parseGuestbookAuthor, parseGuestbookEntry,
+  parseGuestbookPage, parsePublicRoom, parseRoomSettings, parseRoomStamp, parseRoomVisitors, roomErrorMessage, RoomApiError } from './room-api';
 
 const publicRoom = { roomId: 'room-1', mine: false, studio: {
   nickname: '방 주인', studio: { theme: 'daylight', layout: 'shelf', accent: 'mint', goal: null },
@@ -26,6 +27,7 @@ test('settings and room visit follow server response and tolerate an empty rando
   const client = createRoomApiClient({ apiUrl: 'https://api.test/', credential: { kind: 'bearer', sessionToken: 'session' },
     fetcher: async (input, init) => {
       const url = String(input); calls.push(`${init?.method ?? 'GET'} ${url}`);
+      assert.equal(new Headers(init?.headers).get('X-MassCOM-Room-Visibility'), 'v2');
       if (url.endsWith('/me/room-publication')) return Response.json({ visible: true, roomId: 'mine' });
       if (url.includes('/rooms/random')) return Response.json(null);
       if (url.endsWith('/visits')) return Response.json({ roomId: 'room-1', creditedMileage: 0, visitsToday: 1 });
@@ -46,7 +48,8 @@ test('room scope and common merchants are parsed without private visit details',
   assert.deepEqual(parsed.sharedMerchants, [{ merchantId: 'merchant-1', merchantName: '가게' }]);
   assert.equal(parsed.visitorCount, 3);
   assert.deepEqual(parseRoomSettings({ visible: false, roomId: null, visibility: 'PRIVATE' }).visibility, 'PRIVATE');
-  assert.throws(() => parseRoomSettings({ visible: true, roomId: 'mine', visibility: 'PUBLIC' }));
+  assert.equal(parseRoomSettings({ visible: true, roomId: 'mine', visibility: 'PUBLIC' }).visibility, 'PUBLIC');
+  assert.throws(() => parseRoomSettings({ visible: true, roomId: 'mine', visibility: 'EVERYONE' }));
 });
 
 test('visitor list exposes returnable room only when server provides it', () => {
@@ -69,6 +72,9 @@ test('room API preserves consent and private-room status for recovery', async ()
   assert.match(roomErrorMessage(new RoomApiError(404, 'ROOM_NOT_FOUND')), /공개되어 있지/);
   assert.match(roomErrorMessage(new RoomApiError(409, 'ROOM_STAMP_LIMIT')), /오늘 이미/);
   assert.match(roomErrorMessage(new RoomApiError(404, 'FRIEND_NEIGHBOR_NOT_FOUND')), /더 이상 이웃/);
+  assert.match(roomErrorMessage(new RoomApiError(404, 'FRIEND_GUESTBOOK_NOT_FOUND')), /친구 연결을 허용하지/);
+  assert.match(roomErrorMessage(new RoomApiError(429, 'FRIEND_GUESTBOOK_DAILY_LIMIT')), /내일 다시/);
+  assert.match(roomErrorMessage(new RoomApiError(429, 'ROOM_GUESTBOOK_DAILY_LIMIT')), /오늘 이 방에/);
   assert.match(roomErrorMessage(new RoomApiError(409, 'FRIEND_LIMIT')), /친구 수가 가득/);
 });
 
@@ -102,5 +108,81 @@ test('guestbook supports optional Unicode text with the existing reaction and hi
   for (const invalid of ['😀'.repeat(121), '줄\n바꿈', '숨김\u200b문자', '\ud800']) {
     assert.throws(() => normalizeRoomMessage(invalid), (error) => error instanceof RoomApiError && error.code === 'ROOM_MESSAGE_INVALID');
   }
-  assert.match(roomErrorMessage(new RoomApiError(400, 'ROOM_MESSAGE_INVALID')), /120자/);
+  assert.match(roomErrorMessage(new RoomApiError(400, 'ROOM_MESSAGE_INVALID')), /글의 길이/);
+});
+
+const guestbookEntry = { id: 'entry-1', roomId: 'room-1', message: '좋은 방이에요 😀', createdAt: '2026-10-09T03:00:00.000Z',
+  mine: false, authorNickname: '방문자', authorAvatar: null, authorAvatarClothingId: null, unread: true };
+
+test('plain guestbook supports 300 Unicode characters and newlines, but rejects hidden controls and empty posts', () => {
+  assert.equal(normalizeGuestbookMessage('  첫 줄\r\n다음 줄\t끝  '), '첫 줄\n다음 줄\t끝');
+  assert.equal(Array.from(normalizeGuestbookMessage('😀'.repeat(300))).length, 300);
+  for (const invalid of ['', '  \n ', '😀'.repeat(301), '숨김\u200b문자', '제어\u0000', '\ud800', '단독\r줄', '\r앞', '끝\r']) {
+    assert.throws(() => normalizeGuestbookMessage(invalid), (error) => error instanceof RoomApiError && error.code === 'ROOM_GUESTBOOK_MESSAGE_INVALID');
+  }
+});
+
+test('guestbook parsing rejects mismatched rooms and duplicate IDs, and omits private identifiers', () => {
+  const entry = parseGuestbookEntry({ ...guestbookEntry, authorAccountId: 'private', requestId: 'private-request' });
+  assert.deepEqual(entry, guestbookEntry);
+  const page = { roomId: 'room-1', entries: [entry], nextCursor: 'older/id', unreadCount: 7 };
+  assert.deepEqual(parseGuestbookPage(page), page);
+  assert.deepEqual(parseGuestbookPage({ roomId: null, entries: [], nextCursor: null, unreadCount: 0 }).entries, []);
+  assert.throws(() => parseGuestbookPage({ ...page, entries: [entry, entry] }));
+  assert.throws(() => parseGuestbookPage({ ...page, roomId: 'other-room' }));
+  assert.throws(() => parseGuestbookPage({ ...page, unreadCount: -1 }));
+  assert.throws(() => parseGuestbookEntry({ ...entry, createdAt: 'invalid' }));
+  assert.throws(() => parseGuestbookEntry({ ...entry, message: '' }));
+});
+
+test('nonfriend author information exposes achievements without account or individual visit details', () => {
+  const profile = { nickname: '방문자', intro: '반가워요', avatar: null, avatarClothingId: null, mine: false, friendshipId: null,
+    medals: [{ key: 'explorer', tier: 2 }, { key: 'regular', tier: 1 }, { key: 'steady', tier: 0 }], earnedBadges: 3, totalBadges: 9, stampCount: 4 };
+  assert.deepEqual(parseGuestbookAuthor({ ...profile, accountId: 'private', friendCode: 'private-code', visits: [{ visitedAt: 'private' }] }), profile);
+  assert.throws(() => parseGuestbookAuthor({ ...profile, earnedBadges: 4 }));
+  assert.throws(() => parseGuestbookAuthor({ ...profile, medals: [profile.medals[0], profile.medals[0], profile.medals[2]] }));
+});
+
+test('guestbook API uses server count, explicit read IDs and retry key independently from rewards', async () => {
+  const calls: { url: string; method: string; body: unknown }[] = [];
+  const client = createRoomApiClient({ apiUrl: 'https://api.test/', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      const url = String(input);
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ url, method: init?.method ?? 'GET', body });
+      assert.equal(new Headers(init?.headers).get('Authorization'), 'Bearer session');
+      if (url.endsWith('/read')) return Response.json({ unreadCount: 6 });
+      if (init?.method === 'POST') return Response.json({ entry: guestbookEntry, creditedMileage: 0, rewardRemainingToday: 0, replayed: true });
+      return Response.json({ roomId: 'room-1', entries: [guestbookEntry], nextCursor: 'older', unreadCount: 7 });
+    },
+  });
+  assert.equal((await client.ownGuestbook()).unreadCount, 7);
+  await client.guestbook('room/1', 'page/2');
+  assert.equal((await client.readGuestbook(['entry-1'])).unreadCount, 6);
+  const written = await client.writeGuestbook('room-1', 'retry-1', '  안녕하세요  ');
+  assert.equal(written.creditedMileage, 0);
+  assert.equal(written.replayed, true);
+  assert.deepEqual(calls, [
+    { url: 'https://api.test/me/room-guestbook', method: 'GET', body: undefined },
+    { url: 'https://api.test/rooms/room%2F1/guestbook?cursor=page%2F2', method: 'GET', body: undefined },
+    { url: 'https://api.test/me/room-guestbook/read', method: 'POST', body: { entryIds: ['entry-1'] } },
+    { url: 'https://api.test/rooms/room-1/guestbook', method: 'POST', body: { requestId: 'retry-1', message: '안녕하세요' } },
+  ]);
+  await assert.rejects(() => client.writeGuestbook('room-1', 'retry-2', ' '));
+  assert.equal(calls.length, 4);
+});
+
+test('removed guestbook text is accepted only on the author’s replayed write response', async () => {
+  let response = { entry: { ...guestbookEntry, message: '', mine: true }, creditedMileage: 0,
+    rewardRemainingToday: 25, replayed: true };
+  const client = createRoomApiClient({ apiUrl: 'https://api.test', credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async () => Response.json(response),
+  });
+  assert.equal((await client.writeGuestbook('room-1', 'retry-1', '안녕하세요')).entry.message, '');
+  response = { ...response, replayed: false };
+  await assert.rejects(() => client.writeGuestbook('room-1', 'retry-1', '안녕하세요'), /INVALID_GUESTBOOK_ENTRY/);
+  response = { ...response, replayed: true, entry: { ...response.entry, mine: false } };
+  await assert.rejects(() => client.writeGuestbook('room-1', 'retry-1', '안녕하세요'), /INVALID_GUESTBOOK_ENTRY/);
+  response = { ...response, entry: { ...response.entry, mine: true, createdAt: 'invalid' } };
+  await assert.rejects(() => client.writeGuestbook('room-1', 'retry-1', '안녕하세요'), /INVALID_GUESTBOOK_ENTRY/);
 });

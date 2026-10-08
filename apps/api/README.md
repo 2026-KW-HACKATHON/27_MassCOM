@@ -6,6 +6,11 @@
 
 새 한도 구현은 API 소스와 DB migration에 반영됐지만 운영·시연 서버에는 아직 배포되지 않았다. 두 서버의 기존 키 연결, 기존 점포별 한도(시안·최종 각 3회/일), USD 5 월 예산은 별도 운영 증거를 따른다. 실제 OpenAI 이미지 생성은 `NOT_RUN`이다.
 
+## 친구 행동·글 방명록 (Issue #436, D-104)
+
+Migration `0076_room_guestbook_actions.sql`을 새 API보다 먼저 적용한다. 일반 글 방명록·읽음·신고와 `ROOM_GUESTBOOK` 보상 이유를 추가하며, 같은 방의 KST 하루 첫 글5P·방명록 전체 하루25P를 우정과 별도로 제한한다. 반복 글은 허용하고 요청 ID로 재시도 중복을 막는다. 기존 칭찬 스탬프와 `NEIGHBORS` 설정은 보존한다. 새 공개 선택은 `PUBLIC`·`FRIENDS`·`PRIVATE`이며, 공개 방도 로그인·현재 동의·차단 검사를 적용한다.
+
+`POST /me/friendship-gifts/:id/receive-and-reply`는 우정 받기와 가능한 답장을 한 거래로 처리한다. 기존 하루 보내기5회·행동별5P·우정 합계25P를 유지하며 보내기 한도 소진 시에도 받을 수 있다. 방명록 API와 적용·복구 경계는 [검증·API 안내](../../docs/evidence/friend-actions-2026-10-09/README.md#api와-적용-순서)를 따른다. API·앱·운영 웹·공개 처리방침의 개인정보 버전은 `privacy-2026-10-09`다. 새 공개 값이 저장될 수 있으므로 이전 코드로 단순 롤백하지 말고, 기능 접근을 제한하는 호환 수정과 데이터 보존을 함께 적용한다.
 
 ## 캠페인 혜택과 추가 원가 상한 (Issue #412 T3 PR 2, D-094)
 
@@ -20,7 +25,7 @@ Migration `0069_campaign_benefits.sql`은 점주 동의를 받은 캠페인 혜�
 
 ## 첨부 고객 UI 연결 (Issue #399)
 
-Migration0062–0067은 방 공개 범위·가구 원장·개별 코인 리롤·프로필 소개·대표 코인 출처·방문 취소 파생 철회·방명록을 추가한다. 기존 방문 권리/코인/친구/놀이 이력은 유지한다. 개인정보 안내 버전은 `privacy-2026-10-07`로 앱/웹과 일치시킨다. Migration0068(Issue #412, D-092)은 점주 목적형 캠페인 부속 표 `campaign_purposes`와 시간대 검사 함수, 공개 뒤 조건 변경을 막는 트리거, 감사 action `CAMPAIGN_PURPOSE_SET`을 더한다. 추가만 하므로 목적 행이 없는 기존 캠페인은 그대로 동작하고 `backward_compatible=yes`다.
+Migration0062–0067은 방 공개 범위·가구 원장·개별 코인 리롤·프로필 소개·대표 코인 출처·방문 취소 파생 철회·방명록을 추가한다. 기존 방문 권리/코인/친구/놀이 이력은 유지한다. 당시 개인정보 버전은 이후 Issue #436의 `privacy-2026-10-09`로 갱신했다. Migration0068(Issue #412, D-092)은 점주 목적형 캠페인 부속 표 `campaign_purposes`와 시간대 검사 함수, 공개 뒤 조건 변경을 막는 트리거, 감사 action `CAMPAIGN_PURPOSE_SET`을 더한다. 추가만 하므로 목적 행이 없는 기존 캠페인은 그대로 동작하고 `backward_compatible=yes`다.
 
 - `PUT /me/profile`: 별명/소개 부분 수정, 소개 최대30자.
 - `GET/PUT /me/studio`: 기존 진열과 출처별 코인·가구·벽/바닥, `expectedRevision` 충돌 검사.

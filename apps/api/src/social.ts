@@ -39,6 +39,11 @@ export type FriendshipGiftResult = {
   receivedAt: string | null;
 };
 
+export type FriendshipGiftReceiveAndReplyResult = {
+  received: FriendshipGiftResult;
+  reply: FriendshipGiftResult | null;
+};
+
 export type MailType = 'MESSAGE' | 'MEAL_INVITATION' | 'MEAL_RESPONSE' | 'FRIENDSHIP_GIFT';
 
 export type MailSummary = {
@@ -113,6 +118,7 @@ export interface SocialService {
   getSocial(accountId: string): Promise<SocialSnapshot>;
   sendFriendshipGift(input: { accountId: string; friendshipId: string; requestId: string }): Promise<FriendshipGiftResult>;
   receiveFriendshipGift(input: { accountId: string; giftId: string; requestId: string }): Promise<FriendshipGiftResult>;
+  receiveAndReplyFriendshipGift(input: { accountId: string; giftId: string; requestId: string }): Promise<FriendshipGiftReceiveAndReplyResult>;
   listMail(input: { accountId: string; cursor?: string }): Promise<MailList>;
   getMail(input: { accountId: string; mailId: string }): Promise<MailDetail>;
   markMailRead(input: { accountId: string; mailId: string }): Promise<MailDetail>;

@@ -75,3 +75,18 @@ test('my own row is marked by an edge and a 나 chip, not by colour alone', () =
     assert.ok(contrast(styles.rankRowMe.borderColor as string, world.card) >= 3, 'my row edge on the card');
   }
 });
+
+test('친구 오른쪽 그림 버튼 네 개는 48dp 타깃을 유지하고 320px 화면에서 프로필 공간을 남긴다', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeFriendsStyles(palette, world);
+    assert.ok(styles.friendIconButton.width >= 48);
+    assert.ok(styles.friendIconButton.height >= 48);
+    assert.equal(styles.friendActionGrid.width, styles.friendIconButton.width * 2 + styles.friendActionGrid.gap);
+    assert.ok(contrast(styles.friendIconButton.borderColor, world.card) >= 3);
+    for (const viewport of [320, 360]) {
+      const remainingProfileWidth = viewport - 2 * styles.content.padding - 2 * styles.friendActionCard.padding
+        - styles.friendActionGrid.width - styles.friendActionRow.gap;
+      assert.ok(remainingProfileWidth >= 140, `${viewport}px에서 이름과 메달이 들어갈 공간`);
+    }
+  }
+});

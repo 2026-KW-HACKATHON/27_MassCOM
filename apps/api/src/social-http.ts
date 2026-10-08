@@ -37,13 +37,14 @@ export async function handleSocialHttp(ctx: Context): Promise<boolean> {
   const method = request.method;
   const giftSend = path.match(/^\/me\/friends\/([^/]+)\/gifts$/);
   const giftReceive = path.match(/^\/me\/gifts\/([^/]+)\/receive$/);
+  const giftReceiveAndReply = path.match(/^\/me\/friendship-gifts\/([^/]+)\/receive-and-reply$/);
   const message = path.match(/^\/me\/friends\/([^/]+)\/messages$/);
   const invite = path.match(/^\/me\/friends\/([^/]+)\/meal-invitations$/);
   const respond = path.match(/^\/me\/meal-invitations\/([^/]+)\/respond$/);
   const mailRead = path.match(/^\/me\/mail\/([^/]+)\/read$/);
   const mail = path.match(/^\/me\/mail\/([^/]+)$/);
   const matches = method === 'GET' && (path === '/me/social' || path === '/me/mail' || mail)
-    || method === 'POST' && (giftSend || giftReceive || message || invite || respond || mailRead || path === '/me/push-tokens')
+    || method === 'POST' && (giftSend || giftReceive || giftReceiveAndReply || message || invite || respond || mailRead || path === '/me/push-tokens')
     || method === 'DELETE' && path === '/me/push-tokens';
   if (!matches) return false;
   if (!service) throw new SocialHttpError(503, 'SOCIAL_NOT_CONFIGURED');
@@ -78,12 +79,14 @@ export async function handleSocialHttp(ctx: Context): Promise<boolean> {
   } else if (mailRead) {
     fields(body, []);
     send(200, await service.markMailRead({ accountId, mailId: ctx.decode(mailRead[1]!) }));
-  } else if (giftSend || giftReceive) {
+  } else if (giftSend || giftReceive || giftReceiveAndReply) {
     fields(body, ['requestId']);
     const requestId = text(body, 'requestId');
     if (giftSend) {
       const result = await service.sendFriendshipGift({ accountId, requestId, friendshipId: ctx.decode(giftSend[1]!) });
       send(result.replayed ? 200 : 201, result);
+    } else if (giftReceiveAndReply) {
+      send(200, await service.receiveAndReplyFriendshipGift({ accountId, requestId, giftId: ctx.decode(giftReceiveAndReply[1]!) }));
     } else send(200, await service.receiveFriendshipGift({ accountId, requestId, giftId: ctx.decode(giftReceive![1]!) }));
   } else if (message) {
     fields(body, ['requestId', 'body']);

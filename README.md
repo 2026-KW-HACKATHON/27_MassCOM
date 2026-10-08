@@ -116,6 +116,8 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 최신 통합 HEAD `9545b503`의 추가 검증은 API 677/677·모바일 2220/2220·사이트 493/493, PostgreSQL runner 600 PASS·3 SKIP이다. SKIP 세 건은 각각 별도 fresh host-seed DB에서 통과했다. 최신 development 화면에는 가상 A/B/C가 보이므로 hosted real-only 화면의 시각 증거로 해석하지 않는다([통합 증거](docs/evidence/alliance-draw-2026-10-09/integration-9545b503.json)).
 
+현재 자동 시험 합계(2026-10-09 KST, PR #440 브랜치 `feat/friend-actions-guestbook`에 PR #445 반영 main `97d351bd`를 합친 기준): API 단위 681/681 · 모바일 2258/2258. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
 앱 시작 배경음 수정은 로컬 구현·검증됐다. 네이티브는 첫 렌더 뒤, 웹은 첫 입력과 자산 준비 뒤 일반 배경음을 재생하며 뽑기 화면의 intro→loop는 유지한다. 실제 브라우저·각 Android 앱 청음과 배포는 별도다([D-103](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 
 Issue #412 T3 PR 2의 캠페인 혜택·발급 상한·추가 원가 패널·고객 쿠폰 수령은 로컬 구현/검증됐다([D-094](docs/DECISIONS.md), [실행 결과](docs/TEST_STATUS.md)). 운영·시연 배포와 설치본은 바꾸지 않았다(소유자 결정 A).

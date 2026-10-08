@@ -1,0 +1,2063 @@
+[
+  {
+    "width": 320,
+    "colorScheme": "light",
+    "errors": [],
+    "roomUrl": "http://127.0.0.1:8117/room-explore?roomId=qa-friend-room",
+    "profileKeepsRoomUrl": true,
+    "profileAddFriend": true,
+    "firstWriteReward": true,
+    "repeatWriteAllowed": true,
+    "homeUnread": true,
+    "readDotCleared": true,
+    "visibilityLabels": [
+      "◉모두에게 공개",
+      "○친구에게만 공개",
+      "○나만 보기"
+    ],
+    "visibilityChanges": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/friends/11111111-1111-4111-8111-111111111111/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/room-guestbook/guestbook-1/author",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/room-guestbook/guestbook-1/friendship",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "7250f88e-aa8f-4449-be40-f22113ad522d",
+          "message": "동네 산책 정말 즐거웠어요. 또 놀러 올게요!"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "98cba4d5-c047-40f2-ba71-939416deccaf",
+          "message": "다음에도 같이 걸어요."
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/coin-shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/store-tickets",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/recommendations",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/furniture",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/coins",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/room-guestbook/read",
+        "body": {
+          "entryIds": [
+            "guestbook-1"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PRIVATE"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "FRIENDS"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PUBLIC"
+        }
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "colorScheme": "dark",
+    "errors": [],
+    "roomUrl": "http://127.0.0.1:8117/room-explore?roomId=qa-friend-room",
+    "profileKeepsRoomUrl": true,
+    "profileAddFriend": true,
+    "firstWriteReward": true,
+    "repeatWriteAllowed": true,
+    "homeUnread": true,
+    "readDotCleared": true,
+    "visibilityLabels": [
+      "◉모두에게 공개",
+      "○친구에게만 공개",
+      "○나만 보기"
+    ],
+    "visibilityChanges": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/friends/11111111-1111-4111-8111-111111111111/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/room-guestbook/guestbook-1/author",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/room-guestbook/guestbook-1/friendship",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "fbc80770-697d-41e4-bc51-051ecd05b538",
+          "message": "동네 산책 정말 즐거웠어요. 또 놀러 올게요!"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "27f48cb7-cd7e-4b5a-813c-10909405e2b0",
+          "message": "다음에도 같이 걸어요."
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/coin-shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/store-tickets",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/recommendations",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/furniture",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/coins",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/room-guestbook/read",
+        "body": {
+          "entryIds": [
+            "guestbook-1"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PRIVATE"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "FRIENDS"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PUBLIC"
+        }
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "colorScheme": "light",
+    "errors": [],
+    "roomUrl": "http://127.0.0.1:8117/room-explore?roomId=qa-friend-room",
+    "profileKeepsRoomUrl": true,
+    "profileAddFriend": true,
+    "firstWriteReward": true,
+    "repeatWriteAllowed": true,
+    "homeUnread": true,
+    "readDotCleared": true,
+    "visibilityLabels": [
+      "◉모두에게 공개",
+      "○친구에게만 공개",
+      "○나만 보기"
+    ],
+    "visibilityChanges": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/friends/11111111-1111-4111-8111-111111111111/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/room-guestbook/guestbook-1/author",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/room-guestbook/guestbook-1/friendship",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "e1a84dfa-224f-49b8-9a5a-5ceed050e043",
+          "message": "동네 산책 정말 즐거웠어요. 또 놀러 올게요!"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "a9315498-56b8-4cd6-affc-035b205bccb3",
+          "message": "다음에도 같이 걸어요."
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/coin-shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/store-tickets",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/recommendations",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/furniture",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/coins",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/room-guestbook/read",
+        "body": {
+          "entryIds": [
+            "guestbook-1"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PRIVATE"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "FRIENDS"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PUBLIC"
+        }
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "colorScheme": "dark",
+    "errors": [],
+    "roomUrl": "http://127.0.0.1:8117/room-explore?roomId=qa-friend-room",
+    "profileKeepsRoomUrl": true,
+    "profileAddFriend": true,
+    "firstWriteReward": true,
+    "repeatWriteAllowed": true,
+    "homeUnread": true,
+    "readDotCleared": true,
+    "visibilityLabels": [
+      "◉모두에게 공개",
+      "○친구에게만 공개",
+      "○나만 보기"
+    ],
+    "visibilityChanges": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/friends/11111111-1111-4111-8111-111111111111/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/room-guestbook/guestbook-1/author",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/room-guestbook/guestbook-1/friendship",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "308f5b4c-091e-424d-b3fd-a44af2adbc5b",
+          "message": "동네 산책 정말 즐거웠어요. 또 놀러 올게요!"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "7404b995-fb09-460b-a5a4-c3f17c91555e",
+          "message": "다음에도 같이 걸어요."
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/coin-shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/store-tickets",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/recommendations",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/furniture",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/coins",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/room-guestbook/read",
+        "body": {
+          "entryIds": [
+            "guestbook-1"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PRIVATE"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "FRIENDS"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PUBLIC"
+        }
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "colorScheme": "light",
+    "errors": [],
+    "roomUrl": "http://127.0.0.1:8117/room-explore?roomId=qa-friend-room",
+    "profileKeepsRoomUrl": true,
+    "profileAddFriend": true,
+    "firstWriteReward": true,
+    "repeatWriteAllowed": true,
+    "homeUnread": true,
+    "readDotCleared": true,
+    "visibilityLabels": [
+      "◉모두에게 공개",
+      "○친구에게만 공개",
+      "○나만 보기"
+    ],
+    "visibilityChanges": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/friends/11111111-1111-4111-8111-111111111111/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/room-guestbook/guestbook-1/author",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/room-guestbook/guestbook-1/friendship",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "6d8a0cf3-576c-404c-a12f-734c1a545448",
+          "message": "동네 산책 정말 즐거웠어요. 또 놀러 올게요!"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "e7795a51-d957-4f50-8889-8dac6c462ba9",
+          "message": "다음에도 같이 걸어요."
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/coin-shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/store-tickets",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/recommendations",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/furniture",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/coins",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/room-guestbook/read",
+        "body": {
+          "entryIds": [
+            "guestbook-1"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PRIVATE"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "FRIENDS"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PUBLIC"
+        }
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "colorScheme": "dark",
+    "errors": [],
+    "roomUrl": "http://127.0.0.1:8117/room-explore?roomId=qa-friend-room",
+    "profileKeepsRoomUrl": true,
+    "profileAddFriend": true,
+    "firstWriteReward": true,
+    "repeatWriteAllowed": true,
+    "homeUnread": true,
+    "readDotCleared": true,
+    "visibilityLabels": [
+      "◉모두에게 공개",
+      "○친구에게만 공개",
+      "○나만 보기"
+    ],
+    "visibilityChanges": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/friends/11111111-1111-4111-8111-111111111111/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/room-guestbook/guestbook-1/author",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/room-guestbook/guestbook-1/friendship",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "4b9f15ed-e467-4cb9-b84e-7111c6ee4a5c",
+          "message": "동네 산책 정말 즐거웠어요. 또 놀러 올게요!"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {
+          "requestId": "9128351b-6c69-4d35-a5a7-004499503af1",
+          "message": "다음에도 같이 걸어요."
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/qa-friend-room/guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/coin-shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/store-tickets",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/recommendations",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/experience",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/studio",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/collection",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/furniture",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/coins",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/room-guestbook/read",
+        "body": {
+          "entryIds": [
+            "guestbook-1"
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-guestbook",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-publication",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/rooms/neighbors",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/room-visitors",
+        "body": {}
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PRIVATE"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "FRIENDS"
+        }
+      },
+      {
+        "method": "PUT",
+        "path": "/me/room-publication",
+        "body": {
+          "visibility": "PUBLIC"
+        }
+      }
+    ]
+  }
+]

@@ -436,6 +436,123 @@ test('receiving gifts is unlimited, clears pending, and caps receiver rewards at
   assert.deepEqual(total.rows[0], { total: 25, pending: 0 });
 });
 
+test('gold heart receives and replies atomically, pays 10P, and replays concurrent and next-day requests without another reward', async t => {
+  const { pool, social, state } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  const gift = await social.sendFriendshipGift({ accountId: 'alice', friendshipId, requestId: 'initial' });
+  const input = { accountId: 'bob', giftId: gift.giftId, requestId: 'gold-heart' };
+  const results = await Promise.all([social.receiveAndReplyFriendshipGift(input), social.receiveAndReplyFriendshipGift(input)]);
+  assert.deepEqual(results.map(result => result.received.replayed).sort(), [false, true]);
+  const result = results.find(item => !item.received.replayed)!;
+  assert.equal(result.received.receiverReward, 5);
+  assert.equal(result.reply?.senderReward, 5);
+  assert.equal(result.received.rewardRemainingToday, 15);
+  assert.equal(result.reply?.sendRemaining, 4);
+  assert.equal(results[0].reply?.giftId, results[1].reply?.giftId);
+  assert.deepEqual((await social.getSocial('bob')).friends[0]!.gift, {
+    pendingGiftId: result.reply!.giftId, pendingDirection: 'SENT', canSend: false, canReceive: false,
+  });
+  assert.equal((await social.getSocial('alice')).friends[0]!.gift.canReceive, true);
+
+  await social.receiveFriendshipGift({ accountId: 'alice', giftId: result.reply!.giftId, requestId: 'receive-reply' });
+  state.now = new Date('2026-10-05T15:00:00.000Z');
+  const replay = await social.receiveAndReplyFriendshipGift(input);
+  assert.equal(replay.received.replayed, true);
+  assert.equal(replay.reply?.replayed, true);
+  assert.equal(replay.reply?.giftId, result.reply!.giftId);
+  assert.equal(replay.reply?.status, 'RECEIVED');
+  assert.equal((await social.getSocial('bob')).friendshipGift.sendCount, 0);
+  assert.equal((await social.getSocial('bob')).friendshipGift.rewardEarnedToday, 0);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM friendship_gifts')).rows[0]!.n, 2);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM social_mail')).rows[0]!.n, 2);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM notification_outbox')).rows[0]!.n, 2);
+  assert.deepEqual((await pool.query(
+    "SELECT sum(amount)::integer AS total, count(*)::integer AS n FROM mileage_credits WHERE account_id = 'bob'",
+  )).rows[0], { total: 10, n: 2 });
+  await assert.rejects(social.receiveAndReplyFriendshipGift({ ...input, requestId: 'different-retry' }), rejectsWith('SOCIAL_REQUEST_CONFLICT'));
+});
+
+test('gold heart keeps receiving after five sends and caps all send/receive rewards together at 25P', async t => {
+  const { pool, social, state } = await setup(t);
+  let lastGiftId = '';
+  for (let index = 0; index < 6; index++) {
+    const sender = `sender-${index}`;
+    const friendshipId = await addFriendship(pool, sender, 'receiver');
+    const gift = await social.sendFriendshipGift({ accountId: sender, friendshipId, requestId: `send-${index}` });
+    const result = await social.receiveAndReplyFriendshipGift({ accountId: 'receiver', giftId: gift.giftId, requestId: `gold-${index}` });
+    assert.equal(result.received.status, 'RECEIVED');
+    assert.equal(result.received.receiverReward, index < 3 ? 5 : 0);
+    assert.equal(result.reply?.senderReward ?? 0, index < 2 ? 5 : 0);
+    assert.equal(result.reply !== null, index < 5);
+    lastGiftId = gift.giftId;
+  }
+  const snapshot = await social.getSocial('receiver');
+  assert.equal(snapshot.friendshipGift.sendCount, 5);
+  assert.equal(snapshot.friendshipGift.rewardEarnedToday, 25);
+  assert.equal(snapshot.friends.some(friend => friend.gift.canReceive), false);
+  state.now = new Date('2026-10-05T15:00:00.000Z');
+  const replay = await social.receiveAndReplyFriendshipGift({ accountId: 'receiver', giftId: lastGiftId, requestId: 'gold-5' });
+  assert.equal(replay.received.replayed, true);
+  assert.equal(replay.reply, null, 'a response lost at the send limit must not create a reply after the daily reset');
+  assert.equal((await social.getSocial('receiver')).friendshipGift.sendCount, 0);
+  assert.equal((await social.getSocial('receiver')).friendshipGift.rewardEarnedToday, 0);
+});
+
+test('gold heart receives without duplicating an existing outbound gift, including retry after that gift is collected', async t => {
+  const { pool, social } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  const aliceGift = await social.sendFriendshipGift({ accountId: 'alice', friendshipId, requestId: 'alice-send' });
+  const bobGift = await social.sendFriendshipGift({ accountId: 'bob', friendshipId, requestId: 'bob-send' });
+  const input = { accountId: 'bob', giftId: aliceGift.giftId, requestId: 'bob-gold' };
+  const result = await social.receiveAndReplyFriendshipGift(input);
+  assert.equal(result.received.receiverReward, 5);
+  assert.equal(result.reply, null);
+  assert.equal((await social.getSocial('bob')).friends[0]!.gift.pendingGiftId, bobGift.giftId);
+  await social.receiveFriendshipGift({ accountId: 'alice', giftId: bobGift.giftId, requestId: 'alice-receive' });
+  assert.equal((await social.receiveAndReplyFriendshipGift(input)).reply, null);
+  assert.equal((await social.getSocial('bob')).friendshipGift.sendCount, 1);
+  assert.equal((await social.getSocial('bob')).friendshipGift.rewardEarnedToday, 10);
+});
+
+test('gold heart rejects receiver request reuse and access spoofing without mutating another gift', async t => {
+  const { pool, social } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  const otherFriendship = await addFriendship(pool, 'alice', 'charlie');
+  const first = await social.sendFriendshipGift({ accountId: 'bob', friendshipId, requestId: 'first' });
+  const second = await social.sendFriendshipGift({ accountId: 'charlie', friendshipId: otherFriendship, requestId: 'second' });
+  await social.receiveAndReplyFriendshipGift({ accountId: 'alice', giftId: first.giftId, requestId: 'same-request' });
+  await assert.rejects(social.receiveAndReplyFriendshipGift({ accountId: 'alice', giftId: second.giftId, requestId: 'same-request' }),
+    rejectsWith('SOCIAL_REQUEST_CONFLICT'));
+  await assert.rejects(social.receiveAndReplyFriendshipGift({ accountId: 'mallory', giftId: second.giftId, requestId: 'spoofed' }),
+    rejectsWith('SOCIAL_FORBIDDEN'));
+  await assert.rejects(social.sendFriendshipGift({ accountId: 'alice', friendshipId: otherFriendship,
+    requestId: `friendship-gift-reply:${second.giftId}` }), rejectsWith('INVALID_REQUEST'));
+  assert.equal((await pool.query('SELECT status FROM friendship_gifts WHERE id = $1', [second.giftId])).rows[0]!.status, 'PENDING');
+  await pool.query('DELETE FROM friendships WHERE id = $1', [otherFriendship]);
+  await assert.rejects(social.receiveAndReplyFriendshipGift({ accountId: 'alice', giftId: second.giftId, requestId: 'removed' }),
+    rejectsWith('SOCIAL_FRIENDSHIP_NOT_FOUND'));
+});
+
+test('gold heart rolls back receive, reward, mail, and reply together if reply insertion fails', async t => {
+  const { pool, social, lifecycle, gateway, state } = await setup(t);
+  const friendshipId = await addFriendship(pool, 'alice', 'bob');
+  const gift = await social.sendFriendshipGift({ accountId: 'alice', friendshipId, requestId: 'initial' });
+  const failing = new PostgresSocialService(pool, {
+    accountLifecycle: lifecycle, appVariant: 'ANDROID', gateway, now: () => state.now,
+    nextId: () => gift.giftId,
+  });
+  const input = { accountId: 'bob', giftId: gift.giftId, requestId: 'atomic-receive' };
+  await assert.rejects(failing.receiveAndReplyFriendshipGift(input), (error: unknown) =>
+    typeof error === 'object' && error !== null && 'code' in error && error.code === '23505');
+  assert.equal((await pool.query('SELECT status FROM friendship_gifts WHERE id = $1', [gift.giftId])).rows[0]!.status, 'PENDING');
+  assert.equal((await pool.query("SELECT count(*)::integer AS n FROM mileage_credits WHERE account_id = 'bob'")).rows[0]!.n, 0);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM social_mail')).rows[0]!.n, 1);
+  assert.equal((await pool.query('SELECT count(*)::integer AS n FROM notification_outbox')).rows[0]!.n, 1);
+  const recovered = await social.receiveAndReplyFriendshipGift(input);
+  assert.equal(recovered.received.receiverReward, 5);
+  assert.equal(recovered.reply?.senderReward, 5);
+});
+
 test('simultaneous gifts in both directions preserve each incoming gift and the current send policy', async t => {
   const { pool, social } = await setup(t);
   const friendshipId = await addFriendship(pool, 'alice', 'bob');

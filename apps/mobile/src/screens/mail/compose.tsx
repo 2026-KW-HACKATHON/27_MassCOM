@@ -14,6 +14,8 @@ import { BounceButton } from '@/ui/bounce-button';
 import { FloatingCard } from '@/ui/floating-card';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
+import { MealDatePicker, MealTimePicker } from './meal-date-time-picker';
+import { mealScheduleError } from './meal-picker-state';
 
 export function MessageComposeScreen({ apiUrl, credential, onSessionInvalid, friendshipId }: {
   apiUrl: string;
@@ -113,10 +115,12 @@ export function MealInviteScreen({ apiUrl, credential, onSessionInvalid, friends
   const businessLabel = { OPEN: '영업 중', CLOSED: '영업 종료', BREAK: '휴게 시간', UNKNOWN: '영업 정보 확인 필요' } as const;
 
   async function send() {
+    if (busy) return;
     if (!merchantId || !selectedMerchant || detail?.id !== merchantId) { setNotice('최신 가게 정보를 확인한 뒤 초대해 주세요.'); return; }
     const schedule: MealSchedule = kind === 'CONFIRMED' ? { kind, time } : { kind, startTime, endTime };
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (kind === 'CONFIRMED' ? !isHHmm(time) : (!isHHmm(startTime) || !isHHmm(endTime)))) {
-      setNotice('날짜와 시간을 형식에 맞게 입력해 주세요.');
+    const scheduleError = mealScheduleError(date, schedule);
+    if (scheduleError) {
+      setNotice(scheduleError);
       return;
     }
     setBusy(true);
@@ -159,17 +163,17 @@ export function MealInviteScreen({ apiUrl, credential, onSessionInvalid, friends
             ) : null}
             {plannedBusiness ? <Text style={{ color: palette.secondaryLabel }}>제안한 시간 기준 {businessLabel[plannedBusiness.state]} · 시간표와 임시 변경 정보 기준</Text> : null}
             <Text style={{ color: palette.secondaryLabel }}>선택한 날짜와 시간은 친구에게 보내는 약속 제안입니다. 친구 간 약속 · 매장 예약 아님. 방문 전 가게 위치와 최신 영업 상태를 확인해 주세요.</Text>
-            <TextInput value={date} onChangeText={value => { if (value !== date) { setDate(value); mealRequestId.current = undefined; } }} placeholder="YYYY-MM-DD" accessibilityLabel="초대 날짜" placeholderTextColor={palette.secondaryLabel} style={{ ...fieldStyle, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }} />
+            <MealDatePicker label="초대 날짜" value={date} disabled={busy} onChange={value => { if (value !== date) { setDate(value); mealRequestId.current = undefined; } }} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 1 }}><BounceButton label="확정 시간" variant={kind === 'CONFIRMED' ? 'primary' : 'secondary'} onPress={() => { if (kind !== 'CONFIRMED') { setKind('CONFIRMED'); mealRequestId.current = undefined; } }} /></View>
-              <View style={{ flex: 1 }}><BounceButton label="시간 범위" variant={kind === 'RANGE' ? 'primary' : 'secondary'} onPress={() => { if (kind !== 'RANGE') { setKind('RANGE'); mealRequestId.current = undefined; } }} /></View>
+              <View style={{ flex: 1 }}><BounceButton label="확정 시간" disabled={busy} variant={kind === 'CONFIRMED' ? 'primary' : 'secondary'} onPress={() => { if (kind !== 'CONFIRMED') { setKind('CONFIRMED'); mealRequestId.current = undefined; } }} /></View>
+              <View style={{ flex: 1 }}><BounceButton label="시간 범위" disabled={busy} variant={kind === 'RANGE' ? 'primary' : 'secondary'} onPress={() => { if (kind !== 'RANGE') { setKind('RANGE'); mealRequestId.current = undefined; } }} /></View>
             </View>
             {kind === 'CONFIRMED' ? (
-              <TextInput value={time} onChangeText={value => { if (value !== time) { setTime(value); mealRequestId.current = undefined; } }} placeholder="HH:mm" accessibilityLabel="확정 시간" placeholderTextColor={palette.secondaryLabel} style={{ ...fieldStyle, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }} />
+              <MealTimePicker label="확정 시간" value={time} disabled={busy} onChange={value => { if (value !== time) { setTime(value); mealRequestId.current = undefined; } }} />
             ) : (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <TextInput value={startTime} onChangeText={value => { if (value !== startTime) { setStartTime(value); mealRequestId.current = undefined; } }} placeholder="시작 HH:mm" accessibilityLabel="시작 시간" placeholderTextColor={palette.secondaryLabel} style={[fieldStyle, { flex: 1, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }]} />
-                <TextInput value={endTime} onChangeText={value => { if (value !== endTime) { setEndTime(value); mealRequestId.current = undefined; } }} placeholder="끝 HH:mm" accessibilityLabel="끝 시간" placeholderTextColor={palette.secondaryLabel} style={[fieldStyle, { flex: 1, color: palette.label, borderColor: palette.separator, backgroundColor: palette.surface }]} />
+              <View style={{ gap: 8 }}>
+                <MealTimePicker label="시작 시간" value={startTime} disabled={busy} onChange={value => { if (value !== startTime) { setStartTime(value); mealRequestId.current = undefined; } }} />
+                <MealTimePicker label="끝 시간" value={endTime} disabled={busy} onChange={value => { if (value !== endTime) { setEndTime(value); mealRequestId.current = undefined; } }} />
               </View>
             )}
             <BounceButton label={busy ? '보내는 중…' : '초대 보내기'} disabled={busy || !selectedMerchant || detail?.id !== merchantId} onPress={() => { void send(); }} />

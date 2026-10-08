@@ -4,7 +4,12 @@ import {
 import { RequestError } from '../http/request-error.js';
 import { sendJson } from '../http/response.js';
 import { isMileageGrade } from '../mileage-rules.js';
+import type { PublicRoom, RoomSettings } from '../room-community.js';
 import type { RouteContext } from './context.js';
+
+function legacyVisibility<T extends PublicRoom | RoomSettings>(value: T, supportsPublic: boolean): T {
+  return !supportsPublic && value.visibility === 'PUBLIC' ? { ...value, visibility: 'NEIGHBORS' } : value;
+}
 
 export async function handleCoinsRooms(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
@@ -96,20 +101,22 @@ export async function handleCoinsRooms(ctx: RouteContext): Promise<boolean> {
     const result = await coinEconomy.claimSeries({ accountId, seriesId: decodePathParameter(claim[1]!) });
     sendJson(response, result.replayed ? 200 : 201, result); return true;
   }
-  if (path === '/me/room-publication' || path === '/me/room-visitors' || path.startsWith('/rooms/') || path.startsWith('/room-stamps/')) {
+  if (path === '/me/room-publication' || path === '/me/room-visitors' || path === '/me/room-guestbook' || path === '/me/room-guestbook/read'
+      || path.startsWith('/rooms/') || path.startsWith('/room-stamps/') || path.startsWith('/room-guestbook/')) {
     if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
     const accountId = await resolveAccountId(request);
+    const supportsPublic = request.headers['x-masscom-room-visibility'] === 'v2';
     const publicationBody = request.method === 'PUT' && path === '/me/room-publication' ? await readJson(request) : undefined;
     if (publicationBody) {
       requireOnlyKeys(publicationBody, ['visible', 'visibility']);
       if (publicationBody.visible !== undefined && typeof publicationBody.visible !== 'boolean') throw new RequestError(400, 'INVALID_REQUEST');
-      if (publicationBody.visibility !== undefined && !['PRIVATE','FRIENDS','NEIGHBORS'].includes(String(publicationBody.visibility)))
+      if (publicationBody.visibility !== undefined && !['PRIVATE','FRIENDS','NEIGHBORS','PUBLIC'].includes(String(publicationBody.visibility)))
         throw new RequestError(400, 'INVALID_REQUEST');
     }
     // 공개 철회는 새 동의를 수락하기 전에도 가능해야 한다.
     if (publicationBody?.visible !== false && publicationBody?.visibility !== 'PRIVATE') await requireCurrentPlayConsent(accountId);
     if (request.method === 'GET' && path === '/me/room-publication') {
-      sendJson(response, 200, await roomCommunity.getSettings(accountId)); return true;
+      sendJson(response, 200, legacyVisibility(await roomCommunity.getSettings(accountId), supportsPublic)); return true;
     }
     if (request.method === 'GET' && path === '/me/room-visitors') {
       sendJson(response, 200, { visitors: await roomCommunity.visitors(accountId) }); return true;
@@ -118,10 +125,26 @@ export async function handleCoinsRooms(ctx: RouteContext): Promise<boolean> {
       const query = new URL(request.url!, 'http://localhost').searchParams;
       if ([...query.keys()].some(key => key !== 'excludeRoomId') || query.getAll('excludeRoomId').length > 1) throw new RequestError(400, 'INVALID_REQUEST');
       const excludeRoomId = query.get('excludeRoomId');
-      sendJson(response, 200, await roomCommunity.randomRoom({ accountId, ...(excludeRoomId !== null ? { excludeRoomId } : {}) })); return true;
+      const room = await roomCommunity.randomRoom({ accountId, ...(excludeRoomId !== null ? { excludeRoomId } : {}), supportsPublic });
+      sendJson(response, 200, room && legacyVisibility(room, supportsPublic)); return true;
     }
     if (request.method === 'GET' && path === '/rooms/neighbors') {
-      sendJson(response, 200, { rooms: await roomCommunity.neighbors(accountId) }); return true;
+      sendJson(response, 200, { rooms: (await roomCommunity.neighbors(accountId)).map(room => legacyVisibility(room, supportsPublic)) }); return true;
+    }
+    const guestbook = path.match(/^\/rooms\/([^/]+)\/guestbook$/);
+    const entryAction = path.match(/^\/room-guestbook\/([^/]+)(?:\/(author|friendship|reports))?$/);
+    if (request.method === 'GET' && (guestbook || path === '/me/room-guestbook')) {
+      const query = new URL(request.url!, 'http://localhost').searchParams;
+      if ([...query.keys()].some(key => key !== 'cursor') || query.getAll('cursor').length > 1 || (query.get('cursor')?.length ?? 0) > 500)
+        throw new RequestError(400,'INVALID_REQUEST');
+      const cursor = query.get('cursor');
+      const input = { accountId,...(cursor !== null ? { cursor } : {}) };
+      sendJson(response,200,guestbook
+        ? await roomCommunity.getGuestbook({ ...input,roomId: decodePathParameter(guestbook[1]!) })
+        : await roomCommunity.getMyGuestbook(input)); return true;
+    }
+    if (request.method === 'GET' && entryAction?.[2] === 'author') {
+      sendJson(response,200,await roomCommunity.getGuestbookAuthor({ accountId,entryId: decodePathParameter(entryAction[1]!) })); return true;
     }
     const neighborFriend = path.match(/^\/rooms\/([^/]+)\/friendship$/);
     if (request.method === 'POST' && neighborFriend) {
@@ -134,19 +157,47 @@ export async function handleCoinsRooms(ctx: RouteContext): Promise<boolean> {
     }
     const roomMatch = path.match(/^\/rooms\/([^/]+)(?:\/(visits|stamps|block))?$/);
     if (request.method === 'GET' && roomMatch && !roomMatch[2]) {
-      sendJson(response, 200, await roomCommunity.getRoom({ accountId, roomId: decodePathParameter(roomMatch[1]!) })); return true;
+      sendJson(response, 200, legacyVisibility(await roomCommunity.getRoom({ accountId, roomId: decodePathParameter(roomMatch[1]!) }), supportsPublic)); return true;
     }
     const decision = roomWriteLimiter.consume(accountId);
     if (!decision.allowed) {
       response.setHeader('Retry-After', String(decision.retryAfterSeconds));
       throw new RequestError(429, 'ROOM_RATE_LIMITED');
     }
-    const body = publicationBody ?? await readJson(request);
+    const body = publicationBody ?? await readJson(request, request.method === 'DELETE');
+    if (request.method === 'POST' && guestbook) {
+      requireOnlyKeys(body,['requestId','message']);
+      const result = await roomCommunity.postGuestbook({ accountId,roomId: decodePathParameter(guestbook[1]!),
+        requestId: requireString(body,'requestId'),message: requireString(body,'message') });
+      sendJson(response,result.replayed ? 200 : 201,result); return true;
+    }
+    if (request.method === 'POST' && path === '/me/room-guestbook/read') {
+      requireOnlyKeys(body,['entryIds']);
+      if (!Array.isArray(body.entryIds) || body.entryIds.length > 100 || body.entryIds.some(id => typeof id !== 'string'))
+        throw new RequestError(400,'INVALID_REQUEST');
+      sendJson(response,200,await roomCommunity.readGuestbook({ accountId,entryIds: body.entryIds as string[] })); return true;
+    }
+    if (entryAction && (request.method === 'POST' || request.method === 'DELETE')) {
+      requireEmptyBody(body);
+      const input = { accountId,entryId: decodePathParameter(entryAction[1]!) };
+      if (request.method === 'POST' && entryAction[2] === 'friendship') {
+        if (!friends?.addGuestbookAuthor) throw new RequestError(503,'FRIENDS_NOT_CONFIGURED');
+        const result = await friends.addGuestbookAuthor(input);
+        sendJson(response,result.created ? 201 : 200,result); return true;
+      }
+      if (request.method === 'POST' && entryAction[2] === 'reports') {
+        await roomCommunity.reportGuestbook(input); response.writeHead(204).end(); return true;
+      }
+      if (request.method === 'DELETE' && !entryAction[2]) {
+        await roomCommunity.removeGuestbook(input); response.writeHead(204).end(); return true;
+      }
+      throw new RequestError(405,'METHOD_NOT_ALLOWED');
+    }
     if (request.method === 'PUT' && path === '/me/room-publication') {
       requireOnlyKeys(body, ['visible', 'visibility']);
-      sendJson(response, 200, await roomCommunity.setVisibility({ accountId,
+      sendJson(response, 200, legacyVisibility(await roomCommunity.setVisibility({ accountId,
         ...(typeof body.visible === 'boolean' ? { visible: body.visible } : {}),
-        ...(typeof body.visibility === 'string' ? { visibility: body.visibility as 'PRIVATE' | 'FRIENDS' | 'NEIGHBORS' } : {}) })); return true;
+        ...(typeof body.visibility === 'string' ? { visibility: body.visibility as 'PRIVATE' | 'FRIENDS' | 'NEIGHBORS' | 'PUBLIC' } : {}) }), supportsPublic)); return true;
     }
     if (request.method === 'POST' && roomMatch) {
       const roomId = decodePathParameter(roomMatch[1]!);

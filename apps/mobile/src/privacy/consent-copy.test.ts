@@ -76,7 +76,7 @@ test('the always-visible summary is accurate on retention and sharing, because i
   assert.match(privacyPage, /접근권한 기록|감사 기록/);
   // Items: the session and notification settings, who else sees what, and what a store owner receives.
   assert.match(purpose!.text, /로그인 세션·알림 설정/);
-  assert.match(purpose!.text, /친구·같은 가게 이웃이 내 방과 방명록을 볼 수 있고/);
+  assert.match(purpose!.text, /로그인한 전체 사용자 또는 친구가 내 방과 방명록을 볼 수 있고/);
   assert.match(purpose!.text, /권한 있는 점주는 방문일·방문시각·캠페인·방문구분·보상·쿠폰 건수가 담긴 방문 CSV/);
   assert.match(privacyPage, /방문 CSV는 인정 방문의 방문일·초 단위 방문시각/);
   // Three entries, and the full notice is still the longer text the summary points at.
@@ -84,13 +84,17 @@ test('the always-visible summary is accurate on retention and sharing, because i
   assert.match(purpose!.text, /전체 항목은 "자세히 보기"/);
 });
 
-test('the full notice says at least what the summary says: room and guestbook sharing, and the owner visit CSV (wording from docs/privacy.html)', () => {
+test('the full notice and summary disclose explicit public rooms, guestbook profiles and owner visit CSV', () => {
   const purpose = consentNotice[0]!.body;
-  // Friends and neighbours see the room and guestbook only after a public scope is set (privacy.html: 방 공개 범위와 가게 이웃 / 가상 방 방문과 방명록).
-  assert.match(privacyPage, /내 방은 나만, 친구, 같은 가게 이웃 중 선택한 범위로 공개합니다/);
+  // Room and guestbook visibility follows the selected scope, including public and legacy neighbour rooms.
+  assert.match(privacyPage, /내 방은 나만 보기, 친구 공개, 모두 공개 중 선택한 범위로 공개합니다/);
+  assert.match(privacyPage, /전체 공개로 자동 변경하지 않습니다/);
   assert.match(privacyPage, /허용된 방 방문자에게 작성자의 별명과 글이 보이며/);
-  assert.match(purpose, /친구·같은 가게 이웃에게는 내가 공개 범위를 정한 뒤에만/);
-  assert.match(purpose, /허용된 방문자에게 내 방과 방명록\(작성자의 별명과 글\)이 보여요/);
+  assert.match(purpose, /내가 공개 범위를 정한 뒤에만 허용된 방문자에게 내 방과 방명록이 보여요/);
+  assert.match(purpose, /모두 공개는 로그인한 전체 사용자, 친구 공개는 친구만/);
+  assert.match(purpose, /작성자의 별명·프로필 그림·한 줄 소개·글/);
+  assert.match(purpose, /달성도·업적을 보거나 친구를 추가/);
+  assert.match(consentNotice[1]!.body, /방명록 글과 읽음 상태·방명록 마일리지/);
   // The CSV exposes visit time to the second and counts, but has no customer label.
   for (const copy of [privacyPage, purpose]) {
     assert.match(copy, /방문일·초 단위 방문시각/);
@@ -99,7 +103,9 @@ test('the full notice says at least what the summary says: room and guestbook sh
   assert.doesNotMatch(privacyPage, /방문 CSV는 인정 방문의 가명 고객 표시/);
   assert.doesNotMatch(purpose, /방문 CSV는 인정 방문의 가명 고객 표시/);
   const summary = consentSummary[0]!.text;
-  assert.match(summary, /친구·같은 가게 이웃이 내 방과 방명록을 볼 수 있고/);
+  assert.match(summary, /로그인한 전체 사용자 또는 친구가 내 방과 방명록을 볼 수 있고/);
+  assert.match(summary, /방명록 작성자의 프로필·달성도·업적/);
+  assert.match(summary, /기존 같은 가게 이웃 공개는 직접 바꾸기 전까지 유지/);
   assert.match(summary, /권한 있는 점주는 방문일·방문시각·캠페인·방문구분·보상·쿠폰 건수가 담긴 방문 CSV/);
   assert.equal(CONSENT_PRIVACY_VERSION, 'privacy-2026-10-09');
 });
