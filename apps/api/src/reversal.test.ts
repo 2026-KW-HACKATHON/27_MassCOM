@@ -4,6 +4,7 @@ import { test } from 'node:test';
 
 import type { Pool } from 'pg';
 
+import { MerchantAccessError } from './merchant-access.js';
 import { ReversalError } from './reversal.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresReversalService } from './postgres/reversal.js';
@@ -58,4 +59,16 @@ test('recent visits expose the issued claim slot id without customer account id'
   const result = await serviceOver(pool).listRecentVisits({ merchantId: 'shop', staffAccountId: 'staff' });
   assert.equal(result.visits[0]?.claimSlotId, claimSlotId);
   assert.equal(JSON.stringify(result).includes('customer-secret'), false);
+});
+
+test('stale real-data-store membership cannot list reversal data', async () => {
+  const pool = { query: async (sql: string) => {
+    assert.match(sql, /FROM merchant_members member\s+JOIN merchants merchant/u);
+    return { rowCount: 1, rows: [{ is_demo: true }] };
+  } } as unknown as Pool;
+  const service = serviceOver(pool);
+  for (const list of [service.listRecentVisits.bind(service), service.listRecentCouponRedemptions.bind(service)]) {
+    await assert.rejects(list({ merchantId: 'showcase-wolgye-001', staffAccountId: 'former-staff' }),
+      (error: unknown) => error instanceof MerchantAccessError && error.code === 'MERCHANT_ACCESS_DENIED');
+  }
 });

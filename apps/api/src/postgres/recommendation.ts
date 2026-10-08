@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { CourseService } from '../course-rules.js';
 import { safeErrorMetadata } from '../security-log.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from '../showcase/local-seed.js';
 import type { CourseNextHint } from './courses.js';
 
 import type {
@@ -69,7 +70,7 @@ export class PostgresRecommendationSource implements RecommendationSource {
         AND visit.status = 'VALID'
         AND visit.progress_counted = true
        WHERE merchant.status = 'ACTIVE'
-         AND merchant.id <> 'trial-showcase-practice'
+         AND merchant.id <> '${SHOWCASE_PRACTICE_MERCHANT_ID}'
          AND campaign.status = 'ACTIVE'
          AND campaign.is_public = true
          -- 로그인 없는 체험 가게(#309)는 누구의 추천에도 나오지 않는다(D-064).

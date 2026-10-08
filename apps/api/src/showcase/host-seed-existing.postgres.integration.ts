@@ -6,6 +6,7 @@ import { Pool } from 'pg';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
 import { PostgresCoinEconomyService } from '../postgres/coin-economy.js';
+import { PostgresCourseService } from '../postgres/courses.js';
 import { seedHostedShowcase } from './host-seed.js';
 import { seedStoreCollectibles } from './store-collectibles.js';
 import { SHOWCASE_COURSE_ID } from './local-seed.js';
@@ -196,7 +197,12 @@ test('existing A/B/C become hidden while old visit, reward, and collected coin r
     assert.equal((await pool.query<{ total: number }>(
       'SELECT count(*)::int AS total FROM course_unlocks WHERE course_id = $1', [oldCourseId]))
       .rows[0]?.total, 1);
+    const courses = new PostgresCourseService(pool, { includeDemo: true });
+    assert.equal((await courses.get('disposable-customer', oldCourseId)).status, 'ENDED');
+    assert.equal((await courses.list('disposable-customer')).find(item => item.id === oldCourseId)?.status, 'ENDED');
+    assert.equal((await courses.list('other-customer')).some(item => item.id === oldCourseId), false);
     await seedHostedShowcase(pool);
+    assert.equal((await courses.get('disposable-customer', oldCourseId)).status, 'ENDED');
     assert.deepEqual((await coinService.getCollection('disposable-customer')).coins, beforeCoins.coins);
     const progress = await pool.query<{ enrolled_count: number }>(
       `SELECT enrolled_count FROM campaigns WHERE id = 'showcase-local-campaign'`,

@@ -4,7 +4,7 @@
 
 ## 1. 기준 커밋과 작업 위치
 
-- 기준 main 커밋 SHA: `a8ed0dd1`(PR #418·#424·#426 반영 통합의 기준). 현재 worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/t9-real`, 브랜치 `feat/showcase-real-only`, 시작/현재 HEAD `c0449f1b`다.
+- 기준 main 커밋 SHA: `a8ed0dd1`(PR #418·#424·#426 반영 통합의 기준). 현재 worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/t9-real`, 브랜치 `feat/showcase-real-only`, 이번 리뷰 수정의 시작/현재 HEAD `04f9ea2a`다. 초기 T9 구현 기준은 `c0449f1b`였다.
 - 사용자 요청으로 파일만 수정했다. Git add·commit·stash·merge·rebase·push를 실행하지 않았다. 커밋·통합은 오케스트레이터가 맡는다. `gh pr list --head feat/showcase-real-only --state all` 조회 결과는 0건이다.
 
 ## 2. 현재 통합 상태
@@ -22,8 +22,8 @@
 
 - A/B/C 의존성: API seed·campaign/goal·badge offer·수집품·QA seed·직원/승인자·guest clone·course, 모바일 map/art/owner/tour/copy, 정적 `/preview/`, 모바일 `/play/`, APK/uptime/local QA probe, 현재 문서와 시험을 매핑했다.
 - 기존 A/B/C merchant `PAUSED`·`published_at=NULL`, 캠페인 `ENDED`·비공개, 기존 멤버십 회수. 방문·보상·획득 코인·쿠폰·게시본은 그대로다. 새 seed는 실점포 30곳과 숨은 연습 가게만 생성한다.
-- 공개된 옛 코스 단계는 불변이라 옛 코스를 종료하고 새 UUID `f81f04e0-bca8-4e36-a4e6-a812de5a7b80`로 코스를 만든다.
-- 점주 모드는 본인 `trialMerchantId`를 우선하고 승인된 `practiceMerchantId`만 fallback으로 사용한다. 공개 점포 목록을 점주 후보로 쓰지 않는다. 연습 가게 `trial-showcase-practice`는 고객 목록·추천·상세·지도·코스에 나오지 않는다. 공공자료 점포는 오래된 멤버십이 있어도 관리 권한을 거절한다.
+- 공개된 옛 코스 단계는 불변이라 옛 코스를 종료하고 새 UUID `f81f04e0-bca8-4e36-a4e6-a812de5a7b80`로 코스를 만든다. ENDED/PAUSED 코스는 취소되지 않은 unlock이 있는 계정의 지난 코스 목록·상세·획득 장면에서 계속 읽으며 추천·신규 unlock에서는 제외한다(D-093/D-101).
+- 점주 모드는 본인 `trialMerchantId`를 우선하고 승인된 `practiceMerchantId`만 fallback으로 사용한다. 공개 점포 목록을 점주 후보로 쓰지 않는다. 연습 가게 `trial-showcase-practice`는 고객 목록·추천·상세·지도·코스·추첨 풀·코인 카탈로그에 나오지 않는다. 배지 혜택·쿠폰 API 표시 이름은 `시연 혜택`이며 내부 점포 연결은 유지한다. 공공자료 점포는 오래된 멤버십이 있어도 관리 권한을 거절한다.
 
 ## 5. 시연 배포 순서
 
@@ -49,7 +49,8 @@
 
 ## 9. 자동 검증 상태
 
-- API 단위 671/671·모바일 2138/2138·API/모바일 typecheck·모바일 lint PASS. 전체 PostgreSQL 591건 중588 PASS·0 FAIL·기존hosted3 SKIP, 별도hosted3/3 PASS다. site645건 중644 PASS·Chrome1 환경BLOCKED, CI/문서/접근성/지갑/전체gate PASS. 명령·환경·기존단언변경은 TEST_STATUS T9에 있다.
+- HEAD `04f9ea2a` 후속 리뷰 실측: API 단위 672/672·모바일 2138/2138·API/모바일 typecheck·모바일 lint·API build PASS. 전체 PostgreSQL 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP, 별도 hosted 3/3 PASS다. CI 연결·운영 문서·gate·diff PASS. 명령·환경·단언 추가와 첫 실행 실패 수정은 TEST_STATUS T9 후속 절에 있다.
+- 초기 T9 사이트 측정은 645건 중 644 PASS·Chrome 1 환경 BLOCKED이며 접근성/지갑 검사도 당시 PASS다. 사이트·브라우저·실기는 이번 후속 작업에서 재측정하지 않았다.
 - `bash tests/release/verify_showcase_apk_test.sh`·`bash tests/ops/uptime_probe_test.sh` PASS. 릴리스 준비 검사에는 30개 정확 ID·중복·은퇴/운영 점포 혼입 거절 회귀를 더했다. APK를 빌드하지 않았다.
 - 필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN`. T9 자동 시험의 PASS를 기존 실기/출시 관문으로 옮기지 않았다.
 - site Chrome 테마 시험은 DevTools 이전 SIGABRT이며 환경 원인으로 따로 기록한다. 시험은 삭제/skip하지 않는다. LSP/AST 도구가 없어 독립 소스 검토·타입·실행 시험으로 확인했다.

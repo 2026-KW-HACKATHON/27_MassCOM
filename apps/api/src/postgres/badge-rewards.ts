@@ -27,6 +27,7 @@ import {
   type RewardMilestone,
 } from '../badge-rules.js';
 import { CustomerIdentityError } from '../customer-identity.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from '../showcase/local-seed.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { isCustomerIdentityToken, resolveBoundCustomerIdentity } from './customer-identity.js';
 import { requireActiveMerchantMember } from './merchant-membership.js';
@@ -155,7 +156,7 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
         // 이미 연 상자는 발급 시점 사본인 쿠폰으로만 표시한다.
         offer: offerRow && !shown ? {
           merchantId: offerRow.merchant_id,
-          merchantName: offerRow.merchant_name,
+          merchantName: customerMerchantName(offerRow.merchant_id, offerRow.merchant_name),
           title: offerRow.title,
           detail: offerRow.detail,
           validDays: offerRow.valid_days,
@@ -470,7 +471,7 @@ function mapCoupon(row: CouponRow, status: CouponStatus): BadgeCoupon {
     couponId: row.id,
     milestone: row.milestone as RewardMilestone,
     merchantId: row.merchant_id,
-    merchantName: row.merchant_name,
+    merchantName: customerMerchantName(row.merchant_id, row.merchant_name),
     title: row.title,
     detail: row.detail,
     status,
@@ -478,4 +479,8 @@ function mapCoupon(row: CouponRow, status: CouponStatus): BadgeCoupon {
     expiresAt: row.expires_at.toISOString(),
     redeemedAt: row.redeemed_at ? row.redeemed_at.toISOString() : null,
   };
+}
+
+function customerMerchantName(merchantId: string, merchantName: string): string {
+  return merchantId === SHOWCASE_PRACTICE_MERCHANT_ID ? '시연 혜택' : merchantName;
 }

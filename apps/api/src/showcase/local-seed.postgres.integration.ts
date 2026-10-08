@@ -6,6 +6,8 @@ import { Pool } from 'pg';
 
 import { PostgresMerchantAccessControl } from '../postgres/merchant-access.js';
 import { PostgresCampaignEnrollmentService } from '../postgres/campaign-enrollment.js';
+import { PostgresCourseService } from '../postgres/courses.js';
+import { CourseError } from '../course-rules.js';
 import { PostgresMerchantCatalog } from '../postgres/merchant-catalog.js';
 import { PostgresRealWorldService } from '../postgres/real-world.js';
 import { runMigrations } from '../postgres/migrate.js';
@@ -286,7 +288,62 @@ test('existing A showcase data becomes hidden without changing visit progress', 
     assert.deepEqual(campaign.rows, [{ status: 'ENDED', is_public: false }]);
     assert.ok((await new PostgresMerchantCatalog(pool).listPublicMerchants())
       .every((merchant) => merchant.id !== SHOWCASE_MERCHANT_ID));
+    const legacyCourseId = '4b66a421-522a-4966-98cb-e359413cf412';
+    await pool.query(
+      `INSERT INTO courses (id, title, situation, scene_key, status, curated_by_account_id, checked_at, check_summary)
+       VALUES ($1, '기존 코스', 'AFTER_MEAL', 'old-scene', 'DRAFT', 'legacy-curator', now(), '{}'::jsonb)`, [legacyCourseId]);
+    for (const [position, merchantId] of [SHOWCASE_MERCHANT_ID, WOLGYE_STORES[0]!.id].entries()) {
+      await pool.query(
+        `INSERT INTO course_steps (course_id, position, merchant_id, piece_key, piece_label,
+          owner_optin_ref, owner_optin_at) VALUES ($1, $2, $3, $4, '조각', 'TEST-OPTIN', now())`,
+        [legacyCourseId, position + 1, merchantId, `piece-${position + 1}`]);
+    }
+    await pool.query("UPDATE courses SET status = 'ACTIVE' WHERE id = $1", [legacyCourseId]);
+    const evidence: { position: number; entitlementId: string }[] = [];
+    for (const [position, merchantId] of [SHOWCASE_MERCHANT_ID, WOLGYE_STORES[0]!.id].entries()) {
+      const slotId = randomUUID(), visitId = randomUUID(), entitlementId = randomUUID();
+      const campaignId = merchantId === SHOWCASE_MERCHANT_ID ? SHOWCASE_CAMPAIGN_ID : `${merchantId}-campaign`;
+      await pool.query(
+        `INSERT INTO merchant_members (merchant_id, account_id, role, status, revoked_at)
+         VALUES ($1, 'legacy-staff', 'STAFF', 'REVOKED', now())`, [merchantId]);
+      await pool.query(
+        `INSERT INTO claim_slots (id, merchant_id, customer_account_id, merchant_reference_hash,
+          created_by_account_id, token_hash, status, expires_at, claimed_at)
+         VALUES ($1, $2, 'legacy-customer', $3, 'legacy-staff', $4, 'CLAIMED', now() + interval '1 hour', now())`,
+        [slotId, merchantId, Buffer.alloc(32, position + 1), Buffer.alloc(32, position + 3)]);
+      await pool.query(
+        `INSERT INTO visit_events (id, claim_slot_id, merchant_id, campaign_id, customer_account_id,
+          occurred_at, business_date, verification_level, status, progress_counted)
+         VALUES ($1, $2, $3, $4, 'legacy-customer', now(), current_date,
+           'MERCHANT_CONFIRMED', 'VALID', true)`, [visitId, slotId, merchantId, campaignId]);
+      await pool.query(
+        `INSERT INTO reward_entitlements (id, customer_account_id, campaign_id, target_visit_count,
+          source_visit_event_id, status, policy_version, earned_at, claim_expires_at)
+         VALUES ($1, 'legacy-customer', $2, 1, $3, 'GRANTED', 'test-policy', now(), now() + interval '1 day')`,
+        [entitlementId, campaignId, visitId]);
+      evidence.push({ position: position + 1, entitlementId });
+    }
+    await pool.query("INSERT INTO course_unlocks (account_id, course_id, evidence) VALUES ('legacy-customer', $1, $2)",
+      [legacyCourseId, JSON.stringify({ steps: evidence })]);
+    const courses = new PostgresCourseService(pool, { includeDemo: true });
+    const before = await courses.get('legacy-customer', legacyCourseId);
+    assert.equal(before.state, 'UNLOCKED');
+    assert.ok(before.steps.every(step => step.earnedAt));
+    assert.ok(before.steps[1]?.artwork);
     await seedLocalShowcase(pool);
+    const after = await courses.get('legacy-customer', legacyCourseId);
+    assert.equal(after.status, 'ENDED');
+    assert.equal(after.state, 'UNLOCKED');
+    assert.equal(after.unlockedAt, before.unlockedAt);
+    assert.deepEqual(after.steps.map(step => [step.earnedAt, step.artwork]),
+      before.steps.map(step => [step.earnedAt, step.artwork]));
+    assert.deepEqual((await courses.list('legacy-customer')).find(course => course.id === legacyCourseId), after);
+    assert.equal((await courses.list('new-customer')).some(course => course.id === legacyCourseId), false);
+    assert.ok((await courses.listHints('legacy-customer')).every(hint => hint.id !== legacyCourseId));
+    await assert.rejects(courses.get('new-customer', legacyCourseId),
+      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_NOT_FOUND');
+    await assert.rejects(courses.unlock('legacy-customer', legacyCourseId),
+      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_UNAVAILABLE');
     const progress = await pool.query<{ enrolled_count: number }>(
       'SELECT enrolled_count FROM campaigns WHERE id = $1', [SHOWCASE_CAMPAIGN_ID],
     );

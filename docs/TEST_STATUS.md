@@ -3,6 +3,30 @@
 
 ## 2026-10-09 T9 시연 가상 점포 은퇴·공공자료 30곳 전환 (미커밋·미배포)
 
+### 리뷰 지적 1~6 후속 수정 (HEAD `04f9ea2a`, 파일 수정만)
+
+환경: macOS·Node.js v25.9.0, 같은 브랜치·worktree, 시작/현재 HEAD `04f9ea2a`. 아래 초기 T9 검증과 구분한 새 실측이다. 지정된 전용 로컬 `_test` DB URL은 환경 변수로만 읽고 출력하지 않았다. migration 적용은 PASS이며 schema reset은 필요하지 않았다. Git add·commit·stash·merge·rebase·push는 실행하지 않았다.
+
+- 코스: ENDED/PAUSED라도 계정 소유의 미회수 unlock이 있으면 목록·상세·획득 장면을 읽는다. 다른 계정·추천·새 unlock은 거절한다. D-093의 v1 접근 제한을 D-101과 함께 수정했다. 기존 5-query 목록·3-query 추천 읽기 예산과 ACTIVE 50건 상한은 그대로 시험한다.
+- 배지: 신규 고객의 잠긴 혜택 3개와 발급 쿠폰 이름을 `시연 혜택`으로 반환한다. 내부 연습 점포 ID와 일반 점포 이름은 유지한다. 추첨 풀·코인 카탈로그에서는 연습 점포를 제외한다.
+- 권한·정본: 취소 이력 두 목록도 공공자료 점포의 오래된 멤버십을 거절한다. 코스·점포 목록·추천의 practice ID는 공통 상수를 쓴다. hosted fresh 게시물 수 30개와 기존 DB의 은퇴 게시본 보존을 운영 README에 명시했다.
+
+| 후속 검사 | 상태 | 실제 명령·근거 |
+| --- | --- | --- |
+| API 타입·단위·빌드 | PASS | `cd apps/api && npm run typecheck && npm test`, 672/672·0 FAIL/SKIP. `npm run build` PASS. `/private/tmp/t9-review-api-{typecheck,unit,build}.log` |
+| 모바일 | PASS | `cd apps/mobile && npm test && npm run typecheck && npm run lint`, 2138/2138·0 FAIL/SKIP·타입/lint PASS. `/private/tmp/t9-review-mobile-{unit,typecheck,lint}.log` |
+| PostgreSQL migration | PASS | 지정 DB의 `DATABASE_URL`로 `node --import tsx src/postgres/migrate-command.ts`. `/private/tmp/t9-review-migrate.log` |
+| 획득 코스 재시드 회귀 | PASS | `node --import tsx --test --test-name-pattern='existing A showcase data becomes hidden' src/showcase/local-seed.postgres.integration.ts`, 1/1. 실제 방문·보상권·unlock 증거의 `UNLOCKED`·시간·그림·목록/상세 일치와 미소유자 거절. `/private/tmp/t9-review-course-reseed.log` |
+| PostgreSQL 전체 | PASS | `cd apps/api && npm run test:postgres`, 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP·exit 0. 해당 hosted 3건은 아래 별도 DB에서 3/3 PASS. 첫 실행의 목록 읽기 예산 회귀를 구현에서 고쳤고 새 획득 이력 fixture의 NOT NULL/FK를 맞췄다. 예산·제약·기존 단언을 완화하지 않았다. `/private/tmp/t9-review-postgres-final.log` |
+| hosted seed 전용 | PASS | `bash tests/ops/run_showcase_host_postgres.sh`, 별도 disposable PostgreSQL 16.10-alpine 컨테이너 3개에서 3/3·0 FAIL/SKIP. 기존 코스 소유자 상세/목록과 재시드 이력 조회도 검증. `/private/tmp/t9-review-hosted-final.log` |
+| CI·운영 문서·gate | PASS | `bash tests/ci/ci_wiring_test.sh`(101개 파일 연결), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tools/gate.sh`, `git diff --check`. `/private/tmp/t9-review-{ci,operations,gate}.log` |
+| 독립 소스 검토 | PASS | 별도 읽기 전용 code-reviewer가 수정 전후 소스를 검토했고 차단 지적 없음. 실행 시험과 구분하며 LSP/AST 도구는 없었다. |
+| 배포·기기·사이트 재측정 | NOT_RUN | 운영/시연 배포·라이브 DB·새 APK/서명/설치·두 variant 실기·TalkBack·전체 사이트/Chrome 재측정·AI 과금·Play는 이번 후속 범위에서 실행하지 않았다. 아래 최초 T9의 사이트 결과는 이전 측정이다. |
+
+신규 시험은 API 단위 취소 이력 권한 1건·PostgreSQL 배지 표시/추첨·카탈로그 2건이다. 기존 코스 중지 시험은 새 D-093 계약에 맞춰 소유자 읽기 허용과 미소유자·회수 기록·unlock 거절을 함께 검증한다. 목록 읽기 예산·활성 코스 상한·기존 이력 보존 단언은 유지하며 모바일 코스 복사와 로컬/hosted 재시드 시험에 단언을 더했다. 새 skip·의존성·migration은 없다. README·PROJECT_STATE 현재 합계는 API 672/672·모바일 2138/2138로 동일하다.
+
+### 최초 T9 구현 검증 (기준 `c0449f1b`)
+
 환경: macOS, Node 실행, `feat/showcase-real-only`, worktree `.worktrees/t9-real`, 시작/현재 HEAD `c0449f1b`. 사용자 요청으로 Git add·commit·stash·merge·rebase·push는 실행하지 않았다. D-101의 시연 전용 은퇴/권한/프리즘/코스를 구현했으며 운영 DB·서버·실제 점포에는 적용하지 않았다. 제공된 `_test` DB URL은 출력하지 않고 migration을 먼저 실행했다. 아래 결과는 작업 트리의 실측이며 variant 설치·라이브 배포 근거가 아니다.
 
 | 검사 | 상태 | 실제 명령·근거 |
@@ -19,7 +43,7 @@
 | 독립 검토 | 지적 반영 | 별도 읽기 전용 code-reviewer: guest quota 집계, `/preview` orphan C, 설치 안내 A/B/C와 구 티켓/배치 코인의 Home 노출 수정. 최종 읽기 전용 재검토에서 남은 차단 지적 없음. 오래된 직원 멤버십은 회수하며 공식 Google 신원·세션·계정/시연 DB 검사 후 연습 가게로 재부여하는 운영 절차를 명시. LSP/AST 도구는 없으며 타입·실행·독립 소스 검토와 구분 |
 | 배포·실제입력 | NOT_RUN | 운영/시연 배포, 라이브 기존 DB, 새APK/서명/설치·두variant 실기·실제Google 직원/승인자·D-091 기기넘김·TalkBack·현장 영업/도보·AI과금·Play. Git write 금지 유지 |
 
-새 DB는 점포31(공개실점포30+숨은연습1)·캠페인31·목표93이며 로컬 STAFF는 연습 가게1곳뿐이다. hosted fresh는 직원0명이다. 기존 A/B/C가 있는 hosted fixture는 총34점포·30공개·옛방문/코인/쿠폰/게시본을 유지한다. 프리즘은 더까까주까월계역점(28m) 하나이고 새 코스는 그 점포·갱스터떡볶이인덕대점(54m)·하다식당(64m)이다. 기존 staff/approver가 은퇴 가게만 승인받았다면 권한을 공식 절차로 다시 부여해야 하며, 은퇴 권한을 자동으로 실점포에 옮기지 않는다. 연습 가게는 점포 탐색에 나오지 않지만 가상 배지 쿠폰의 발급 점포 이름으로는 표시된다. 실제 혜택·실제 점포 동의를 뜻하지 않는다.
+새 DB는 점포31(공개실점포30+숨은연습1)·캠페인31·목표93이며 로컬 STAFF는 연습 가게1곳뿐이다. hosted fresh는 직원0명이다. 기존 A/B/C가 있는 hosted fixture는 총34점포·30공개·옛방문/코인/쿠폰/게시본을 유지한다. 프리즘은 더까까주까월계역점(28m) 하나이고 새 코스는 그 점포·갱스터떡볶이인덕대점(54m)·하다식당(64m)이다. 기존 staff/approver가 은퇴 가게만 승인받았다면 권한을 공식 절차로 다시 부여해야 하며, 은퇴 권한을 자동으로 실점포에 옮기지 않는다. 연습 가게는 점포 탐색·등급 추첨 풀·코인 카탈로그에 나오지 않으며 배지 혜택·발급 쿠폰의 API 표시 이름은 `시연 혜택`이다. 내부 점포 연결은 유지한다. 실제 혜택·실제 점포 동의를 뜻하지 않는다.
 
 **기존 단언 변경 전체 목록.** 아래에 같은 fixture를 쓰는 assertion은 같은 행으로 묶었으며 원래 동작·경합·오류·접근성 검사는 유지했다. A/B/C 호스트 fixture는 은퇴 회귀에만 남긴다. 삭제·skip·예외 허용으로 시험을 통과시키지 않았다.
 

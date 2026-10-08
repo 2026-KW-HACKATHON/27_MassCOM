@@ -699,12 +699,15 @@ export class PostgresReversalService implements ReversalService {
   }
 
   private async requireMemberOnce(merchantId: string, staffAccountId: string): Promise<void> {
-    const member = await this.pool.query(
-      `SELECT 1 FROM merchant_members
-       WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE'`,
+    const member = await this.pool.query<{ is_demo: boolean }>(
+      `SELECT merchant.is_demo FROM merchant_members member
+       JOIN merchants merchant ON merchant.id = member.merchant_id
+       WHERE member.merchant_id = $1 AND member.account_id = $2 AND member.status = 'ACTIVE'`,
       [merchantId, staffAccountId],
     );
-    if (!member.rowCount) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    if (!member.rowCount || (member.rows[0]?.is_demo && merchantId.startsWith('showcase-wolgye-'))) {
+      throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    }
   }
 }
 

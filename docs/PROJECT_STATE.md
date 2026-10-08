@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, T9 `feat/showcase-real-only`, 기준 `c0449f1b` 작업 트리): API 단위 671/671 · 모바일 2138/2138. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, T9 `feat/showcase-real-only`, 기준 `04f9ea2a` 작업 트리): API 단위 672/672 · 모바일 2138/2138. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 
@@ -11,7 +11,9 @@ PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efe
 
 프리즘은 월계역 28m의 더까까주까월계역점 하나에만 1·3·5회 브론즈·실버·프리즘으로 연결한다. 나머지 29곳은 골드를 유지하고 기존 그림만 쓴다. 새 코스는 이 점포·갱스터떡볶이인덕대점·하다식당 세 곳이다. 기존 게시 코스는 종료한다. 점주 모드는 본인 임시 가게 또는 서버가 승인한 비공개 체험 점주 가게만 사용하고 공공자료 점포의 관리 권한은 서버가 거절한다. 직원·승인자 CLI와 요청 승인은 연습 가게만 대상으로 한다. 운영 배치·운영 데이터는 그대로다.
 
-API 단위 671/671·모바일 2138/2138·각 typecheck·모바일 lint PASS. 별도 disposable hosted PostgreSQL 3/3 PASS(기존 A/B/C 은퇴·소유 코인/쿠폰 보존 포함). 사이트 요청 명령은 645건 중 644 PASS·Chrome 시작 SIGABRT 1 환경 BLOCKED이며 socket으로 막힌 시험은 없다. CI·문서·접근성·지갑·전체 gate는 PASS다. 전체 PostgreSQL은 591건 중 588 PASS·0 FAIL·기존 hosted 3 SKIP이고, hosted 3건은 별도 disposable 컨테이너에서 3/3 PASS다. 명령·단언 변경·검증 제한은 [TEST_STATUS](TEST_STATUS.md) T9 항목에 있다. Git add·commit·stash·merge·rebase·push·배포·새 APK·실기 검증은 하지 않았다. 아래 T8 33곳과 통합 기록은 T9 이전 상태다.
+초기 T9 검증은 API 단위 671/671·모바일 2138/2138·각 typecheck·모바일 lint PASS였다. 별도 disposable hosted PostgreSQL 3/3 PASS(기존 A/B/C 은퇴·소유 코인/쿠폰 보존 포함). 사이트 요청 명령은 645건 중 644 PASS·Chrome 시작 SIGABRT 1 환경 BLOCKED이며 socket으로 막힌 시험은 없다. CI·문서·접근성·지갑·전체 gate는 PASS다. 전체 PostgreSQL은 591건 중 588 PASS·0 FAIL·기존 hosted 3 SKIP이고, hosted 3건은 별도 disposable 컨테이너에서 3/3 PASS다. 명령·단언 변경·검증 제한은 [TEST_STATUS](TEST_STATUS.md) T9 항목에 있다. Git add·commit·stash·merge·rebase·push·배포·새 APK·실기 검증은 하지 않았다. 아래 T8 33곳과 통합 기록은 T9 이전 상태다.
+
+HEAD `04f9ea2a` 후속 리뷰 수정 6건은 파일로 반영했다. ENDED/PAUSED 코스는 미회수 unlock 소유자의 지난 코스 목록·상세·획득 장면에 남고 신규 unlock·추천은 거절한다. 배지 혜택/쿠폰은 `시연 혜택`으로 표시하며 내부 연습 점포 연결은 유지한다. 연습 점포의 추첨 풀·코인 카탈로그 노출과 공공자료 점포의 취소 이력 권한 틈을 막고 practice 상수를 재사용했다. 후속 실측은 API 672/672·모바일 2138/2138·타입·모바일 lint·API build PASS, PostgreSQL 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP와 별도 hosted 3/3 PASS다. CI 연결·운영 문서·gate·diff 검사 PASS이며 사이트/실기/배포는 새로 측정하지 않았다. [TEST_STATUS](TEST_STATUS.md) T9 후속 절에 명령·제한이 있다.
 
 ## 2026-10-09 T3 혜택·T4 코스·T8 시연 점포 통합 (Issue #412, 배포하지 않음)
 

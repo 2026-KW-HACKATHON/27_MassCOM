@@ -41,6 +41,9 @@ test('unlock sends no client completion assertion and accepts the server result'
 
 test('stale progress is described honestly and malformed server progress is rejected', () => {
   assert.equal(courseChipText(course as ReturnType<typeof parseCourse>), "'식사 후 들르기 좋은 곳' 코스 1/2");
+  for (const status of ['PAUSED', 'ENDED'] as const) {
+    assert.equal(courseChipText(parseCourse({ ...course, status })), "지난 코스 · '식사 후 들르기 좋은 곳' 코스 1/2");
+  }
   assert.match(courseStateText({ ...course, state: 'STALE' } as ReturnType<typeof parseCourse>), /장면을 열 수 없어요/);
   assert.throws(() => parseCourse({ ...course, done: 2 }), /INVALID_RESPONSE/);
   assert.throws(() => parseCourse({ ...course, state: 'STALE', stale: false }), /INVALID_RESPONSE/);
