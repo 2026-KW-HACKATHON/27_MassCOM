@@ -217,12 +217,18 @@ test('shared mascot bag serializes customers, hides odds after the last ticket, 
   const pending = await db.coin.grantTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
     poolId: pool.id, requestId: 'paused-pending' });
   await db.coin.pausePool({ actorAccountId: 'coin-admin', poolId: pool.id });
+  assert.equal((await db.coin.grantTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    poolId: pool.id, requestId: 'paused-pending' })).replayed, true);
+  await assert.rejects(db.coin.grantTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    poolId: pool.id, requestId: 'paused-new' }), { code: 'COIN_POOL_UNAVAILABLE' });
   await assert.rejects(db.coin.publishPool(publishAgain), { code: 'COIN_POOL_UNAVAILABLE' });
   await db.coin.useTicket({ accountId: 'coin-customer', ticketId: pending.ticket.id });
   const contenders = await Promise.allSettled([db.coin.publishPool(publishAgain),
     db.coin.publishPool({ ...publishAgain, eventName: '동시 발행' })]);
   assert.equal(contenders.filter(result => result.status === 'fulfilled').length, 1);
   assert.equal(contenders.filter(result => result.status === 'rejected').length, 1);
+  await assert.rejects(db.coin.grantTicket({ actorAccountId: 'coin-admin', accountId: 'coin-customer',
+    poolId: pool.id, requestId: 'superseded-new' }), { code: 'COIN_POOL_UNAVAILABLE' });
 });
 
 test('reroll consumes one owned instance and one separate ticket atomically, then replays the persisted result', async t => {

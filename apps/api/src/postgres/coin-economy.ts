@@ -540,7 +540,7 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
       const now = this.now();
       if (pool.use_expires_at <= now) throw new CoinEconomyError('COIN_POOL_EXPIRED');
       if (pool.issued_count >= pool.issuance_cap) throw new CoinEconomyError('COIN_POOL_LIMIT_REACHED');
-      if (source === 'PURCHASE' && (pool.status !== 'ACTIVE' || pool.purchase_starts_at > now || pool.purchase_ends_at <= now)) {
+      if (pool.status !== 'ACTIVE' || (source === 'PURCHASE' && (pool.purchase_starts_at > now || pool.purchase_ends_at <= now))) {
         throw new CoinEconomyError('COIN_POOL_UNAVAILABLE');
       }
       const merchant = (await client.query<{ status: string }>('SELECT status FROM merchants WHERE id = $1 FOR SHARE', [pool.merchant_id])).rows[0];
