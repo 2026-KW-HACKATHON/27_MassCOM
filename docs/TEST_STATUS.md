@@ -9,6 +9,7 @@ PR #435 `644beb75` 위 `feat/collection-next-actions`. 공통 고객 UI는 운�
 | `npm test --prefix apps/mobile` | PASS | 2183/2183, macOS 로컬. 홈 새로고침·미확인 획득 회귀 포함 |
 | 모바일 typecheck / lint | PASS | 기존 collectible-aura.test.ts 미사용 import 경고1. 새 Reanimated shared value는 set/get으로 수정 |
 | `node --test tests/site/merchant-actions-overview.test.mjs tests/site/merchant-*.test.mjs` | PASS | 17/17 |
+| `node --test tests/site/verify_production_web_test.mjs` | PASS | 137/137. 첫 CI는 현황을 맨 위로 고정한 옛 순서 단언1건 실패. O1의 최근 결과 우선 순서로 갱신하고 접근성/HTML 안전성 단언 유지 |
 | 모바일 접근성 계약 / `tools/gate.sh` / `git diff --check` | PASS | 소스 계약·비밀·충돌·대형 파일·문서·배포표 검사, 실제 운영 배포는 아님 |
 | 실제 RNW 컴포넌트 브라우저 QA | PASS | 홈/도감/가게 코인 단계·건너뛰기·수동 유지·복구·움직임 감소. 합성 데이터, 라우터·음향/진동 경계 mock |
 | 운영·시연 Android export | PASS | 소스 `833f000010cba51629e0f6582e5616881a9801ca`, 두 variant 각각 `npx expo export --platform android`. 시연 OAuth는 공개 QA 형식 식별자이며 실제 로그인 검증 아님. 첫 시도 SHA 누락은 설정 후 재실행 해소 |

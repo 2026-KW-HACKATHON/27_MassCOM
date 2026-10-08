@@ -3007,7 +3007,7 @@ test('방문 고객 의견은 빈 결과를 안내하고 재조회 전의 의견
   assert.equal(fixture.nodes['merchant-feedback-status'].textContent, '');
 });
 
-test('점포 웹 가게 현황 화면은 점포 운영 화면 맨 위에 있고 HTML 문자열·인라인 스타일 없이 접근성 연결을 갖춘다', () => {
+test('점포 웹 최근 처리 목록은 현황보다 앞에 있고 HTML 문자열·인라인 스타일 없이 접근성 연결을 갖춘다', () => {
   const merchantHtml = readFileSync(join(web, 'merchant.html'), 'utf8');
   const merchantScript = readFileSync(join(web, 'assets/merchant.mjs'), 'utf8');
   assert.match(merchantHtml, /<nav id="merchant-owner-nav" class="merchant-view-nav" aria-label="점주 방문 보상 화면" hidden>/);
@@ -3028,14 +3028,15 @@ test('점포 웹 가게 현황 화면은 점포 운영 화면 맨 위에 있고 
   assert.match(merchantHtml, /<ul id="merchant-feedback-notes"[^>]*aria-labelledby="merchant-feedback-notes-title"/);
   assert.ok(merchantHtml.indexOf('<section id="merchant-feedback"') > merchantHtml.indexOf('<section id="merchant-overview"'));
   assert.ok(merchantHtml.indexOf('<section id="merchant-feedback"') < merchantHtml.indexOf('<section id="merchant-creator"'));
-  // #merchant-content 안에서 탭 내비게이션 바로 다음 구역이다(제작기·내 점포·직원 등록보다 앞).
+  // 최근 처리 목록이 탭 내비게이션 바로 다음이며, 현황은 그 뒤에 나온다.
   const content = merchantHtml.indexOf('<section id="merchant-content"');
+  const reversalAt = merchantHtml.indexOf('<section id="merchant-reversal"');
   const overviewAt = merchantHtml.indexOf('<section id="merchant-overview"');
-  assert.ok(content > 0 && overviewAt > content);
-  for (const later of ['id="merchant-creator"', 'aria-labelledby="merchant-stores-title"', 'id="merchant-reversal"']) {
+  assert.ok(content > 0 && reversalAt > content && overviewAt > reversalAt);
+  for (const later of ['id="merchant-creator"', 'aria-labelledby="merchant-stores-title"']) {
     assert.ok(merchantHtml.indexOf(later) > overviewAt, later);
   }
-  assert.match(merchantHtml.slice(content, overviewAt), /<nav id="merchant-owner-nav"[\s\S]*data-merchant-view-target="results"[\s\S]*<\/nav>\s*$/);
+  assert.match(merchantHtml.slice(content, reversalAt), /<nav id="merchant-owner-nav"[\s\S]*data-merchant-view-target="results"[\s\S]*<\/nav>\s*$/);
   // 카드 링크가 가리키는 제목은 키보드 이동이 되도록 tabindex -1을 가진다.
   assert.match(merchantHtml, /<h3 id="merchant-visit-title" tabindex="-1">/);
   assert.match(merchantHtml, /<h3 id="merchant-redemption-title" tabindex="-1">/);
