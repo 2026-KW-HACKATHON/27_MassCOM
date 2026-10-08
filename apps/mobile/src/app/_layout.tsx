@@ -114,6 +114,8 @@ function Routes() {
         <Stack.Screen name="coin-collection" options={{ headerShown: false }} />
         <Stack.Screen name="room-explore" options={{ headerShown: false }} />
         <Stack.Screen name="recommendations" options={{ headerShown: false }} />
+        <Stack.Screen name="courses/index" options={{ headerShown: false }} />
+        <Stack.Screen name="courses/[courseId]" options={{ headerShown: false }} />
         <Stack.Screen name="wallet" options={{ headerShown: false }} />
         <Stack.Screen name="notifications" options={{ title: '알림함' }} />
       </Stack>

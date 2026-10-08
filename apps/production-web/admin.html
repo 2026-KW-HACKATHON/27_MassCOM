@@ -159,6 +159,49 @@
         <h4 id="campaigns-heading">공개·중지된 캠페인</h4>
         <p id="admin-campaign-summary" class="admin-hint" hidden></p>
         <div id="admin-campaigns" aria-labelledby="campaigns-heading"></div>
+        <section aria-labelledby="admin-benefit-heading">
+          <h4 id="admin-benefit-heading">캠페인 혜택과 추가 원가</h4>
+          <p>발급 상한은 새 쿠폰에만 적용해요. 이미 발급한 쿠폰은 계속 사용할 수 있어요. 점주와 확인한 1장당 추가 원가와 발급 상한을 입력해 주세요.</p>
+          <label>캠페인 <select id="admin-benefit-campaign"></select></label>
+          <p id="admin-benefit-status" class="status" role="status" aria-live="polite"></p>
+          <form id="admin-benefit-form" hidden>
+            <label>혜택 이름 (40자까지) <input name="title" required maxlength="40"></label>
+            <label>혜택 설명 (120자까지) <textarea name="detail" maxlength="120"></textarea></label>
+            <label>유효 기간(일) <input name="validDays" type="number" min="1" max="60" step="1" required></label>
+            <label>1장당 추가 원가(원) <input name="unitExtraCostWon" type="number" min="1" max="1000000" step="1" required></label>
+            <label>발급 상한(장) <input name="maxUses" type="number" min="1" max="10000" step="1" required></label>
+            <label>점주 동의서 참조 번호 <input name="consentDocumentRef" required maxlength="40" autocomplete="off" aria-describedby="admin-offer-ref-hint"></label>
+            <fieldset class="admin-consent">
+              <legend>점주 동의 확인 (5항목 모두)</legend>
+              <label><input type="checkbox" name="consentBenefit" required> 혜택 내용에 동의했어요</label>
+              <label><input type="checkbox" name="consentOwnerPaysCost" required> 추가 원가를 점주가 부담하는 데 동의했어요</label>
+              <label><input type="checkbox" name="consentValidity" required> 유효 기간에 동의했어요</label>
+              <label><input type="checkbox" name="consentIssuanceCap" required> 발급 상한에 동의했어요</label>
+              <label><input type="checkbox" name="consentDuplicateUse" required> 중복 사용 정책에 동의했어요</label>
+            </fieldset>
+            <button type="submit">점주 동의 확인 후 캠페인 혜택 등록</button>
+          </form>
+          <button id="admin-benefit-pause" type="button" hidden>새 쿠폰 발급 중지</button>
+        </section>
+      </section>
+      <section class="admin-panel" aria-labelledby="courses-heading">
+        <h3 id="courses-heading">가게 사이 수집 코스</h3>
+        <p>운영팀이 점주 참여 의사를 확인한 실제 점포 2~4곳을 묶습니다. 점검 결과는 그때의 스냅샷이며, 직선거리는 도보 경로나 실시간 영업을 보증하지 않습니다. 코스를 완성해도 마일리지나 쿠폰은 지급되지 않습니다.</p>
+        <form id="admin-course-create" hidden>
+          <label>코스 이름 <input name="title" required maxlength="40"></label>
+          <label>방문 상황 <select name="situation" required><option value="AFTER_MEAL">식사 후 들르기 좋은 곳</option><option value="TAKEOUT">포장해서 가져가기 좋은 곳</option><option value="OTHER">함께 들러볼 만한 곳</option></select></label>
+          <label>장면 키 <input name="sceneKey" required maxlength="40" pattern="[a-z0-9-]{1,40}" placeholder="picnic-scene"></label>
+          <label>단계 수 <select name="stepCount"><option value="2">2곳</option><option value="3">3곳</option><option value="4">4곳</option></select></label>
+          <div id="admin-course-steps"></div>
+          <label>시작 시각 (선택) <input name="startsAt" type="datetime-local"></label>
+          <label>종료 시각 (선택) <input name="endsAt" type="datetime-local"></label>
+          <label>방문 인정 시작 (선택) <input name="countsFrom" type="datetime-local"></label>
+          <p>방문 인정 시작을 비우면 코스 공개 전의 유효한 방문 보상도 셉니다. 각 단계의 점주 참여 동의 참조 번호를 준비한 뒤 초안을 저장해 주세요. 참조 번호에는 이름·전화번호·사업자등록번호를 적지 않습니다.</p>
+          <button type="submit">비공개 코스 저장</button>
+        </form>
+        <label>권하는 방문 시각 (선택, 한국 시간) <input id="admin-course-hour" type="number" min="0" max="23" step="1" placeholder="예: 14"></label>
+        <p id="admin-course-status" role="status" aria-live="polite"></p>
+        <div id="admin-courses"></div>
       </section>
       <section class="admin-panel" aria-labelledby="deletion-heading">
         <h3 id="deletion-heading">계정 삭제 요청</h3>

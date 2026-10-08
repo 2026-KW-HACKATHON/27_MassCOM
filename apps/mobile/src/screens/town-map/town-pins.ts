@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { PublicMerchant } from '@/merchant/merchant-api';
 
@@ -83,7 +84,7 @@ export function buildTownPins(
       glyph: stampGlyph(merchant.name),
       status,
       visitCount,
-      label: pinLabel(merchant.name, status),
+      label: pinLabel(publicDataDemoStoreName(merchant.id, merchant.name), status),
       statusLine: statusLineFor(status, visitCount, options),
       goalLine: goal ? describeMerchantGoal(goal) : null,
       slot: anchorOf.get(merchant.id),

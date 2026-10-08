@@ -10,6 +10,7 @@ import { cancelAnimation, useDerivedValue, useSharedValue, withTiming } from 're
 
 import type { CollectibleAngleFrames, CollectibleLiving, CollectibleMotion, PublishedCollectible } from '@/commerce/collectible-artwork';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { colorsForScheme } from '@/theme/palette';
 import { canUseTiltSensor } from '@/ui/can-use-tilt-sensor';
@@ -455,17 +456,17 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
   return (
     <DetailFrame onLayout={onViewportLayout} onScroll={onDetailScroll}>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]}>{snapshot.name}</Text>
-      <Text selectable style={[styles.meta, { color: palette.secondaryLabel }]}>{merchantName} · {snapshot.gradeName} · {snapshot.theme.name}</Text>
+      <Text selectable style={[styles.meta, { color: palette.secondaryLabel }]}>{publicDataDemoStoreName(merchantId, merchantName)} · {snapshot.gradeName} · {snapshot.theme.name}</Text>
       <View onLayout={onCardLayout} style={[styles.stage, { width: size, height: size, backgroundColor: palette.surface }]}>
         {scene ? (
           <>
-            <Image source={{ uri: sceneUri }} resizeMode="cover" accessibilityLabel={`${merchantName} 가게 이야기`}
+            <Image source={{ uri: sceneUri }} resizeMode="cover" accessibilityLabel={`${publicDataDemoStoreName(merchantId, merchantName)} 가게 이야기`}
               style={{ width: size, height: size, transform: [{ scale: sceneScale }, { translateX: scenePan }] }} />
             {snapshot.story.type === 'follow' ? <View style={{ position: 'absolute', left: size * (.1 + shownProgress * .65), bottom: size * .1 }}><Mascot pose="wave" size={size * .16} breathe={false} /></View> : null}
           </>
         ) : (
           <GestureDetector gesture={materialGesture}>
-          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
+          <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${publicDataDemoStoreName(merchantId, merchantName)}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
             <CollectibleAuraLayer effects={snapshot.effects} shape={snapshot.shape} size={size} faceSize={displayFace}
               horizontal={scaleX} angle={materialAngle} clock={auraClock} />
             <CollectibleEdgeLayer shape={snapshot.shape} size={displayFace} horizontal={scaleX} depth={depth}
@@ -480,7 +481,7 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
                 </View>
               ) : (
                 <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
-                  <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={merchantName}
+                  <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={publicDataDemoStoreName(merchantId, merchantName)}
                     name={snapshot.name} gradeId={snapshot.gradeId} gradeName={snapshot.gradeName} />
                   <GradeMaterialLayer material={material} size={displayFace} shape={snapshot.shape}
                     tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} intensityScale={.45} showGlints />
@@ -580,9 +581,9 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
       </View> : null}
       <Text style={[styles.meta, { color: palette.secondaryLabel }]}>이 수집품은 도감에 보관되어 있어요.</Text>
       {onPlaceInStudio ? <Control label="내 공간에 놓기" onPress={() => { pause(); onPlaceInStudio(); }} /> : null}
-      {merchantId ? <Pressable accessibilityRole="link" accessibilityLabel={`${merchantName} 보기`}
+      {merchantId ? <Pressable accessibilityRole="link" accessibilityLabel={`${publicDataDemoStoreName(merchantId, merchantName)} 보기`}
         onPress={() => { close(); router.push({ pathname: '/merchants/[merchantId]', params: { merchantId, from: 'collection' } }); }}
-        style={styles.merchantLink}><Text style={[styles.controlText, { color: palette.primary }]}>{merchantName} 보기 →</Text></Pressable> : null}
+        style={styles.merchantLink}><Text style={[styles.controlText, { color: palette.primary }]}>{publicDataDemoStoreName(merchantId, merchantName)} 보기 →</Text></Pressable> : null}
       <Control label="도감으로 돌아가기" onPress={close} />
     </DetailFrame>
   );

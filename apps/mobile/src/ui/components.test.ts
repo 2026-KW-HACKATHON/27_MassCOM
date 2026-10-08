@@ -159,7 +159,7 @@ test('content that scrolls under the status bar sits behind a page-coloured scri
       assert.match(control, /progressViewOffset=\{insets\.top\}/, `${file} RefreshControl`);
     }
   }
-  assert.equal(controls, 19, '기존 16개 화면과 가게 코인 상점·코인 도감·방 탐험의 새로고침은 모두 상태 표시줄 아래에 둔다');
+  assert.equal(controls, 20, '기존 화면과 가게 코인 상점·코인 도감·방 탐험·코스의 새로고침은 모두 상태 표시줄 아래에 둔다');
   assert.equal((readSource('screens/merchant-home/status.tsx').match(/<RefreshControl/g) ?? []).length, 1, '점주 현황에 하나의 당겨서 새로 고침을 둔다');
   assert.equal((readSource('screens/merchant-claim/staff.tsx').match(/<RefreshControl/g) ?? []).length, 1, '방문 확인에 발급 상태 새로 고침을 둔다');
   // PR #312 QA: Android의 elevation은 JSX 순서와 별개로 Z 스택을 정한다. 카드류(ui/styles.ts의 card)가 쓰는
@@ -339,7 +339,7 @@ test('cards read their story, campaign, reason and progress aloud; the tap is on
     assert.ok(source.includes(`accessibilityHint={${hint}}`), `${file} hint`);
   }
   const discovery = readSource('screens/real-map/index.tsx');
-  assert.match(discovery, /accessibilityLabel=\{`\$\{merchant\.name\}, \$\{merchant\.roadAddress\}/);
+  assert.match(discovery, /accessibilityLabel=\{`\$\{publicDataDemoStoreName\(merchant\.id, merchant\.name\)\}, \$\{merchant\.roadAddress\}/);
   assert.match(discovery, /accessibilityHint="상세 보기와 코스 추가 동작이 있습니다"/);
   assert.match(read('floating-card.tsx'), /accessibilityHint=\{accessibilityHint\}/);
 });

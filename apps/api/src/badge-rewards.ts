@@ -18,6 +18,7 @@ export type BadgeCoupon = {
   status: CouponStatus;
   issuedAt: string;
   expiresAt: string;
+  usableFrom?: string;
   redeemedAt: string | null;
 };
 
@@ -76,6 +77,7 @@ export type BadgeRewardErrorCode =
   | 'REWARD_CAPACITY_EXHAUSTED'
   | 'COUPON_NOT_FOUND'
   | 'COUPON_EXPIRED'
+  | 'COUPON_NOT_YET_USABLE'
   | 'COUPON_SELF_REDEEM'
   | 'COUPON_VOIDED'
   | 'ACCOUNT_DELETED';

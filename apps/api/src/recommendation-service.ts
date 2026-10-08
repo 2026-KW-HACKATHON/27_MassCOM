@@ -1,3 +1,5 @@
+import { courseReasonText, type CourseHint } from './course-rules.js';
+
 export type RecommendationGoal = {
   targetVisitCount: 1 | 3 | 5;
   displayName: string;
@@ -13,12 +15,15 @@ export type RecommendationCandidate = {
   progressVisitCount: number;
   rewardGoals: readonly RecommendationGoal[];
   demo: boolean;
+  courseHint?: CourseHint;
+  courseStartsAt?: string | null;
 };
 
-export type Recommendation = Omit<RecommendationCandidate, 'rewardGoals'> & {
+export type Recommendation = Omit<RecommendationCandidate, 'rewardGoals' | 'courseHint' | 'courseStartsAt'> & {
   reasonCode: 'NEW_PLACE' | 'NEXT_REWARD' | 'COLLECTION_COMPLETE';
   reasonText: string;
   nextGoal?: RecommendationGoal & { remainingVisits: number };
+  course?: CourseHint;
 };
 
 export interface RecommendationSource {
@@ -38,24 +43,39 @@ export class RecommendationService implements RecommendationReader {
   async listRecommendations(accountId: string): Promise<readonly Recommendation[]> {
     const candidates = (await this.source.listCandidates(accountId))
       .filter((candidate) => candidate.enrollmentStatus === 'OPEN')
-      .map(toRankedRecommendation);
+      .map(candidate => {
+        const ranked = toRankedRecommendation(candidate);
+        if (candidate.courseHint && candidate.courseHint.done > 0 && candidate.courseHint.done < candidate.courseHint.total) {
+          ranked.rank = [0, candidate.courseHint.total - candidate.courseHint.done,
+            candidate.courseStartsAt ? Date.parse(candidate.courseStartsAt) : 0];
+          ranked.course = candidate.courseHint;
+          ranked.reasonText = courseReasonText(candidate.courseHint);
+        }
+        return ranked;
+      });
     const groups = new Map<string, RankedRecommendation[]>();
 
     for (const candidate of candidates) {
-      const group = groups.get(candidate.rank) ?? [];
+      const key = candidate.rank.join(':');
+      const group = groups.get(key) ?? [];
       group.push(candidate);
-      groups.set(candidate.rank, group);
+      groups.set(key, group);
     }
 
     const rotationSeed = koreanDayNumber(this.now()) + stableAccountHash(accountId);
     return [...groups.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([, left], [, right]) => compareRank(left[0]!.rank, right[0]!.rank))
       .flatMap(([, group]) => rotate(group.sort(byMerchantId), rotationSeed))
       .map(({ rank: _rank, ...recommendation }) => recommendation);
   }
 }
 
-type RankedRecommendation = Recommendation & { rank: string };
+type Rank = readonly [number, number, number];
+type RankedRecommendation = Recommendation & { rank: Rank };
+
+function compareRank(left: Rank, right: Rank): number {
+  return left[0] - right[0] || left[1] - right[1] || left[2] - right[2];
+}
 
 function toRankedRecommendation(candidate: RecommendationCandidate): RankedRecommendation {
   const nextGoal = candidate.rewardGoals.find(
@@ -75,7 +95,7 @@ function toRankedRecommendation(candidate: RecommendationCandidate): RankedRecom
   if (candidate.progressVisitCount === 0) {
     return {
       ...base,
-      rank: '0:0',
+      rank: [1, 0, 0],
       reasonCode: 'NEW_PLACE',
       reasonText: '아직 방문하지 않은 동네 가게예요.',
       ...(nextGoal
@@ -93,7 +113,7 @@ function toRankedRecommendation(candidate: RecommendationCandidate): RankedRecom
     const remainingVisits = nextGoal.targetVisitCount - candidate.progressVisitCount;
     return {
       ...base,
-      rank: `1:${String(remainingVisits).padStart(2, '0')}`,
+      rank: [2, remainingVisits, 0],
       reasonCode: 'NEXT_REWARD',
       reasonText: `${remainingVisits}번 더 방문하면 ${nextGoal.displayName}을 받을 수 있어요.`,
       nextGoal: { ...nextGoal, remainingVisits },
@@ -102,7 +122,7 @@ function toRankedRecommendation(candidate: RecommendationCandidate): RankedRecom
 
   return {
     ...base,
-    rank: '2:0',
+    rank: [3, 0, 0],
     reasonCode: 'COLLECTION_COMPLETE',
     reasonText: '이 가게의 고정 보상을 모두 모았어요.',
   };

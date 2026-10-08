@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import type { Recommendation } from '../../recommendation/recommendation-api';
 
 export function reasonLabel(code: Recommendation['reasonCode']): string {
@@ -8,13 +9,13 @@ export function reasonLabel(code: Recommendation['reasonCode']): string {
 
 type CardRecommendation = Pick<
   Recommendation,
-  'merchantName' | 'roadAddress' | 'demo' | 'progressVisitCount' | 'reasonCode' | 'reasonText'
+  'merchantId' | 'merchantName' | 'roadAddress' | 'demo' | 'progressVisitCount' | 'reasonCode' | 'reasonText'
 > & { nextGoal?: Pick<NonNullable<Recommendation['nextGoal']>, 'targetVisitCount' | 'displayName'> };
 
 /** Everything a recommendation card shows, in reading order: name, reason, address, progress and the next goal. */
 export function recommendationLabel(item: CardRecommendation): string {
   return [
-    item.merchantName,
+    publicDataDemoStoreName(item.merchantId, item.merchantName),
     reasonLabel(item.reasonCode),
     item.demo ? '데모 데이터' : '',
     item.reasonText,

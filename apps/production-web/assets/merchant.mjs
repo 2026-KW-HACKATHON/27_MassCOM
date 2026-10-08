@@ -1,5 +1,6 @@
 import { clearCollectibleDrafts } from './collectible-assist.mjs';
 import { campaignEndingNotice } from './commercial-operation.mjs';
+import { campaignBenefitsStatusText } from './campaign-benefit-status.mjs';
 import { profileReadOnlyReason, serializeMerchantProfile } from './merchant-profile.mjs';
 import { mountRealWorldMerchant } from './real-world-merchant.mjs';
 
@@ -388,6 +389,8 @@ export function configureMerchantOperations(fetcher, doc, merchants) {
     if (owners.some(merchant => merchant.id === old)) select.value = old;
   };
   configure(merchants);
+  const campaignSelect = doc.getElementById('merchant-benefit-campaign');
+  const benefitStatus = doc.getElementById('merchant-benefit-status');
   const staffList = doc.getElementById('merchant-staff-list');
   const staffStatus = doc.getElementById('merchant-staff-status');
   const exportStatus = doc.getElementById('merchant-export-status');
@@ -396,10 +399,12 @@ export function configureMerchantOperations(fetcher, doc, merchants) {
   const active = generation => operationBindings.get(doc) === state && state.generation === generation;
   const refresh = async () => {
     const generation = ++state.generation;
-    staffList?.replaceChildren();
+    campaignSelect?.replaceChildren(); staffList?.replaceChildren();
+    if (benefitStatus) benefitStatus.textContent = '';
     if (staffStatus) staffStatus.textContent = '';
     if (!select.value) return;
     const merchantId = select.value;
+    void loadCampaigns(generation, merchantId);
     try {
       const staff = await request(fetcher, `${operationsBase(merchantId)}/staff`);
       if (!active(generation) || select.value !== merchantId) return;
@@ -440,9 +445,45 @@ export function configureMerchantOperations(fetcher, doc, merchants) {
       }
     }
   };
+  const loadCampaigns = async (generation, merchantId) => {
+    if (!campaignSelect || !benefitStatus) return;
+    benefitStatus.textContent = '캠페인을 불러오는 중이에요.';
+    try {
+      const campaigns = await request(fetcher, `${operationsBase(merchantId)}/campaigns`);
+      if (!active(generation) || select.value !== merchantId) return;
+      if (!Array.isArray(campaigns.campaigns)) throw new Error('invalid campaign data');
+      for (const campaign of campaigns.campaigns) {
+        const option = doc.createElement('option'); option.value = campaign.id;
+        option.textContent = `${campaign.title} · ${new Date(campaign.endsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
+        campaignSelect.append(option);
+      }
+      void loadBenefit(generation);
+    } catch {
+      if (active(generation) && select.value === merchantId) benefitStatus.textContent = '캠페인을 불러오지 못했습니다.';
+    }
+  };
+  const loadBenefit = async generation => {
+    if (!benefitStatus) return;
+    const merchantId = select.value;
+    const campaignId = campaignSelect?.value;
+    if (!merchantId || !campaignId) { benefitStatus.textContent = '확인할 캠페인이 없습니다.'; return; }
+    benefitStatus.textContent = '혜택 현황을 불러오는 중이에요.';
+    try {
+      const result = await request(fetcher,
+        `${operationsBase(merchantId)}/campaigns/${encodeURIComponent(campaignId)}/benefit-status`);
+      if (active(generation) && select.value === merchantId && campaignSelect.value === campaignId) {
+        benefitStatus.textContent = campaignBenefitsStatusText(result);
+      }
+    } catch {
+      if (active(generation) && select.value === merchantId && campaignSelect.value === campaignId) {
+        benefitStatus.textContent = '혜택 현황을 불러오지 못했습니다.';
+      }
+    }
+  };
   state.configure = members => { configure(members); if (!panel.hidden) void refresh(); };
   if (!panel.hidden) void refresh();
   select.addEventListener('change', () => { void refresh(); });
+  campaignSelect?.addEventListener('change', () => { void loadBenefit(state.generation); });
   doc.getElementById('merchant-staff-approve')?.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;

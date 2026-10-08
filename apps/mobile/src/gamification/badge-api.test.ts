@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { BadgeApiError, createBadgeApiClient, parseBadgeBook, parseOpenedReward } from './badge-api';
+import { BadgeApiError, createBadgeApiClient, parseBadgeBook, parseCampaignBenefits, parseOpenedReward } from './badge-api';
 
 function couponFixture(overrides: Record<string, unknown> = {}) {
   return {
@@ -147,6 +147,32 @@ test('opens a reward box with an empty JSON body and checks the returned milesto
   assert.throws(() => parseOpenedReward({ coupon: couponFixture() }, 1), BadgeApiError);
   await assert.rejects(client.openReward(4 as 1), (error: unknown) =>
     error instanceof BadgeApiError && error.code === 'INVALID_REQUEST');
+});
+
+test('campaign benefit list accepts optional coupon dates and hides unknown optional fields', () => {
+  const base = { benefitId: 'b1', campaignId: 'c1', merchantId: 'm-a', merchantName: '가게', title: '혜택', detail: '', state: 'CLAIMABLE' };
+  assert.deepEqual(parseCampaignBenefits({ benefits: [base] }), [base]);
+  const owned = { ...base, state: 'OWNED', coupon: couponFixture({ milestone: 3, usableFrom: '2026-10-01T00:00:00Z' }) };
+  assert.equal(parseCampaignBenefits({ benefits: [owned] })[0]?.coupon?.usableFrom, '2026-10-01T00:00:00Z');
+  const legacy = { ...owned, coupon: couponFixture({ milestone: 3, usableFrom: 7 }) };
+  assert.equal('usableFrom' in (parseCampaignBenefits({ benefits: [legacy] })[0]?.coupon ?? {}), false);
+  assert.throws(() => parseCampaignBenefits({ benefits: [{ ...base, state: 'OWNED' }] }), BadgeApiError);
+  assert.throws(() => parseCampaignBenefits({ benefits: [{ ...base, state: 'CLAIMABLE', coupon: owned.coupon }] }), BadgeApiError);
+});
+
+test('campaign benefit requests keep credentials and parse a claim as a coupon', async () => {
+  const paths: string[] = [];
+  const client = createBadgeApiClient({ apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'session' },
+    fetcher: async (input, init) => {
+      paths.push(String(input));
+      assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer session');
+      if (init?.method === 'POST') return Response.json({ coupon: couponFixture({ milestone: 3 }), replayed: false });
+      return Response.json({ benefits: [] });
+    } });
+  assert.deepEqual(await client.getCampaignBenefits(), []);
+  assert.equal((await client.claimCampaignBenefit('b1')).coupon.milestone, 3);
+  assert.deepEqual(paths, ['https://api.example.test/me/campaign-benefits', 'https://api.example.test/me/campaign-benefits/b1/claim']);
 });
 
 test('maps reward errors to codes and invalidates only an expired bearer session', async () => {

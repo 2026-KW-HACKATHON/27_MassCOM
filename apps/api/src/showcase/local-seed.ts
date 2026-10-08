@@ -4,11 +4,13 @@ import type { Pool, PoolClient } from 'pg';
 
 import { SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS } from './all-access.js';
 import { seedStoreCollectibles } from './store-collectibles.js';
+import { seedWolgyeStores, WOLGYE_STORES } from './wolgye-seed.js';
 
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
 export const SHOWCASE_CAMPAIGN_ID = 'showcase-local-campaign';
 export const SHOWCASE_STAFF_ACCOUNT_ID = 'showcase-local-staff';
 export const SHOWCASE_CUSTOMER_ACCOUNT_ID = 'showcase-local-customer';
+export const SHOWCASE_COURSE_ID = '4b66a421-522a-4966-98cb-e359413cf412';
 
 const localDatabaseError = 'SHOWCASE_LOCAL_DATABASE_REQUIRED';
 const fixtureError = 'SHOWCASE_FIXTURE_COLLISION';
@@ -218,6 +220,9 @@ export async function seedShowcaseFixtureData(
     for (const entry of merchants) {
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${entry.merchantId}`]);
     }
+    for (const store of WOLGYE_STORES) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${store.id}`]);
+    }
     const existingEntries = new Set<ShowcaseMerchant>();
     for (const entry of merchants) {
       const existing = await readFixture(client, entry, staffAccountId);
@@ -289,6 +294,7 @@ export async function seedShowcaseFixtureData(
       );
     }
     await seedRewardOffers(client);
+    await seedWolgyeStores(client, now);
     // #322: 호스트 시연 DB에서만 가상 점포 수집품 게시물을 붙인다(로컬 QA는 qa-collectible-seed가 따로 게시한다).
     if (mode === 'hosted') {
       await seedStoreCollectibles(client, merchants.map((entry) => ({
@@ -296,6 +302,24 @@ export async function seedShowcaseFixtureData(
         ...('topGrade' in entry ? { topGrade: entry.topGrade } : {}),
       })), now);
     }
+    // 가상 점포만 묶은 시연 전용 코스. opt-in 참조는 실제 점주 동의가 아닌 시연 fixture 식별자다.
+    await client.query(
+      `INSERT INTO courses(id, title, situation, scene_key, status, curated_by_account_id, checked_at,
+        check_summary) VALUES ($1, '가상 점포 산책', 'AFTER_MEAL', 'showcase-picnic', 'DRAFT',
+        'showcase-fixture', $2, $3) ON CONFLICT (id) DO NOTHING`,
+      [SHOWCASE_COURSE_ID, now, JSON.stringify({ schemaVersion: 1, snapshot: true, label: '시연 가상 점포 코스' })],
+    );
+    for (const [index, entry] of merchants.slice(0, 3).entries()) {
+      await client.query(
+        `INSERT INTO course_steps(course_id, position, merchant_id, target_visit_count, piece_key,
+          piece_label, owner_optin_ref, owner_optin_at)
+          SELECT $1,$2,$3,1,$4,$5,'SHOWCASE-DEMO-ONLY',$6
+          WHERE EXISTS (SELECT 1 FROM courses WHERE id = $1 AND status = 'DRAFT')
+          ON CONFLICT (course_id, position) DO NOTHING`,
+        [SHOWCASE_COURSE_ID, index + 1, entry.merchantId, `piece-${index + 1}`, ['그릇', '컵', '봉투'][index], now],
+      );
+    }
+    await client.query("UPDATE courses SET status = 'ACTIVE' WHERE id = $1 AND status = 'DRAFT'", [SHOWCASE_COURSE_ID]);
     await client.query('COMMIT');
     transactionStarted = false;
     return { merchantId: SHOWCASE_MERCHANT_ID, campaignId: SHOWCASE_CAMPAIGN_ID };

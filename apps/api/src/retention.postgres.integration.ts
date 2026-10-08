@@ -976,6 +976,43 @@ test('after a rollback to an API without consent cleanup, purge-deleted-consents
   assert.equal(await service.purgeConsentsOfDeletedAccounts(secret), 0, 'a second run has nothing left');
 });
 
+test('rollback repair pseudonymizes deleted curator ids within its row budget', async (t) => {
+  const { pool } = await setup(t);
+  const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const deleted = 'course-curator-deleted';
+  const living = 'course-curator-living';
+  const alias = `deleted:${lifecycle.referenceHash(deleted).toString('hex')}`;
+  await pool.query(
+    `INSERT INTO account_deletion_requests (
+       id, account_reference_hash, deleted_account_alias, status, policy_version, cancelled_mint_jobs,
+       pending_mint_jobs, retained_finalized_nfts, requested_at, completed_at, updated_at
+     ) VALUES ($1, $2, $3, 'COMPLETED', 'account-deletion-v1', 0, 0, 0, $4, $4, $4)`,
+    [randomUUID(), lifecycle.referenceHash(deleted), alias, now],
+  );
+  await pool.query(
+    `INSERT INTO courses(id,title,situation,scene_key,curated_by_account_id)
+     SELECT id, '보관 코스', 'AFTER_MEAL', 'retention-scene', account_id
+     FROM unnest($1::uuid[], $2::text[]) AS entries(id, account_id)`,
+    [[randomUUID(), randomUUID(), randomUUID()], [deleted, deleted, living]],
+  );
+  const service = new PostgresRetentionService(pool, { now: () => now, playBatchSize: 1, playMaxBatches: 1 });
+  const first = await service.run({ hmacSecret: secret });
+  assert.deepEqual(first.failed, []);
+  assert.equal(counts(first.counts).deleted_play_data, 1);
+  assert.equal(first.counts.find(({ step }) => step === 'deleted_play_data')?.capHit, true);
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM courses WHERE curated_by_account_id = $1', [deleted]))
+    .rows[0]?.count, 1);
+  const second = await service.run({ hmacSecret: secret });
+  assert.deepEqual(second.failed, []);
+  assert.equal(counts(second.counts).deleted_play_data, 1);
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM courses WHERE curated_by_account_id = $1', [alias]))
+    .rows[0]?.count, 2);
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM courses WHERE curated_by_account_id = $1', [living]))
+    .rows[0]?.count, 1);
+  assert.equal(counts((await service.run({ hmacSecret: secret })).counts).deleted_play_data, 0);
+});
+
 test('after a rollback to an API that does not de-identify audit targets, the daily run replaces deleted accounts raw ids and only theirs (Issue #263)', async (t) => {
   const { pool, service } = await setup(t);
   const secret = 'test-only-account-deletion-secret-at-least-32-bytes';
