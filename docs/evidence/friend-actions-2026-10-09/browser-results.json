@@ -1,0 +1,2051 @@
+[
+  {
+    "width": 320,
+    "colorScheme": "light",
+    "url": "http://127.0.0.1:8117/friends",
+    "errors": [],
+    "text": "화면 검수\n친구와 함께하는 월계동 ✎\nⓅ 400\n‹\n친구\n친구 순위\n친구에게는 메달·배지 수·가본 가게 이름만 보여요 · 10월 8일 기준\n오늘 우정 보내기 4/5 · 우정 보상 남은 한도 20\n1\n동네 산책 친구\n배지 4/9\n2\n마스코트와걷는친구\n배지 4/9\n3\n월계동 이웃\n배지 4/9\n4\n화면 검수\n나\n배지 4/9\n내 친구 코드\n화면 검수\n바꾸기\n친구와 함께하는 월계동\n편집\nABCD-EFGH\n이 코드를 받은 사람이 추가하면 서로의 여권이 보여요.\n코드 공유\n코드 바꾸기\n친구 추가\n친구 코드\n추가\n우편 알림\n웹에서는 앱 푸시를 쓸 수 없어요.\n우편 알림 켜기\n탐색\n도감\n홈\n놀이\n상점",
+    "buttons": [
+      {
+        "label": "뒤로",
+        "disabled": null,
+        "box": {
+          "x": 20,
+          "y": -278,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "1위, 동네 산책 친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 114,
+          "width": 148,
+          "height": 100
+        }
+      },
+      {
+        "label": "동네 산책 친구 님, 우정 보내기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "2위, 마스코트와걷는친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 251,
+          "width": 148,
+          "height": 100
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님, 친구가 우정을 받을 때까지 기다리는 중",
+        "disabled": "true",
+        "box": {
+          "x": 188,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "3위, 월계동 이웃, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 388,
+          "width": 148,
+          "height": 100
+        }
+      },
+      {
+        "label": "월계동 이웃 님, 우정 받고 답장 보내기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "별명 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 206,
+          "y": 685,
+          "width": 76,
+          "height": 48
+        }
+      },
+      {
+        "label": "한 줄 소개 편집",
+        "disabled": null,
+        "box": {
+          "x": 220,
+          "y": 745,
+          "width": 62,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 공유",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1154,
+          "width": 244,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1212,
+          "width": 244,
+          "height": 48
+        }
+      },
+      {
+        "label": "추가",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1448,
+          "width": 244,
+          "height": 48
+        }
+      },
+      {
+        "label": "우편 알림 켜기",
+        "disabled": "true",
+        "box": {
+          "x": 38,
+          "y": 1617,
+          "width": 244,
+          "height": 48
+        }
+      }
+    ],
+    "sentGrayDisabled": "true",
+    "receivedGrayDisabled": "true",
+    "dateScroll": {
+      "before": "선택: 10월 9일 (금)",
+      "after": "선택: 10월 13일 (화)"
+    },
+    "dateSelected": "초대 날짜, 10월 13일 (화)",
+    "timeScroll": {
+      "before": "선택: 00:00",
+      "after": "선택: 03:01",
+      "minute": "1분"
+    },
+    "timeSelected": "확정 시간, 03:01",
+    "rangeAvailable": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friends/11111111-1111-4111-8111-111111111111/gifts",
+        "body": {
+          "requestId": "friendship-send:6f37561f-2d09-41bd-9ef4-95264cb00d56"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friendship-gifts/a3333333-3333-4333-8333-333333333333/receive-and-reply",
+        "body": {
+          "requestId": "friendship-receive:be6ef4aa-3dd2-4234-946e-57bdd6c26bc3"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      }
+    ]
+  },
+  {
+    "width": 320,
+    "colorScheme": "dark",
+    "url": "http://127.0.0.1:8117/friends",
+    "errors": [],
+    "text": "화면 검수\n친구와 함께하는 월계동 ✎\nⓅ 400\n‹\n친구\n친구 순위\n친구에게는 메달·배지 수·가본 가게 이름만 보여요 · 10월 8일 기준\n오늘 우정 보내기 4/5 · 우정 보상 남은 한도 20\n1\n동네 산책 친구\n배지 4/9\n2\n마스코트와걷는친구\n배지 4/9\n3\n월계동 이웃\n배지 4/9\n4\n화면 검수\n나\n배지 4/9\n내 친구 코드\n화면 검수\n바꾸기\n친구와 함께하는 월계동\n편집\nABCD-EFGH\n이 코드를 받은 사람이 추가하면 서로의 여권이 보여요.\n코드 공유\n코드 바꾸기\n친구 추가\n친구 코드\n추가\n우편 알림\n웹에서는 앱 푸시를 쓸 수 없어요.\n우편 알림 켜기\n탐색\n도감\n홈\n놀이\n상점",
+    "buttons": [
+      {
+        "label": "뒤로",
+        "disabled": null,
+        "box": {
+          "x": 20,
+          "y": -278,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "1위, 동네 산책 친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 114,
+          "width": 148,
+          "height": 100
+        }
+      },
+      {
+        "label": "동네 산책 친구 님, 우정 보내기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "2위, 마스코트와걷는친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 251,
+          "width": 148,
+          "height": 100
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님, 친구가 우정을 받을 때까지 기다리는 중",
+        "disabled": "true",
+        "box": {
+          "x": 188,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "3위, 월계동 이웃, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 388,
+          "width": 148,
+          "height": 100
+        }
+      },
+      {
+        "label": "월계동 이웃 님, 우정 받고 답장 보내기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 188,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 240,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "별명 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 206,
+          "y": 685,
+          "width": 76,
+          "height": 48
+        }
+      },
+      {
+        "label": "한 줄 소개 편집",
+        "disabled": null,
+        "box": {
+          "x": 220,
+          "y": 745,
+          "width": 62,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 공유",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1154,
+          "width": 244,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1212,
+          "width": 244,
+          "height": 48
+        }
+      },
+      {
+        "label": "추가",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1448,
+          "width": 244,
+          "height": 48
+        }
+      },
+      {
+        "label": "우편 알림 켜기",
+        "disabled": "true",
+        "box": {
+          "x": 38,
+          "y": 1617,
+          "width": 244,
+          "height": 48
+        }
+      }
+    ],
+    "sentGrayDisabled": "true",
+    "receivedGrayDisabled": "true",
+    "dateScroll": {
+      "before": "선택: 10월 9일 (금)",
+      "after": "선택: 10월 13일 (화)"
+    },
+    "dateSelected": "초대 날짜, 10월 13일 (화)",
+    "timeScroll": {
+      "before": "선택: 00:00",
+      "after": "선택: 03:01",
+      "minute": "1분"
+    },
+    "timeSelected": "확정 시간, 03:01",
+    "rangeAvailable": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friends/11111111-1111-4111-8111-111111111111/gifts",
+        "body": {
+          "requestId": "friendship-send:27191b75-916a-486e-ae38-3fe0dc576bc7"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friendship-gifts/a3333333-3333-4333-8333-333333333333/receive-and-reply",
+        "body": {
+          "requestId": "friendship-receive:fd028546-bc4e-4a31-890a-fec8a80f114b"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "colorScheme": "light",
+    "url": "http://127.0.0.1:8117/friends",
+    "errors": [],
+    "text": "화면 검수\n친구와 함께하는 월계동 ✎\nⓅ 400\n‹\n친구\n친구 순위\n친구에게는 메달·배지 수·가본 가게 이름만 보여요 · 10월 8일 기준\n오늘 우정 보내기 4/5 · 우정 보상 남은 한도 20\n1\n동네 산책 친구\n배지 4/9\n2\n마스코트와걷는친구\n배지 4/9\n3\n월계동 이웃\n배지 4/9\n4\n화면 검수\n나\n배지 4/9\n내 친구 코드\n화면 검수\n바꾸기\n친구와 함께하는 월계동\n편집\nABCD-EFGH\n이 코드를 받은 사람이 추가하면 서로의 여권이 보여요.\n코드 공유\n코드 바꾸기\n친구 추가\n친구 코드\n추가\n우편 알림\n웹에서는 앱 푸시를 쓸 수 없어요.\n우편 알림 켜기\n탐색\n도감\n홈\n놀이\n상점",
+    "buttons": [
+      {
+        "label": "뒤로",
+        "disabled": null,
+        "box": {
+          "x": 20,
+          "y": -278,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "1위, 동네 산책 친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 114,
+          "width": 188,
+          "height": 100
+        }
+      },
+      {
+        "label": "동네 산책 친구 님, 우정 보내기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "2위, 마스코트와걷는친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 251,
+          "width": 188,
+          "height": 100
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님, 친구가 우정을 받을 때까지 기다리는 중",
+        "disabled": "true",
+        "box": {
+          "x": 228,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "3위, 월계동 이웃, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 388,
+          "width": 188,
+          "height": 100
+        }
+      },
+      {
+        "label": "월계동 이웃 님, 우정 받고 답장 보내기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "별명 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 246,
+          "y": 685,
+          "width": 76,
+          "height": 48
+        }
+      },
+      {
+        "label": "한 줄 소개 편집",
+        "disabled": null,
+        "box": {
+          "x": 260,
+          "y": 745,
+          "width": 62,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 공유",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1154,
+          "width": 284,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1212,
+          "width": 284,
+          "height": 48
+        }
+      },
+      {
+        "label": "추가",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1448,
+          "width": 284,
+          "height": 48
+        }
+      },
+      {
+        "label": "우편 알림 켜기",
+        "disabled": "true",
+        "box": {
+          "x": 38,
+          "y": 1617,
+          "width": 284,
+          "height": 48
+        }
+      }
+    ],
+    "sentGrayDisabled": "true",
+    "receivedGrayDisabled": "true",
+    "dateScroll": {
+      "before": "선택: 10월 9일 (금)",
+      "after": "선택: 10월 13일 (화)"
+    },
+    "dateSelected": "초대 날짜, 10월 13일 (화)",
+    "timeScroll": {
+      "before": "선택: 00:00",
+      "after": "선택: 03:01",
+      "minute": "1분"
+    },
+    "timeSelected": "확정 시간, 03:01",
+    "rangeAvailable": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friends/11111111-1111-4111-8111-111111111111/gifts",
+        "body": {
+          "requestId": "friendship-send:d68d3904-d7e9-4819-93b5-dd4c8da98512"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friendship-gifts/a3333333-3333-4333-8333-333333333333/receive-and-reply",
+        "body": {
+          "requestId": "friendship-receive:9fbe38e6-a6f6-4d04-92a9-629ad883d25c"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      }
+    ]
+  },
+  {
+    "width": 360,
+    "colorScheme": "dark",
+    "url": "http://127.0.0.1:8117/friends",
+    "errors": [],
+    "text": "화면 검수\n친구와 함께하는 월계동 ✎\nⓅ 400\n‹\n친구\n친구 순위\n친구에게는 메달·배지 수·가본 가게 이름만 보여요 · 10월 8일 기준\n오늘 우정 보내기 4/5 · 우정 보상 남은 한도 20\n1\n동네 산책 친구\n배지 4/9\n2\n마스코트와걷는친구\n배지 4/9\n3\n월계동 이웃\n배지 4/9\n4\n화면 검수\n나\n배지 4/9\n내 친구 코드\n화면 검수\n바꾸기\n친구와 함께하는 월계동\n편집\nABCD-EFGH\n이 코드를 받은 사람이 추가하면 서로의 여권이 보여요.\n코드 공유\n코드 바꾸기\n친구 추가\n친구 코드\n추가\n우편 알림\n웹에서는 앱 푸시를 쓸 수 없어요.\n우편 알림 켜기\n탐색\n도감\n홈\n놀이\n상점",
+    "buttons": [
+      {
+        "label": "뒤로",
+        "disabled": null,
+        "box": {
+          "x": 20,
+          "y": -278,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "1위, 동네 산책 친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 114,
+          "width": 188,
+          "height": 100
+        }
+      },
+      {
+        "label": "동네 산책 친구 님, 우정 보내기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "2위, 마스코트와걷는친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 251,
+          "width": 188,
+          "height": 100
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님, 친구가 우정을 받을 때까지 기다리는 중",
+        "disabled": "true",
+        "box": {
+          "x": 228,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "3위, 월계동 이웃, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 388,
+          "width": 188,
+          "height": 100
+        }
+      },
+      {
+        "label": "월계동 이웃 님, 우정 받고 답장 보내기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 228,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 280,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "별명 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 246,
+          "y": 685,
+          "width": 76,
+          "height": 48
+        }
+      },
+      {
+        "label": "한 줄 소개 편집",
+        "disabled": null,
+        "box": {
+          "x": 260,
+          "y": 745,
+          "width": 62,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 공유",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1154,
+          "width": 284,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1212,
+          "width": 284,
+          "height": 48
+        }
+      },
+      {
+        "label": "추가",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1448,
+          "width": 284,
+          "height": 48
+        }
+      },
+      {
+        "label": "우편 알림 켜기",
+        "disabled": "true",
+        "box": {
+          "x": 38,
+          "y": 1617,
+          "width": 284,
+          "height": 48
+        }
+      }
+    ],
+    "sentGrayDisabled": "true",
+    "receivedGrayDisabled": "true",
+    "dateScroll": {
+      "before": "선택: 10월 9일 (금)",
+      "after": "선택: 10월 13일 (화)"
+    },
+    "dateSelected": "초대 날짜, 10월 13일 (화)",
+    "timeScroll": {
+      "before": "선택: 00:00",
+      "after": "선택: 03:01",
+      "minute": "1분"
+    },
+    "timeSelected": "확정 시간, 03:01",
+    "rangeAvailable": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friends/11111111-1111-4111-8111-111111111111/gifts",
+        "body": {
+          "requestId": "friendship-send:424d804b-1113-4881-b349-51daf3211f68"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friendship-gifts/a3333333-3333-4333-8333-333333333333/receive-and-reply",
+        "body": {
+          "requestId": "friendship-receive:911612e7-b8e7-49e6-a784-03610357892d"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "colorScheme": "light",
+    "url": "http://127.0.0.1:8117/friends",
+    "errors": [],
+    "text": "화면 검수\n친구와 함께하는 월계동 ✎\nⓅ 400\n‹\n친구\n친구 순위\n친구에게는 메달·배지 수·가본 가게 이름만 보여요 · 10월 8일 기준\n오늘 우정 보내기 4/5 · 우정 보상 남은 한도 20\n1\n동네 산책 친구\n배지 4/9\n2\n마스코트와걷는친구\n배지 4/9\n3\n월계동 이웃\n배지 4/9\n4\n화면 검수\n나\n배지 4/9\n내 친구 코드\n화면 검수\n바꾸기\n친구와 함께하는 월계동\n편집\nABCD-EFGH\n이 코드를 받은 사람이 추가하면 서로의 여권이 보여요.\n코드 공유\n코드 바꾸기\n친구 추가\n친구 코드\n추가\n우편 알림\n웹에서는 앱 푸시를 쓸 수 없어요.\n우편 알림 켜기\n탐색\n도감\n홈\n놀이\n상점",
+    "buttons": [
+      {
+        "label": "뒤로",
+        "disabled": null,
+        "box": {
+          "x": 20,
+          "y": -278,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "1위, 동네 산책 친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 114,
+          "width": 218,
+          "height": 100
+        }
+      },
+      {
+        "label": "동네 산책 친구 님, 우정 보내기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "2위, 마스코트와걷는친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 251,
+          "width": 218,
+          "height": 100
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님, 친구가 우정을 받을 때까지 기다리는 중",
+        "disabled": "true",
+        "box": {
+          "x": 258,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "3위, 월계동 이웃, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 388,
+          "width": 218,
+          "height": 100
+        }
+      },
+      {
+        "label": "월계동 이웃 님, 우정 받고 답장 보내기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "별명 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 276,
+          "y": 685,
+          "width": 76,
+          "height": 48
+        }
+      },
+      {
+        "label": "한 줄 소개 편집",
+        "disabled": null,
+        "box": {
+          "x": 290,
+          "y": 745,
+          "width": 62,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 공유",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1134,
+          "width": 152,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 200,
+          "y": 1134,
+          "width": 152,
+          "height": 48
+        }
+      },
+      {
+        "label": "추가",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1370,
+          "width": 314,
+          "height": 48
+        }
+      },
+      {
+        "label": "우편 알림 켜기",
+        "disabled": "true",
+        "box": {
+          "x": 38,
+          "y": 1539,
+          "width": 314,
+          "height": 48
+        }
+      }
+    ],
+    "sentGrayDisabled": "true",
+    "receivedGrayDisabled": "true",
+    "dateScroll": {
+      "before": "선택: 10월 9일 (금)",
+      "after": "선택: 10월 13일 (화)"
+    },
+    "dateSelected": "초대 날짜, 10월 13일 (화)",
+    "timeScroll": {
+      "before": "선택: 00:00",
+      "after": "선택: 03:01",
+      "minute": "1분"
+    },
+    "timeSelected": "확정 시간, 03:01",
+    "rangeAvailable": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friends/11111111-1111-4111-8111-111111111111/gifts",
+        "body": {
+          "requestId": "friendship-send:95b966e5-38f5-46f0-8383-2f90403c723a"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friendship-gifts/a3333333-3333-4333-8333-333333333333/receive-and-reply",
+        "body": {
+          "requestId": "friendship-receive:6147f2df-6e55-4371-8f46-d7a13fe9fce1"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      }
+    ]
+  },
+  {
+    "width": 390,
+    "colorScheme": "dark",
+    "url": "http://127.0.0.1:8117/friends",
+    "errors": [],
+    "text": "화면 검수\n친구와 함께하는 월계동 ✎\nⓅ 400\n‹\n친구\n친구 순위\n친구에게는 메달·배지 수·가본 가게 이름만 보여요 · 10월 8일 기준\n오늘 우정 보내기 4/5 · 우정 보상 남은 한도 20\n1\n동네 산책 친구\n배지 4/9\n2\n마스코트와걷는친구\n배지 4/9\n3\n월계동 이웃\n배지 4/9\n4\n화면 검수\n나\n배지 4/9\n내 친구 코드\n화면 검수\n바꾸기\n친구와 함께하는 월계동\n편집\nABCD-EFGH\n이 코드를 받은 사람이 추가하면 서로의 여권이 보여요.\n코드 공유\n코드 바꾸기\n친구 추가\n친구 코드\n추가\n우편 알림\n웹에서는 앱 푸시를 쓸 수 없어요.\n우편 알림 켜기\n탐색\n도감\n홈\n놀이\n상점",
+    "buttons": [
+      {
+        "label": "뒤로",
+        "disabled": null,
+        "box": {
+          "x": 20,
+          "y": -278,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "1위, 동네 산책 친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 114,
+          "width": 218,
+          "height": 100
+        }
+      },
+      {
+        "label": "동네 산책 친구 님, 우정 보내기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 114,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "동네 산책 친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 166,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "2위, 마스코트와걷는친구, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 251,
+          "width": 218,
+          "height": 100
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님, 친구가 우정을 받을 때까지 기다리는 중",
+        "disabled": "true",
+        "box": {
+          "x": 258,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 251,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "마스코트와걷는친구 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 303,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "3위, 월계동 이웃, 배지 9개 중 4개, 동네 탐험가 실버, 단골손님 브론즈, 꾸준한 걸음 브론즈",
+        "disabled": null,
+        "box": {
+          "x": 32,
+          "y": 388,
+          "width": 218,
+          "height": 100
+        }
+      },
+      {
+        "label": "월계동 이웃 님, 우정 받고 답장 보내기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님에게 쪽지 보내기",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 388,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님과 같이 밥 먹기",
+        "disabled": null,
+        "box": {
+          "x": 258,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "월계동 이웃 님의 마이룸과 방명록 방문",
+        "disabled": null,
+        "box": {
+          "x": 310,
+          "y": 440,
+          "width": 48,
+          "height": 48
+        }
+      },
+      {
+        "label": "별명 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 276,
+          "y": 685,
+          "width": 76,
+          "height": 48
+        }
+      },
+      {
+        "label": "한 줄 소개 편집",
+        "disabled": null,
+        "box": {
+          "x": 290,
+          "y": 745,
+          "width": 62,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 공유",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1134,
+          "width": 152,
+          "height": 48
+        }
+      },
+      {
+        "label": "코드 바꾸기",
+        "disabled": null,
+        "box": {
+          "x": 200,
+          "y": 1134,
+          "width": 152,
+          "height": 48
+        }
+      },
+      {
+        "label": "추가",
+        "disabled": null,
+        "box": {
+          "x": 38,
+          "y": 1370,
+          "width": 314,
+          "height": 48
+        }
+      },
+      {
+        "label": "우편 알림 켜기",
+        "disabled": "true",
+        "box": {
+          "x": 38,
+          "y": 1539,
+          "width": 314,
+          "height": 48
+        }
+      }
+    ],
+    "sentGrayDisabled": "true",
+    "receivedGrayDisabled": "true",
+    "dateScroll": {
+      "before": "선택: 10월 9일 (금)",
+      "after": "선택: 10월 13일 (화)"
+    },
+    "dateSelected": "초대 날짜, 10월 13일 (화)",
+    "timeScroll": {
+      "before": "선택: 00:00",
+      "after": "선택: 03:01",
+      "minute": "1분"
+    },
+    "timeSelected": "확정 시간, 03:01",
+    "rangeAvailable": true,
+    "calls": [
+      {
+        "method": "GET",
+        "path": "/me/consent",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friends/11111111-1111-4111-8111-111111111111/gifts",
+        "body": {
+          "requestId": "friendship-send:a40ef920-a676-44f7-a36f-77b3dd9f3f34"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "POST",
+        "path": "/me/friendship-gifts/a3333333-3333-4333-8333-333333333333/receive-and-reply",
+        "body": {
+          "requestId": "friendship-receive:3f0c4d2a-f77d-4ff2-987f-2a9b0bf2ecd6"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/merchants",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/friends",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/shop",
+        "body": {}
+      },
+      {
+        "method": "GET",
+        "path": "/me/social",
+        "body": {}
+      }
+    ]
+  }
+]

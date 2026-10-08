@@ -30,9 +30,12 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/api/package-lock.json
+            apps/mobile/package-lock.json
       - name: 필요한 의존성 설치
         run: |
           npm ci --prefix apps/api
+          # server-coin-room.test.ts는 설치된 앱의 옛 방 파서를 앱 패키지(tsx·경로 별칭)로 실행해 응답 호환을 확인한다.
+          npm ci --prefix apps/mobile
       - name: API 단위 시험·타입검사·빌드
         run: |
           # PostgreSQL 통합 시험은 별도 샤드에서 실행하고 단위 시험만 커버리지를 잰다(보고용).

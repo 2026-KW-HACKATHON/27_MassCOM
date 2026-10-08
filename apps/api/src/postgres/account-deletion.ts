@@ -272,6 +272,16 @@ async function pseudonymizeAccount(
   await client.query('UPDATE coin_reroll_tickets SET granted_by_account_id=$2 WHERE granted_by_account_id=$1',
     [accountId, deletedAlias]);
   await client.query('DELETE FROM grade_draws WHERE account_id=$1', [accountId]);
+  // Moderation locks the entry before its reports; deletion must use that order too.
+  await client.query(`SELECT entry.id FROM room_guestbook_entries entry
+    WHERE entry.author_account_id=$1 OR entry.room_id IN (SELECT id FROM public_rooms WHERE account_id=$1)
+    ORDER BY entry.id FOR UPDATE OF entry`, [accountId]);
+  await client.query(`DELETE FROM room_guestbook_reports WHERE reporter_account_id=$1 OR entry_id IN
+    (SELECT id FROM room_guestbook_entries WHERE author_account_id=$1 OR room_id IN (SELECT id FROM public_rooms WHERE account_id=$1))`, [accountId]);
+  await client.query('UPDATE room_guestbook_reports SET moderated_by_account_id=$2 WHERE moderated_by_account_id=$1', [accountId, deletedAlias]);
+  await client.query(`DELETE FROM room_guestbook_entries WHERE author_account_id=$1 OR room_id IN
+    (SELECT id FROM public_rooms WHERE account_id=$1)`, [accountId]);
+  await client.query('DELETE FROM room_guestbook_friend_add_counts WHERE account_id=$1', [accountId]);
   await client.query(`DELETE FROM room_stamp_reports WHERE reporter_account_id=$1 OR stamp_id IN
     (SELECT id FROM room_stamps WHERE author_account_id=$1 OR room_id IN (SELECT id FROM public_rooms WHERE account_id=$1))`, [accountId]);
   await client.query('UPDATE room_stamp_reports SET moderated_by_account_id=$2 WHERE moderated_by_account_id=$1', [accountId, deletedAlias]);

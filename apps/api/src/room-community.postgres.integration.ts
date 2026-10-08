@@ -87,6 +87,12 @@ test('public rooms require consent, respect blocks and revocation, and cap actua
   await countedVisit('neighbor');
   assert.deepEqual((await rooms.getRoom({ accountId: 'neighbor', roomId: roomIds[0]! })).sharedMerchants,
     [{ merchantId: 'room-test-merchant', merchantName: 'test' }]);
+  await rooms.setVisibility({ accountId: 'owner-0', visibility: 'PUBLIC' });
+  assert.deepEqual((await rooms.getRoom({ accountId: 'neighbor', roomId: roomIds[0]! })).sharedMerchants, [],
+    'a nonfriend public-room viewer does not see individual shared merchants');
+  assert.deepEqual((await rooms.getRoom({ accountId: 'visitor', roomId: roomIds[0]! })).sharedMerchants,
+    [{ merchantId: 'room-test-merchant', merchantName: 'test' }], 'friends retain shared merchants in public rooms');
+  await rooms.setVisibility({ accountId: 'owner-0', visibility: 'NEIGHBORS' });
   assert.equal((await rooms.neighbors('neighbor')).some(room => room.roomId === roomIds[0]), true);
   const friends = new PostgresFriendService(pool, { accountLifecycle: lifecycle });
   const addedNeighbor = await friends.addNeighbor({ accountId: 'neighbor', roomId: roomIds[0]! });

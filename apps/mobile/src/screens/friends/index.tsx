@@ -30,9 +30,10 @@ import { createBadgeApiClient } from '@/gamification/badge-api';
 import { explorerRank, medalCopy, tierName } from '@/gamification/badge-rules';
 import { useBadgeBook } from '@/gamification/use-badge-book';
 import { useExperience } from '@/experience/use-experience';
-import { createSocialApiClient, createSocialRequestId, socialErrorMessage, type SocialFriend, type SocialSnapshot } from '@/social/social-api';
+import { createSocialApiClient, socialErrorMessage, type SocialFriend, type SocialSnapshot } from '@/social/social-api';
 import { useSocial } from '@/social/use-social';
 import { useSocialPush } from '@/social/push-runtime';
+import { createStudioApiClient, studioErrorMessage } from '@/studio/studio-api';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
 import { BounceButton } from '@/ui/bounce-button';
@@ -45,6 +46,8 @@ import { Stagger } from '@/ui/stagger';
 import { StateScene } from '@/ui/state-scene';
 
 import { TierDots } from './tier-dots';
+import { FriendActionIcon } from './friend-action-icon';
+import { createFriendHeartAction, friendGiftVersion, friendHeart } from './friend-heart';
 import { useFriendsStyles } from './use-friends-styles';
 
 export const FRIENDS_TITLE = '친구';
@@ -85,6 +88,10 @@ export function FriendsScreen({
   );
   const socialApi = useMemo(
     () => createSocialApiClient({ apiUrl, credential, onSessionInvalid }),
+    [apiUrl, credential, onSessionInvalid],
+  );
+  const studioApi = useMemo(
+    () => createStudioApiClient({ apiUrl, credential, onSessionInvalid }),
     [apiUrl, credential, onSessionInvalid],
   );
   const friends = useFriends(api);
@@ -490,25 +497,17 @@ export function FriendsScreen({
             ) : visibleRows.length === 0 ? (
               <StateScene kind="empty" title="검색 결과가 없어요" body="다른 이름으로 찾아보세요." />
             ) : (
-              visibleRows.map((row) => (
-                <View key={row.key} style={{ gap: 8 }}>
-                  <RankingRowCard
+              visibleRows.map((row) => row.friendshipId ? (
+                <FriendActionRow
                   key={row.key}
                   row={row}
-                  onPress={row.friendshipId
-                    ? () => router.push({ pathname: '/friends/[friendshipId]', params: { friendshipId: row.friendshipId! } })
-                    : undefined}
+                  friend={social.snapshot?.friends.find((item) => item.friendshipId === row.friendshipId)}
+                  social={social.snapshot}
+                  onRefresh={refreshFriendsAndSocial}
+                  socialApi={socialApi}
+                  studioApi={studioApi}
                 />
-                  {row.friendshipId ? (
-                    <FriendSocialActions
-                      friend={social.snapshot?.friends.find((item) => item.friendshipId === row.friendshipId)}
-                      social={social.snapshot}
-                      onRefresh={() => { void Promise.allSettled([social.refreshQuietly(), refreshQuietly()]); }}
-                      socialApi={socialApi}
-                    />
-                  ) : null}
-                </View>
-              ))
+              ) : <RankingRowCard key={row.key} row={row} />)
             )}
           </View>
         </View>
@@ -600,93 +599,113 @@ export function FriendsScreen({
   );
 }
 
-function FriendSocialActions({
+function FriendActionRow({
+  row,
   friend,
   social,
   socialApi,
+  studioApi,
   onRefresh,
 }: {
+  row: RankingRow;
   friend?: SocialFriend;
   social?: SocialSnapshot;
   socialApi: ReturnType<typeof createSocialApiClient>;
-  onRefresh: () => void;
+  studioApi: ReturnType<typeof createStudioApiClient>;
+  onRefresh: () => Promise<unknown>;
 }) {
   const router = useRouter();
   const styles = useFriendsStyles();
-  const [busy, setBusy] = useState<'send' | 'receive'>();
-  const [notice, setNotice] = useState<string>();
-  if (!friend) return null;
-  const target = friend;
+  const { refresh: refreshDiscovery } = useDiscovery();
+  const [busy, setBusy] = useState(false);
+  const [roomBusy, setRoomBusy] = useState(false);
+  const [notice, setNotice] = useState<Notice>();
+  const [completedVersion, setCompletedVersion] = useState<string>();
+  const busyNow = useRef(false);
+  const roomBusyNow = useRef(false);
+  const runHeart = useMemo(() => createFriendHeartAction(socialApi), [socialApi]);
+  const version = friendGiftVersion(friend);
+  if (completedVersion !== undefined && completedVersion !== version) setCompletedVersion(undefined);
+  const heart = friendHeart(friend, social?.friendshipGift.sendRemaining ?? 0);
+  const completed = completedVersion !== undefined && completedVersion === version;
+  const heartDisabled = busy || completed || heart.action === null;
+  const heartColor = busy || completed ? 'gray' : heart.color;
+  const heartLabel = busy ? '우정을 처리하는 중' : completed ? '우정을 처리했어요. 친구의 답장을 기다리는 중' : heart.label;
 
-  async function sendGift() {
-    if (busy) return;
-    setBusy('send');
+  async function activateHeart() {
+    if (busyNow.current || heartDisabled || !friend) return;
+    busyNow.current = true;
+    setBusy(true);
     setNotice(undefined);
     try {
-      const result = await socialApi.sendFriendshipGift({ friendshipId: target.friendshipId, requestId: createSocialRequestId('friendship-send') });
-      setNotice(result.senderReward > 0 ? `우정을 보냈어요. 마일리지 ${result.senderReward}을 받았어요.` : '우정을 보냈어요. 오늘 우정 보상 한도는 모두 채웠어요.');
-      onRefresh();
+      const result = await runHeart(friend, social?.friendshipGift.sendRemaining ?? 0);
+      if (!result) return;
+      setCompletedVersion(version);
+      setNotice({ tone: 'success', text: result.notice });
+      // Refresh failures must not turn a committed gift into a failed action.
+      await Promise.allSettled([Promise.resolve().then(onRefresh), Promise.resolve().then(refreshDiscovery)]);
     } catch (caught) {
-      setNotice(socialErrorMessage(caught));
+      setNotice({ tone: 'error', text: socialErrorMessage(caught) });
     } finally {
-      setBusy(undefined);
+      busyNow.current = false;
+      setBusy(false);
     }
   }
 
-  async function receiveGift() {
-    if (busy || !target.gift.pendingGiftId) return;
-    setBusy('receive');
+  async function openRoom() {
+    if (roomBusyNow.current || !row.friendshipId) return;
+    roomBusyNow.current = true;
+    setRoomBusy(true);
     setNotice(undefined);
     try {
-      const result = await socialApi.receiveFriendshipGift({ giftId: target.gift.pendingGiftId, requestId: createSocialRequestId('friendship-receive') });
-      setNotice(result.receiverReward > 0 ? `우정을 받았어요. 마일리지 ${result.receiverReward}을 받았어요.` : '우정을 받았어요. 오늘 우정 보상 한도는 모두 채웠어요.');
-      onRefresh();
+      const room = await studioApi.getFriend(row.friendshipId);
+      if (room.roomId) router.push({ pathname: '/room-explore', params: { roomId: room.roomId } });
+      else setNotice({ tone: 'error', text: '친구가 마이룸을 공개하지 않았어요.' });
     } catch (caught) {
-      setNotice(socialErrorMessage(caught));
+      setNotice({ tone: 'error', text: studioErrorMessage(caught) });
     } finally {
-      setBusy(undefined);
+      roomBusyNow.current = false;
+      setRoomBusy(false);
     }
   }
 
-  const sendDisabled = !target.gift.canSend || (social?.friendshipGift.sendRemaining ?? 0) <= 0 || busy !== undefined;
-  const receiveDisabled = !target.gift.canReceive || !target.gift.pendingGiftId || busy !== undefined;
-  const pendingCopy = friendshipPendingCopy(target.gift.pendingDirection);
-
-  return (
-    <FloatingCard style={styles.card}>
-      <View style={{ gap: 8 }}>
-        {pendingCopy ? <Text style={styles.note}>{pendingCopy}</Text> : null}
-        <View style={styles.actions}>
-          <View style={styles.action}>
-            <BounceButton label={busy === 'send' ? '보내는 중…' : '우정 보내기'} disabled={sendDisabled} onPress={() => { void sendGift(); }} />
-          </View>
-          <View style={styles.action}>
-            <BounceButton label={busy === 'receive' ? '받는 중…' : '우정 받기'} variant="secondary" disabled={receiveDisabled} onPress={() => { void receiveGift(); }} />
-          </View>
+  return <FloatingCard style={styles.friendActionCard}>
+    <View style={styles.friendActionRow}>
+      <Pressable accessibilityRole="button" accessibilityLabel={rowAccessibilityLabel(row)} accessibilityHint="친구 여권 보기"
+        onPress={() => router.push({ pathname: '/friends/[friendshipId]', params: { friendshipId: row.friendshipId! } })}
+        style={({ pressed }) => [styles.friendProfile, pressed && styles.friendActionPressed]}>
+        <View style={styles.friendNameLine}>
+          <View accessible={false} style={styles.friendRankBadge}><Text style={styles.rankBadgeText}>{row.rank}</Text></View>
+          <Text numberOfLines={2} maxFontSizeMultiplier={1.6} style={styles.friendName}>{row.nickname}</Text>
         </View>
-        <View style={styles.actions}>
-          <View style={styles.action}>
-            <BounceButton label="쪽지" variant="secondary" onPress={() => router.push({ pathname: '/friends/[friendshipId]/message', params: { friendshipId: target.friendshipId } })} />
-          </View>
-          <View style={styles.action}>
-            <BounceButton label="같이 밥 먹기" variant="secondary" onPress={() => router.push({ pathname: '/friends/[friendshipId]/meal-invite', params: { friendshipId: target.friendshipId } })} />
-          </View>
-        </View>
-        {notice ? <Text accessibilityLiveRegion="polite" style={notice.includes('못') || notice.includes('만료') ? styles.errorMessage : styles.successMessage}>{notice}</Text> : null}
+        <TierDots medals={row.medals} />
+        <Text style={styles.rowMeta}>배지 {row.badges.earned}/{row.badges.total}</Text>
+      </Pressable>
+      <View style={styles.friendActionGrid}>
+        <FriendIconButton name="heart" label={`${row.nickname} 님, ${heartLabel}`} disabled={heartDisabled} busy={busy}
+          color={heartColor === 'gold' ? '#D29A12' : heartColor === 'pink' ? '#DC5685' : '#8A8E97'}
+          onPress={() => { void activateHeart(); }} />
+        <FriendIconButton name="mail" label={`${row.nickname} 님에게 쪽지 보내기`}
+          onPress={() => router.push({ pathname: '/friends/[friendshipId]/message', params: { friendshipId: row.friendshipId! } })} />
+        <FriendIconButton name="spoon" label={`${row.nickname} 님과 같이 밥 먹기`}
+          onPress={() => router.push({ pathname: '/friends/[friendshipId]/meal-invite', params: { friendshipId: row.friendshipId! } })} />
+        <FriendIconButton name="home" label={`${row.nickname} 님의 마이룸과 방명록 방문`} disabled={roomBusy} busy={roomBusy}
+          onPress={() => { void openRoom(); }} />
       </View>
-    </FloatingCard>
-  );
+    </View>
+    {notice ? <Text accessibilityLiveRegion="polite" style={notice.tone === 'error' ? styles.errorMessage : styles.successMessage}>{notice.text}</Text> : null}
+  </FloatingCard>;
 }
 
-function friendshipPendingCopy(direction: SocialFriend['gift']['pendingDirection']): string | undefined {
-  switch (direction) {
-    case 'SENT':
-      return '친구가 아직 받지 않았어요.';
-    case 'RECEIVED':
-      return '받을 우정이 있어요.';
-    case null:
-      return undefined;
-  }
+function FriendIconButton({ name, label, color, disabled = false, busy = false, onPress }: {
+  name: 'heart' | 'mail' | 'spoon' | 'home'; label: string; color?: string; disabled?: boolean; busy?: boolean; onPress: () => void;
+}) {
+  const styles = useFriendsStyles();
+  const world = worldForScheme(useColorScheme());
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled, busy }}
+    disabled={disabled} onPress={onPress} style={({ pressed }) => [styles.friendIconButton, pressed && styles.friendActionPressed]}>
+    <FriendActionIcon name={name} color={color ?? world.cardInk} />
+  </Pressable>;
 }
 
 function RankingRowCard({ row, onPress }: { row: RankingRow; onPress?: () => void }) {

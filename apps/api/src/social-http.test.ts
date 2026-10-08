@@ -121,6 +121,17 @@ function socialFixture(calls: unknown[], overrides: Partial<SocialService> = {})
         receivedAt: '2026-10-05T00:00:01.000Z',
       };
     },
+    receiveAndReplyFriendshipGift: async (input) => {
+      calls.push({ method: 'receiveAndReplyFriendshipGift', input });
+      return {
+        received: { giftId: input.giftId, friendshipId: 'friendship-1', status: 'RECEIVED', direction: 'RECEIVED',
+          senderReward: 5, receiverReward: 5, rewardRemainingToday: 15, sendRemaining: 4, replayed: false,
+          createdAt: '2026-10-05T00:00:00.000Z', receivedAt: '2026-10-05T00:00:01.000Z' },
+        reply: { giftId: 'reply-1', friendshipId: 'friendship-1', status: 'PENDING', direction: 'SENT',
+          senderReward: 5, receiverReward: 0, rewardRemainingToday: 15, sendRemaining: 4, replayed: false,
+          createdAt: '2026-10-05T00:00:01.000Z', receivedAt: null },
+      };
+    },
     listMail: async (input) => {
       calls.push({ method: 'listMail', input });
       return mailList;
@@ -224,6 +235,35 @@ test('social HTTP requires account auth and current consent before service acces
   assert.equal(ok.headers.get('cache-control'), 'no-store');
   assert.deepEqual(consentCalls, ['stale', 'current']);
   assert.deepEqual(calls, [{ method: 'getSocial', accountId: 'current' }]);
+});
+
+test('gold heart HTTP authenticates, validates only requestId, and invokes the atomic receive-and-reply once', async (t) => {
+  const { baseUrl, calls } = await fixture(t, { consentRequired: new Set(['stale']) });
+  const path = '/me/friendship-gifts/gift%2Fencoded/receive-and-reply';
+  assert.equal((await request(baseUrl, 'POST', path, { body: json({ requestId: 'heart-1' }) })).status, 401);
+  assert.equal((await request(baseUrl, 'POST', path, { accountId: 'stale', body: json({ requestId: 'heart-1' }) })).status, 403);
+  for (const body of [{}, { requestId: 7 }, { requestId: ' ' }, { requestId: 'heart-1', accountId: 'mallory' }]) {
+    const invalid = await request(baseUrl, 'POST', path, { accountId: 'alice', body: json(body) });
+    assert.equal(invalid.status, 400);
+    assert.deepEqual(invalid.body, { code: 'INVALID_REQUEST' });
+  }
+  assert.deepEqual(calls, []);
+  const response = await request(baseUrl, 'POST', path, { accountId: 'alice', body: json({ requestId: 'heart-1' }) });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  const body = response.body as { received: { receiverReward: number }; reply: { senderReward: number } };
+  assert.equal(body.received.receiverReward + body.reply.senderReward, 10);
+  assert.deepEqual(calls, [{ method: 'receiveAndReplyFriendshipGift', input: {
+    accountId: 'alice', giftId: 'gift/encoded', requestId: 'heart-1',
+  } }]);
+
+  const legacy = await request(baseUrl, 'POST', '/me/gifts/legacy-gift/receive', {
+    accountId: 'alice', body: json({ requestId: 'legacy-receive' }),
+  });
+  assert.equal(legacy.status, 200);
+  assert.deepEqual(calls[1], { method: 'receiveFriendshipGift', input: {
+    accountId: 'alice', giftId: 'legacy-gift', requestId: 'legacy-receive',
+  } });
 });
 
 test('social HTTP rejects unknown routes and malformed JSON without entering social service', async (t) => {

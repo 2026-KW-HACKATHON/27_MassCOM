@@ -126,3 +126,79 @@ test('social client maps server errors without leaking raw response details', as
 
   await assert.rejects(client.getSocial(), (error) => error instanceof SocialApiError && error.code === 'SOCIAL_FORBIDDEN');
 });
+
+const receivedGift = {
+  giftId: '22222222-2222-4222-8222-222222222222',
+  friendshipId: '11111111-1111-4111-8111-111111111111',
+  status: 'RECEIVED', direction: 'RECEIVED', senderReward: 5, receiverReward: 5,
+  rewardRemainingToday: 15, sendRemaining: 3, replayed: false,
+  createdAt: '2026-10-09T01:00:00.000Z', receivedAt: '2026-10-09T02:00:00.000Z',
+};
+const replyGift = {
+  ...receivedGift, giftId: '33333333-3333-4333-8333-333333333333',
+  status: 'PENDING', direction: 'SENT', receiverReward: 0, receivedAt: null,
+};
+
+test('금색 하트는 인증과 재시도 키를 담은 원자 받기/답장 요청 한 개를 보낸다', async () => {
+  const calls: { url: string; method?: string; accountId: string | null; body: unknown }[] = [];
+  const client = createSocialApiClient({
+    apiUrl: 'https://api.example.test/', credential,
+    fetcher: async (input, init) => {
+      calls.push({ url: String(input), method: init?.method, accountId: new Headers(init?.headers).get('x-account-id'), body: JSON.parse(String(init?.body)) });
+      return Response.json({ received: receivedGift, reply: replyGift });
+    },
+  });
+  const result = await client.receiveAndReplyFriendshipGift({ giftId: receivedGift.giftId, requestId: 'atomic-retry-key' });
+  assert.equal(result.received.receiverReward + result.reply!.senderReward, 10);
+  assert.deepEqual(calls, [{
+    url: `https://api.example.test/me/friendship-gifts/${receivedGift.giftId}/receive-and-reply`,
+    method: 'POST', accountId: 'account-a', body: { requestId: 'atomic-retry-key' },
+  }]);
+});
+
+test('답장 보내기 한도를 소진하면 null 답장과 받기 보상을 파싱한다', async () => {
+  const client = createSocialApiClient({
+    apiUrl: 'https://api.example.test', credential,
+    fetcher: async () => Response.json({ received: { ...receivedGift, sendRemaining: 0 }, reply: null }),
+  });
+  const result = await client.receiveAndReplyFriendshipGift({ giftId: receivedGift.giftId, requestId: 'receive-only' });
+  assert.equal(result.reply, null);
+  assert.equal(result.received.receiverReward, 5);
+});
+
+test('답장을 상대가 받은 뒤 재시도해도 수령 완료된 답장과 원래 보상을 복구한다', async () => {
+  const replyReceivedAt = '2026-10-09T02:01:00.000Z';
+  const client = createSocialApiClient({
+    apiUrl: 'https://api.example.test', credential,
+    fetcher: async () => Response.json({
+      received: { ...receivedGift, replayed: true },
+      reply: { ...replyGift, status: 'RECEIVED', receiverReward: 5, receivedAt: replyReceivedAt, replayed: true },
+    }),
+  });
+  const result = await client.receiveAndReplyFriendshipGift({ giftId: receivedGift.giftId, requestId: 'lost-response-retry' });
+  assert.equal(result.received.replayed, true);
+  assert.equal(result.reply?.replayed, true);
+  assert.equal(result.reply?.direction, 'SENT');
+  assert.equal(result.reply?.status, 'RECEIVED');
+  assert.equal(result.reply?.receivedAt, replyReceivedAt);
+  assert.equal(result.received.receiverReward + result.reply!.senderReward, 10);
+});
+
+test('받기/답장 응답은 누락·다른 친구·잘못된 방향을 거부한다', async () => {
+  for (const payload of [
+    { received: receivedGift },
+    { received: { ...receivedGift, direction: 'SENT' }, reply: replyGift },
+    { received: receivedGift, reply: { ...replyGift, direction: 'RECEIVED' } },
+    { received: receivedGift, reply: { ...replyGift, friendshipId: '44444444-4444-4444-8444-444444444444' } },
+    { received: receivedGift, reply: { ...replyGift, giftId: receivedGift.giftId } },
+    { received: { ...receivedGift, receivedAt: null }, reply: replyGift },
+    { received: receivedGift, reply: { ...replyGift, status: 'RECEIVED', receivedAt: receivedGift.receivedAt } },
+    { received: { ...receivedGift, replayed: true }, reply: { ...replyGift, status: 'RECEIVED', replayed: true } },
+    { received: { ...receivedGift, replayed: true }, reply: { ...replyGift, status: 'RECEIVED', receivedAt: receivedGift.receivedAt } },
+    { received: receivedGift, reply: { ...replyGift, replayed: true } },
+    { received: receivedGift, reply: { ...replyGift, receivedAt: receivedGift.receivedAt } },
+  ]) {
+    const client = createSocialApiClient({ apiUrl: 'https://api.example.test', credential, fetcher: async () => Response.json(payload) });
+    await assert.rejects(client.receiveAndReplyFriendshipGift({ giftId: receivedGift.giftId, requestId: 'invalid-response' }), /INVALID_RESPONSE/);
+  }
+});

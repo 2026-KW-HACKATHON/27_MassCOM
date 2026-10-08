@@ -8,6 +8,7 @@ import {
   SocialError,
   type CreateMealInvitationInput,
   type FriendshipGiftResult,
+  type FriendshipGiftReceiveAndReplyResult,
   type MailDetail,
   type MailList,
   type MailMutationResult,
@@ -46,6 +47,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 const tokenMaxLength = 512;
 const defaultLeaseMs = 30_000;
 const maxAttempts = 5;
+const giftReplyRequestPrefix = 'friendship-gift-reply:';
 
 type Queryable = Pool | PoolClient;
 type JsonObject = Record<string, unknown>;
@@ -247,6 +249,7 @@ export class PostgresSocialService implements SocialService {
     requestId: string;
   }): Promise<FriendshipGiftResult> {
     const requestId = parseRequestId(input.requestId);
+    if (requestId.startsWith(giftReplyRequestPrefix)) throw new SocialError('INVALID_REQUEST');
     if (!uuidPattern.test(input.friendshipId)) throw new SocialError('SOCIAL_FRIENDSHIP_NOT_FOUND');
     return this.transaction(async (client) => {
       const replay = async () => {
@@ -275,32 +278,14 @@ export class PostgresSocialService implements SocialService {
       );
       if (pending.rowCount !== null && pending.rowCount > 0) throw new SocialError('SOCIAL_GIFT_PENDING');
 
-      const today = kstBusinessDate(this.now());
+      const now = this.now();
+      const today = kstBusinessDate(now);
       if (await this.sendCount(client, input.accountId, today) >= friendshipGiftDailySendLimit) {
         throw new SocialError('SOCIAL_SEND_LIMIT_REACHED');
       }
-      const giftId = this.nextId();
-      const now = this.now();
-      const reward = computeReward(await this.friendshipRewardEarned(client, input.accountId, today));
-      await client.query<GiftRow>(
-        `INSERT INTO friendship_gifts (
-           id, friendship_id, sender_account_id, receiver_account_id, sender_request_id,
-           sent_business_date, status, sender_reward_amount, created_at
-         ) VALUES ($1, $2, $3, $4, $5, $6::date, 'PENDING', $7, $8)`,
-        [giftId, input.friendshipId, input.accountId, other, requestId, today, reward, now],
-      );
-      if (reward > 0) await this.insertCredit(client, input.accountId, reward, `friendship-gift-send:${giftId}`, today, now);
-      const mailId = await this.insertMail(client, {
-        sender: input.accountId,
-        receiver: other,
-        friendshipId: input.friendshipId,
-        type: 'FRIENDSHIP_GIFT',
-        title: '우정 선물이 도착했어요',
-        body: '친구가 우정을 보냈어요.',
-        payload: { giftId },
+      const row = await this.insertFriendshipGift(client, {
+        sender: input.accountId, receiver: other, friendshipId: input.friendshipId, requestId, now,
       });
-      await this.enqueueNotification(client, other, mailId, 'FRIENDSHIP_GIFT');
-      const row = (await client.query<GiftRow>('SELECT * FROM friendship_gifts WHERE id = $1', [giftId])).rows[0]!;
       return this.giftResult(client, row, input.accountId, false);
     });
   }
@@ -310,6 +295,22 @@ export class PostgresSocialService implements SocialService {
     giftId: string;
     requestId: string;
   }): Promise<FriendshipGiftResult> {
+    return (await this.receiveGift(input, false)).received;
+  }
+
+  async receiveAndReplyFriendshipGift(input: {
+    accountId: string;
+    giftId: string;
+    requestId: string;
+  }): Promise<FriendshipGiftReceiveAndReplyResult> {
+    return this.receiveGift(input, true);
+  }
+
+  private async receiveGift(input: {
+    accountId: string;
+    giftId: string;
+    requestId: string;
+  }, sendReply: boolean): Promise<FriendshipGiftReceiveAndReplyResult> {
     const requestId = parseRequestId(input.requestId);
     if (!uuidPattern.test(input.giftId)) throw new SocialError('SOCIAL_FORBIDDEN');
     return this.transaction(async (client) => {
@@ -319,12 +320,27 @@ export class PostgresSocialService implements SocialService {
       await this.requireFriendship(client, friendship.id, input.accountId);
 
       const fresh = await this.requireGiftForReceiver(client, input.giftId, input.accountId);
+      const replyRequestId = `${giftReplyRequestPrefix}${fresh.id}`;
       if (fresh.status === 'RECEIVED') {
-        if (fresh.receiver_request_id === requestId) return this.giftResult(client, fresh, input.accountId, true);
-        throw new SocialError('SOCIAL_REQUEST_CONFLICT');
+        if (fresh.receiver_request_id !== requestId) throw new SocialError('SOCIAL_REQUEST_CONFLICT');
+        // A completed receive also records that no reply was possible. Never create
+        // one on retry, even after midnight or after an older outbound gift is claimed.
+        const reply = sendReply ? (await client.query<GiftRow>(
+          'SELECT * FROM friendship_gifts WHERE sender_account_id = $1 AND sender_request_id = $2',
+          [input.accountId, replyRequestId],
+        )).rows[0] : undefined;
+        return {
+          received: await this.giftResult(client, fresh, input.accountId, true),
+          reply: reply ? await this.giftResult(client, reply, input.accountId, true) : null,
+        };
       }
-      const today = kstBusinessDate(this.now());
+      const conflictingRequest = await client.query(
+        'SELECT 1 FROM friendship_gifts WHERE receiver_account_id = $1 AND receiver_request_id = $2',
+        [input.accountId, requestId],
+      );
+      if (conflictingRequest.rowCount) throw new SocialError('SOCIAL_REQUEST_CONFLICT');
       const now = this.now();
+      const today = kstBusinessDate(now);
       const reward = computeReward(await this.friendshipRewardEarned(client, input.accountId, today));
       const updated = await client.query<GiftRow>(
         `UPDATE friendship_gifts
@@ -336,8 +352,56 @@ export class PostgresSocialService implements SocialService {
       const row = updated.rows[0];
       if (!row) throw new SocialError('SOCIAL_REQUEST_CONFLICT');
       if (reward > 0) await this.insertCredit(client, input.accountId, reward, `friendship-gift-receive:${input.giftId}`, today, now);
-      return this.giftResult(client, row, input.accountId, false);
+      let reply: GiftRow | undefined;
+      if (sendReply && await this.sendCount(client, input.accountId, today) < friendshipGiftDailySendLimit) {
+        const pending = await client.query(
+          `SELECT 1 FROM friendship_gifts
+           WHERE friendship_id = $1 AND sender_account_id = $2 AND receiver_account_id = $3 AND status = 'PENDING'`,
+          [row.friendship_id, input.accountId, row.sender_account_id],
+        );
+        if (!pending.rowCount) {
+          reply = await this.insertFriendshipGift(client, {
+            sender: input.accountId, receiver: row.sender_account_id, friendshipId: row.friendship_id,
+            requestId: replyRequestId, now,
+          });
+        }
+      }
+      return {
+        received: await this.giftResult(client, row, input.accountId, false),
+        reply: reply ? await this.giftResult(client, reply, input.accountId, false) : null,
+      };
     });
+  }
+
+  private async insertFriendshipGift(client: PoolClient, input: {
+    sender: string;
+    receiver: string;
+    friendshipId: string;
+    requestId: string;
+    now: Date;
+  }): Promise<GiftRow> {
+    const giftId = this.nextId();
+    const today = kstBusinessDate(input.now);
+    const reward = computeReward(await this.friendshipRewardEarned(client, input.sender, today));
+    const inserted = await client.query<GiftRow>(
+      `INSERT INTO friendship_gifts (
+         id, friendship_id, sender_account_id, receiver_account_id, sender_request_id,
+         sent_business_date, status, sender_reward_amount, created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6::date, 'PENDING', $7, $8) RETURNING *`,
+      [giftId, input.friendshipId, input.sender, input.receiver, input.requestId, today, reward, input.now],
+    );
+    if (reward > 0) await this.insertCredit(client, input.sender, reward, `friendship-gift-send:${giftId}`, today, input.now);
+    const mailId = await this.insertMail(client, {
+      sender: input.sender,
+      receiver: input.receiver,
+      friendshipId: input.friendshipId,
+      type: 'FRIENDSHIP_GIFT',
+      title: '우정 선물이 도착했어요',
+      body: '친구가 우정을 보냈어요.',
+      payload: { giftId },
+    });
+    await this.enqueueNotification(client, input.receiver, mailId, 'FRIENDSHIP_GIFT');
+    return inserted.rows[0]!;
   }
 
   async listMail(input: { accountId: string; cursor?: string }): Promise<MailList> {
