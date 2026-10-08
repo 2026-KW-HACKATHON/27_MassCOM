@@ -42,6 +42,13 @@
 - 등급 뽑기·이전 상자 결과·가게 코인권·코인 재뽑기에 전체 결과 후 도감 등록 확인을 연결했다. 새 수집품은 등장·도장, 중복/복구/같은 코인 반환은 보유 확인으로 구분한다. 코인 도감은 서버 보유가 있는 실제 칸을 강조하며 기존 장착·마이룸 행동을 보존한다.
 - 별도 검토에서 찾은 지연 응답, 잘못된 스크롤 위치, 새로고침 실패 후 등록 비활성 문제를 보완했다. 큰 글씨·움직임 감소·건너뛰기 및 StrictMode의 효과 재시작을 검사한다. 정확한 최종 결과와 검증 경계는 [TEST_STATUS](TEST_STATUS.md) 및 [획득 QA](REWARD_ALBUM_QA_2026-10-09.md)에 둔다.
 - 서버·확률·지급 수량·의존성 변경과 운영 배포는 없다. 연결된 Android 기기가 없어 실제 휴대전화의 진동·음향·TalkBack·기울기는 `NOT_RUN`이다. 로컬 번들 생성은 APK 설치 수용을 뜻하지 않는다.
+**2026-10-09 최신 첨부 보고서 두 개 문서 보관**
+
+- 브랜치: `docs/shared-pool-and-completion-reports-2026-10-09`, 기준 main 커밋 `8aa8b724ab460f84bf554daffb8d2dd070488b44`. 이 항목은 해당 문서 브랜치의 작업 기록이다.
+- 추가: [공유 풀 수정 보고서](PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.md), [완성 과제·수정 개선안](COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.md), 각 Word 원본은 `docs/source`에 보관.
+- PASS: 원본 일치·ZIP/XML·링크·크기·비밀값 검사. 앱 시험과 전체 gate는 NOT_RUN. 기존 앱 구현 상태를 변경하지 않는다.
+- PR #431은 닫힌 상태로 유지한다. 새 PR 생성·기존 PR 재개·main 병합은 수행하지 않는다.
+- 다음 작업: 사용자의 후속 요청이 있을 때 문서 검토와 통합을 진행한다.
 
 **2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 (미커밋)**
 
@@ -224,3 +231,9 @@ bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
 
 - 이전 날짜별 인수인계는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존한다. 오래된 33곳·A/B/C·설치본 증거는 당시 상태이며 새 배포 증거가 아니다.
 - 다음 중단 전 14절의 SHA·브랜치·PR·공개 버전·검증 결과·다음 명령을 실제 근거에 맞춰 갱신한다. TEST_STATUS 현재 측정 합계와 README·PROJECT_STATE 동일 합계 줄을 함께 고친다.
+- 이 세션은 파일만 수정하고 Git add·commit·stash·merge·rebase·push는 실행하지 않는다. 뒤에 커밋할 때는 한국어 의도 제목과 필요한 Lore trailer를 사용하며 AI 공동 작성자 서명은 넣지 않는다.
+- T8 데이터 갱신: selector는 현재 `data_date=2026-06-30`만 허용한다. 새 스냅샷 사용 전에는 날짜 guard·attribution·상세 날짜 고지를 함께 검토해 바꾸고, 검토한 전체 JSON에 `node scripts/build-showcase-wolgye-stores.mjs <full JSON>`을 실행한다. 선택 결과·빠지거나 추가되는 상호와 기존 ID의 변경 메타데이터를 확인해 seed를 갱신한다. 이 스크립트는 기존 seed를 자동으로 교체하지 않는다. ID 데이터가 충돌하면 덮어쓰지 않고 롤백한다. 공개·운영 DB를 직접 갱신하지 않는다.
+
+- 2026-09-22부터 2026-10-07까지의 날짜별 인수인계 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 그대로 보존한다. 과거 기록의 “현재”, “열린 PR”, “다음 명령”은 작성 당시의 상태다.
+- 다음 중단 전 이 14절의 기준 SHA·브랜치·PR·공개 버전·검증 상태·다음 명령만 실제 근거에 맞춰 갱신한다.
+

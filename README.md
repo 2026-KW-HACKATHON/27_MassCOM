@@ -73,6 +73,8 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 ## 증거 링크
 
 - 획득 경험: [보상 전체 결과 → 도감 등록 확인 → 도감·전시](docs/REWARD_ALBUM_QA_2026-10-09.md). 신규 수집품의 등장·도장과 기존 보유 결과를 구분하는 공통 고객 코드 변경이며, 공개 설치본 반영·실제 휴대전화 검증은 별도입니다.
+- [제품 경험·지역 가치·사업화 기반 보고서 — 공유 풀 수정본](docs/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.md) ([Word 원본](docs/source/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.docx))
+- [완성 과제와 수정·개선 제안](docs/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.md) ([Word 원본](docs/source/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.docx))
 
 - 시험·상태: [TEST_STATUS](docs/TEST_STATUS.md) · [PROJECT_STATE](docs/PROJECT_STATE.md) · [HANDOFF](docs/HANDOFF.md) · [평가 대응표](docs/EVALUATION_MAP.md)
 - 시연: [5분 시연·질의 대비](docs/DEMO_RUNBOOK.md) · [대체 시연 영상(웹 체험 4분 8초, 390×844, 이전 `/play/` 번들)](docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm) · [공개 체험 재측정](docs/evidence/submission-2026-10-08-recheck/README.md)
@@ -532,3 +534,4 @@ npm run test:postgres --prefix apps/api
 
 [current-test-status]: docs/TEST_STATUS.md
 [current-handoff-history]: docs/HANDOFF_HISTORY.md
+
