@@ -1,5 +1,21 @@
 # 테스트 상태
 
+## 2026-10-09 PR #424 검토 지적 수정 (D-095, 미배포)
+
+브랜치 `feat/remove-nft-series-cap`, 기준 HEAD `a2ce4ae5`(main `055d0523` 병합 완료). 소유자가 지정한 8개 검토 지적을 고쳤다. 기존 계약의 `SeriesSupplyExceeded`는 `SERIES_SUPPLY_EXCEEDED` 영구 오류로 분류해 재시도 없이 `MANUAL_REVIEW`로 보낸다. Foundry의 시리즈 간 발행 키 일회성 검증을 복구하고 존재·빈 URI·0 ID 오류를 추가했다. 수량 상한은 다시 넣지 않았다.
+
+| 검증 | 환경 | 결과 |
+| --- | --- | --- |
+| API `npm run typecheck`·`npm test` | macOS, 현재 worktree | PASS, 단위 615/615 |
+| Worker `npm test`·`npm run typecheck` | macOS, 현재 worktree | PASS, 단위 85/85(새 시험 3개), 대상 gateway·worker 41/41 |
+| 모바일 `npm run typecheck` | macOS, 현재 worktree | PASS |
+| `bash scripts/forge.sh test` | 저장소 wrapper | PASS, 10/10, 상한 없는 발행 fuzz 128회 |
+| 운영 제출 준비·운영 문서·bootstrap·CI 연결 | 지정 shell 검사 | PASS, bootstrap 36 ID 동기화, CI 시험 파일 93개 연결 |
+| `bash tools/gate.sh` | macOS Bash 3.2 | 기본 C.UTF-8에서 기존 `$checked` 뒤 한글의 변수 파싱 오류로 FAIL; `LC_ALL=C bash tools/gate.sh` PASS |
+| PostgreSQL·Anvil 통합, 운영·시연 배포·설치본 | 오케스트레이터 범위 | NOT_RUN |
+
+새 회귀를 고치기 전 대상 시험은 2개 실패했다(영구 오류 코드가 interface mismatch, gas estimate가 retryable RPC 오류). 수정 뒤 기존 단언을 유지한 채 통과했다. 롤백 SQL은 옛 `integer` 열을 `numeric(20,0)`으로 넓힌 뒤 NULL을 uint64 최댓값으로 채우고 NOT NULL을 복구한다. 실제 DB 실행은 이 세션에서 하지 않았다.
+
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
 기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`. 점주가 캠페인 목적(처음 확인되는 방문·다시 방문·한산한 시간대)을 고르게 하는 migration `0068_campaign_purposes.sql`, 시간대 판정 순수 규칙, 방문 확정 경로(`claim-slot-service.ts`, 민감 경로)의 시간대 상태 필드 추가, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 점주 화면의 "첫 방문/재방문" 표기 정정을 담았다([D-092](DECISIONS.md)). 방문 삽입·진행 계산·`grantReachedGoals`·잠금·취소는 바꾸지 않았다. 배포·게시는 하지 않았다(소유자 결정 A).

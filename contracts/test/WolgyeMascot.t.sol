@@ -14,6 +14,7 @@ import { WolgyeMascot } from "../src/WolgyeMascot.sol";
 
 contract WolgyeMascotTest is Test {
     bytes32 internal constant SERIES = keccak256("merchant-a:campaign-a:goal-1");
+    bytes32 internal constant SECOND_SERIES = keccak256("merchant-b:campaign-b:goal-1");
     bytes32 internal constant REWARD_KEY = keccak256("test-reward-key-1");
 
     address internal admin = makeAddr("admin");
@@ -76,8 +77,13 @@ contract WolgyeMascotTest is Test {
     }
 
     function testC02RewardKeyIsPermanent() public {
+        vm.startPrank(admin);
+        mascot.createSeries(SECOND_SERIES, "ipfs://bafy-demo/series-2/");
+        mascot.activateSeries(SECOND_SERIES);
+        vm.stopPrank();
+
         vm.prank(minter);
-        uint256 tokenId = mascot.mintWithRewardKey(recipient, SERIES, REWARD_KEY);
+        uint256 tokenId = mascot.mintWithRewardKey(recipient, SECOND_SERIES, REWARD_KEY);
         assertEq(tokenId, 1);
         assertEq(mascot.tokenByRewardKey(REWARD_KEY), tokenId);
 
@@ -159,6 +165,21 @@ contract WolgyeMascotTest is Test {
             abi.encodeWithSelector(WolgyeMascot.SeriesAlreadyActive.selector, draftSeries)
         );
         mascot.activateSeries(draftSeries);
+        vm.stopPrank();
+    }
+
+    function testC04CannotActivateUnknownSeries() public {
+        vm.prank(admin);
+        vm.expectRevert(abi.encodeWithSelector(WolgyeMascot.SeriesNotFound.selector, SECOND_SERIES));
+        mascot.activateSeries(SECOND_SERIES);
+    }
+
+    function testC04CannotCreateSeriesWithoutIdOrBaseURI() public {
+        vm.startPrank(admin);
+        vm.expectRevert(WolgyeMascot.EmptyBaseTokenURI.selector);
+        mascot.createSeries(SECOND_SERIES, "");
+        vm.expectRevert(WolgyeMascot.ZeroSeriesId.selector);
+        mascot.createSeries(bytes32(0), "ipfs://bafy-demo/series-2/");
         vm.stopPrank();
     }
 

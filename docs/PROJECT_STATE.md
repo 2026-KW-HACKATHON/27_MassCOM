@@ -4,6 +4,8 @@
 
 README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 
+NFT 시리즈 발행 상한 해제는 [D-095](DECISIONS.md)·[PR #424](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/424)의 미배포 변경이다. 기존 Base Sepolia 상한 1 시리즈는 실증 전용이며 운영 발행에는 쓰지 않는다. 기존 계약에 운영용 새 시리즈를 만들 때는 `createSeries(bytes32,string,uint64)`의 세 번째 인자에 `18446744073709551615`를 넣고, 새 계약에서는 `createSeries(bytes32,string)`을 쓴다. DB migration 0075의 NULL 상한 행은 새 API가 모든 인스턴스에 배포된 뒤에만 넣는다.
+
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
 기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`의 작업이다. 점주가 캠페인으로 풀 문제를 세 목적(MassCOM에서 처음 확인되는 방문 늘리기·다시 방문하게 하기·한산한 시간대 채우기) 중 하나로 고르게 하고, 시간대 조건을 서버가 판정하게 했다. 결정은 [D-092](DECISIONS.md)다.
@@ -568,7 +570,7 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 | 수준 | 해당 항목 |
 | --- | --- |
 | 로컬 검증 완료 | 탐색·발급·수령·도감·추천, 지갑 주소 확인(SIWE), 발행 요청·Outbox·Worker·계약(Local Anvil), 계정 삭제, 백업·복원 drill, upload-key 운영 AAB 서명·W08·source marker·16KB 정적 검사 |
-| 시험망 검증 완료 | Base Sepolia 계약 배포, admin/minter/pauser role, cap 1 series, Worker service minter 발행 1건, receipt/event/owner/locked/metadata, 재실행 무작업 PASS |
+| 시험망 검증 완료 | Base Sepolia 계약 배포, admin/minter/pauser role, cap 1 실증 전용 series(운영 발행 금지), Worker service minter 발행 1건, receipt/event/owner/locked/metadata, 재실행 무작업 PASS |
 | 운영 실기 미검증 | 외부 HTTPS·첫 Google 로그인·private GitHub APK·4KB/16KB·App Links는 PASS. D02, fresh reauthentication, O01, Play는 `NOT_RUN` |
 | 사용자 승인·입력 대기 | Foundry keystore 숨김 비밀번호, W04·W05용 지갑 환경(B-010·B-011), Play App Signing 인증서 client. 호스팅·도메인·OAuth·faucet·upload AAB는 해소 |
 

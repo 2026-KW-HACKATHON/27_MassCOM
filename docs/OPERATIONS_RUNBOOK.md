@@ -53,6 +53,18 @@
 
 적용 후 예상 원장 수는 **43 + 27 = 70건**이다(최대 번호 0075과 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 70건·마지막 `0075_nft_series_uncapped.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다. 2026-10-08에 배포한 운영·시연 DB는 0067까지 68건이며, 0075(NFT 시리즈 발행 수량 상한 해제, D-095)은 아직 적용 전이다.
 
+**NFT 시리즈 0075 호환·전환(D-095):** 새 API는 `max_ever_minted`를 읽지 않아 옛 스키마에서도 동작한다. 0075는 옛 API를 위해 열을 남기고 NOT NULL만 푼다. 옛 API는 NULL 상한 행을 `CAPACITY_UNAVAILABLE`로 거절하므로 **새 API를 모든 인스턴스에 배포한 뒤에만 NULL 상한 시리즈를 삽입**한다. 옛 API로 롤백해야 한다면 원래 `integer`인 열을 `numeric(20,0)`으로 넓히고 모든 NULL 행의 `max_ever_minted`를 uint64 최댓값 `18446744073709551615`로 채운 뒤 `SET NOT NULL`을 적용한다. Base Sepolia에 배포된 기존 계약에서는 새 시리즈를 `createSeries(bytes32 seriesId, string baseTokenURI, uint64 maxEverMinted)`로 만들고 세 번째 인자에 `18446744073709551615`를 넣는다. 기존 상한 1 실증 시리즈에는 운영 발행을 보내지 않는다. 새 계약에서는 2인자 `createSeries(bytes32 seriesId, string baseTokenURI)`를 쓴다. 두 계약의 `series(bytes32)` getter 반환값도 각각 `(string,uint64,uint64,bool)`과 `(string,uint64,bool)`로 다르다. 배포·발행 전 계약 주소와 시리즈 ID가 가리키는 버전을 확인한다.
+
+옛 API 롤백이 필요한 경우 쓰기를 멈추고 DB 백업을 확인한 뒤 다음 순서로 적용한다(`integer` 열에는 uint64 최댓값을 바로 저장할 수 없다).
+
+```sql
+BEGIN;
+ALTER TABLE nft_series ALTER COLUMN max_ever_minted TYPE numeric(20,0);
+UPDATE nft_series SET max_ever_minted = 18446744073709551615 WHERE max_ever_minted IS NULL;
+ALTER TABLE nft_series ALTER COLUMN max_ever_minted SET NOT NULL;
+COMMIT;
+```
+
 ### 개인정보 재동의·설치본 관문
 
 새 API의 `privacy-2026-10-07`은 구 test.10/Preview 19의 개인정보04 문구와 다르다. `apps/mobile/src/privacy/consent-flow.ts`가 `outdated`로 동의를 막으므로 **API만 먼저 공개하면 기존 설치본이 잠긴다**. 옛 APK 재설치로 해결되지 않는다. 최신 약관·공개 개인정보 안내, API, 같은 소스의 `/play/` 웹 번들, 새 APK와 `/open`을 하나의 유지보수 창에서 전환한다. APK 서명·package·API origin·내장 동의 버전·SHA-256과 실제 다운로드 파일을 대조하고 기존 서명 키를 만들거나 덮어쓰지 않는다.
@@ -125,6 +137,7 @@ DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-re
 | --- | --- | --- |
 | RPC chain/contract 불일치 | Worker `PAUSED/MANUAL_REVIEW`, 전송 금지. code는 있지만 인터페이스가 다른 계약은 `CONTRACT_INTERFACE_MISMATCH` | chain ID·contract code·MINTER role·계약 주소 재검증 |
 | RPC 연결 불가 | 조치 불필요. Worker가 `RPC_UNAVAILABLE`로 물러나 작업은 `RETRYABLE`, 전송 시도 소모 없음 | `SELECT status, last_error_code, attempt_count FROM mint_jobs WHERE status = 'RETRYABLE'`로 확인, RPC 복구 뒤 다음 실행에서 자동 재개 |
+| 옛 계약 시리즈 상한 도달 | `SeriesSupplyExceeded`는 `SERIES_SUPPLY_EXCEEDED`로 분류해 재시도 없이 즉시 `MANUAL_REVIEW`. 권리는 `MINT_REQUESTED`에 남는다 | 계약 주소·시리즈 키와 온체인 상한을 확인한다. 기존 상한 1 실증 시리즈에는 운영 발행을 보내지 않고, 새 시리즈의 안전한 연결·기존 reward key를 대조한 뒤 운영자가 후속 처리한다 |
 | 서비스 민터 설정 오류 | `MINTER_KEYSTORE_DECRYPT_FAILED`·`MINTER_ADDRESS_MISMATCH`·`MINTER_ROLE_MISSING`으로 기동·발행 중지. signed transaction의 recovered sender 불일치는 `MINTER_SIGNER_MISMATCH`로 기록 전 차단 | keystore 파일과 전체 상위 경로의 소유자·권한, 비밀번호 파일, 민터 주소, 계약 역할을 확인. 비밀번호나 키를 로그·티켓에 붙이지 않음 |
 | 상시 Worker 컨테이너(`mint-worker`)가 unhealthy이거나 접수가 쌓임 | `docker compose … --profile nft-live ps mint-worker`가 unhealthy, 하트비트(`/tmp/mint-worker.heartbeat`)가 3분 넘게 갱신되지 않음, 로그에 `MINT_WORKER_ITERATION_FAILED`(오류 이름·코드와 `retryInMs`)가 반복됨. **하트비트·healthy는 루프가 살아 있다는 뜻이지 발행이 성공한다는 뜻이 아니다.** 작업 단위 실패(RPC 중단, `MINT_PAUSED`, `MINTER_BALANCE_LOW`)는 작업을 재시도 대기로 돌리고 반복은 정상으로 끝나므로, 아무것도 발행되지 않는 동안에도 healthy일 수 있다. 실제 신호는 대기열이다: `SELECT count(*), min(available_at) FROM outbox_events WHERE status IN ('PENDING', 'LEASED')`가 줄지 않고 `min(available_at)`이 계속 과거로 벌어지면 막힌 것이다(로그의 `MINT_WORKER_JOB_HANDLED`도 처리했거나 재시도 대기로 돌렸다는 뜻일 뿐이다) | 오류 코드에 맞는 이 표의 다른 행을 따른다(DB·RPC 장애는 복구되면 컨테이너가 알아서 재시도하므로 재시작이 필요 없다). `MINT_WORKER_LOOP_FAILED`는 설정·keystore 오류(`MINTER_KEYSTORE_*`, 환경변수 누락)로 컨테이너가 종료 코드 1로 멈춘 것이고, `MINT_WORKER_CRASHED`는 잡히지 않은 예외로 종료한 것이다. **compose가 `restart: unless-stopped`라서 설정 오류는 Docker 백오프로 계속 다시 떠 크래시 루프가 된다.** 원인을 고치기 전에 멈추려면 `docker compose … --profile nft-live stop mint-worker`를 쓴다(최대 60초, 처리 중인 한 건을 끝내려 시도하며 못 끝내면 임대 만료로 복구). 원인을 고친 뒤 다시 켠다. 켜는 절차와 조건은 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker" |
 | 같은 민터의 발행이 모두 멈춤 | 여러 작업의 `last_error_code`가 `MINTER_NONCE_BLOCKED`로 이어짐. Worker 오류 로그에 막고 있는 거래 hash가 남음 | 그 hash를 explorer에서 확인. 채굴됐으면 다음 주기에 풀림. 수수료 부족 등으로 영영 전송될 수 없으면 그 작업이 `RECEIPT_TIMEOUT`으로 닫힐 때까지 기다리거나 운영자가 해당 작업을 검토 상태로 닫는다. 새 nonce로 덮어쓰는 거래를 수동으로 보내지 않는다 |
