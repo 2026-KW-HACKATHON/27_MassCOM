@@ -1,5 +1,9 @@
 # AI 사용 기록
 
+## 2026-10-09 앱 시작 배경음 복구 (직접 요청, 미커밋)
+
+사용자의 직접 요청으로 Codex가 `fix/bgm-start`에서 공통 모바일·웹 BGM의 뽑기 초점 의존을 고치고 첫 렌더 뒤 지연 생성·웹 첫 입력·기존 intro→loop를 보존했다. 버전 고정 expo-audio 웹 autoplay 거절 패치와 회귀 시험·D-103·검증 합계·인수인계를 갱신했다. 별도 읽기 전용 explore/code-reviewer가 입력 경로와 최종 구현을 확인했다. 모바일 전체 2156/2156·대상 37/37·타입·린트·접근성·지갑 표면·CI 연결·운영 문서 PASS, `npm test`는 sandbox IPC BLOCKED다([TEST_STATUS](TEST_STATUS.md)). API 이전 측정값은 유지했으며 Git 쓰기 작업·배포·실제 브라우저/기기 청음은 수행하지 않았다.
+
 ## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (직접 요청, 미커밋)
 
 사용자의 직접 요청으로 Codex가 `feat/collectible-reeded-edge`에서 main `a1a3eef3`의 T3 혜택·T4 코스·T8 공공자료 시연 점포와 PR #429의 편집기·Flame 오라·옆면 변경을 함께 보존하도록 충돌 파일을 수정한다. 가게명이 표시되는 곳의 공공자료 시연 고지와 접근성 이름을 유지하고 문서 원장·합계 자리표시자·인수인계를 정리한다. 실행 결과는 [TEST_STATUS](TEST_STATUS.md)에 구분해 기록한다. Git add·commit·stash·merge·rebase·push와 운영 배포·실기 검수는 실행하지 않는다.

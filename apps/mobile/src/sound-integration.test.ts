@@ -1,10 +1,70 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
+import { transpileModule } from 'typescript';
 
 function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
 }
+
+test('web first-input loading uses pointer, keyboard and touch once and removes all listeners on cleanup', () => {
+  const sounds = source('./sound/ui-sounds.ts');
+  const gestureSource = sounds.slice(sounds.indexOf('function onFirstGesture'), sounds.indexOf('/** Call once'));
+  const listeners = new Map<string, () => void>();
+  const onFirstGesture = runInNewContext(`${transpileModule(gestureSource, {}).outputText}; onFirstGesture`, {
+    document: {
+      addEventListener(name: string, listener: () => void) { listeners.set(name, listener); },
+      removeEventListener(name: string) { listeners.delete(name); },
+    },
+  }) as (onGesture: () => void) => () => void;
+  for (const event of ['pointerdown', 'keydown', 'touchstart']) {
+    let inputs = 0;
+    const stop = onFirstGesture(() => { inputs += 1; });
+    assert.deepEqual([...listeners.keys()], ['pointerdown', 'keydown', 'touchstart']);
+    listeners.get(event)!();
+    assert.equal(inputs, 1);
+    assert.equal(listeners.size, 0);
+    stop();
+    assert.equal(inputs, 1);
+  }
+  const stop = onFirstGesture(() => assert.fail('unmounted input must not activate sound'));
+  stop();
+  assert.equal(listeners.size, 0);
+  assert.match(sounds, /onFirstGesture\(\(\) => controller\.loadUiPlayers\(\)\)/);
+});
+
+test('installed web audio catches autoplay rejection and the version-pinned patch preserves that fix', async () => {
+  const installed = source('../node_modules/expo-audio/build/AudioPlayer.web.js');
+  const body = installed.match(/\n    play\(\) \{([\s\S]*?)\n    \}/)?.[1];
+  assert.ok(body, 'exercise the installed player implementation');
+  const play = runInNewContext(`(function () {${body}})`, { isAudioActive: true }) as (this: unknown) => void;
+  let attempts = 0;
+  let sampling = 0;
+  const player = {
+    media: { play() { attempts += 1; return Promise.reject<void>(new Error('NotAllowedError')); } },
+    isPlaying: false,
+    startSampling() { sampling += 1; },
+    stopSampling() { sampling -= 1; },
+  };
+  assert.doesNotThrow(() => play.call(player));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(attempts, 1);
+  assert.equal(player.isPlaying, false, 'rejected playback is not reported as playing');
+  assert.equal(sampling, 0);
+  player.media.play = () => { attempts += 1; return Promise.resolve(); };
+  play.call(player);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(attempts, 2);
+  assert.equal(player.isPlaying, true, 'successful playback keeps the upstream behavior');
+  assert.equal(sampling, 1);
+  const { version } = JSON.parse(source('../node_modules/expo-audio/package.json')) as { version: string };
+  const patch = source(`../patches/expo-audio+${version}.patch`);
+  for (const file of ['src/AudioPlayer.web.ts', 'build/AudioPlayer.web.js']) {
+    assert.ok(patch.includes(`node_modules/expo-audio/${file}`));
+  }
+  assert.match(patch, /\+\s+void this\.media\.play\(\)\.catch\(\(\) => \{/);
+});
 
 test('owner greetings and UI sounds preserve the same foreground audio session policy', () => {
   for (const path of ['./sound/ui-sounds.ts', './screens/collection/collectible-detail.tsx']) {

@@ -1,8 +1,12 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, PR #429 브랜치 `feat/collectible-reeded-edge`에 PR #430 반영 main `a1a3eef3`를 병합한 기준): API 단위 672/672 · 모바일 2148/2148. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, `fix/bgm-start`, 기준 main `8aa8b724` 위 미커밋 변경): API 단위 672/672(이전 측정·이번 재실행 없음) · 모바일 2156/2156(이번 측정). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
-## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
+## 2026-10-09 앱 시작 배경음 복구 (소유자 직접 요청, D-103, 미커밋·미배포)
+
+`fix/bgm-start`는 main `8aa8b724`에서 시작했다. 공통 sound controller의 뽑기 첫 초점 의존을 없애 네이티브는 첫 렌더 뒤 지연 준비, 웹은 첫 입력과 자산 준비 뒤 app-wide loop를 재생한다. 기존 뽑기 intro→loop·음량·꺼짐·전경·설정 초기화·정리는 보존한다. expo-audio 웹 promise 거절은 버전 고정 패치로 처리한다. 모바일 전체 2156/2156·대상 37/37·타입·린트·접근성·지갑 표면·CI 연결·운영 문서 PASS, `npm test`는 sandbox IPC BLOCKED다. API 재실행·실제 브라우저/각 Android variant 청음·첫 화면 성능·배포는 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). Git 쓰기 작업은 실행하지 않았다.
+
+## 앞선 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 이력 (당시 미커밋·미배포)
 
 `feat/collectible-reeded-edge`의 HEAD `9a433fee`에서 main `a1a3eef3`를 병합 중이다. PR #429의 회전·움직임 분리·Flame 오라·reeded edge와 main의 T3 혜택·T4 코스·T8 공공자료 시연 점포를 보존한다. 공공자료 점포명이 보이는 상세 화면의 고지와 접근성 이름을 함께 유지한다. Git index는 의도대로 미병합 상태다. 모바일 typecheck·lint·동일 glob 대체 단위 2148/2148, 대상 32/32, 운영 제출 준비·CI 연결 103개 파일·접근성은 PASS다. `npm test`는 tsx IPC `EPERM`으로 BLOCKED이고 운영·시연 배포 및 실제 설치본 수용은 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). 위 전체 합계는 요청대로 자리표시자를 유지한다.
 

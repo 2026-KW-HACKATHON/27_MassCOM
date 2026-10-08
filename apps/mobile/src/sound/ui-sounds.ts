@@ -52,13 +52,13 @@ const backend: SoundBackend = {
   },
 };
 
-// 웹은 플레이어를 만드는 즉시 파일을 내려받으므로 일곱 UI 소리는 첫 사용자 동작에서 만든다. 네이티브는 시작 때 그대로 만든다.
+// 웹은 UI 소리와 BGM을 첫 입력 뒤에 만든다. 네이티브 BGM도 첫 렌더 뒤에 지연 생성한다.
 const controller = createUiSoundController({ backend, storage: AsyncStorage, deferUiPlayers: Platform.OS === 'web' });
 
-/** 웹: 첫 pointerdown·keydown(클릭보다 먼저 온다)에서 한 번만 `onGesture`를 부르고 리스너를 거둔다. */
+/** 웹: 첫 입력에서 한 번만 `onGesture`를 부르고 리스너를 거둔다. */
 function onFirstGesture(onGesture: () => void): () => void {
   if (typeof document === 'undefined') return () => undefined;
-  const events = ['pointerdown', 'keydown'] as const;
+  const events = ['pointerdown', 'keydown', 'touchstart'] as const;
   const stop = () => events.forEach((name) => document.removeEventListener(name, handle, true));
   function handle() { stop(); onGesture(); }
   events.forEach((name) => document.addEventListener(name, handle, true));
