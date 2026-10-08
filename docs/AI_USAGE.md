@@ -1,5 +1,12 @@
 # AI 사용 기록
 
+## 2026-10-09 사용자 제공 제품 분석서 보관
+
+- 사용자 요청으로 `downloadfile.docx`를 `docs/source/PRODUCT_EXPERIENCE_ANALYSIS_2026-10-09.docx`에 원본 바이트 그대로 보관하고 GitHub 열람용 Markdown을 추가했다. Pandoc으로 표·강조·출처 링크를 변환했으며 본문을 다시 작성하거나 새 구현·정책 승인으로 간주하지 않았다.
+- README에서 두 사본을 찾도록 링크를 추가하고 HANDOFF에 문서 추가 범위를 기록했다. 검증은 DOCX ZIP/XML 무결성, 원본 SHA-256·바이트 일치, 로컬 문서 링크, 추가 문서의 비밀값 및 파일 크기, 실제 PR 제목·본문의 한국어 규칙을 대상으로 한다.
+- 앱·API·DB·체인·운영 배포는 변경하지 않았다. 전체 앱 회귀 및 `tools/gate.sh`는 이 문서 업로드 환경에서 재실행하지 않았으며 PR의 CI 결과와 구분한다.
+
+
 ## 2026-10-09 PR #418 리뷰 지적 수정 (직접 요청, 미커밋)
 
 사용자의 이번 직접 요청으로 Codex가 `feat/merchant-dual-studio` 작업 트리에서 리뷰 지적 1~10의 코드·시험·문서를 수정했다. 기존 임시 모델 운용 정책에 대한 이번 작업 범위의 직접 요청을 근거로 실행했다. API·웹 편집기·불필요한 v1 자산/로컬 QA 경로·기존 모바일 시험의 결정적 시간 입력을 bounded native 서브에이전트로 나눴다. API·모바일·사이트 및 전용 scratch PostgreSQL 검증 결과는 [TEST_STATUS](TEST_STATUS.md)에 따로 기록한다. 실제 이미지 생성·과금·배포·운영 DB 접속·기기 검수는 수행하지 않았다. staging·commit·stash·rebase·push는 오케스트레이터 몫으로 남겼다.
@@ -429,3 +436,4 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 - Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
 - 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.
+

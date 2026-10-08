@@ -72,6 +72,8 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 ## 증거 링크
 
+- 제품 분석(사용자 제공, 작성 시점 기준): [제품 경험·지역 가치·사업화 분석서](docs/PRODUCT_EXPERIENCE_ANALYSIS_2026-10-09.md) · [Word 원본](docs/source/PRODUCT_EXPERIENCE_ANALYSIS_2026-10-09.docx)
+
 - 시험·상태: [TEST_STATUS](docs/TEST_STATUS.md) · [PROJECT_STATE](docs/PROJECT_STATE.md) · [HANDOFF](docs/HANDOFF.md) · [평가 대응표](docs/EVALUATION_MAP.md)
 - 시연: [5분 시연·질의 대비](docs/DEMO_RUNBOOK.md) · [대체 시연 영상(웹 체험 4분 8초, 390×844, 이전 `/play/` 번들)](docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm) · [공개 체험 재측정](docs/evidence/submission-2026-10-08-recheck/README.md)
 - 배포: 운영 API·웹은 main `687427c2`, 시연 API는 `2d483ed`, `/play/` 번들은 소스 `5ca98955`입니다(migration 68건). `687427c2` 재배포의 별도 증거 JSON은 아직 없습니다. 원장을 올린 [`09dfceb0` 운영 배포](docs/evidence/production-deployment-09dfceb-2026-10-08.json)와 [시연 배포](docs/evidence/showcase-deployment-2d483ed-2026-10-08.json)를 함께 봅니다.
@@ -518,3 +520,4 @@ npm run test:postgres --prefix apps/api
 [Issue #252](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/252)의 새 제작기는 점주 웹 `/merchant/`에서 사진 한 장으로 시작합니다. 원형·우표·톱니, 자르기·보정·스티커, 자유로운 등급과 홀로그램 등 재질, 동작·두께·인사말·음성·가게 이야기를 편집하고 초안을 저장할 수 있습니다. 게시할 때 기존 캠페인 목표에 외형을 직접 연결하며, 이후 받은 수집품에는 획득 당시 게시 버전을 보관합니다. 고객 웹·Android 도감에서 다시 열 수 있습니다.
 
 사진·음성은 외부 AI에 보내지 않습니다. 제작은 서버가 확인한 점포 권한, 보유품 상세는 보유자 권한으로 제한합니다. 운영 반영에는 사진 migration `0034`·`0035`와 웹·API 배포, `expo-audio`가 포함된 Android 새 빌드가 필요합니다. 점주는 게시한 수집품을 게시 중지하거나 삭제할 수 있고, 점주 계정을 삭제하면 그 계정이 만든 게시 수집품도 새 고객에게 더 나가지 않습니다. 사진 속 인물·목소리의 삭제 요구는 운영자 제거 절차([API 안내](apps/api/README.md#운영자-게시-미디어-제거-절차))로 이미 받은 고객의 도감에서도 지웁니다. 저장할 때 사진 EXIF와 MP3 태그를 서버가 지웁니다. 처리방침에 사진·목소리 처리 안내가 더해져 처리방침 버전을 `privacy-2026-10-01`로 올렸으므로 배포 뒤 모든 계정이 첫 로그인 동의를 다시 봅니다(약관 `terms-2026-09-30`은 그대로, [D-061](docs/DECISIONS.md)). 현재 PR의 로컬 구현·검증과 운영 배포·실기기 확인을 구분하며, [세부 명세와 제한](docs/COLLECTIBLE_CREATOR.md)·[시험 상태](docs/TEST_STATUS.md)를 참고하세요.
+
