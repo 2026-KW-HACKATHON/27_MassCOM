@@ -1,8 +1,17 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #418·#424·#426 반영 main `a8ed0dd1`를 병합한 기준): API 단위 670/670 · 모바일 2132/2132. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, T9 `feat/showcase-real-only`, 기준 `c0449f1b` 작업 트리): API 단위 671/671 · 모바일 2138/2138. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
+
+
+## 2026-10-09 T9 공공자료 점포 30곳만 사용하는 시연 (미커밋·미배포)
+
+`feat/showcase-real-only`, worktree `.worktrees/t9-real`, 기준 HEAD `c0449f1b`에서 소유자의 D-101 요청을 구현했다. 고객 점포는 월계 공공자료 30곳만 공개하고 기존 A/B/C는 `PAUSED`·비게시, 연결 캠페인은 `ENDED`·비공개로 전환한다. 삭제 없이 방문·코인·발급 쿠폰·코스 이력을 보존한다. 새 DB에는 은퇴 점포를 만들지 않는다. 재시드 가드와 충돌 검사는 유지한다.
+
+프리즘은 월계역 28m의 더까까주까월계역점 하나에만 1·3·5회 브론즈·실버·프리즘으로 연결한다. 나머지 29곳은 골드를 유지하고 기존 그림만 쓴다. 새 코스는 이 점포·갱스터떡볶이인덕대점·하다식당 세 곳이다. 기존 게시 코스는 종료한다. 점주 모드는 본인 임시 가게 또는 서버가 승인한 비공개 체험 점주 가게만 사용하고 공공자료 점포의 관리 권한은 서버가 거절한다. 직원·승인자 CLI와 요청 승인은 연습 가게만 대상으로 한다. 운영 배치·운영 데이터는 그대로다.
+
+API 단위 671/671·모바일 2138/2138·각 typecheck·모바일 lint PASS. 별도 disposable hosted PostgreSQL 3/3 PASS(기존 A/B/C 은퇴·소유 코인/쿠폰 보존 포함). 사이트 요청 명령은 645건 중 644 PASS·Chrome 시작 SIGABRT 1 환경 BLOCKED이며 socket으로 막힌 시험은 없다. CI·문서·접근성·지갑·전체 gate는 PASS다. 전체 PostgreSQL은 591건 중 588 PASS·0 FAIL·기존 hosted 3 SKIP이고, hosted 3건은 별도 disposable 컨테이너에서 3/3 PASS다. 명령·단언 변경·검증 제한은 [TEST_STATUS](TEST_STATUS.md) T9 항목에 있다. Git add·commit·stash·merge·rebase·push·배포·새 APK·실기 검증은 하지 않았다. 아래 T8 33곳과 통합 기록은 T9 이전 상태다.
 
 ## 2026-10-09 T3 혜택·T4 코스·T8 시연 점포 통합 (Issue #412, 배포하지 않음)
 

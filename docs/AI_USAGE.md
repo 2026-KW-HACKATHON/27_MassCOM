@@ -16,6 +16,10 @@
 - 사람 검토가 남은 항목: 팀 전원의 핵심 흐름·AI 사용·한계 설명 확인, 사람의 발표 리허설, 최신 APK 실기·TalkBack(`NOT_RUN`), 현장 자료(`NOT_RUN`), 이용약관·개인정보처리방침 법률 검토, 대회 최종 제출 승인입니다.
 
 
+## 2026-10-09 T9 공공자료 점포만 사용하는 시연 (사용자 직접 요청)
+
+사용자가 지정한 `feat/showcase-real-only`에서 Codex와 역할별 native 구현 에이전트가 은퇴 점포 숨김·이력 보존, 월계 공공자료 30곳·프리즘·실점포 코스, 비공개 점주 연습 권한과 고객 웹·앱 문구를 구현했다. 사용자 직접 요청 범위로 실행했으며 임시 Codex 중지 기록을 일반 정책 변경으로 해석하지 않았다. 회귀 단언을 새 대상으로 치환하고 PostgreSQL 재시드·권한·고객 비노출을 검증했다. 별도 읽기 전용 코드 검토에서 찾은 기존 티켓/배치 코인의 Home 노출은 showcase 표시만 걸러 저장 이력을 보존했다. 결과는 [TEST_STATUS](TEST_STATUS.md)에 기록한다. 새 이미지 생성·유료 AI 호출·운영 DB·배포·기기 검수·Git add·commit·stash·merge·rebase·push는 수행하지 않았다.
+
 ## 2026-10-09 PR #418 포함 main 병합 충돌 해결 (사용자 직접 요청)
 
 이번 사용자 요청으로 Codex와 파일별 native 서브에이전트가 `integ/t3b-t4-t8`에서 PR #418의 점주 제작기·네 등급·고정 뒷면과 T3 혜택·T4 코스·T8 시연 점포를 함께 보존하도록 충돌 파일을 수정하고 검증했다. 과거의 일반 Codex 일시 중지 기록은 이 직접 요청 범위를 금지하지 않는다. Git add·commit·stash·merge·rebase·push, 운영 배포·실기 검증은 수행하지 않았다. API typecheck와 모바일 typecheck·lint·대체 단위 2132/2132, 대상 26/26, 운영 제출 준비·CI 연결·접근성 결과와 `npm test`의 tsx IPC `EPERM` 제한은 [TEST_STATUS](TEST_STATUS.md)에 구분해 기록했다.

@@ -1,5 +1,69 @@
 # 테스트 상태
 
+
+## 2026-10-09 T9 시연 가상 점포 은퇴·공공자료 30곳 전환 (미커밋·미배포)
+
+환경: macOS, Node 실행, `feat/showcase-real-only`, worktree `.worktrees/t9-real`, 시작/현재 HEAD `c0449f1b`. 사용자 요청으로 Git add·commit·stash·merge·rebase·push는 실행하지 않았다. D-101의 시연 전용 은퇴/권한/프리즘/코스를 구현했으며 운영 DB·서버·실제 점포에는 적용하지 않았다. 제공된 `_test` DB URL은 출력하지 않고 migration을 먼저 실행했다. 아래 결과는 작업 트리의 실측이며 variant 설치·라이브 배포 근거가 아니다.
+
+| 검사 | 상태 | 실제 명령·근거 |
+| --- | --- | --- |
+| API 타입·단위 | PASS | `cd apps/api && npm run typecheck && npm test`, 671/671·0 fail/skip. 추가 `npm run build` PASS. `/private/tmp/t9-api-final.log` |
+| PostgreSQL migration | PASS | 제공된 `TEST_DATABASE_URL`을 `DATABASE_URL`로 넘겨 `node --import tsx src/postgres/migrate-command.ts`. URL은 출력하지 않음. `/private/tmp/t9-migrate.log` |
+| PostgreSQL 전체 | PASS | `cd apps/api && npm run test:postgres`, 최종591건 중588 PASS/0 FAIL/기존hosted3 SKIP, exit0(428,504ms). hosted3건은 별도컨테이너에서3/3 PASS. 첫실행의25건 A/B/C 대상 미치환·quota fixture1건을 고쳤고 media-redaction은 기존immutable원본까지3개보존으로 강화했다. `/private/tmp/t9-postgres-final.log`(첫실행 `/private/tmp/t9-postgres.log`) |
+| hosted seed 전용 | PASS | `bash tests/ops/run_showcase_host_postgres.sh`, disposable PostgreSQL 16.10-alpine 컨테이너 3개에서 3/3. 기존 A/B/C 재시드의 코인·방문·쿠폰·옛 코스 보존, 새30곳과 연습 가게 숨김·직원/실점포 권한 거절, 게시물30개·등급90개·수령 그림 확인 |
+| 모바일 | PASS | `cd apps/mobile && npm test && npm run typecheck && npm run lint`, 2138/2138·0 fail/skip·typecheck/lint exit0. npm 자체 실행 가능해 Node loader fallback 불필요. 이후 home은퇴표시 회귀를 더해 최종2138/2138·typecheck/lint PASS(`/private/tmp/t9-mobile-final.log`); owner-art28/28·map/art/owner22/22 PASS |
+| 사이트 전체 | 환경 BLOCKED 포함 | 요청 명령 `node --test tests/site/*.test.mjs tests/site/*_test.mjs`: 645건 중 644 PASS/1 FAIL/0 SKIP, exit1. 유일한 실패 `verify_showcase_theme_test.mjs`는 Chrome DevTools 이전 SIGABRT. socket/HTTP listen 거부로 막힌 시험은 없음. 시험을 skip/삭제하지 않았으며 색·대비 단언까지 도달하지 못함. 첫 실행의 portal 문구 실패2건은 기존 NFT 안내 문장을 보존해 해결. `/private/tmp/t9-site-final.log` |
+| 정적30곳·빌드 준비·가동 probe | PASS | `/preview` verifier30/30, `bash tests/release/verify_showcase_apk_test.sh`, `bash tests/ops/uptime_probe_test.sh`. 정확한30개 ID·중복·29/31개·은퇴/운영점포 혼입 거절을 fake fetch/curl로 확인. APK 생성·라이브 probe 없음 |
+| CI·문서·접근성·지갑 | PASS | `bash tests/ci/ci_wiring_test.sh`(101개 시험 연결), `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh`. 각각 `/private/tmp/t9-{ci,operations,accessibility,wallet}.log` |
+| 빠른 gate·최종 diff | PASS | `bash tools/gate.sh` exit0, 비밀·큰파일·충돌표식·bootstrap·운영문서·증거정합·현재릴리스 검사 PASS. `git diff --check` PASS. `/private/tmp/t9-gate-final.log` |
+| 독립 검토 | 지적 반영 | 별도 읽기 전용 code-reviewer: guest quota 집계, `/preview` orphan C, 설치 안내 A/B/C와 구 티켓/배치 코인의 Home 노출 수정. 최종 읽기 전용 재검토에서 남은 차단 지적 없음. 오래된 직원 멤버십은 회수하며 공식 Google 신원·세션·계정/시연 DB 검사 후 연습 가게로 재부여하는 운영 절차를 명시. LSP/AST 도구는 없으며 타입·실행·독립 소스 검토와 구분 |
+| 배포·실제입력 | NOT_RUN | 운영/시연 배포, 라이브 기존 DB, 새APK/서명/설치·두variant 실기·실제Google 직원/승인자·D-091 기기넘김·TalkBack·현장 영업/도보·AI과금·Play. Git write 금지 유지 |
+
+새 DB는 점포31(공개실점포30+숨은연습1)·캠페인31·목표93이며 로컬 STAFF는 연습 가게1곳뿐이다. hosted fresh는 직원0명이다. 기존 A/B/C가 있는 hosted fixture는 총34점포·30공개·옛방문/코인/쿠폰/게시본을 유지한다. 프리즘은 더까까주까월계역점(28m) 하나이고 새 코스는 그 점포·갱스터떡볶이인덕대점(54m)·하다식당(64m)이다. 기존 staff/approver가 은퇴 가게만 승인받았다면 권한을 공식 절차로 다시 부여해야 하며, 은퇴 권한을 자동으로 실점포에 옮기지 않는다. 연습 가게는 점포 탐색에 나오지 않지만 가상 배지 쿠폰의 발급 점포 이름으로는 표시된다. 실제 혜택·실제 점포 동의를 뜻하지 않는다.
+
+**기존 단언 변경 전체 목록.** 아래에 같은 fixture를 쓰는 assertion은 같은 행으로 묶었으며 원래 동작·경합·오류·접근성 검사는 유지했다. A/B/C 호스트 fixture는 은퇴 회귀에만 남긴다. 삭제·skip·예외 허용으로 시험을 통과시키지 않았다.
+
+| 파일(경로) | 기존 → 새 단언·검증 대상 |
+| --- | --- |
+| `apps/api/src/showcase/local-seed.postgres.integration.ts` | fresh 점포/공개/캠페인/목표/STAFF 33/33/33/99/3 → 31/30/31/93/1; seed 반환 A → 연습 가게; 3개 milestone 혜택 A/B/C → 연습 가게 3개와 가상 방문 고지; A 상세/발행시각 → 첫 실점포 상세·연습 상세 숨김; 로컬 방문 A → 첫 실점포; 지도/탐색33 →30; A-only 추가B/C → A 숨김·캠페인종료·진행수보존·총32; A/B/C 손상 → 연습/혜택 손상에 동일 rollback; 별도 A public campaign → 숨김/종료; concurrent 합계31/31/93/1; 삽입실패 CHECK 대상 → 연습 캠페인. 추가로 프리즘 정확히1·골드29와 새코스3곳, 연습 게시시각 변경 충돌 검증 |
+| `apps/api/src/showcase/host-seed.postgres.integration.ts` | fresh [33,33,99,0,3] → [31,31,93,0,3]; enrolled_count·직원grant·history FK·멤버십취소·충돌 대상 A → 연습 가게; A 및 실점포 직원grant 거절 추가; 공개30·연습비노출·새코스 실점포3곳·기존진행/방문/보상 보존 |
+| `apps/api/src/showcase/host-seed-existing.postgres.integration.ts` | A-only 확대B/C → 기존 A/B/C3곳+옛course+실제보유coin/쿠폰 fixture; 삽입실패 CHECK → 연습campaign; 성공 총34/목표96/게시본31; A/B/C PAUSED·비게시/ENDED·비공개·원progress 유지; 두번seed 후 방문/보상/획득coin/쿠폰 snapshot 불변·옛offer PAUSED+issued_count1·옛course ENDED+unlock 유지·새course 실점포3곳 |
+| `apps/api/src/showcase/store-collectibles.postgres.integration.ts` | publication33/grade99 →30/90; A/B/C 연결·그림 a/b/c → 실점포 연결 b/b/c; C prism → 첫실점포 prism; 3곳 방문·받은artwork·course 확인을 새ID에 그대로 적용 |
+| `apps/api/src/showcase/store-collectibles.test.ts` | A/B/C target/이름 → 월계 실점포; C5회prism → 더까까주까월계역점5회prism+art b; 인사말 고지 → 가상 방문/코인 명시. 1/3/5 연결·등급·motion·size·서버검증 유지 |
+| `apps/api/src/showcase/test-visit.postgres.integration.ts` | 모든 성공·거부·비시연/숨김/당일중복/일반직원 시험의 A대상 → 공공자료 실점포; 정상 직원발급 → 연습 가게. 기존 거래·권한·DB가드·결과 단언 유지 |
+| `apps/api/src/showcase/all-access.postgres.integration.ts` | A 기본방문/진행/계정별/가게별/취소/30일/시작시각/비시연일반규칙 → Wolgye #2골드; B 분리 → #3골드; 정상STAFF → 연습가게; 총campaign33→31, 기간확대/미축소/멱등 → 실제3campaign, ended거절 → 연습campaign; A/B골드/Cprism target → #2/#3골드+#1prism(그림 b/c/b); 독립호환fixture 세link만 해제하며 나머지27project/27publication/81grade/27link 보존; 방문5회의 마지막등급 → target.topGrade; 옛단일등급upgrade·C이전gold snapshot·작성자/변조/removed-media 거절·author publish 경합·FK잠금·CAS rollback·각identity조건을 새3ID로 유지; 전체seed/publish경합 → 연습가게ACTIVE·미게시 검증, 구metadata backfill 조건을 새코스/30곳 전환에서도 무교착으로 치환 |
+| `apps/api/src/showcase/access-requests.postgres.integration.ts` | 승인/거절/삭제/경합/OPS/멤버십 결과의 A → 비공개 연습가게; 다른점포 membership count는 연습만 제외; 실점포membership0 추가; mine practiceMerchantId=연습/trial=null 추가; 오래된 실점포OWNER가 context/transaction/collectible 관리권한을 얻지 못함 추가 |
+| `apps/api/src/showcase/guest-trials.postgres.integration.ts` | publiclist/recommend33→30+연습부재; clone source A→연습+목표동일; mine JSON practiceMerchantId:null; 친구stamp A→실점포 ID/이름(실점포testvisit+숨은본인trial 방문); quota trial-% 집계→showcase_guest_trials JOIN, 30/30/31과 quota/session/rollback 단언 그대로 |
+| `apps/api/src/showcase/all-access-wiring.test.ts` | showcase admin service가 `!showcaseDeployment`에서만 배선돼 local/hosted approver는 전체점포관리 불가, production 유지하는 source 단언 추가 |
+| `apps/api/src/server.test.ts` | access-state fixture/deepEqual에 practiceMerchantId:null 추가; 시연customer preview/coupon의 A이름은 새시연fixture 이름으로 치환, HTTP상태·token/body/auth 단언 유지 |
+| `apps/api/src/collectible-project.postgres.integration.ts` | 일반 owner/staff service fixture 이름 A/B → 체험점주가게/다른체험점주가게. ID·scope·role·공개/취소/스냅샷/원자성 단언은 유지 |
+| `apps/mobile/src/commerce/commerce-api.test.ts` | createTestVisit 요청URL/body/결과/error target A→첫실점포; access-state 결과에 practice:null/구server:null/새practiceID cases. token/headers/오류/timeout 단언 유지 |
+| `apps/mobile/src/friends/open-link.test.ts`, `friends/recommend.test.ts` | 추천/shared fixture ID·이름 A/B → 월계실점포, 공유고지→실제정보/가상방문. URI·이동scope·보안·fallback 단언 유지 |
+| `apps/mobile/src/gamification/badge-api.test.ts`, `gamification/badge-rules.test.ts` | fixture/expected merchantName A→실점포/연습가게 문맥별 치환. badge/coupon 상태·scope·중복·오류·기간 단언 유지 |
+| `apps/mobile/src/screens/collection/collection-stamps.test.ts` | A/B/C 이름/ID·글자glyph A/B/C→실점포/더까·갱스·하다, 미보유·보유·역순·회수·중복 단언 유지 |
+| `apps/mobile/src/screens/merchant-list/merchant-card-label.test.ts`, `screens/recommendations/recommendation-label.test.ts`, `screens/town-map/town-pins.test.ts`, `ui/styles.test.ts` | API/accessibility label의 가상점포 이름→세실점포 이름, 공개자료고지 있는 기존label 유지; source style/글자크기/상태별label 단언 보존 |
+| `apps/mobile/src/merchant-art/art-source.test.ts`, `wallet/wallet-metadata.test.ts` | 가상점포 copy→예시그림 또는 실제정보/가상방문·코인, production copy 단언 유지 |
+| `apps/mobile/src/merchant-art/owner-art-api.test.ts` | 성공관리요청 A→비공개 trial-showcase-practice URL. Bearer/header/result/요금한도/error/retry 단언 유지(성공실점포관리 mock을 만들지 않음) |
+| `apps/mobile/src/merchant/showcase-staff.test.ts` | owntrial 우선·서버practice만fallback·권한없는공개demo 후보없음 추가 |
+| `apps/mobile/src/screens/showcase-access-admin/copy.test.ts` | A STAFF 승인 확인창→체험점주가게 STAFF 확인창. 코드/접근성/자기승인/오류표시 단언 유지 |
+| `apps/mobile/src/screens/collection/showcase-collectible-art.test.ts` | A/B/C artID mapping→실점포첫3 b/b/c; 은퇴ID undefined 추가. 크기/미보유/알수없는ID 검사 유지 |
+| `apps/mobile/src/screens/town-map/anchors.test.ts` | 고정 A/B/C anchorID→실점포첫3; placement/그림지도 범위·안전fallback 단언 유지 |
+| `apps/mobile/src/screens/town-map/directions.test.ts` | 실제정보 demo address search 허용 추가, 비공개가상demo 길찾기거절·주소/URL/선택지원 단언 유지 |
+| `tests/site/verify_showcase_site_test.mjs` | 3가상card→30정확JSON ID/name/address/각고지card, global 실제정보/가상record banner·A/B/C부재·course다음두이름 추가; fake HTML 같은30곳과 고지로 치환; 쓰기/개인정보/경로탈출/메뉴/외부연결 거절 검사 유지; README 템플릿PNG크기/해시자산검사 유지 |
+| `tests/site/public-entry.test.mjs` | hero의 가상점포→공공자료30곳+가상방문/코인, 기존 NFT아님·진입버튼·44px 단언 유지 |
+| `tests/site/verify_showcase_theme_test.mjs` | tag/focus label의 가상점포→공공자료점포/월계가게, 실제색·대비threshold·focus 단언 그대로. Chrome 환경실패를 PASS로 치환하지 않음 |
+| `tests/ops/uptime_probe_test.sh` | 성공fake3A/B/C→JSON 기반30정확ID, 첫detail/preview URL→첫실점포; demo:false실패 fixture도30개 유지해 단독원인 확인; 30개에은퇴혼입·31개·duplicate 실패 추가. timeout/TLS/issue/retry/쓰기manual-only 모든 기존단언 유지 |
+| `tests/release/verify_showcase_apk_test.sh` | 실제build준비fetch block을 VM으로 실행, 정확30개성공·29/31개/은퇴ID/demo:false/중복 실패6cases 추가. 서명키·oauth·apiorigin·dirtyworktree·lock 기존안전검사 유지 |
+
+추가 단언: `all-access.postgres.integration.ts`의 미디어 제거는 기존2개(legacy/upgraded) →3개(original/legacy/upgraded) 게시본 모두 유지·redacted로 바뀐다. 실점포 seed가 이미 만든 immutable original snapshot도 지워지지 않아야 하므로 보존 검사를 강화했다.
+
+| 추가 파일 | 새 단언·검증 이유 |
+| --- | --- |
+| `apps/mobile/src/screens/home/index.test.ts` | ticket cards가 `visibleHomeMerchantItems(data?.coinShop?.tickets ?? [], packageId)`를 쓰고 room도 `displayStudioItems` 결과를 같은 helper로 걸러 전달하는 source 배선 단언 추가 |
+| `apps/mobile/src/screens/home/showcase-visibility.test.ts` | exact 은퇴3ID만 showcase Home에서 숨김; 실제Wolgye/비슷한이름ID 유지; production/development 배열 원본참조·내용불변; `displayStudioItems`의 구coin/수집품 history 조회는 그대로이며 Home 전달값만 필터링 |
+
+필수 36개 시험 ID 상태는 31 PASS / 2 BLOCKED / 3 NOT_RUN으로 유지한다. README·PROJECT_STATE의 “현재 자동 시험 합계” 줄은 같은 측정값으로 함께 갱신했다.
+
 ## 2026-10-09 PR #418 포함 main 병합 충돌 파일 검증 (Issue #412 통합, 미배포)
 
 환경: macOS 제한된 작업 트리 `.worktrees/integ`, 브랜치 `integ/t3b-t4-t8`, HEAD `ac285339`에서 main `a8ed0dd1` 병합 중. Git index는 미병합 상태이고 파일만 수정했다. 아래 결과는 이번 병합 파일에 대한 검증이며, README·PROJECT_STATE의 전체 API·모바일 합계 `__API__`·`__MOB__`를 확정하는 전체 통과 수치는 아니다.
