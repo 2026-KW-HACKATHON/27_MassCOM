@@ -4,23 +4,13 @@ import { practiceTokens } from './play-copy';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
 import { mascotArt } from '@/ui/mascot-art';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
-import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { EquippedClothingArt } from '@/shop/wardrobe';
 
-export type OwnedArt = { name: string; uri: string; merchantId?: string; merchantName?: string };
-
-export function ownedGameArt(collection: CollectionSnapshot | undefined): OwnedArt[] {
-  const result: OwnedArt[] = [];
-  const seen = new Set<string>();
-  for (const collectible of collection?.collectibles ?? []) {
-    const artwork = collectible.artwork;
-    if (!artwork || seen.has(artwork.publicationId)) continue;
-    seen.add(artwork.publicationId);
-    result.push({ name: artwork.name, uri: artwork.thumbnailDataUrl, merchantId: collectible.merchantId, merchantName: collectible.merchantName });
-    if (result.length === 6) break;
-  }
-  return result;
-}
+/** One visited store's coin. `held` lists every coin of that store the account owns, so its series' next slot can be derived. */
+export type OwnedArt = {
+  name: string; uri: string; merchantId?: string; merchantName?: string; entitlementId?: string;
+  held?: readonly { entitlementId: string; campaignId: string; targetVisitCount: 1 | 3 | 5 }[];
+};
 
 export function FoodToken({ value, size = 48 }: { value: number; size?: number }) {
   const index = value % 4;

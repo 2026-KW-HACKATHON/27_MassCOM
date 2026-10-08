@@ -14,9 +14,9 @@ import { BounceButton } from '@/ui/bounce-button';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { Companion, GameToken } from './play-art';
-import { gameCopy, gamePrompt, skillCopy, skillRewardArt, playEndLabel, rewardState, tokenName } from './play-copy';
+import { gameCopy, gamePrompt, nextCollectibleLabel, skillCopy, skillRewardArt, playEndLabel, rewardState, tokenName, virtualPlayNoticeFor } from './play-copy';
 import type { GameSessionProps } from './game-session';
-import { playContent, type PlayObject } from './play-content';
+import { coinEntryRoute, merchantDetailRoute, playContent, type PlayObject } from './play-content';
 import { initialRunElapsed, shouldRenderGameFrame } from './play-lifecycle';
 
 type State = ReturnType<typeof getQualityGameState>;
@@ -57,8 +57,19 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
   const [startingBest] = useState(previousBest);
   const state = getQualityGameState(run.kind, run.seed, actions, elapsed);
   const visual = content ?? playContent([], [], '');
-  const token = (value: number) => visual.tokens[value] ?? { name: `연습 그림 ${value + 1}`, source: 'practice' as const };
+  // The memory game shows visited stores' coins; the other games keep one store's menu and photos.
+  const tokens = run.kind === 'memory' ? visual.memoryTokens : visual.tokens;
+  const token = (value: number) => tokens[value] ?? { name: `연습 그림 ${value + 1}`, source: 'practice' as const };
   const tokenLabel = (value: number) => token(value).source === 'practice' ? tokenName([], value) : token(value).name;
+  const storeTokenLabel = (value: number) => token(value).merchantName ? `${token(value).merchantName} ${tokenLabel(value)}` : tokenLabel(value);
+  const storeCount = run.kind === 'memory' ? visual.memoryTokens.filter((item) => item.merchantId).length : 0;
+  const bandIcon = run.kind === 'memory' ? visual.memoryTokens[0]! : visual.package;
+  const bandTitle = run.kind === 'memory' ? (storeCount ? `방문한 가게 ${storeCount}곳의 코인` : '놀이 마당 · 연습 장면') : visual.merchantName ?? '놀이 마당 · 연습 장면';
+  const bandText = run.kind === 'memory' ? (storeCount ? '어느 가게의 코인인지 떠올리며 짝을 찾아요' : '가게 코인이 없어 연습용 그림으로 놀아요')
+    : visual.merchantName ? `${visual.package.name}와 가게 그림으로 ${run.kind === 'delivery' ? '운반' : '포장'} 놀이` : '가게 그림이 없어 연습용 그림으로 놀아요';
+  const playNotice = virtualPlayNoticeFor(run.kind);
+  // Orders and delivery (the pretend-play kinds) borrow one store's content, so their result links to that store once.
+  const storeRoute = merchantDetailRoute(visual);
   const now = () => elapsedForRun(started.current, run);
   const setPhase = (value: typeof phase.current) => { phase.current = value; setStatus(value); };
   function feedback(text: string, good: boolean) {
@@ -110,7 +121,7 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
     const first = revealed[0]!;
     const match = state.cards[first] === state.cards[index];
     setRevealed([first, index]); memoryLock.current = true; setMemoryLocked(true);
-    feedback(match ? `${visual.merchantName ?? '연습 도감'} · ${tokenLabel(state.cards[index]!)} 발견!` : '다른 그림이에요. 위치를 기억해요', match);
+    feedback(match ? `${token(state.cards[index]!).merchantName ?? '연습 도감'} · ${tokenLabel(state.cards[index]!)} 발견!` : '다른 그림이에요. 위치를 기억해요', match);
     hide.current = setTimeout(() => {
       setRevealed([]); memoryLock.current = false; setMemoryLocked(false);
       const final = getQualityGameState(run.kind, run.seed, next, Math.floor(now()));
@@ -157,9 +168,10 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
   const best = result?.version2BestScore ?? 0;
   return <View style={styles.session}>
     <View style={styles.header}><View style={{ flex: 1 }}><Text style={[styles.title, { color: palette.label }]}>{gameCopy[run.kind].title}</Text><Text style={{ color: palette.secondaryLabel }}>{count}/{total} {run.kind === 'stack' ? '층' : run.kind === 'memory' ? '쌍 발견' : run.kind === 'delivery' ? '구간' : '주문 전달'}</Text></View><Text style={[styles.clock, { color: palette.label }]}>{status === 'playing' ? `${Math.ceil((run.durationMs - elapsed) / 1000)}초` : status === 'saving' ? '저장 중' : status === 'error' ? '재전송' : '결과'}</Text></View>
+    {playNotice && status !== 'result' ? <Text style={[styles.virtualNotice, { color: palette.secondaryLabel }]}>{playNotice}</Text> : null}
     {status === 'playing' && !paused ? <BounceButton label="일시정지" variant="secondary" onPress={() => setPaused(true)} /> : null}
     <View accessibilityLabel={`${total}단계 중 ${count}단계 완료`} style={[styles.progressTrack, { backgroundColor: palette.separator }]}><View style={[styles.progressFill, { width: `${Math.min(100, count / total * 100)}%`, backgroundColor: gameCopy[run.kind].color }]} /></View>
-    <View style={[styles.context, { backgroundColor: palette.surface }]}><PlayToken item={visual.package} value={0} size={44} /><View style={{ flex: 1 }}><Text style={[styles.source, { color: palette.label }]}>{visual.merchantName ?? '놀이 마당 · 연습 장면'}</Text><Text style={{ color: palette.secondaryLabel }}>{visual.merchantName ? `${visual.package.name}와 가게 그림으로 ${run.kind === 'delivery' ? '운반' : run.kind === 'memory' ? '도감' : '포장'} 놀이` : '가게 그림이 없어 연습용 그림으로 놀아요'}</Text></View></View>
+    <View style={[styles.context, { backgroundColor: palette.surface }]}><PlayToken item={bandIcon} value={0} size={44} /><View style={{ flex: 1 }}><Text style={[styles.source, { color: palette.label }]}>{bandTitle}</Text><Text style={{ color: palette.secondaryLabel }}>{bandText}</Text></View></View>
     {paused && status === 'playing' ? <View style={[styles.pauseCard, { backgroundColor: palette.surface }]}>
       <Text accessibilityRole="header" style={[styles.title, { color: palette.label }]}>잠깐 쉬어갈까요?</Text>
       <Text style={[styles.summary, { color: palette.secondaryLabel }]}>나가면 이번 기록은 저장되지 않아요. 조작을 멈춰도 서버의 제한 시간은 계속 흘러요.</Text>
@@ -173,7 +185,10 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
       <Text style={[styles.title, { color: palette.label }]}>{result.completed ? run.kind === 'delivery' ? '꾸러미 도착!' : '완성했어요!' : state.failed ? '이번 도전은 여기까지' : '다음에 이어 도전해요'}</Text>
       <Text style={[styles.score, { color: palette.label }]}>{result.score}점</Text>
       <Text style={[styles.summary, { color: palette.secondaryLabel }]}>{endReason}</Text>
-      <FinalWork state={state} visual={visual} />
+      <FinalWork state={state} visual={visual} onOpenCoin={(item) => { const route = coinEntryRoute(item); if (route) router.push(route); }} />
+      {playNotice ? <Text style={[styles.virtualNotice, { color: palette.label }]}>{playNotice}</Text> : null}
+      {run.kind === 'orders' ? <UsedMenus tokens={visual.tokens} /> : null}
+      {playNotice && storeRoute ? <StoreLink name={visual.merchantName} onOpen={() => router.push(storeRoute)} /> : null}
       <Text style={{ color: palette.success }}>이번 도전 결과 저장 완료</Text>
       {(result.version2Plays ?? 0) > 0 ? <Text style={{ color: palette.secondaryLabel }}>완주 최고 {best}점 · {result.version2Plays}회 완주</Text> : <Text style={{ color: palette.secondaryLabel }}>아직 완주 최고 기록은 없어요</Text>}
       {result.completed && best > (startingBest ?? 0) ? <Text style={[styles.source, { color: palette.success }]}>새 최고 기록!</Text> : null}
@@ -194,7 +209,7 @@ export function QualityGameSession({ run, content, avatar, equipment, clothing, 
       {state.kind === 'stack' ? <BounceButton label="지금 상자 놓기" onPress={() => accept(0)} /> : null}
       {state.kind === 'memory' ? <ImageBackground source={background} style={styles.book} imageStyle={styles.backdrop}><Text style={styles.bookTitle}>방문 도감 · 발견한 그림은 남아요</Text><View style={styles.grid}>{state.cards.map((value, index) => {
         const matched = state.matchedIndices.includes(index); const shown = matched || revealed.includes(index);
-        return <Pressable key={index} accessibilityRole="button" accessibilityLabel={`${index + 1}번 카드, ${matched ? '발견 완료, ' : ''}${shown ? tokenLabel(value) : '닫힘'}`} disabled={shown || memoryLocked} accessibilityState={{ disabled: shown || memoryLocked }} onPress={() => flip(index)} style={[styles.card, matched && styles.found]}>{shown ? <PlayToken item={token(value)} value={value} size={Math.min(52, (width - 110) / 4)} /> : <View style={styles.cardSeal}><Text style={styles.sealText}>{index + 1}</Text></View>}{matched ? <Text style={styles.foundMark}>발견</Text> : null}</Pressable>;
+        return <Pressable key={index} accessibilityRole="button" accessibilityLabel={`${index + 1}번 카드, ${matched ? '발견 완료, ' : ''}${shown ? storeTokenLabel(value) : '닫힘'}`} disabled={shown || memoryLocked} accessibilityState={{ disabled: shown || memoryLocked }} onPress={() => flip(index)} style={[styles.card, matched && styles.found]}>{shown ? <PlayToken item={token(value)} value={value} size={Math.min(52, (width - 110) / 4)} /> : <View style={styles.cardSeal}><Text style={styles.sealText}>{index + 1}</Text></View>}{matched ? <Text style={styles.foundMark}>발견</Text> : null}</Pressable>;
       })}</View></ImageBackground> : null}
       {state.kind === 'delivery' && board.kind === 'delivery' ? <View style={{ gap: 10 }}><Text style={{ color: palette.label }}>출발 {visual.merchantName ?? '연습 작업대'} → {visual.destination.name}{visual.roadAddress ? ` · ${visual.roadAddress}` : ''}</Text><Text style={{ color: palette.secondaryLabel }}>상자 상태 {state.cargoHealth}/3 · 충돌 {state.collisions}회 · {state.arrived ? '도착' : '운반 중'}</Text><ImageBackground source={require('../../../assets/images/mascot/v2/town-map.png')} style={styles.road} imageStyle={styles.backdrop}>
         <View style={styles.destination}><PlayToken item={visual.destination} value={1} size={28} /><Text style={styles.destinationText}>{visual.destination.name} · 도착 지점</Text></View><View style={styles.lanes}>{[0, 1, 2].map((lane) => <View key={lane} style={styles.lane} />)}</View>
@@ -214,13 +229,54 @@ function PlayToken({ item, value, size }: { item: PlayObject; value: number; siz
   return <Text numberOfLines={2} style={{ width: size, fontSize: Math.max(9, size / 4), textAlign: 'center', color: '#47351F' }}>{item.name}</Text>;
 }
 
-function FinalWork({ state, visual }: { state: State; visual: NonNullable<GameSessionProps['content']> }) {
+function FinalWork({ state, visual, onOpenCoin }: { state: State; visual: NonNullable<GameSessionProps['content']>; onOpenCoin: (item: PlayObject) => void }) {
   if (state.kind === 'stack') return <ImageBackground source={background} style={[styles.stackScene, styles.finalWork]} imageStyle={styles.backdrop}>
     <View style={[styles.tower, { height: 200 }]}><View style={[styles.base, { left: '20%', width: '60%' }]} />{state.placed.map((layer, index) => <View key={index} style={[styles.package, { bottom: 20 + index * 28, left: `${layer.left}%`, width: `${layer.width}%` }]}><PlayToken item={visual.package} value={0} size={23} /></View>)}</View><Text style={styles.sceneCaption}>{state.placed.length ? `${visual.package.name} ${state.placed.length}층이 남은 포장 탑` : '아직 놓인 상자가 없어요'}</Text>
   </ImageBackground>;
-  if (state.kind === 'memory') return <ImageBackground source={background} style={[styles.book, styles.finalWork]} imageStyle={styles.backdrop}><Text style={styles.bookTitle}>복원한 방문 도감 · {state.correct}/6쌍</Text><View style={styles.grid}>{state.cards.map((value, index) => <View key={index} style={[styles.card, state.matchedIndices.includes(index) && styles.found]}>{state.matchedIndices.includes(index) ? <PlayToken item={visual.tokens[value]!} value={value} size={42} /> : <Text style={styles.sealText}>미발견</Text>}</View>)}</View></ImageBackground>;
+  if (state.kind === 'memory') {
+    const foundCoins = [...new Set(state.matchedIndices.map((index) => state.cards[index]!))].map((value) => visual.memoryTokens[value]!).filter((item) => item.merchantId);
+    return <ImageBackground source={background} style={[styles.book, styles.finalWork]} imageStyle={styles.backdrop}><Text style={styles.bookTitle}>복원한 방문 도감 · {state.correct}/6쌍</Text><View style={styles.grid}>{state.cards.map((value, index) => <View key={index} style={[styles.card, state.matchedIndices.includes(index) && styles.found]}>{state.matchedIndices.includes(index) ? <PlayToken item={visual.memoryTokens[value]!} value={value} size={42} /> : <Text style={styles.sealText}>미발견</Text>}</View>)}</View>
+      {foundCoins.map((item) => <FoundCoin key={item.merchantId} item={item} onOpen={onOpenCoin} />)}
+    </ImageBackground>;
+  }
   if (state.kind === 'delivery') return <ImageBackground source={require('../../../assets/images/mascot/v2/town-map.png')} style={[styles.finalWork, styles.deliveryResult]} imageStyle={styles.backdrop}><View style={styles.finalParcel}><PlayToken item={visual.package} value={0} size={72} /></View><Text style={styles.ticketTitle}>{state.arrived ? `${visual.destination.name}에 도착한 ${visual.package.name}` : `운반 중단 · ${state.tick}/12구간`}</Text><Text style={styles.ticketText}>상자 상태 {state.cargoHealth}/3 · 충돌 {state.collisions}회</Text></ImageBackground>;
   return <View style={[styles.tray, styles.finalWork]}><Text style={styles.ticketTitle}>전달한 주문 {state.orderIndex}/4</Text>{state.orders.slice(0, state.orderIndex).map((recipe, index) => <View key={index} style={styles.servedOrder}><Text style={styles.ticketText}>주문 {index + 1}</Text>{recipe.map((value, item) => <PlayToken key={item} item={visual.tokens[value]!} value={value} size={38} />)}</View>)}{!state.orderIndex ? <Text style={styles.ticketText}>아직 전달을 마친 주문이 없어요</Text> : null}{state.tray.length ? <><Text style={styles.ticketTitle}>작업대에 남은 물건</Text><View style={styles.recipe}>{state.tray.map((value, index) => <PlayToken key={index} item={visual.tokens[value]!} value={value} size={38} />)}</View></> : null}</View>;
+}
+
+/** A recovered coin with the store it came from; its next collectible is information only, never a visit button. */
+function FoundCoin({ item, onOpen }: { item: PlayObject; onOpen: (item: PlayObject) => void }) {
+  const next = item.nextSlot ? nextCollectibleLabel(item.nextSlot) : undefined;
+  const body = <>
+    <PlayToken item={item} value={0} size={42} />
+    <View style={{ flex: 1 }}>
+      <Text style={styles.ticketTitle}>{item.merchantName}</Text>
+      <Text style={[styles.ticketText, styles.coinMeta]}>{item.name}</Text>
+      {next ? <Text style={[styles.ticketText, styles.coinMeta]}>{next}</Text> : null}
+      {coinEntryRoute(item) ? <Text style={[styles.ticketText, styles.coinMeta, styles.coinLink]}>도감에서 보기</Text> : null}
+    </View>
+  </>;
+  return coinEntryRoute(item)
+    ? <Pressable accessibilityRole="button" accessibilityLabel={`${item.merchantName} ${item.name}${next ? `, ${next}` : ''}, 도감에서 보기`} onPress={() => onOpen(item)} style={styles.foundCoin}>{body}</Pressable>
+    : <View style={styles.foundCoin}>{body}</View>;
+}
+
+/** The menu names this order slip was built from; never a price. */
+function UsedMenus({ tokens }: { tokens: readonly PlayObject[] }) {
+  const palette = colorsForScheme(useColorScheme());
+  const menus = tokens.slice(0, 4).filter((item) => item.source === 'menu');
+  if (!menus.length) return null;
+  return <View style={styles.menuList}>
+    <Text accessibilityRole="header" style={[styles.source, { color: palette.label }]}>이번 주문표에 쓴 메뉴</Text>
+    {menus.map((item, index) => <Text key={index} style={[styles.menuName, { color: palette.label }]}>{item.name}</Text>)}
+  </View>;
+}
+
+/** One way from an orders or delivery result to the store's detail page, with or without menu items. */
+function StoreLink({ name, onOpen }: { name?: string; onOpen: () => void }) {
+  const palette = colorsForScheme(useColorScheme());
+  return <Pressable accessibilityRole="link" accessibilityLabel={`${name ? `${name} ` : ''}가게 상세에서 보기`} onPress={onOpen} style={styles.menuLink}>
+    <Text style={{ color: palette.primary, fontSize: 15, fontWeight: '700', textDecorationLine: 'underline' }}>가게 상세에서 보기</Text>
+  </Pressable>;
 }
 
 function Orders({ state, visual, onChoose }: { state: Extract<State, { kind: 'orders' }>; visual: NonNullable<GameSessionProps['content']>; onChoose: (choice: number) => unknown }) {
@@ -237,6 +293,9 @@ function Orders({ state, visual, onChoose }: { state: Extract<State, { kind: 'or
 }
 
 const styles = StyleSheet.create({
+  virtualNotice: { fontSize: 14, lineHeight: 20 }, coinMeta: { fontSize: 14, lineHeight: 20, textAlign: 'left' }, coinLink: { fontWeight: '700', textDecorationLine: 'underline' },
+  foundCoin: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, marginTop: 8, padding: 8, backgroundColor: '#FFF8DF', borderWidth: 1, borderColor: '#BA975C', borderRadius: 8 },
+  menuList: { alignSelf: 'stretch', gap: 4 }, menuName: { fontSize: 15 }, menuLink: { minHeight: 48, justifyContent: 'center' },
   pauseCard: { padding: 20, borderRadius: 16, gap: 14 },
   finalWork: { width: '100%' }, rewardArt: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 }, deliveryResult: { padding: 20, alignItems: 'center', borderRadius: 14, gap: 12, backgroundColor: '#E7DBBD' }, finalParcel: { padding: 10, backgroundColor: '#E8C384', borderWidth: 3, borderColor: '#A17A49', borderRadius: 8 }, servedOrder: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderColor: '#BA9765' },
   session: { gap: 12, paddingBottom: 24 }, header: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }, title: { fontSize: 24, fontWeight: '900', flexShrink: 1 }, clock: { fontSize: 21, fontWeight: '900' },

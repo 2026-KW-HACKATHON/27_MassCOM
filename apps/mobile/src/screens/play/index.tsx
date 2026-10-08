@@ -22,11 +22,11 @@ import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { BadgeArt, CosmeticArt } from '@/illustration/artwork';
 import { StateScene } from '@/ui/state-scene';
-import { Companion, GameToken, ownedGameArt, type OwnedArt } from './play-art';
-import { gameCopy, gamePrompt, playRecordLabel, skillCopy, skillRewardArt, themeNames } from './play-copy';
+import { Companion, GameToken, type OwnedArt } from './play-art';
+import { gameCopy, gamePrompt, playRecordLabel, skillCopy, skillRewardArt, themeNames, virtualPlayNoticeFor } from './play-copy';
 import { GameSession } from './game-session';
 import { QualityGameSession } from './quality-session';
-import { fetchPlayContent, playContent, PlayContentLoadError, startWithCurrentContent, type PlayContent } from './play-content';
+import { fetchPlayContent, ownedGameArt, playContent, PlayContentLoadError, startWithCurrentContent, type PlayContent } from './play-content';
 
 const roomGoals = [
   { theme: 'daylight', required: 0, image: require('../../../assets/images/play/room-daylight.png') },
@@ -201,6 +201,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
       </View>
       <View style={styles.prepCompanion}><Companion avatar={avatar} equipment={experience.snapshot?.profile} clothing={clothing} /><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>{avatar ? '선택한 동행과 함께' : avatarLoaded ? '동행은 상점에서 고를 수 있어요' : '동행 정보를 확인하지 못했어요'}{record ? ` · ${playRecordLabel(record)}` : ''}</Text></View>
       <View style={[styles.prepCallout, { backgroundColor: palette.primaryContainer }]}><Text style={[styles.prepCalloutTitle, { color: palette.onPrimaryContainer }]}>이번 놀이</Text><Text style={[styles.rule, { color: palette.onPrimaryContainer }]}>{gamePrompt[selection]}</Text><Text style={[styles.prepMeta, { color: palette.secondaryLabel }]}>완주 기록은 내 방 배경으로, 실력 목표는 동행 꾸미기로 이어져요.</Text></View>
+      {virtualPlayNoticeFor(selection) ? <Text style={[styles.virtualNotice, { color: palette.label }]}>{virtualPlayNoticeFor(selection)}</Text> : null}
       {startError ? <Text style={[styles.error, { color: palette.error }]}>{startError}</Text> : null}
       {startNeedsConsent ? <BounceButton label={consentRecheckLabel} variant="secondary" onPress={recheckConsent} /> : null}
       <BounceButton label={startBusy ? '시작 준비 중' : `${gameCopy[selection].title} 시작`} disabled={startBusy} onPress={() => void start(selection)} />
@@ -239,7 +240,7 @@ export function PlayScreen({ apiUrl, credential, onSessionInvalid, tabRoot = fal
       </Pressable>
       <UnlockPreview snapshot={snapshot} label={palette.label} muted={palette.secondaryLabel} />
       <View style={styles.hubActions}><BounceButton label="내 방 꾸미기" variant="secondary" onPress={() => router.push('/studio')} /><BounceButton label="내 코인 도감" variant="secondary" onPress={() => router.push('/collection')} /></View>
-      {art.length ? <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>네 놀이에 방문한 가게와 수집품 그림 {art.length}개가 이어져요.</Text> : <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>{artLoaded ? '연습 꾸러미로 먼저 놀아 보세요. 방문하면 내 가게 그림으로 놀이가 넓어져요.' : '수집품 그림을 확인하지 못했어요.'}</Text>}
+      {art.length ? <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>놀이에 방문한 가게 {art.length}곳이 이어져요.</Text> : <Text style={[styles.ownedNote, { color: palette.secondaryLabel }]}>{artLoaded ? '연습 꾸러미로 먼저 놀아 보세요. 방문하면 내 가게 그림으로 놀이가 넓어져요.' : '수집품 그림을 확인하지 못했어요.'}</Text>}
       <Text style={[styles.rewardNote, { color: palette.secondaryLabel }]}>게임별 실력 배지로 동행 꾸미기를 해금하고, 완주 기록으로 공간 배경을 열어요.</Text>
     </>}
   </SkyScrollView>
@@ -269,7 +270,7 @@ const styles = StyleSheet.create({
   ownedNote: { fontSize: 13 }, rewardNote: { fontSize: 13, lineHeight: 19 },
   prepHead: { gap: 12, paddingTop: 14, paddingBottom: 10 }, eyebrow: { fontSize: 14, fontWeight: '800' }, prepTitle: { fontSize: 29, fontWeight: '900' }, rule: { fontSize: 16, lineHeight: 24 },
   prepCallout: { gap: 6, borderRadius: 16, padding: 16 }, prepCalloutTitle: { fontSize: 14, fontWeight: '900' }, hubActions: { gap: 8 },
-  prepCompanion: { minHeight: 90, flexDirection: 'row', alignItems: 'center', gap: 12 }, prepMeta: { flex: 1, fontSize: 14 }, error: { fontSize: 14, lineHeight: 20 }, loadIssue: { gap: 10 },
+  prepCompanion: { minHeight: 90, flexDirection: 'row', alignItems: 'center', gap: 12 }, prepMeta: { flex: 1, fontSize: 14 }, error: { fontSize: 14, lineHeight: 20 }, virtualNotice: { fontSize: 14, lineHeight: 20 }, loadIssue: { gap: 10 },
   rewardArt: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 16 },
   skillPreview: { gap: 6, borderWidth: 2, borderRadius: 8, padding: 14 },
 });

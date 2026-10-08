@@ -1,5 +1,5 @@
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
-import type { PublicMerchant } from '@/merchant/merchant-api';
+import type { PublicCampaign, PublicMerchant } from '@/merchant/merchant-api';
 
 export type SeriesSlot = {
   targetVisitCount: 1 | 3 | 5;
@@ -28,7 +28,7 @@ type CollectibleLite = Pick<
  * skipped — there is no series to show for them.
  */
 export function buildStoreSeries(
-  merchants: readonly Pick<PublicMerchant, 'id' | 'name' | 'campaign'>[],
+  merchants: readonly (Pick<PublicMerchant, 'id' | 'name'> & { campaign: Pick<PublicCampaign, 'id' | 'rewardGoals'> })[],
   collectibles: readonly CollectibleLite[],
 ): readonly StoreSeries[] {
   return merchants

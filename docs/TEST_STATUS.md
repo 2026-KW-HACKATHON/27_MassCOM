@@ -1,5 +1,36 @@
 # 테스트 상태
 
+## 2026-10-08 놀이를 방문한 가게와 모은 코인에 잇기 (Issue #412, 배포 동결)
+
+기준 main `b572184e5d94c4ebbed73b5f817bc1bac2de5171`(PR #411 병합) 위의 작업 브랜치 `feat/play-store-memory`다. 앱(클라이언트) 코드만 바꿨다. API·DB migration·`apps/api/src/play-rules.ts`는 그대로다. 배포·게시는 하지 않았다(소유자 결정 A).
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 모바일 시험 | PASS | `npm test` 1919/1919(직전 1901에서 18건 추가), typecheck·lint PASS. `play-content.test.ts`가 짝 찾기 카드 만들기(여러 가게 코인·가게별 중복 제거·6곳 미만 연습 그림·7곳 이상 KST 하루 단위 회전·같은 그림 URI 건너뛰기), `nextSlot` 대응, 잘못된 캠페인·목표 값이 게임 시작을 막지 않음, 메뉴 가격이 어떤 토큰에도 없음을 본다. `play-copy.test.ts`가 주문·배달의 준비·진행·결과에 고정 안내 문구가 모두 있는지, 방문 버튼·발견 이벤트·가격이 없는지, 방문·수령·도감 흐름이 놀이 모듈을 가져오지 않는지를 본다 |
+| 접근성 의미 검사·지갑 표면 검사·CI 연결 | PASS | `check_accessibility_semantics_test.sh`, `check_release_wallet_surface_test.sh`, `ci_wiring_test.sh`(시험 파일 86개 모두 실행됨) |
+| 독립 리뷰 | 승인, 후속 반영 | Claude Sonnet 5.5가 구현과 다른 세션에서 리뷰했다. 허브 문구의 개수 표현, 주문·배달 결과의 가게 링크 한 줄, 잘못된 캠페인 값 방어, 7곳 이상일 때 하루 단위 회전, 같은 그림 건너뛰기, 14px 글자 6건을 반영했다 |
+| API 시험 | 변경 없음 | API 코드 변경이 없어 다시 실행하지 않았다(직전 기록 567/567) |
+| 놀이 화면 실기 | NOT_RUN | 새 결과판(가게 이름·다음 수집품 안내·도감 이동)과 주문·배달 안내를 실제 휴대전화·시연 웹 화면에서 확인하지 않았다. 화면 구성은 타입 검사와 소스 시험까지만 확인했다 |
+| 공개 서버·설치본 | 변경 없음 | 운영 API·웹 `687427c2`, 운영 test.13, 시연 Preview 22, 시연 `/play/` 번들 `5ca98955`, 시연 API `2d483ed` 그대로다. 이 코드는 다음 빌드부터 사용자에게 닿는다 |
+
+필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. 사용자 판정 필요: 결과판의 코인 줄 배치와 글자 크기(14px)가 읽기 좋은지는 실제 화면에서 정한다.
+
+### Issue #412 로컬 검사
+
+환경: macOS, `feat/play-store-memory` worktree, 2026-10-08 KST. 다음은 이번 세션에서 직접 실행한 검사다.
+
+| 명령 | 결과 |
+| --- | --- |
+| `npm test --prefix apps/mobile` | PASS (1919/1919) |
+| `npm run typecheck --prefix apps/mobile` | PASS (exit 0) |
+| `npm run lint --prefix apps/mobile` | PASS (exit 0) |
+| `bash tests/mobile/check_accessibility_semantics_test.sh` | PASS (exit 0) |
+| `bash tests/release/check_release_wallet_surface_test.sh` | PASS (exit 0) |
+| `bash tests/ci/ci_wiring_test.sh` | PASS (시험 파일 86개 모두 실행됨, exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0, 31 PASS · 2 BLOCKED · 3 NOT_RUN 그대로) |
+| `bash tools/gate.sh` | PASS (exit 0) |
+
 ## 2026-10-08 운영 웹 Caddy의 `/api/web/v1/*` 라우트 누락 수정 (Issue #412 후속 분리, 배포 동결)
 
 기준 main `b572184e`(PR #411 병합) 위의 작업 브랜치 `fix/caddy-web-v1-routes`다. 결함: `www.masscom.kr/api/web/v1/*`(가게 실세계 프로필 편집기의 영업시간·사진·위치 API)가 404를 돌려줬다. `infra/lightsail/Caddyfile`의 `@webSession`에 `/api/web/v1/*`가 없어 요청이 API로 가지 않고 `file_server`로 떨어졌고, `@privateSurface`에도 없어 캐시·색인 방지 헤더도 붙지 않았다. 설정과 시험은 고쳤다. 배포하지 않았다(소유자 결정 A). 웹/Caddy 배포 전까지 라이브는 계속 404다. 시연 호스트는 같은 Caddyfile을 쓰고 시연 API 호스트는 전부 `showcase-api`로 넘기므로 별도 수정이 없다.
