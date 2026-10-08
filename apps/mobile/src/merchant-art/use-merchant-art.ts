@@ -154,6 +154,17 @@ export function useMerchantArt({ apiUrl, merchantId, credential, onSessionInvali
       const artUrl = await api.applyRound(merchantId, roundId);
       if (alive.current) dispatch({ type: 'applied', artUrl });
     }),
+    uploadPhoto: async (imageDataUrl: string): Promise<boolean> => {
+      let applied = false;
+      await act('upload', async () => {
+        const artUrl = await api.uploadPhoto(merchantId, imageDataUrl);
+        if (alive.current) {
+          dispatch({ type: 'applied', artUrl });
+          applied = true;
+        }
+      });
+      return applied;
+    },
     resetArt: () => act('reset', async () => {
       await api.resetArt(merchantId);
       if (alive.current) dispatch({ type: 'reset-done' });

@@ -36,6 +36,7 @@ import {
   type MerchantArtService,
   type MerchantArtState,
 } from '../merchant-art.js';
+import { normalizeMerchantArtUpload } from '../merchant-art-upload.js';
 import { safeErrorMetadata } from '../security-log.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { requireActiveMerchantMember } from './merchant-membership.js';
@@ -307,6 +308,26 @@ export class PostgresMerchantArtService implements MerchantArtService {
       // 적용된 뒤에는 시안이 다시 쓰이지 않는다(고른 그림은 merchant_art에 있다). 이 라운드의 시안 이미지를 바로 지운다.
       await client.query(`DELETE FROM merchant_art_images WHERE round_id = $1 AND kind = 'DRAFT'`, [round.id]);
       return final.sha256;
+    });
+    const artUrl = artUrlFor(sha256);
+    if (!artUrl) throw new Error('stored art hash is malformed');
+    return { artUrl };
+  }
+
+  async upload(input: { merchantId: string; accountId: string; imageDataUrl: string }): Promise<{ artUrl: string }> {
+    const image = await normalizeMerchantArtUpload(input.imageDataUrl);
+    const sha256 = createHash('sha256').update(image).digest('hex');
+    await this.transaction(async (client) => {
+      await this.requireManageArt(client, input.merchantId, input.accountId);
+      await this.lockMerchant(client, input.merchantId);
+      await client.query(
+        `INSERT INTO merchant_art (merchant_id, image, sha256, round_id, applied_at)
+         VALUES ($1, $2, $3, NULL, $4)
+         ON CONFLICT (merchant_id) DO UPDATE
+           SET image = EXCLUDED.image, sha256 = EXCLUDED.sha256, round_id = NULL,
+               applied_at = EXCLUDED.applied_at`,
+        [input.merchantId, image, sha256, this.now()],
+      );
     });
     const artUrl = artUrlFor(sha256);
     if (!artUrl) throw new Error('stored art hash is malformed');

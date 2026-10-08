@@ -187,6 +187,10 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
       } else if (webArtRoute.kind === 'apply') {
         requireEmptyBody(await readJson(request, true));
         sendJson(response, 200, await merchantArt.apply({ merchantId, roundId, accountId }));
+      } else if (webArtRoute.kind === 'upload') {
+        const body = await readJson(request, false, 7 * 1024 * 1024);
+        if (Object.keys(body).some(key => key !== 'imageDataUrl')) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 200, await merchantArt.upload({ merchantId, accountId, imageDataUrl: requireString(body, 'imageDataUrl') }));
       } else {
         requireEmptyBody(await readJson(request, true));
         await merchantArt.reset({ merchantId, accountId });
@@ -352,7 +356,7 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
 }
 
 type WebMerchantArtRoute =
-  | { merchantId: string; kind: 'state' | 'create' | 'reset' }
+  | { merchantId: string; kind: 'state' | 'create' | 'reset' | 'upload' }
   | { merchantId: string; kind: 'get' | 'choose' | 'apply'; roundId: string };
 
 function matchWebMerchantArtRoute(method: string | undefined, path: string): WebMerchantArtRoute | undefined {
@@ -362,6 +366,7 @@ function matchWebMerchantArtRoute(method: string | undefined, path: string): Web
   const tail = match[2] ?? '';
   if (tail === '') return method === 'GET' ? { merchantId, kind: 'state' } : method === 'DELETE' ? { merchantId, kind: 'reset' } : undefined;
   if (tail === '/rounds') return method === 'POST' ? { merchantId, kind: 'create' } : undefined;
+  if (tail === '/upload') return method === 'POST' ? { merchantId, kind: 'upload' } : undefined;
   const round = tail.match(/^\/rounds\/([^/]+)(?:\/(choose|apply))?$/);
   if (!round) return undefined;
   const roundId = round[1]!;

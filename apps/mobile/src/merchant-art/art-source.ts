@@ -4,7 +4,7 @@
 const ART_PATH = /^\/merchant-art\/[0-9a-f]{64}\.webp$/;
 
 /** Note drawn on a picture the owner chose; the bundled showcase picture keeps its own note. */
-export const AI_ART_NOTE = '사장님이 고른 AI 그림';
+export const OWNER_ART_NOTE = '사장님이 적용한 가게 이미지';
 export const SHOWCASE_ART_NOTE = '체험용 예시 그림';
 
 /** The API's public art path (`/merchant-art/<sha256>.webp`); anything else is not ours to load, so it becomes null. */
@@ -35,15 +35,15 @@ export function chooseMerchantArt<Bundled>(input: {
 }
 
 export function merchantArtNote(fromServer: boolean): string {
-  return fromServer ? AI_ART_NOTE : SHOWCASE_ART_NOTE;
+  return fromServer ? OWNER_ART_NOTE : SHOWCASE_ART_NOTE;
 }
 
 /**
- * Note under the picture on a collectible card. The owner's AI picture only says whose picture it is: it is not an NFT and does
+ * Note under the picture on a collectible card. The owner's picture only says whose picture it is: it is not an NFT and does
  * not need the "not proof" line, so it never borrows it. The bundled showcase picture keeps its own note and that line.
  */
 export function collectibleArtNote(fromServer: boolean): string {
-  return fromServer ? AI_ART_NOTE : `${SHOWCASE_ART_NOTE} · 실제 NFT 발행 증거 아님`;
+  return fromServer ? OWNER_ART_NOTE : `${SHOWCASE_ART_NOTE} · 실제 NFT 발행 증거 아님`;
 }
 
 /** The address of a picture that comes from the API; bundled pictures (module numbers) have none and cannot fail to load. */

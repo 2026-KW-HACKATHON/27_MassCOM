@@ -137,6 +137,14 @@ export function createOwnerArtApiClient(options: Options) {
       return path;
     },
 
+    /** Publishes a photo the owner explicitly chose after previewing it. */
+    async uploadPhoto(merchantId: string, imageDataUrl: string): Promise<string> {
+      const payload = await request(`${artPath(merchantId)}/upload`, json('POST', { imageDataUrl }));
+      const path = isRecord(payload) ? parseMerchantArtPath(payload.artUrl) : null;
+      if (!path) throw invalidResponse();
+      return path;
+    },
+
     async resetArt(merchantId: string): Promise<void> {
       const payload = await request(artPath(merchantId), { method: 'DELETE' });
       if (!isRecord(payload) || payload.status !== 'RESET') throw invalidResponse();
@@ -295,6 +303,10 @@ export function artCodeMessage(code: string | null | undefined, retryAfterSecond
       return '그림을 만들지 못했어요. 잠시 후 다시 해 주세요.';
     case 'MERCHANT_ACCESS_DENIED':
       return '이 가게의 그림을 바꿀 권한이 없어요.';
+    case 'MERCHANT_ART_IMAGE_INVALID':
+      return '사진을 확인하지 못했어요. JPG, PNG, WebP 사진을 다시 선택해 주세요.';
+    case 'MERCHANT_ART_IMAGE_TOO_LARGE':
+      return '5MB 이하 사진을 선택해 주세요.';
     case 'SESSION_INVALID':
       return '로그인이 만료됐어요. 다시 로그인해 주세요.';
     case 'NETWORK_ERROR':

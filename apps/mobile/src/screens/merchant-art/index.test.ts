@@ -40,6 +40,15 @@ test('current art, remaining counts and the start button sit on the first card',
   assert.match(screen, /글자 도장/);
 });
 
+test('manual photo remains a preview until the owner applies it, including when AI is unavailable', () => {
+  assert.match(screen, /가게 사진 직접 올리기/);
+  assert.match(screen, /직접 촬영했거나 사용 권한이 있는 사진만 올려 주세요/);
+  assert.match(screen, /if \(photo\) setSelectedPhoto\(photo\)/);
+  assert.match(screen, /if \(await art\.uploadPhoto\(selectedPhoto\)\) setSelectedPhoto\(null\)/);
+  assert.match(screen, /selectedPhoto \? \([\s\S]*?선택한 가게 사진 미리보기[\s\S]*?가게 사진으로 적용/);
+  assert.ok(screen.indexOf('가게 사진 직접 올리기') < screen.indexOf("panel === 'unavailable'"));
+});
+
 test('choosing, using and resetting a picture each ask first with an alert, and the buttons only open the alert', () => {
   for (const [confirm, title, label] of [
     ['confirmChoose', '이 시안으로 고급 그림을 만들까요?', '이 시안으로 고급 그림 만들기'],
@@ -202,7 +211,7 @@ test('the art code adds no dependency and no bundled picture', () => {
     const text = readFileSync(file, 'utf8');
     assert.doesNotMatch(text, /require\(/, file);
     for (const [, specifier] of text.matchAll(/from '([^']+)'/g)) {
-      assert.match(specifier!, /^(\.|@\/|react|react-native|react-native-reanimated|react-native-safe-area-context|react-native-svg|expo-router)/, `${file}: ${specifier}`);
+      assert.match(specifier!, /^(\.|@\/|react|react-native|react-native-reanimated|react-native-safe-area-context|react-native-svg|expo-router|expo-file-system)/, `${file}: ${specifier}`);
     }
   }
 });

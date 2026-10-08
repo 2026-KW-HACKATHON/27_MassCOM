@@ -99,6 +99,29 @@ test('starting drafts POSTs the rounds route and accepts the 202 round', async (
   assert.deepEqual(started.drafts, []);
 });
 
+test('manual photo upload sends the selected data URL with the owner credential and accepts only an art path', async () => {
+  const photo = 'data:image/jpeg;base64,/9j/AA==';
+  const { api, calls } = client(() => Response.json({ artUrl }));
+  assert.equal(await api.uploadPhoto('merchant/one', photo), artUrl);
+  assert.equal(calls[0]?.url, 'https://api.example.test/merchant/merchants/merchant%2Fone/art/upload');
+  assert.equal(calls[0]?.method, 'POST');
+  assert.equal(calls[0]?.headers.get('authorization'), 'Bearer token-1');
+  assert.equal(calls[0]?.headers.get('content-type'), 'application/json');
+  assert.deepEqual(calls[0]?.body, { imageDataUrl: photo });
+  const malformed = client(() => Response.json({ artUrl: 'https://other.example.test/photo.jpg' }));
+  await assert.rejects(malformed.api.uploadPhoto('m1', photo),
+    (error) => error instanceof OwnerArtApiError && error.code === 'INVALID_RESPONSE');
+});
+
+test('manual photo upload reports server format and size errors in Korean', async () => {
+  for (const [status, code] of [[400, 'MERCHANT_ART_IMAGE_INVALID'], [413, 'MERCHANT_ART_IMAGE_TOO_LARGE']] as const) {
+    const { api } = client(() => failure(status, code));
+    await assert.rejects(api.uploadPhoto('m1', png),
+      (error) => error instanceof OwnerArtApiError && error.code === code);
+    assert.match(artCodeMessage(code), /사진/);
+  }
+});
+
 test('reading a round GETs it by id', async () => {
   const { api, calls } = client(() => Response.json(round()));
   assert.equal((await api.getRound('m1', roundId)).id, roundId);

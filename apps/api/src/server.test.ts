@@ -4190,7 +4190,7 @@ function artFixture(overrides: Partial<MerchantArtService> = {}): MerchantArtSer
   const unexpected = (name: string) => async () => { throw new Error(`unexpected art ${name} call`); };
   return {
     getState: unexpected('getState'), createRound: unexpected('createRound'), getRound: unexpected('getRound'),
-    chooseDraft: unexpected('chooseDraft'), apply: unexpected('apply'), reset: unexpected('reset'),
+    chooseDraft: unexpected('chooseDraft'), apply: unexpected('apply'), upload: unexpected('upload'), reset: unexpected('reset'),
     getPublicImage: unexpected('getPublicImage'),
     ...overrides,
   } as MerchantArtService;
@@ -4218,6 +4218,7 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
     getRound: async (input) => { calls.push(['get', input]); return sampleArtRound; },
     chooseDraft: async (input) => { calls.push(['choose', input]); return { ...sampleArtRound, status: 'FINALIZING', chosenIndex: input.index }; },
     apply: async (input) => { calls.push(['apply', input]); return { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` }; },
+    upload: async (input) => { calls.push(['upload', input]); return { artUrl: `/merchant-art/${'b'.repeat(64)}.webp` }; },
     reset: async (input) => { calls.push(['reset', input]); },
   }));
   const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
@@ -4226,7 +4227,7 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
   const routes: [string, string, string?][] = [
     ['GET', art], ['POST', `${art}/rounds`, '{}'], ['GET', `${art}/rounds/${roundId}`],
     ['POST', `${art}/rounds/${roundId}/choose`, '{"index":1}'], ['POST', `${art}/rounds/${roundId}/apply`, '{}'],
-    ['DELETE', art],
+    ['POST', `${art}/upload`, '{"imageDataUrl":"data:image/png;base64,AAAA"}'], ['DELETE', art],
   ];
   for (const [method, url, body] of routes) {
     assert.equal((await fetch(url, { method, ...(body ? { body } : {}) })).status, 401, `${method} ${url}`);
@@ -4251,6 +4252,10 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
   const applied = await fetch(`${art}/rounds/${roundId}/apply`, { method: 'POST', headers: owner, body: '{}' });
   assert.equal(applied.status, 200);
   assert.deepEqual(await applied.json(), { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` });
+  const uploaded = await fetch(`${art}/upload`, { method: 'POST', headers: owner,
+    body: '{"imageDataUrl":"data:image/png;base64,AAAA"}' });
+  assert.equal(uploaded.status, 200);
+  assert.deepEqual(await uploaded.json(), { artUrl: `/merchant-art/${'b'.repeat(64)}.webp` });
   const reset = await fetch(art, { method: 'DELETE', headers: owner });
   assert.equal(reset.status, 200);
   assert.deepEqual(await reset.json(), { status: 'RESET' });
@@ -4259,6 +4264,7 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
     ['create', { merchantId: 'shop-1', accountId: 'owner-1' }], ['get', { merchantId: 'shop-1', roundId }],
     ['choose', { merchantId: 'shop-1', roundId, index: 3, accountId: 'owner-1' }],
     ['apply', { merchantId: 'shop-1', roundId, accountId: 'owner-1' }],
+    ['upload', { merchantId: 'shop-1', accountId: 'owner-1', imageDataUrl: 'data:image/png;base64,AAAA' }],
     ['reset', { merchantId: 'shop-1', accountId: 'owner-1' }],
   ]);
 });
@@ -4289,19 +4295,21 @@ async function startWebArt(t: TestContext, merchantArt?: MerchantArtService) {
   return {
     base, calls,
     denyAccess: () => { allowed = false; },
+    allowAccess: () => { allowed = true; },
     loseMembership: () => { member = false; },
   };
 }
 
 test('web merchant art routes use the HttpOnly web session, MANAGE_ART and membership before the shared art contract', async (t) => {
   const artCalls: unknown[][] = [];
-  const { base, calls, denyAccess, loseMembership } = await startWebArt(t, artFixture({
+  const { base, calls, denyAccess, allowAccess, loseMembership } = await startWebArt(t, artFixture({
     getState: async (merchantId) => { artCalls.push(['state', merchantId]); return { configured: true, current: null,
       quota: { draftRoundsLeft: 3, finalsLeft: 3 }, round: null }; },
     createRound: async (input) => { artCalls.push(['create', input]); return { ...sampleArtRound, status: 'DRAFTING', drafts: [] }; },
     getRound: async (input) => { artCalls.push(['get', input]); return sampleArtRound; },
     chooseDraft: async (input) => { artCalls.push(['choose', input]); return { ...sampleArtRound, chosenIndex: input.index }; },
     apply: async (input) => { artCalls.push(['apply', input]); return { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` }; },
+    upload: async (input) => { artCalls.push(['upload', input]); return { artUrl: `/merchant-art/${'b'.repeat(64)}.webp` }; },
     reset: async (input) => { artCalls.push(['reset', input]); },
   }));
   const cookie = 'web_session=owner-cookie';
@@ -4314,8 +4322,16 @@ test('web merchant art routes use the HttpOnly web session, MANAGE_ART and membe
     webRequest(base, path, { method, headers: customHeaders, host, body });
 
   assert.equal((await read(prefix, {})).status, 401);
+  assert.equal((await write(`${prefix}/upload`, 'POST', '{"imageDataUrl":"data:image/png;base64,AAAA"}',
+    { origin: 'https://masscom.kr', 'content-type': 'application/json' })).status, 401);
   assert.equal((await write(`${prefix}/rounds`, 'POST', '{}', { ...headers, origin: 'https://attacker.example' })).status, 403);
   assert.equal((await write(`${prefix}/rounds`, 'POST', '{}', { ...headers, 'content-type': 'text/plain' })).status, 403);
+  assert.equal((await write(`${prefix}/upload`, 'POST', '{"imageDataUrl":"data:image/png;base64,AAAA"}',
+    { ...headers, origin: 'https://attacker.example' })).status, 403);
+  assert.equal((await write(`${prefix}/upload`, 'POST', '{}')).status, 400);
+  assert.equal((await write(`${prefix}/upload`, 'POST', '{"imageDataUrl":123}')).status, 400);
+  assert.equal((await write(`${prefix}/upload`, 'POST', '{"imageDataUrl":"x","extra":1}')).status, 400);
+  assert.equal((await write(`${prefix}/upload`, 'POST', `{"imageDataUrl":"${'A'.repeat(7 * 1024 * 1024)}"}`)).status, 413);
   assert.equal((await read(prefix, { cookie }, 'attacker.example')).status, 403);
   assert.deepEqual(artCalls, []);
 
@@ -4333,6 +4349,9 @@ test('web merchant art routes use the HttpOnly web session, MANAGE_ART and membe
   const applied = await write(`${prefix}/rounds/${roundId}/apply`);
   assert.equal(applied.status, 200);
   assert.deepEqual(await applied.json(), { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` });
+  const uploaded = await write(`${prefix}/upload`, 'POST', '{"imageDataUrl":"data:image/png;base64,AAAA"}');
+  assert.equal(uploaded.status, 200);
+  assert.deepEqual(await uploaded.json(), { artUrl: `/merchant-art/${'b'.repeat(64)}.webp` });
   const reset = await write(prefix, 'DELETE');
   assert.equal(reset.status, 200);
   assert.deepEqual(await reset.json(), { status: 'RESET' });
@@ -4341,6 +4360,7 @@ test('web merchant art routes use the HttpOnly web session, MANAGE_ART and membe
     ['get', { merchantId: 'shop-1', roundId }],
     ['choose', { merchantId: 'shop-1', roundId, index: 2, accountId: 'owner-web' }],
     ['apply', { merchantId: 'shop-1', roundId, accountId: 'owner-web' }],
+    ['upload', { merchantId: 'shop-1', accountId: 'owner-web', imageDataUrl: 'data:image/png;base64,AAAA' }],
     ['reset', { merchantId: 'shop-1', accountId: 'owner-web' }],
   ]);
   assert.ok(calls.filter(call => call[0] === 'permission')
@@ -4352,8 +4372,10 @@ test('web merchant art routes use the HttpOnly web session, MANAGE_ART and membe
   assert.equal(forbidden.status, 403);
   assert.deepEqual(await forbidden.json(), { code: 'MERCHANT_ACCESS_DENIED' });
   assert.equal(artCalls.length, served);
+  assert.equal((await write(`${prefix}/upload`, 'POST', '{"imageDataUrl":"data:image/png;base64,AAAA"}')).status, 403);
+  allowAccess();
   loseMembership();
-  const outsider = await write(`${prefix}/rounds`);
+  const outsider = await write(`${prefix}/upload`, 'POST', '{"imageDataUrl":"data:image/png;base64,AAAA"}');
   assert.equal(outsider.status, 403);
   assert.deepEqual(await outsider.json(), { code: 'MERCHANT_ACCESS_DENIED' });
   assert.equal(artCalls.length, served);
@@ -4386,6 +4408,9 @@ test('art routes reject malformed input before calling the service', async (t) =
     ['POST', `${art}/rounds/${roundId}/choose`, '{"index":-1}'], ['POST', `${art}/rounds/${roundId}/choose`, '{"index":0.5}'],
     ['POST', `${art}/rounds/${roundId}/choose`, '{"index":"0"}'], ['POST', `${art}/rounds/${roundId}/choose`, '{"index":0,"x":1}'],
     ['POST', `${art}/rounds/${roundId}/choose`, `{"index":0,"pad":"${'x'.repeat(70_000)}"}`],
+    ['POST', `${art}/upload`, '{}'], ['POST', `${art}/upload`, '{"imageDataUrl":123}'],
+    ['POST', `${art}/upload`, '{"imageDataUrl":"data:image/png;base64,AAAA","x":1}'],
+    ['POST', `${art}/upload`, `{"imageDataUrl":"${'A'.repeat(7 * 1024 * 1024)}"}`],
   ];
   for (const [method, url, body] of bad) {
     const response = await fetch(url, { method, headers: owner, body });
@@ -4419,6 +4444,18 @@ test('art errors map to their HTTP statuses, with Retry-After for the daily limi
     assert.deepEqual(await response.json(), { code });
     assert.equal(response.headers.get('retry-after'), code === 'AI_ART_DAILY_LIMIT' ? '3600' : null, code);
     assert.equal(response.headers.get('cache-control'), 'no-store');
+  }
+  const uploadCodes: [MerchantArtErrorCode, number][] = [
+    ['MERCHANT_ART_IMAGE_INVALID', 400], ['MERCHANT_ART_IMAGE_TOO_LARGE', 413],
+  ];
+  const uploadArt = artFixture({ upload: async () => { throw failure; } });
+  const { base: uploadBase } = await startArt(t, uploadArt);
+  for (const [code, status] of uploadCodes) {
+    failure = new MerchantArtError(code);
+    const response = await fetch(`${uploadBase}/merchant/merchants/shop-1/art/upload`, { method: 'POST', headers: owner,
+      body: '{"imageDataUrl":"data:image/png;base64,AAAA"}' });
+    assert.equal(response.status, status);
+    assert.deepEqual(await response.json(), { code });
   }
   failure = new Error('database exploded with secret details');
   const crashed = await fetch(`${base}/merchant/merchants/shop-1/art/rounds`, { method: 'POST', headers: owner, body: '{}' });

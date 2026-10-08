@@ -2,7 +2,7 @@ import { DRAFT_COUNT, type ArtDraft, type ArtQuota, type ArtRound, type ArtRound
 
 // 점주 그림 화면의 상태 모델. 화면은 이 reducer가 돌려주는 상태만 그리고, 서버 응답의 새로움 판단과 어느 패널을 보일지도 여기서 정한다.
 
-export type ArtBusy = 'start' | 'choose' | 'apply' | 'reset';
+export type ArtBusy = 'start' | 'choose' | 'apply' | 'upload' | 'reset';
 
 export type ArtScreenState =
   | { status: 'loading' }

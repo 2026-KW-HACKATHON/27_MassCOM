@@ -8,7 +8,7 @@ const MAX_OUTPUT_BYTES = 3 * 1024 * 1024;
 const MAX_PIXELS = 4096 * 4096;
 const formats = { 'image/jpeg': 'jpeg', 'image/png': 'png', 'image/webp': 'webp' } as const;
 
-function completeImage(bytes: Uint8Array, format: keyof typeof formats): boolean {
+export function completeImage(bytes: Uint8Array, format: keyof typeof formats): boolean {
   const b = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (format === 'image/jpeg') return b.length >= 4 && b[0] === 0xff && b[1] === 0xd8 && b.at(-2) === 0xff && b.at(-1) === 0xd9;
   if (format === 'image/png') return b.length >= 20 && b.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) &&

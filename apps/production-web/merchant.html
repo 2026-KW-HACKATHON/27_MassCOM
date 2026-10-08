@@ -209,6 +209,21 @@
         <h2 id="merchant-creator-title">가게 수집품 만들기</h2>
         <p>사진 한 장으로 시작하고, 손님이 방문해 받은 수집품을 도감에 남겨요.</p>
         <label>제작할 점포 <select id="merchant-creator-store"></select></label>
+        <section id="merchant-art-upload" aria-labelledby="merchant-art-upload-title">
+          <h3 id="merchant-art-upload-title">가게 그림 직접 등록</h3>
+          <p>AI 생성 없이 사진이나 그림을 가게 대표 그림으로 등록할 수 있어요. 아래의 실제 점포 사진과는 별도로 표시됩니다.</p>
+          <figure id="merchant-art-current" hidden><img id="merchant-art-current-image" alt="현재 적용된 가게 그림" width="160" height="160"><figcaption>현재 가게 그림</figcaption></figure>
+          <form id="merchant-art-upload-form">
+            <label>등록할 그림 · JPG, PNG, WebP · 5 MiB 이하 <input id="merchant-art-file" type="file" accept="image/jpeg,image/png,image/webp" required></label>
+            <label><input id="merchant-art-rights" type="checkbox" required> 이 사진·그림을 게시할 권리가 있습니다.</label>
+            <img id="merchant-art-preview" alt="선택한 가게 그림 미리보기" width="160" height="160" hidden>
+            <div class="collection-actions">
+              <button id="merchant-art-apply" type="submit" disabled>선택한 그림 적용</button>
+              <button id="merchant-art-cancel" type="button" class="collection-action secondary">선택 취소</button>
+            </div>
+          </form>
+          <p id="merchant-art-status" class="status" role="status" aria-live="polite"></p>
+        </section>
         <button id="merchant-creator-open" type="button">제작기 열기</button>
         <div id="merchant-creator-editor"></div>
       </section>

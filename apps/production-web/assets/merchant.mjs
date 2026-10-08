@@ -97,6 +97,13 @@ function clearDrafts(scope) {
 const canCreate = member => member.role === 'OWNER' || member.canManageArt === true;
 const creatorDenied = '이 점포의 그림 제작 권한이 없어요. 점주 권한을 확인해 주세요.';
 const discardMessage = '저장하지 않은 편집이 있어요. 지금 제작기를 다시 열거나 다른 점포로 바꾸면 사라져요. 계속할까요?';
+const merchantArtPath = /^\/merchant-art\/[0-9a-f]{64}\.webp$/;
+const merchantArtTypes = ['image/jpeg', 'image/png', 'image/webp'];
+
+export function validMerchantArtFile(file) {
+  return !!file && merchantArtTypes.includes(file.type) && Number.isFinite(file.size)
+    && file.size > 0 && file.size <= 5 * 1024 * 1024;
+}
 
 // 제작기가 게시할 캠페인은 점주 권한으로 읽는 전용 API에서만 받는다. 공개 /merchants는 운영 프록시가
 // 캠페인·점포 ID를 지우므로 쓰지 않는다(이 점포의 공개·ACTIVE·기간 안 캠페인과 그 목표만 온다).
@@ -122,6 +129,88 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   for (const merchant of makers) {
     const option = doc.createElement('option'); option.value = merchant.id; option.textContent = merchant.name; select.append(option);
   }
+  const configuredRequest = merchantRequests.get(doc);
+  let refreshPhotoForStore = () => {};
+  const photoForm = doc.getElementById('merchant-art-upload-form');
+  if (photoForm) {
+    const input = doc.getElementById('merchant-art-file');
+    const rights = doc.getElementById('merchant-art-rights');
+    const preview = doc.getElementById('merchant-art-preview');
+    const current = doc.getElementById('merchant-art-current');
+    const currentImage = doc.getElementById('merchant-art-current-image');
+    const apply = doc.getElementById('merchant-art-apply');
+    const cancel = doc.getElementById('merchant-art-cancel');
+    const status = doc.getElementById('merchant-art-status');
+    let staged = '', sequence = 0, busy = false;
+    const selectedMerchant = () => makers.find(merchant => merchant.id === select.value);
+    const showCurrent = () => {
+      const artUrl = selectedMerchant()?.artUrl;
+      currentImage.src = merchantArtPath.test(artUrl ?? '') ? artUrl : '';
+      current.hidden = !currentImage.src;
+    };
+    const resetPhoto = (clearInput = true) => {
+      sequence++;
+      staged = '';
+      if (clearInput) input.value = '';
+      rights.checked = false;
+      preview.src = '';
+      preview.hidden = true;
+      apply.disabled = true;
+    };
+    refreshPhotoForStore = () => { resetPhoto(); showCurrent(); status.textContent = ''; };
+    refreshPhotoForStore();
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      resetPhoto(false);
+      if (!file) return;
+      if (!validMerchantArtFile(file)) { status.textContent = 'JPG·PNG·WebP 사진을 5 MiB 이하로 선택해 주세요.'; return; }
+      const reading = sequence;
+      status.textContent = '선택한 그림을 준비하는 중이에요.';
+      try {
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(new Error('사진을 읽지 못했어요. 다시 선택해 주세요.'));
+          reader.readAsDataURL(file);
+        });
+        if (reading !== sequence || merchantRequests.get(doc) !== configuredRequest) return;
+        if (!dataUrl.startsWith(`data:${file.type};base64,`) || dataUrl.length > 7 * 1024 * 1024) throw new Error('사진 형식을 확인하지 못했어요. 다시 선택해 주세요.');
+        staged = dataUrl;
+        preview.src = dataUrl;
+        preview.hidden = false;
+        apply.disabled = !rights.checked;
+        status.textContent = '미리보기를 확인한 뒤 적용해 주세요. 아직 저장되지 않았어요.';
+      } catch (error) { if (reading === sequence && merchantRequests.get(doc) === configuredRequest) status.textContent = error.message; }
+    };
+    rights.onchange = () => { apply.disabled = busy || !staged || !rights.checked; };
+    cancel.onclick = () => { if (busy) return; resetPhoto(); status.textContent = '선택을 취소했습니다. 기존 가게 그림은 그대로예요.'; };
+    photoForm.onsubmit = async event => {
+      event.preventDefault();
+      const merchant = selectedMerchant();
+      if (!merchant || !staged || !rights.checked || busy) return;
+      if (creators.get(doc)) { status.textContent = '열려 있는 제작기를 닫은 뒤 그림을 적용해 주세요.'; return; }
+      const requestId = merchantRequests.get(doc), merchantId = merchant.id;
+      busy = true; apply.disabled = true; input.disabled = true; cancel.disabled = true; select.disabled = true; open.disabled = true;
+      status.textContent = '가게 그림을 적용하는 중이에요.';
+      try {
+        const result = await request(fetcher, `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/art/upload`, 'POST', { imageDataUrl: staged });
+        if (merchantRequests.get(doc) !== requestId) return;
+        if (!merchantArtPath.test(result?.artUrl ?? '')) throw new Error('저장 결과를 확인하지 못했어요. 다시 불러와 주세요.');
+        merchant.artUrl = result.artUrl;
+        showCurrent(); resetPhoto();
+        status.textContent = '가게 그림을 적용했습니다. 제작기를 열면 이 그림으로 시작할 수 있어요.';
+      } catch (error) {
+        if (merchantRequests.get(doc) === requestId) status.textContent = error.status === 403 ? creatorDenied
+          : error.status === 413 ? '사진은 5 MiB 이하로 선택해 주세요.'
+            : '그림을 적용하지 못했어요. 기존 가게 그림은 그대로예요. 다시 시도해 주세요.';
+      } finally {
+        if (merchantRequests.get(doc) === requestId) {
+          busy = false; input.disabled = false; cancel.disabled = false; select.disabled = false; open.disabled = false;
+          apply.disabled = !staged || !rights.checked;
+        }
+      }
+    };
+  }
   panel.hidden = makers.length === 0;
   if (makers.length === 0) closeCreator(doc);
   // 같은 계정의 목록만 다시 읽었으면 열려 있는 제작기의 점포를 계속 고른 상태로 둔다. 그 점포의 제작 권한이 사라졌으면 닫는다.
@@ -145,12 +234,13 @@ export function configureCreator(fetcher, doc, mine, { confirm = message => glob
   }
   select.onchange = () => {
     const mounted = creatorStores.get(doc);
-    if (!mounted || select.value === mounted) return;
+    if (!mounted || select.value === mounted) { refreshPhotoForStore(); return; }
     const discarding = isDirty();
     if (keepEdits()) { select.value = mounted; return; }
     // 고른 점포와 열려 있는 제작기가 어긋나지 않게, 바꾸기로 했으면 지금 제작기를 닫는다.
     // 저장하지 않은 편집을 명시적으로 버리기로 한 것이므로(discarding) 그 초안의 기기 보관본도 지운다.
     closeCreator(doc, discarding ? 'discard' : undefined);
+    refreshPhotoForStore();
   };
   open.onclick = async () => {
     const currentRequest = merchantRequests.get(doc);

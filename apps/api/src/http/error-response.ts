@@ -325,6 +325,8 @@ function statusForFriend(code: string): number {
 }
 
 function statusForMerchantArt(code: string): number {
+  if (code === 'MERCHANT_ART_IMAGE_INVALID') return 400;
+  if (code === 'MERCHANT_ART_IMAGE_TOO_LARGE') return 413;
   if (code === 'AI_ART_ROUND_NOT_FOUND') return 404;
   if (code === 'AI_ART_DAILY_LIMIT' || code === 'AI_ART_ACCOUNT_DAILY_LIMIT' || code === 'AI_ART_COOLDOWN') return 429;
   if (code === 'AI_ART_TRIAL_DISABLED') return 403;

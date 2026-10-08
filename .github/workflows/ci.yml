@@ -254,7 +254,7 @@ jobs:
         run: node --test tests/site/verify_design_tokens_test.mjs
       # production-recovery.test.mjs는 verify_production_web_test.mjs가 import해 함께 돈다. 여기에 또 적으면 두 번 실행된다.
       - name: 운영 웹 공개 조회·읽기 전용 경계 검사
-        run: node --test tests/site/verify_production_web_test.mjs tests/site/store-go-live-admin.test.mjs tests/site/nft-metadata-admin.test.mjs tests/site/real-world-merchant.test.mjs tests/site/public-entry.test.mjs tests/site/account-deletion-flow.test.mjs tests/site/admin-funnel.test.mjs tests/site/merchant-actions-overview.test.mjs tests/site/campaign-purpose-admin.test.mjs tests/site/campaign-benefits-web.test.mjs tests/site/merchant-copy-no-newcomer.test.mjs
+        run: node --test tests/site/verify_production_web_test.mjs tests/site/store-go-live-admin.test.mjs tests/site/nft-metadata-admin.test.mjs tests/site/real-world-merchant.test.mjs tests/site/public-entry.test.mjs tests/site/account-deletion-flow.test.mjs tests/site/admin-funnel.test.mjs tests/site/merchant-actions-overview.test.mjs tests/site/campaign-purpose-admin.test.mjs tests/site/campaign-benefits-web.test.mjs tests/site/merchant-copy-no-newcomer.test.mjs tests/site/merchant-photo-upload.test.mjs
       - name: 사진 수집품 모델·편집·도감 검사
         run: node --test tests/site/collectible-*.test.mjs
       - name: 캠페인 연장·가게 정보 수정·매장 안내문 웹 검사

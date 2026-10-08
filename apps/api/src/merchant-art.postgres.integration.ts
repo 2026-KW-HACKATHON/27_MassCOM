@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { test, type TestContext } from 'node:test';
 
 import { Pool } from 'pg';
+import sharp from 'sharp';
 
 import { OpenAiImageClient, type AiArtImageClient } from './ai-art-client.js';
 import {
@@ -165,6 +166,40 @@ const totalSpend = async (pool: Pool) =>
   Number((await pool.query<{ total: string }>(
     'SELECT coalesce(sum(micro_usd), 0)::text AS total FROM ai_art_spend',
   )).rows[0]!.total);
+
+test('merchant upload works without AI, normalizes the image, and leaves quota untouched', async (t) => {
+  const db = await setup(t, { client: 'none', staffMayManageArt: false });
+  const input = await sharp({ create: { width: 2000, height: 1000, channels: 3, background: 'red' } })
+    .jpeg().toBuffer();
+  const imageDataUrl = `data:image/jpeg;base64,${input.toString('base64')}`;
+  const before = await db.art.getState('art-a', 'owner-a');
+  assert.equal(before.configured, false);
+  const { artUrl } = await db.art.upload({ merchantId: 'art-a', accountId: 'owner-a', imageDataUrl });
+  assert.match(artUrl, /^\/merchant-art\/[0-9a-f]{64}\.webp$/);
+  const image = await db.art.getPublicImage(artUrl.slice('/merchant-art/'.length, -'.webp'.length));
+  assert.ok(image);
+  const metadata = await sharp(image).metadata();
+  assert.deepEqual([metadata.format, metadata.width, metadata.height, metadata.exif], ['webp', 1024, 512, undefined]);
+  assert.deepEqual((await db.art.getState('art-a', 'owner-a')).current, { artUrl });
+  assert.deepEqual((await db.art.getState('art-a', 'owner-a')).quota, before.quota);
+  assert.equal(await totalSpend(db.pool), 0);
+  assert.equal((await db.pool.query('SELECT round_id FROM merchant_art WHERE merchant_id = $1', ['art-a'])).rows[0]!.round_id, null);
+
+  await assert.rejects(db.art.upload({ merchantId: 'art-a', accountId: 'staff-a', imageDataUrl }),
+    (error: unknown) => error instanceof MerchantAccessError);
+  await assert.rejects(db.art.upload({ merchantId: 'art-a', accountId: 'gone-a', imageDataUrl }),
+    (error: unknown) => error instanceof MerchantAccessError);
+  for (const invalid of [
+    'data:image/svg+xml;base64,PHN2Zz4=', 'data:image/jpeg;base64,AAAA',
+    `data:image/png;base64,${input.toString('base64')}`, 'data:image/jpeg;base64,@@@@',
+  ]) {
+    await assert.rejects(db.art.upload({ merchantId: 'art-a', accountId: 'owner-a', imageDataUrl: invalid }),
+      rejectsWith('MERCHANT_ART_IMAGE_INVALID'));
+  }
+  assert.deepEqual((await db.art.getState('art-a', 'owner-a')).current, { artUrl });
+  await db.art.reset({ merchantId: 'art-a', accountId: 'owner-a' });
+  assert.equal(await db.art.getPublicImage(artUrl.slice('/merchant-art/'.length, -'.webp'.length)), null);
+});
 
 // 라운드 한 개를 읽는 조회(requireView)를 arm된 동안 한 번 실패시키는 pool. 다른 질의는 그대로 지나간다.
 function failingRoundViewOnce(state: { armed: boolean }): (pool: Pool) => Pool {
@@ -1605,11 +1640,24 @@ test('HTTP: daily limit answers 429 with Retry-After and a missing key answers 5
   const refused = await fetch(`${keylessBase}/merchant/merchants/art-a/art/rounds`, { method: 'POST', headers, body: '{}' });
   assert.equal(refused.status, 503);
   assert.deepEqual(await refused.json(), { code: 'AI_ART_NOT_CONFIGURED' });
+  const photo = await sharp({ create: { width: 24, height: 12, channels: 3, background: 'green' } }).png().toBuffer();
+  const uploadPath = `${keylessBase}/merchant/merchants/art-a/art/upload`;
+  const uploaded = await fetch(uploadPath, { method: 'POST', headers,
+    body: JSON.stringify({ imageDataUrl: `data:image/png;base64,${photo.toString('base64')}` }) });
+  assert.equal(uploaded.status, 200);
+  const { artUrl } = await uploaded.json() as { artUrl: string };
+  assert.match(artUrl, /^\/merchant-art\/[0-9a-f]{64}\.webp$/);
+  assert.equal((await fetch(`${keylessBase}${artUrl}`)).headers.get('content-type'), 'image/webp');
+  assert.equal(await totalSpend(keyless.pool), 0);
+  const bad = await fetch(uploadPath, { method: 'POST', headers, body: JSON.stringify({ imageDataUrl: 'bad' }) });
+  assert.equal(bad.status, 400);
+  assert.deepEqual(await bad.json(), { code: 'MERCHANT_ART_IMAGE_INVALID' });
+  assert.equal((await fetch(`${keylessBase}${artUrl}`)).status, 200);
 });
 
 // ---- Issue #264: 그림 변경은 트랜잭션 안에서 멤버십·MANAGE_ART를 다시 확인한다 ---------------------------------
 
-const artMethods = ['createRound', 'chooseDraft', 'apply', 'reset'] as const;
+const artMethods = ['createRound', 'chooseDraft', 'apply', 'upload', 'reset'] as const;
 type ArtMethod = (typeof artMethods)[number];
 
 const accessDenied = (error: unknown) => error instanceof MerchantAccessError && error.code === 'MERCHANT_ACCESS_DENIED';
@@ -1625,11 +1673,15 @@ async function prepareArtMethod(db: Db, method: ArtMethod) {
     const round = await finalRound(db, merchantId, 1, owner);
     await db.art.apply({ merchantId, roundId: round.id, accountId: owner });
   }
+  const uploadImage = method === 'upload'
+    ? `data:image/png;base64,${(await sharp({ create: { width: 8, height: 8, channels: 3, background: 'red' } }).png().toBuffer()).toString('base64')}`
+    : '';
   const call = (accountId: string): Promise<unknown> => {
     switch (method) {
       case 'createRound': return db.art.createRound({ merchantId, accountId });
       case 'chooseDraft': return db.art.chooseDraft({ merchantId, roundId, index: 1, accountId });
       case 'apply': return db.art.apply({ merchantId, roundId, accountId });
+      case 'upload': return db.art.upload({ merchantId, accountId, imageDataUrl: uploadImage });
       case 'reset': return db.art.reset({ merchantId, accountId });
     }
   };

@@ -1,4 +1,4 @@
-import { decodePathParameter, readJson, requireEmptyBody, requireNumber } from '../http/request-body.js';
+import { decodePathParameter, readJson, requireEmptyBody, requireNumber, requireString } from '../http/request-body.js';
 import { RequestError } from '../http/request-error.js';
 import { sendBinary, sendJson } from '../http/response.js';
 import { DEFAULT_STAMP_V1_PNG } from '../nft-default-stamp.js';
@@ -10,7 +10,7 @@ import type { RouteContext } from './context.js';
 const nftMetadataCacheControl = 'public, max-age=86400';
 
 type MerchantArtRoute =
-  | { kind: 'state' | 'create' | 'reset' }
+  | { kind: 'state' | 'create' | 'reset' | 'upload' }
   | { kind: 'get' | 'choose' | 'apply'; roundId: string };
 
 // 가게 그림 경로표. 알 수 없는 경로·메서드는 undefined라 다른 경로처럼 404로 떨어진다. roundId는 아직 디코딩하지 않은 값이고
@@ -20,6 +20,7 @@ function matchMerchantArtRoute(method: string | undefined, tail: string): Mercha
     return method === 'GET' ? { kind: 'state' } : method === 'DELETE' ? { kind: 'reset' } : undefined;
   }
   if (tail === '/rounds') return method === 'POST' ? { kind: 'create' } : undefined;
+  if (tail === '/upload') return method === 'POST' ? { kind: 'upload' } : undefined;
   const round = tail.match(/^\/rounds\/([^/]+)(?:\/(choose|apply))?$/);
   if (!round) return undefined;
   const roundId = round[1]!;
@@ -83,6 +84,10 @@ export async function handlePublicAssets(ctx: RouteContext): Promise<boolean> {
     } else if (artRoute.kind === 'create') {
       requireEmptyBody(await readJson(request, true));
       sendJson(response, 202, await merchantArt.createRound({ merchantId, accountId }));
+    } else if (artRoute.kind === 'upload') {
+      const body = await readJson(request, false, 7 * 1024 * 1024);
+      if (Object.keys(body).some(key => key !== 'imageDataUrl')) throw new RequestError(400, 'INVALID_REQUEST');
+      sendJson(response, 200, await merchantArt.upload({ merchantId, accountId, imageDataUrl: requireString(body, 'imageDataUrl') }));
     } else if (artRoute.kind === 'get') {
       sendJson(response, 200, await merchantArt.getRound({ merchantId, roundId }));
     } else if (artRoute.kind === 'choose') {

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Image, Pressable, Text, View, useWindowDimensions, type AlertButton } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -14,6 +14,8 @@ import {
 } from '@/merchant-art/art-state';
 import { artCodeMessage, type OwnerArt } from '@/merchant-art/owner-art-api';
 import { createPromptGuard, type PromptGuard } from '@/merchant-art/owner-steps';
+import { photoFileErrorMessage } from '@/merchant-art/photo-file';
+import { pickMerchantPhoto } from '@/merchant-art/pick-photo';
 import { useMerchantArt } from '@/merchant-art/use-merchant-art';
 import { BackHeader } from '@/ui/back-header';
 import { BounceButton } from '@/ui/bounce-button';
@@ -44,7 +46,7 @@ type Props = {
   onCurrentArtChange?: (artUrl: string | null) => void;
 };
 
-const busyLabels: Record<ArtBusy, string> = { start: '요청하는 중…', choose: '요청하는 중…', apply: '적용하는 중…', reset: '되돌리는 중…' };
+const busyLabels: Record<ArtBusy, string> = { start: '요청하는 중…', choose: '요청하는 중…', apply: '적용하는 중…', upload: '사진 적용 중…', reset: '되돌리는 중…' };
 
 export function MerchantArtScreen({ apiUrl, merchantId, credential, onSessionInvalid, onBack, focused = true, onCurrentArtChange }: Props) {
   const styles = useMerchantArtStyles();
@@ -85,7 +87,27 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
   const { art: owner, selected, busy, notice } = state;
   const panel = artPanel(owner);
   const round = owner.round;
-  const working = busy !== null;
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [selectingPhoto, setSelectingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const working = busy !== null || selectingPhoto;
+  const selectPhoto = async () => {
+    if (working) return;
+    setSelectingPhoto(true);
+    setPhotoError(null);
+    try {
+      const photo = await pickMerchantPhoto();
+      if (photo) setSelectedPhoto(photo);
+    } catch (error) {
+      setPhotoError(photoFileErrorMessage(error));
+    } finally {
+      setSelectingPhoto(false);
+    }
+  };
+  const applyPhoto = async () => {
+    if (!selectedPhoto || working) return;
+    if (await art.uploadPhoto(selectedPhoto)) setSelectedPhoto(null);
+  };
   // A repeated tap on a button that opens an alert must not open a second one on top of the first.
   const promptGuard = useRef<PromptGuard | null>(null);
   promptGuard.current ??= createPromptGuard();
@@ -156,6 +178,21 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
           <Text style={styles.disclosure}>{AI_DISCLOSURE}</Text>
           {owner.current ? (
             <BounceButton label={busy === 'reset' ? busyLabels.reset : '기본 그림으로 되돌리기'} variant="secondary" disabled={working} onPress={confirmReset} />
+          ) : null}
+        </FloatingCard>
+      </Stagger>
+
+      <Stagger index={1}>
+        <FloatingCard style={styles.cardStack}>
+          <Text accessibilityRole="header" style={styles.cardTitle}>가게 사진 직접 올리기</Text>
+          <Text style={styles.cardBody}>JPG, PNG, WebP · 5MB 이하. 직접 촬영했거나 사용 권한이 있는 사진만 올려 주세요. 얼굴·개인정보가 보이면 업로드하지 마세요.</Text>
+          <BounceButton label={selectingPhoto ? '사진 선택 중…' : '사진 선택하기'} variant="secondary" disabled={working} onPress={() => void selectPhoto()} />
+          {photoError ? <View accessibilityLiveRegion="polite" style={styles.failure}><Text style={styles.failureText}>{photoError}</Text></View> : null}
+          {selectedPhoto ? (
+            <>
+              <Image source={{ uri: selectedPhoto }} accessible accessibilityRole="image" accessibilityLabel="선택한 가게 사진 미리보기" resizeMode="contain" style={[styles.finalArt, { width: finalArtSize(width), height: finalArtSize(width) }]} />
+              <BounceButton label={busy === 'upload' ? busyLabels.upload : '가게 사진으로 적용'} disabled={working} onPress={() => void applyPhoto()} />
+            </>
           ) : null}
         </FloatingCard>
       </Stagger>
@@ -259,7 +296,7 @@ function ReadyBody({ state, apiUrl, merchantId, width, art }: {
 function CurrentArt({ owner, apiUrl, merchantId }: { owner: OwnerArt; apiUrl: string; merchantId: string }) {
   const styles = useMerchantArtStyles();
   const shown = merchantArt({ id: merchantId, artUrl: owner.current?.artUrl }, apiUrl);
-  const usingAi = shown?.fromServer === true;
+  const usingOwnerImage = shown?.fromServer === true;
   return (
     <View style={styles.currentRow}>
       <View style={styles.currentFrame}>
@@ -268,7 +305,7 @@ function CurrentArt({ owner, apiUrl, merchantId }: { owner: OwnerArt; apiUrl: st
             source={shown.source}
             accessible
             accessibilityRole="image"
-            accessibilityLabel={usingAi ? '지금 쓰는 AI 가게 그림' : '지금 쓰는 기본 가게 그림'}
+            accessibilityLabel={usingOwnerImage ? '지금 쓰는 가게 이미지' : '지금 쓰는 기본 가게 그림'}
             accessibilityIgnoresInvertColors
             resizeMode="cover"
             style={styles.currentArt}
@@ -282,7 +319,7 @@ function CurrentArt({ owner, apiUrl, merchantId }: { owner: OwnerArt; apiUrl: st
       <View style={styles.currentCopy}>
         <Text accessibilityRole="header" textBreakStrategy="simple" style={styles.cardTitle}>지금 가게 그림</Text>
         <Text style={styles.cardBody}>
-          {usingAi ? '사장님이 고른 AI 그림을 고객 앱에 보여 주고 있어요.' : '아직 고른 그림이 없어서 기본 그림을 쓰고 있어요.'}
+          {usingOwnerImage ? '사장님이 적용한 이미지를 고객 앱에 보여 주고 있어요.' : '아직 고른 그림이 없어서 기본 그림을 쓰고 있어요.'}
         </Text>
       </View>
     </View>
