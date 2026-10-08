@@ -1622,11 +1622,12 @@ export function bindMerchant(fetcher, doc) {
     return refreshOverview();
   });
   // 점포를 바꾸면 이전 점포 목록을 지우고 새 점포 목록을 바로 읽는다. 가게 현황도 같은 점포로 따라간다.
-  reversalSelect?.addEventListener('change', () => {
+  const selectReversalMerchant = merchantId => {
+    reversalSelect.value = merchantId;
     resetReversal();
     void refreshReversal();
     if (overviewSelect) {
-      overviewSelect.value = reversalSelect.value;
+      overviewSelect.value = merchantId;
       resetOverview();
       resetProfile();
       void refreshProfile();
@@ -1634,6 +1635,11 @@ export function bindMerchant(fetcher, doc) {
       void refreshFeedback();
       void refreshOverview();
     }
+  };
+  reversalSelect?.addEventListener('change', () => selectReversalMerchant(reversalSelect.value));
+  doc.getElementById('merchant-claim-recent')?.addEventListener('click', () => {
+    if (claimMerchant.value && reversalSelect && reversalSelect.value !== claimMerchant.value) selectReversalMerchant(claimMerchant.value);
+    if (setMerchantView(doc, 'results') === 'results') jumpTo(doc.getElementById('merchant-reversal-title'));
   });
   reversalRefreshers.set(doc, () => refreshReversal());
   overviewRefreshers.set(doc, () => refreshOverview());

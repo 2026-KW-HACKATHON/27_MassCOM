@@ -1,5 +1,9 @@
 # BLOCKERS
 
+## 2026-10-09 P4·X2 미확정 조건 (Issue #438)
+
+P4는 실제 공유 풀 잔여 수량 저장/조회/차감, 표시 기준, 보유자 정의가 없다. 기존 `/coin-shop`의 고정 상세 확률은 비보유자에도 반환되어 새 탐색 표시의 근거로 사용할 수 없다. X2는 초대 수락과 인정된 동일 식사 참여의 연결, 강화권 확률/재고/지급 조건이 미정이다. [정책 검토 및 해소 조건](SELECTED_POLICY_REVIEW_2026-10-09.md). UI 구현 PASS로 이 보류를 해소 처리하지 않는다.
+
 ## PR #429 로컬 검증 환경 차단 (2026-10-09)
 
 macOS 제한 sandbox에서 Unix IPC와 TCP localhost 소켓 `listen`이 `EPERM`으로 거절된다. 모바일/API `npm test`의 tsx IPC 오류가 반복됐으며 Node loader 직접 실행으로 IPC만 우회했다. API HTTP/가짜 서버168건과 사이트의 localhost HTTP 시험은 여전히 BLOCKED다. 시험 assertion·skip·기대값은 바꾸지 않았다. 최소 재현: `node -e 'require("node:net").createServer().listen(0, "127.0.0.1")'`. 로그: `/tmp/pr429-mobile-test.log`, `/tmp/pr429-api-test.log`, `/tmp/pr429-api-fallback.log`, `/tmp/pr429-site-sockets.log`. 해소 조건: 소켓을 허용하는 CI에서 원명령 재실행. 이 차단은 운영 서버 장애나 이번 수정의 제품 결함으로 판정하지 않는다.

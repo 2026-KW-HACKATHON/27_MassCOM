@@ -5,6 +5,8 @@
 
 <h1 align="center">월계 마스코트 · MassCOM</h1>
 
+[홈·도감·가게 코인·점주 동선 후속 결과](docs/SELECTED_ACTIONS_QA_2026-10-09.md) · [P4/X2 미확정 정책과 보류 근거](docs/SELECTED_POLICY_REVIEW_2026-10-09.md) (Issue #438, 미배포)
+
 <p align="center">동네 가게를 발견하고, 방문을 기록하고, 마스코트를 모으는 Android 서비스.<br>외부 지갑 NFT는 선택 기능이며 앱 수집품과 실제 발행 상태를 구분합니다.</p>
 
 <p align="center">

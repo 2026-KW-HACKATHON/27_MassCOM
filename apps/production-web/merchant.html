@@ -33,6 +33,18 @@
         <button type="button" data-merchant-view-target="claim">방문 확인</button>
         <button type="button" data-merchant-view-target="results">운영 결과</button>
       </nav>
+      <section id="merchant-reversal" class="panel" data-merchant-view="results" aria-labelledby="merchant-reversal-title" hidden>
+        <h2 id="merchant-reversal-title">최근 방문·쿠폰 사용</h2>
+        <p>잘못 처리한 방문이나 쿠폰은 여기서 되돌려요. 방문 취소는 방문한 날(한국 시간)이 지나기 전까지, 쿠폰 사용 되돌리기는 사용 처리 후 10분까지 가능해요. 이미 NFT를 발행 중이거나 발행한 방문은 취소할 수 없어요.</p>
+        <label>점포 <select id="merchant-reversal-merchant"></select></label>
+        <button id="merchant-reversal-refresh" class="collection-action secondary" type="button">목록 새로 고침</button>
+        <h3 id="merchant-visit-title" tabindex="-1">최근 방문 확인</h3>
+        <ul id="merchant-visit-list" class="reversal-list" aria-labelledby="merchant-visit-title"></ul>
+        <p id="merchant-visit-status" class="status" role="status" aria-live="polite"></p>
+        <h3 id="merchant-redemption-title" tabindex="-1">최근 쿠폰 사용</h3>
+        <ul id="merchant-redemption-list" class="reversal-list" aria-labelledby="merchant-redemption-title"></ul>
+        <p id="merchant-redemption-status" class="status" role="status" aria-live="polite"></p>
+      </section>
       <section id="merchant-overview" class="panel overview" data-merchant-view="results" aria-labelledby="merchant-overview-title" hidden>
         <h2 id="merchant-overview-title">가게 현황</h2>
         <p>선택한 점포의 방문과 고객 앱 공개 준비 상태를 한눈에 봐요. 방문은 한국 시간 기준 하루 한 번만 세고, 취소한 방문·운영 점포 직원의 본인 적립·체험용 점포 방문은 빼고 센 값이에요.</p>
@@ -220,6 +232,7 @@
           <label>이용 식별 번호 <input id="merchant-claim-reference" type="text" autocomplete="off" required></label>
           <label><input id="merchant-claim-confirm" type="checkbox"> 실제 이용을 확인했고 이 QR을 사용합니다.</label>
           <button id="merchant-claim-submit" type="submit" disabled>방문 코드 발급</button>
+          <button id="merchant-claim-recent" class="collection-action secondary" type="button">최근 방문·쿠폰 사용 확인</button>
         </form>
         <p id="merchant-claim-result" class="status" role="status" aria-live="polite"></p>
         <section id="merchant-coupon" aria-labelledby="merchant-coupon-title" hidden>
@@ -234,18 +247,6 @@
           <label><input id="merchant-claim-reissue-confirm" type="checkbox"> 이전 방문 코드를 무효화하고 새 QR을 발급합니다.</label>
           <button id="merchant-claim-reissue-submit" type="button" disabled>방문 코드 재발급</button>
         </div>
-      </section>
-      <section id="merchant-reversal" class="panel" data-merchant-view="results" aria-labelledby="merchant-reversal-title" hidden>
-        <h2 id="merchant-reversal-title">최근 방문·쿠폰 사용</h2>
-        <p>잘못 처리한 방문이나 쿠폰은 여기서 되돌려요. 방문 취소는 방문한 날(한국 시간)이 지나기 전까지, 쿠폰 사용 되돌리기는 사용 처리 후 10분까지 가능해요. 이미 NFT를 발행 중이거나 발행한 방문은 취소할 수 없어요.</p>
-        <label>점포 <select id="merchant-reversal-merchant"></select></label>
-        <button id="merchant-reversal-refresh" class="collection-action secondary" type="button">목록 새로 고침</button>
-        <h3 id="merchant-visit-title" tabindex="-1">최근 방문 확인</h3>
-        <ul id="merchant-visit-list" class="reversal-list" aria-labelledby="merchant-visit-title"></ul>
-        <p id="merchant-visit-status" class="status" role="status" aria-live="polite"></p>
-        <h3 id="merchant-redemption-title" tabindex="-1">최근 쿠폰 사용</h3>
-        <ul id="merchant-redemption-list" class="reversal-list" aria-labelledby="merchant-redemption-title"></ul>
-        <p id="merchant-redemption-status" class="status" role="status" aria-live="polite"></p>
       </section>
     </section>
   </main>
