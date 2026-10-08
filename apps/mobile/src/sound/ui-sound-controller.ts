@@ -32,10 +32,10 @@ export type SoundPlayer = {
   volume?: number;
   loop?: boolean;
   seekTo(seconds: number): Promise<void>;
-  play(): void;
+  play(): void | Promise<void>;
   pause(): void;
   remove(): void;
-  addListener?: (event: 'playbackStatusUpdate', listener: (status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) => { remove(): void };
+  addListener?: (event: 'playbackStatusUpdate', listener: (status: { didJustFinish?: boolean; isLoaded?: boolean; playing?: boolean }) => void) => { remove(): void };
 };
 
 export type SoundBackend = {
@@ -54,8 +54,8 @@ type Dependencies = {
   storage: SoundPreferenceStorage;
   now?: () => number;
   /**
-   * 웹: 일곱 UI 소리 플레이어를 시작할 때 만들지 않고 `loadUiPlayers()`(첫 사용자 동작)를 부를 때 만든다.
-   * 브라우저는 플레이어를 만드는 즉시 파일을 내려받기 때문이다. 네이티브는 켜지 않아 시작 때 만든다.
+   * 웹: UI 소리와 BGM 플레이어를 `loadUiPlayers()`(첫 사용자 동작) 뒤에 만든다.
+   * 브라우저는 플레이어를 만드는 즉시 파일을 내려받기 때문이다. 네이티브 UI 소리는 시작 때 만든다.
    */
   deferUiPlayers?: boolean;
 };
@@ -129,12 +129,20 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
   const subscribers = new Set<() => void>();
   let drawMusicFocused = false;
   let musicActivated = false;
+  let musicStarted = false;
+  let musicSessionActive = true;
   let musicState: 'idle' | 'intro' | 'loop' = 'idle';
   let pendingMusic: MusicSoundName | undefined;
   let backendReady = false;
   let uiPlayersWanted = !deferUiPlayers;
   let uiPlayersCreated = false;
   let musicPlayersCreated = false;
+
+  function setMusicStarted(started: boolean) {
+    if (musicStarted === started) return;
+    musicStarted = started;
+    subscribers.forEach((listener) => listener());
+  }
 
   function publish(next: typeof settings) {
     settings = { ...next, enabled: next.soundEffectsEnabled };
@@ -193,6 +201,7 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
     seeking.clear();
     musicSeeking.clear();
     musicActivated = false;
+    setMusicStarted(false);
     musicState = 'idle';
     backendReady = false;
     uiPlayersCreated = false;
@@ -285,7 +294,7 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
     }
   }
 
-  /** 두 BGM 플레이어는 그리기 화면에 처음 들어갈 때(setDrawMusicFocused)에야 만든다. 큰 mp3를 첫 화면과 함께 내려받지 않는다. */
+  /** 네이티브는 첫 렌더 뒤, 웹은 첫 입력 뒤에만 큰 mp3 플레이어를 만든다. */
   function ensureMusicPlayers() {
     if (!backendReady || musicPlayersCreated) return;
     musicPlayersCreated = true;
@@ -298,6 +307,9 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
         if (name === 'drawLoop') player.loop = true;
         const subscription = player.addListener?.('playbackStatusUpdate', (status) => {
           if (!mounted || lifecycle !== epoch || musicPlayers.get(name) !== player) return;
+          if (canPlayMusic() && musicState === (name === 'drawIntro' ? 'intro' : 'loop') && status.playing !== undefined) {
+            setMusicStarted(status.playing);
+          }
           if (name === 'drawIntro' && status.didJustFinish) handleIntroFinished(epoch);
           if (status.isLoaded && pendingMusic === name) applyMusicIntent(true);
         });
@@ -313,13 +325,23 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
       if (!mounted || lifecycle !== epoch) return;
       backendReady = true;
       ensureUiPlayers();
-      if (drawMusicFocused || musicActivated) ensureMusicPlayers();
       applyMusicIntent(false);
     } catch { /* Old clients may not include expo-audio. */ }
   }
 
   function canPlayMusic() {
-    return mounted && foreground && settings.ready && settings.bgmEnabled;
+    return mounted && musicSessionActive && musicActivated && foreground && settings.ready && settings.bgmEnabled;
+  }
+
+  function startMusicPlayer(name: MusicSoundName, player: SoundPlayer) {
+    const epoch = generation;
+    const current = () => canPlayMusic() && generation === epoch && musicPlayers.get(name) === player;
+    try {
+      const playback = player.play();
+      if (playback) {
+        void playback.then(() => { if (current()) setMusicStarted(true); }, () => { if (current()) setMusicStarted(false); });
+      }
+    } catch { if (current()) setMusicStarted(false); }
   }
 
   function playMusic(name: MusicSoundName, restart: boolean) {
@@ -337,14 +359,14 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
     pauseMusic();
     musicState = name === 'drawIntro' ? 'intro' : 'loop';
     if (!restart) {
-      try { player.play(); } catch { /* Optional. */ }
+      startMusicPlayer(name, player);
       return;
     }
     musicSeeking.set(name, player);
     try {
       void Promise.resolve(player.seekTo(0)).then(() => {
         if (canPlayMusic() && generation === epoch && musicPlayers.get(name) === player && player.isLoaded && now() - startedAt <= 500) {
-          player.play();
+          startMusicPlayer(name, player);
         }
       }).catch(() => undefined).finally(() => {
         if (musicSeeking.get(name) === player) musicSeeking.delete(name);
@@ -354,23 +376,21 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
     }
   }
 
-  function applyMusicIntent(restartIntro: boolean) {
+  function applyMusicIntent(restartIntro: boolean, fromGesture = false) {
     if (!canPlayMusic()) {
       pauseMusic();
       return;
     }
+    ensureMusicPlayers();
+    // A load callback cannot unlock web audio; retry inside the next trusted gesture.
+    if (deferUiPlayers && !musicStarted && !fromGesture) return;
     if (drawMusicFocused) {
-      musicActivated = true;
-      if (musicState === 'intro') playMusic('drawIntro', restartIntro);
+      if (musicState === 'intro') playMusic('drawIntro', restartIntro && !fromGesture);
       else if (musicState === 'loop') playMusic('drawLoop', false);
-      else playMusic('drawIntro', true);
+      else playMusic('drawIntro', !fromGesture);
       return;
     }
-    if (!musicActivated) {
-      pauseMusic();
-      return;
-    }
-    playMusic('drawLoop', musicState !== 'loop');
+    playMusic('drawLoop', !fromGesture && musicState !== 'loop');
   }
 
   function handleIntroFinished(epoch: number) {
@@ -434,6 +454,26 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
       subscribers.add(listener);
       return () => { subscribers.delete(listener); };
     },
+    needsMusicGesture() {
+      return mounted && musicSessionActive && deferUiPlayers && settings.ready && settings.bgmEnabled && !musicStarted;
+    },
+    needsUiGesture() {
+      return mounted && deferUiPlayers && !uiPlayersWanted;
+    },
+    setMusicSessionActive(active: boolean) {
+      if (musicSessionActive === active) return;
+      musicSessionActive = active;
+      generation += 1;
+      if (!active) {
+        musicActivated = false;
+        pauseMusic();
+        setMusicStarted(false);
+      } else if (!deferUiPlayers) {
+        musicActivated = true;
+        applyMusicIntent(false);
+      }
+      subscribers.forEach((listener) => listener());
+    },
     start(active: boolean) {
       if (mounted) return () => undefined;
       mounted = true;
@@ -443,8 +483,15 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
       publish({ ...settings, ready: false });
       void hydrate(epoch, preferenceVersion);
       void prepare(epoch);
+      // start() runs in the root's effect; defer music beyond its first-render work.
+      const musicTimer = !deferUiPlayers ? setTimeout(() => {
+        if (!mounted || lifecycle !== epoch) return;
+        musicActivated = true;
+        applyMusicIntent(false);
+      }, 0) : undefined;
       return () => {
         if (!mounted || lifecycle !== epoch) return;
+        clearTimeout(musicTimer);
         mounted = false;
         foreground = false;
         lifecycle += 1;
@@ -470,9 +517,7 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
       drawMusicFocused = active;
       generation += 1;
       if (active) {
-        musicActivated = true;
         musicState = 'idle';
-        ensureMusicPlayers();
         applyMusicIntent(true);
         return;
       }
@@ -484,10 +529,17 @@ export function createUiSoundController({ backend, storage, now = Date.now, defe
     setBgmVolume,
     setHapticMode,
     reset,
-    /** `deferUiPlayers`일 때 일곱 UI 소리 플레이어를 만든다(첫 사용자 동작). 이미 만들었거나 시작 전이면 아무 일도 하지 않는다. */
-    loadUiPlayers() {
+    /** 첫 입력에서 로드하고, 재생 확인 전까지 입력 안에서 웹 BGM을 재시도한다. */
+    loadUiPlayers(activateMusic = true) {
       uiPlayersWanted = true;
       if (mounted) ensureUiPlayers();
+      if (activateMusic && deferUiPlayers && !musicStarted) {
+        generation += 1;
+        musicSeeking.clear();
+        musicActivated = true;
+        applyMusicIntent(false, true);
+      }
+      subscribers.forEach((listener) => listener());
     },
     play(name: UiSoundName): void {
       if (!mounted || !foreground || !settings.ready || !settings.soundEffectsEnabled) return;
