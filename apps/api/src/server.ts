@@ -8,7 +8,6 @@ import { AccountDeletionError } from './account-deletion.js';
 import type { AuthSessionService } from './auth-session.js';
 import { OpenAiImageClient } from './ai-art-client.js';
 import { aiArtStartupLine, resolveAiArtConfigOrDisabled } from './ai-art-rules.js';
-import { isRewardMilestone } from './badge-rules.js';
 import { PostgresStoreTicketService } from './postgres/store-tickets.js';
 import { startNotificationsRunner } from './social.js';
 import { handleSocialHttp, SocialHttpError } from './social-http.js';
@@ -111,6 +110,7 @@ import { RequestError } from './http/request-error.js';
 import { respondWithError } from './http/error-response.js';
 import { sendJson, setCommonHeaders } from './http/response.js';
 import type { RouteContext } from './routes/context.js';
+import { handleAccount } from './routes/account.js';
 import { handleCustomer } from './routes/customer.js';
 import { handleMerchantApp } from './routes/merchant-app.js';
 import { handlePublicAssets } from './routes/public-assets.js';
@@ -1381,55 +1381,7 @@ export function createApiServer(deps: ApiDeps) {
         return;
       }
 
-      if (request.method === 'POST' && request.url === '/customer/identity-tokens') {
-        if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        sendJson(response, 201, await customerIdentities.create(accountId));
-        return;
-      }
-
-      if (request.method === 'POST' && request.url === '/customer/identity-tokens/revoke') {
-        if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        const body = await readJson(request);
-        await customerIdentities.revoke({ accountId, token: requireString(body, 'token') });
-        sendJson(response, 200, { status: 'REVOKED' });
-        return;
-      }
-
-      if (request.method === 'GET' && request.url === '/me/badges') {
-        if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        sendJson(response, 200, await badges.getBadges(accountId));
-        return;
-      }
-
-      const openRewardMatch = request.url?.match(/^\/me\/badges\/rewards\/([^/]+)\/open$/);
-      if (request.method === 'POST' && openRewardMatch) {
-        if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        const milestoneText = decodePathParameter(openRewardMatch[1]!);
-        const milestone = Number(milestoneText);
-        const body = await readJson(request, true);
-        if (Object.keys(body).length > 0 || !/^[1-9]$/.test(milestoneText) || !isRewardMilestone(milestone)) {
-          throw new RequestError(400, 'INVALID_REQUEST');
-        }
-        sendJson(response, 200, await badges.openReward({ accountId, milestone }));
-        return;
-      }
-
-      if (request.url === '/me/consent' && (request.method === 'GET' || request.method === 'POST')) {
-        if (!consent) throw new RequestError(503, 'CONSENT_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        if (request.method === 'GET') {
-          sendJson(response, 200, await consent.status(accountId));
-        } else {
-          sendJson(response, 200, await consent.record({
-            accountId, source: consent.appSource, ...readConsentBody(await readJson(request)),
-          }));
-        }
-        return;
-      }
+      if (await handleAccount(routeContext)) return;
 
       if (await handleSocialHttp({ request, response, path, service: social,
         resolveAccountId: async () => resolveAccountId(request), requireConsent: requireCurrentPlayConsent,
