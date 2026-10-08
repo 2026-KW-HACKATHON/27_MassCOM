@@ -1,5 +1,10 @@
 # HANDOFF
 
+## 2026-10-09 시연 지갑·지도 설정 복구 (Issue #447)
+
+[PR #448](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/448), `fix/showcase-wallet-map-config`. 시연 Reown 명시 설정·지도 키 누락 차단을 구현했고 재발급된 TMAP 키를 Git 밖 설정에 반영했다. Samsung 최종APK `f07637eb`는 동일서명 설치·설치파일 해시 일치·실제 TMAP 타일·지갑 CONNECTED/BASE_SEPOLIA 복원 PASS. 주소 서명은 UNVERIFIED로 남겼다. 최신 main 병합 `c3c41bf3`에서 모바일2231/2231·타입 PASS, lint 오류0/기존경고1. [실기/자동검사](evidence/wallet-map-config-2026-10-09/README.md). 네이버 결제수단은 기존 등록 확인, Reown 기존 프로젝트 공유는 소유자 확정이고 `.demo` 허용 목록을 등록했다. DNS·결제·공개 서버/배포·Play는 변경하지 않았다. PR 최신 CI·병합 상태는 GitHub에서 확인한다.
+
+
 ## 2026-10-09 PR #440 리뷰 지적 수정 (파일 수정만·미배포)
 
 작업 위치 `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/pr440`, 브랜치 `feat/friend-actions-guestbook`, HEAD `2a541d736ba8f9eb272eed3725afbc36620e5d37`, 로컬 `origin/main` `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`다. 실제 [PR #440](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/440)은 OPEN이며 조회 시 원격 head는 `380b3c43918a637c26b1dbcb9fa4d2b90b70d51a`였다. 이 작업은 HEAD 위 파일 수정이며 Git add·commit·stash·merge·rebase·push를 실행하지 않는다.
@@ -47,6 +52,7 @@
 - 모바일 전체 2212/2212, 브라우저 27/27·콘솔 오류 0, 타입·린트, 네이티브 모듈 컴파일과 두 variant Android JS export PASS. 린트 기존 경고 1개. 지정 architect 모델 실행 불가는 [QA](GACHA_STAMP_QA_2026-10-09.md)에 별도 기록했고 code-reviewer APPROVE·보조 critic CLEAR를 받았다.
 - 다음 수용 경계는 운영/시연 설치본 재생·청음이며 이번에는 NOT_RUN이다. 배포·Play 업로드는 수행하지 않았다. 테스트 명령과 화면·자산 증거는 [TEST_STATUS](TEST_STATUS.md) 최상단이다.
 - 로컬 gate의 비밀·크기·충돌·부트스트랩·운영 문서·증거 일관성은 통과했고, 마지막 배포 문서 검사는 Windows CRLF 정규화 뒤 별도 재실행으로 통과했다. 무관한 줄바꿈 변경은 Git diff에 포함하지 않았다.
+
 **2026-10-09 CI 병렬 작업 분리 (PR #443)**
 
 작업 위치 `.worktrees/ci`, 브랜치 `ci/parallel-jobs`, 기준 HEAD `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`. 기존 검사를 API·PG 2샤드·모바일·웹/운영/문서·계약/worker로 분리하고 필수 `bootstrap-contract` 집계를 유지했다. 변경 파일은 `.github/workflows/ci.yml`, 새 `tests/ci/parallel_jobs.test.mjs`, TEST_STATUS·AI_USAGE·이 인수인계 항목이다. 로컬 CI 연결·기존 YAML 참조 회귀·샤드/집계 2/2·YAML/문법/명령 보존 PASS; 실제 GitHub 약 5~6분 예상은 미측정, actionlint 미설치. 다음 로컬 확인은 `bash tests/ci/ci_wiring_test.sh`와 `node --test tests/ci/parallel_jobs.test.mjs`; 상세는 [TEST_STATUS](TEST_STATUS.md) 최상단. 사용자 지시로 Git add·commit·stash·merge·rebase·push와 원격 CI 실행은 하지 않았다.

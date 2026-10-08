@@ -17,6 +17,7 @@ const buildEnvironmentKeys = [
   'EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID',
   'EXPO_PUBLIC_REOWN_PROJECT_ID',
   'MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID',
+  'MASSCOM_SHOWCASE_REOWN_PROJECT_ID',
   'EXPO_PUBLIC_DEMO_ACCOUNT_ID',
   'EXPO_PUBLIC_DEMO_MERCHANT_ACCOUNT_ID',
   'EXPO_PUBLIC_DEMO_MERCHANT_ID',
@@ -27,7 +28,7 @@ type EvaluatedExpoConfig = {
   name?: string;
   scheme?: string;
   platforms?: string[];
-  extra?: { masscomShowcase?: { googleWebClientId?: string; apiOrigin?: string } };
+  extra?: { masscomShowcase?: { googleWebClientId?: string; reownProjectId?: string; apiOrigin?: string } };
   android?: {
     package?: string;
     googleServicesFile?: string;
@@ -135,6 +136,29 @@ test('showcase requires its own Google Web client and exposes only that public I
   const config = JSON.parse(result.stdout) as EvaluatedExpoConfig;
   assert.equal(config.extra?.masscomShowcase?.googleWebClientId, '123-demo.apps.googleusercontent.com');
   assert.equal(config.extra?.masscomShowcase?.apiOrigin, 'https://demo-api.masscom.kr');
+  assert.equal(config.extra?.masscomShowcase?.reownProjectId, undefined);
+});
+
+test('showcase accepts only a dedicated 32-hex Reown ID and exposes it through extra', () => {
+  const reownProjectId = 'a'.repeat(32);
+  const environment = {
+    APP_VARIANT: 'showcase',
+    EXPO_PUBLIC_API_URL: 'https://demo-api.masscom.kr',
+    MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
+    MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: '123-demo.apps.googleusercontent.com',
+  };
+  for (const invalid of ['invalid', 'a'.repeat(31), 'a'.repeat(32) + 'x', '   ']) {
+    assert.throws(() => validateBuildEnvironment('showcase', {
+      ...environment,
+      MASSCOM_SHOWCASE_REOWN_PROJECT_ID: invalid,
+    }), /MASSCOM_SHOWCASE_REOWN_PROJECT_ID/, invalid);
+    const result = evaluateExpoConfig({ ...environment, MASSCOM_SHOWCASE_REOWN_PROJECT_ID: invalid });
+    assert.notEqual(result.status, 0, invalid);
+    assert.match(result.stderr, /MASSCOM_SHOWCASE_REOWN_PROJECT_ID/);
+  }
+  const result = evaluateExpoConfig({ ...environment, MASSCOM_SHOWCASE_REOWN_PROJECT_ID: reownProjectId });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal((JSON.parse(result.stdout) as EvaluatedExpoConfig).extra?.masscomShowcase?.reownProjectId, reownProjectId);
 });
 
 test('showcase refuses every insecure development DEMO variable, including false', () => {

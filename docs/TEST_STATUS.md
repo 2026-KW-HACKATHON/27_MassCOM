@@ -1,5 +1,10 @@
 # 테스트 상태
 
+## 2026-10-09 지갑·지도 설정 복구 (Issue #447)
+
+모바일2231/2231·집중설정33·지도산출물6·타입 PASS, lint 오류0/기존경고1. Samsung 설치·TMAP 실제 타일·네이버 대체 타일·지갑 연결과 APK 업데이트 뒤 복원 PASS. 주소 서명·실제 GPS·공개 배포 NOT_RUN. [산출물·환경·경계](evidence/wallet-map-config-2026-10-09/README.md).
+
+
 ## 2026-10-09 PR #440 리뷰 후속 수정 (파일 수정만·미배포)
 
 환경: macOS·Node.js v25.9.0, `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/pr440`, `feat/friend-actions-guestbook`, HEAD `2a541d736ba8f9eb272eed3725afbc36620e5d37` 위 작업 파일. 로컬 `origin/main`은 `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`이며 PR #440 OPEN·원격 head `380b3c43918a637c26b1dbcb9fa4d2b90b70d51a`를 읽기 전용 조회했다. 아래 수치는 이 환경의 실제 재실행이며 팀원의 Windows 검증이나 원격 CI와 구분한다.
@@ -46,6 +51,7 @@
 초기 모바일의 기존 소스 문자열 검사와 로컬 큰 파일·현재 배포 상태 검사는 Windows 체크아웃 CRLF 때문에 실패했다. 해당 작업 파일의 줄바꿈만 LF로 맞췄으며 커밋 내용 차이는 없다. 최초 전체2182/2182와 최신 main 통합 후2196/2196, 최종 gate가 각각 통과했다. 전체 PostgreSQL은 전용 로컬 클러스터·테스트 DB에서 실행하며 운영 DB에 접근하지 않는다. DB 기본 시간대는 UTC, 보상 날짜는 서비스의 KST 규칙으로 별도 검증한다.
 
 **이하 이전 작업 이력 — 아래 숫자·환경·제한은 각 실행 당시 기록이다.**
+
 ## 2026-10-09 PR #445와 main 통합 검증 (파일 수정만·미배포)
 
 환경: macOS 제한 sandbox, `.worktrees/pr445`, 브랜치 `feat/gacha-stamp-reveal`, HEAD `dd76e693`, MERGE_HEAD main `2cfcc8e8`, Git index 미병합. 문서·RNW fixture의 양쪽 변경을 보존하고 Android 영상은 다운로드된 `localUri`가 생긴 뒤에만 재생기를 장착하며 준비 전 native 오류로 공개 흐름을 끝내지 않도록 수정했다. 영상 소리는 설정 준비와 효과음 허용을 모두 확인한 뒤 출력한다. 기존 시험은 약화하지 않았다.

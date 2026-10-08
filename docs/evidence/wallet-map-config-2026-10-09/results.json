@@ -1,0 +1,43 @@
+{
+  "issue": 447,
+  "pullRequest": 448,
+  "device": "Samsung SM-S928N / Android 16",
+  "appPackage": "kr.masscom.wolgye.demo",
+  "apkSourceCommit": "f07637eb04f244f9901e488b7dd05d5b0187ac9e",
+  "apkSha256": "6a0a6dc728d2bee08bc7963ac12a684bf0941a91f43f4a385d5f719b4f37216f",
+  "mergedSourceTestCommit": "c3c41bf3b3c2d19c42ac0aba493262b581b2155a",
+  "checks": {
+    "beforeWalletMissingConfig": "REPRODUCED",
+    "beforeMapKeysAbsent": "REPRODUCED",
+    "oldTmapKey": "403 INVALID_API_KEY",
+    "currentTmapKeyGeocoding": "200 / 1 candidate",
+    "apkBuild": "PASS",
+    "apkAndAabPublicMapsAndReown": "PASS",
+    "knownNaverServerSecretsAbsent": "PASS",
+    "sameSigningCertificate": "PASS",
+    "installReplacePreservingData": "PASS",
+    "installedApkHashMatches": "PASS",
+    "tmapTilesAndLogo": "PASS",
+    "naverFallbackTilesWithOldTmapKey": "PASS",
+    "walletPicker": "PASS",
+    "walletConnectedBaseSepolia": "PASS",
+    "walletConnectionRestoredAfterApkUpdate": "PASS",
+    "walletAddressSignature": "NOT_RUN",
+    "transactions": "NOT_RUN",
+    "gps": "NOT_RUN",
+    "publicRelease": "NOT_RUN",
+    "googlePlay": "NOT_RUN",
+    "mobileTests": "2231/2231 PASS",
+    "configTests": "33/33 PASS",
+    "mapsArchiveTests": "6/6 PASS",
+    "typecheck": "PASS",
+    "lint": "0 errors / 1 existing warning",
+    "independentReview": "no actionable P1/P2"
+  },
+  "externalConfiguration": {
+    "naverPaymentMethod": "already registered; unchanged",
+    "reownProject": "existing project explicitly shared by user decision",
+    "reownAllowedAppId": "kr.masscom.wolgye.demo added",
+    "dns": "unchanged"
+  }
+}

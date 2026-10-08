@@ -26,6 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
     EXPO_PUBLIC_REOWN_PROJECT_ID: process.env.EXPO_PUBLIC_REOWN_PROJECT_ID,
     MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: process.env.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID,
+    MASSCOM_SHOWCASE_REOWN_PROJECT_ID: process.env.MASSCOM_SHOWCASE_REOWN_PROJECT_ID,
     MASSCOM_BUILD_SOURCE_COMMIT: buildSourceCommit,
     MASSCOM_WEB_BASE_URL: webBaseUrl,
     EXPO_PUBLIC_DEMO_ACCOUNT_ID: process.env.EXPO_PUBLIC_DEMO_ACCOUNT_ID,
@@ -87,6 +88,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       masscomShowcase: showcase
         ? {
             googleWebClientId: process.env.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID?.trim(),
+            reownProjectId: process.env.MASSCOM_SHOWCASE_REOWN_PROJECT_ID?.trim() || undefined,
             apiOrigin: SHOWCASE_API_ORIGIN,
           }
         : undefined,

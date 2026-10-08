@@ -17,6 +17,9 @@ export function resolveRuntimeIdentity(
   const clientId = value && typeof value === 'object'
     ? Reflect.get(value, 'googleWebClientId')
     : undefined;
+  const projectId = value && typeof value === 'object'
+    ? Reflect.get(value, 'reownProjectId')
+    : undefined;
 
   return {
     googleWebClientId:
@@ -24,6 +27,8 @@ export function resolveRuntimeIdentity(
       /^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(clientId)
         ? clientId
         : undefined,
-    reownProjectId: undefined,
+    reownProjectId: typeof projectId === 'string' && /^[0-9a-f]{32}$/i.test(projectId)
+      ? projectId
+      : undefined,
   };
 }

@@ -18,6 +18,12 @@ operating_client="${MASSCOM_OPERATING_GOOGLE_WEB_CLIENT_ID:-}"
 client_pattern='^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$'
 [[ "$showcase_client" =~ $client_pattern && "$operating_client" =~ $client_pattern &&
    "$showcase_client" != "$operating_client" ]] || fail 'dedicated Google Web client is required'
+showcase_reown_project="${MASSCOM_SHOWCASE_REOWN_PROJECT_ID:-}"
+[[ -z "$showcase_reown_project" || "$showcase_reown_project" =~ ^[0-9a-fA-F]{32}$ ]] ||
+  fail 'MASSCOM_SHOWCASE_REOWN_PROJECT_ID must be 32 hexadecimal characters'
+tmap_map_key="${EXPO_PUBLIC_TMAP_MAP_APP_KEY:-}"
+[[ "$tmap_map_key" =~ [^[:space:]] ]] || fail 'showcase EXPO_PUBLIC_TMAP_MAP_APP_KEY is required'
+naver_map_client="${EXPO_PUBLIC_NAVER_MAP_CLIENT_ID:-}"
 
 for variable in EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID EXPO_PUBLIC_REOWN_PROJECT_ID \
   EXPO_PUBLIC_API_URL EXPO_PUBLIC_DEMO_ACCOUNT_ID \
@@ -97,6 +103,7 @@ validateBuildEnvironment('showcase', {
   EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
   MASSCOM_BUILD_SOURCE_COMMIT: process.env.MASSCOM_BUILD_SOURCE_COMMIT,
   MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID: process.env.MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID,
+  MASSCOM_SHOWCASE_REOWN_PROJECT_ID: process.env.MASSCOM_SHOWCASE_REOWN_PROJECT_ID,
 });
 NODE
 
@@ -145,6 +152,8 @@ unset MASSCOM_SHOWCASE_STORE_PASSWORD MASSCOM_SHOWCASE_KEY_PASSWORD
 cd "$mobile_dir"
 CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=showcase MASSCOM_BUILD_SOURCE_COMMIT="$commit" \
   MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID="$showcase_client" \
+  MASSCOM_SHOWCASE_REOWN_PROJECT_ID="$showcase_reown_project" \
+  EXPO_PUBLIC_TMAP_MAP_APP_KEY="$tmap_map_key" EXPO_PUBLIC_NAVER_MAP_CLIENT_ID="$naver_map_client" \
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
   npx --no-install expo prebuild --platform android --clean --no-install
 set_signing_environment
@@ -154,6 +163,8 @@ set_signing_environment
 MASSCOM_SHOWCASE_KEYSTORE_FILE="$keystore" MASSCOM_SHOWCASE_KEY_ALIAS="$alias_name" \
   CI=0 NODE_ENV=production EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
   MASSCOM_BUILD_SOURCE_COMMIT="$commit" MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID="$showcase_client" \
+  MASSCOM_SHOWCASE_REOWN_PROJECT_ID="$showcase_reown_project" \
+  EXPO_PUBLIC_TMAP_MAP_APP_KEY="$tmap_map_key" EXPO_PUBLIC_NAVER_MAP_CLIENT_ID="$naver_map_client" \
   EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
   node - "$mobile_dir/android" <<'NODE'
 const { spawnSync } = require('node:child_process');
@@ -201,6 +212,24 @@ for embedded_artifact in "$apk" "$aab"; do
   "$repo_root/scripts/check-embedded-api.sh" "$embedded_artifact" \
     https://demo-api.masscom.kr https://api.masscom.kr ||
     fail 'showcase build embeds the wrong API origin; clear the Metro cache (rm -rf "${TMPDIR:-/tmp}/metro-cache") and rebuild'
+  node "$repo_root/scripts/check-embedded-maps.mjs" "$embedded_artifact" ||
+    fail 'showcase build embeds the wrong map ID; clear the Metro cache and rebuild'
+  if [[ -n "$showcase_reown_project" ]]; then
+    node - "$embedded_artifact" <<'NODE'
+const { execFileSync } = require('node:child_process');
+const artifact = process.argv[2];
+const entry = artifact.endsWith('.aab') ? 'base/assets/app.config' : 'assets/app.config';
+try {
+  const config = JSON.parse(execFileSync('unzip', ['-p', artifact, entry], { encoding: 'utf8' }));
+  if (config.extra?.masscomShowcase?.reownProjectId !== process.env.MASSCOM_SHOWCASE_REOWN_PROJECT_ID) {
+    throw new Error('mismatch');
+  }
+} catch {
+  console.error('showcase Reown project ID is missing or mismatched in app config');
+  process.exit(1);
+}
+NODE
+  fi
 done
 
 node - "$apk" "$staging/$basename.provenance.json" "$commit" "$certificate" <<'NODE'
@@ -214,7 +243,7 @@ writeFileSync(resultPath, JSON.stringify({
   apiOrigin: 'https://demo-api.masscom.kr',
   artifact: { basename: apkPath.split('/').pop(), sha256: createHash('sha256').update(artifact).digest('hex'), bytes: statSync(apkPath).size },
   signingCertificateSha256: certificateSha256,
-  checks: { api: 'PASS', package: 'PASS', sourceMarker: 'PASS', signature: 'PASS', walletSurface: 'PASS', embeddedApi: 'PASS' },
+  checks: { api: 'PASS', package: 'PASS', sourceMarker: 'PASS', signature: 'PASS', walletSurface: 'PASS', embeddedApi: 'PASS', embeddedMaps: 'PASS', embeddedReown: process.env.MASSCOM_SHOWCASE_REOWN_PROJECT_ID ? 'PASS' : 'NOT_RUN' },
   deviceInstall: 'NOT_RUN',
   githubRelease: 'NOT_RUN',
 }, null, 2) + '\n', { mode: 0o600 });
