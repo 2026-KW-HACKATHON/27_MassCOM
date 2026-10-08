@@ -1,6 +1,9 @@
 {
   "platforms": ["android"],
   "android": {
-    "modules": ["kr.masscom.studiovideo.StudioVideoModule"]
+    "modules": [
+      "kr.masscom.studiovideo.StudioVideoModule",
+      "kr.masscom.studiovideo.MasscomStampVideoModule"
+    ]
   }
 }

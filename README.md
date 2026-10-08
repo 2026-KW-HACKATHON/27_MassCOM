@@ -31,6 +31,8 @@
 
 ## 무엇인가
 
+2026-10-09 개발 변경: 승인된 우표 대기·개봉 영상과 제공 효과음을 뽑기 화면에 연결했다. 현재 브랜치 모바일 자동 시험 2212/2212·브라우저 27/27·Android 모듈 컴파일·두 variant JS 번들 PASS이며 아직 배포하지 않았다. [화면과 검증 범위](docs/GACHA_STAMP_QA_2026-10-09.md).
+
 MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모으는 Android 서비스입니다.
 대상은 지역 이용자와 점주·직원입니다.
 흐름은 "가게 탐색 → QR 방문 인증 → 도감·코인 수집 → 놀이·마이룸 → 다음 가게 추천"입니다.
@@ -110,7 +112,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-09 KST, 통합 브랜치 `integ/pr439`에 PR #439를 main `b37063c0` 위로 합친 기준): API 단위 674/674 · 모바일 2216/2216. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, PR #445 브랜치 `feat/gacha-stamp-reveal`에 main을 합친 기준): API 단위 674/674 · 모바일 2229/2229. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 앱 시작 배경음 수정은 로컬 구현·검증됐다. 네이티브는 첫 렌더 뒤, 웹은 첫 입력과 자산 준비 뒤 일반 배경음을 재생하며 뽑기 화면의 intro→loop는 유지한다. 실제 브라우저·각 Android 앱 청음과 배포는 별도다([D-103](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 
@@ -536,4 +538,3 @@ npm run test:postgres --prefix apps/api
 
 [current-test-status]: docs/TEST_STATUS.md
 [current-handoff-history]: docs/HANDOFF_HISTORY.md
-

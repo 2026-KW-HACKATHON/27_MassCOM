@@ -52,20 +52,22 @@ test('등급 뽑기 요청 오류는 같은 요청 복구와 닫기를 다시 �
   const draw = readFileSync(fileURLToPath(new URL('./grade-draw-machine.tsx', import.meta.url)), 'utf8');
   assert.match(draw, /onRecover \? <Control label="이전 뽑기 결과 다시 확인"/);
   const startSource = draw.slice(draw.indexOf('const start = async () => {'), draw.indexOf('const displayedBalance ='));
-  const run = new Function('onDraw', 'onClose', 'setPhase', 'setCloseNotice', 'crank', 'jiggle', 'openingScale', 'pool', 'balance', 'busy', 'phase',
+  const run = new Function('onDraw', 'onClose', 'setPhase', 'setCloseNotice', 'drawInFlight', 'pool', 'balance', 'busy', 'phase',
     `${startSource}; return { start, close };`) as (...args: unknown[]) => { start: () => Promise<void>; close: () => void };
   let phase = 'detail';
   let closed = false;
   let drawing = false;
   const setPhase = (value: string) => { phase = value; };
   const drawPromise = new Promise<boolean>((resolve) => { setTimeout(() => resolve(false), 0); });
-  const common = [() => { drawing = true; return drawPromise; }, () => { closed = true; }, setPhase, () => {}, { set: () => {} }, { set: () => {} }, { set: () => {} }, { total: 1, price: 100 }, 200];
+  const drawInFlight = { current: false };
+  const common = [() => { drawing = true; return drawPromise; }, () => { closed = true; }, setPhase, () => {}, drawInFlight, { total: 1, price: 100 }, 200];
   const active = run(...common, false, phase);
   const pending = active.start();
   assert.equal(drawing, true);
   assert.equal(phase, 'pending');
   return pending.then(() => {
     assert.equal(phase, 'detail');
+    assert.equal(drawInFlight.current, false, 'a failed purchase releases the same-tick draw guard');
     run(...common, false, phase).close();
     assert.equal(closed, true);
   });

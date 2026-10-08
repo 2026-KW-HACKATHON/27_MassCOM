@@ -8,6 +8,7 @@ const celebration = read('../../gamification/celebration.tsx');
 const shop = read('./index.tsx');
 const machine = read('./gacha-machine.tsx');
 const rules = read('./gacha-rules.ts');
+const stampStage = read('./stamp-draw-stage.tsx');
 
 test('#342 축하 화면은 이번 보상을 릴로 보여주고 뽑기 보조 링크를 제공한다', () => {
   assert.match(celebration, /rewardReel\(/);
@@ -24,8 +25,10 @@ test('#342 뽑기 연출은 언제든 건너뛸 수 있다', () => {
   assert.match(machine, /건너뛰기/);
 });
 
-test('#342 뽑기 기계와 결과는 스크린리더용 이름을 제공한다', () => {
-  assert.match(machine, /accessibilityLabel="뽑기 기계"/);
+test('#342 우표 연출과 결과는 스크린리더용 이름을 제공한다', () => {
+  assert.match(stampStage, /accessibilityLabel="우표 뽑기 연출"/);
+  assert.match(machine, /<StampDrawStage phase="idle" compact \/>/);
+  assert.match(machine, /<StampDrawStage phase="opening" onComplete=\{finishOpening\} \/>/);
   assert.match(machine, /function resultAccessibilityLabel\(result: ShopRerollResult, phase: GachaRewardPhase \| undefined\): string/);
   assert.match(machine, /phase === 'reward-mileage'[\s\S]*?마일리지 \$\{result\.rewards\.mileage\.amount\}포인트/);
   assert.match(machine, /phase === 'reward-clothing'[\s\S]*?clothingRewardName\(result\)/);
@@ -44,7 +47,7 @@ test('#342는 별도 연출 라이브러리에 의존하지 않는다', () => {
 test('구매 완료 결과는 오류 표시와 무관하게 실제 뽑기 상태를 복원한다', () => {
   assert.match(shop, /onDraw=\{buy\}/);
   assert.match(machine, /const succeeded = await onDraw\(selected\);/);
-  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(gachaPhaseAfter\(phaseRef.current, \{ type: 'purchase-failed' \}\)\)/);
+  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(phaseRef\.current === 'pending' \? 'detail' : phaseRef\.current\)/);
   assert.doesNotMatch(machine, /phase === 'pending' && !busy && error \? 'picker'/);
 });
 
@@ -80,14 +83,15 @@ test('뽑기 결과는 마일리지, 옷, 캐릭터를 순차 공개하고 최�
 });
 
 test('보상 화면은 기다려도 유지되고 다음 버튼을 눌러야 다음 보상 또는 최종 결과로 이동한다', () => {
-  const reveal = machine.slice(machine.indexOf('const startRewardReveal ='), machine.indexOf('useFocusEffect('));
+  const reveal = machine.slice(machine.indexOf('const startRewardReveal ='), machine.indexOf('useEffect(() => {'));
   assert.doesNotMatch(reveal, /setTimeout|setInterval/, '보상 단계 사이에 자동 전환 타이머가 없어야 한다');
   assert.match(reveal, /const revealNext = useCallback\(\(\) => \{[\s\S]*?startRewardReveal\(gachaNextRewardPhase\(current\)\)/);
   for (const name of ['MileageReward', 'ClothingReward', 'CharacterReward']) {
     assert.match(machine, new RegExp(`<${name}[^>]*onNext=\\{revealNext\\}`));
   }
-  assert.match(machine, /timers\.push\(setTimeout\(\(\) => startRewardReveal\('reward-mileage'\), elapsed\)\)/, '개봉 연출 뒤 첫 보상은 여전히 보여야 한다');
-  assert.match(machine, /if \(!succeeded\)[\s\S]*?purchase-failed/, '구매 실패는 보상 화면으로 이동하지 않아야 한다');
+  assert.match(machine, /const finishOpening = useCallback\(\(\) => \{[\s\S]*?startRewardReveal\('reward-mileage'\)/, '개봉 영상 완료 뒤 첫 보상은 여전히 보여야 한다');
+  assert.match(machine, /onComplete=\{finishOpening\}/, '개봉 영상 완료 콜백이 화면 전환에 연결되어야 한다');
+  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(phaseRef\.current === 'pending' \? 'detail' : phaseRef\.current\)/, '구매 실패는 보상 화면으로 이동하지 않아야 한다');
 });
 
 test('최종 보상 요약 뒤 도감 등록 확인으로 넘어가고 마일리지는 등록 항목에 넣지 않는다', () => {
@@ -107,8 +111,10 @@ test('최종 보상 요약 뒤 도감 등록 확인으로 넘어가고 마일리
 test('도감 등록 확인 단계는 unrelated rerender나 motion toggle에서 결과로 돌아가지 않는다', () => {
   assert.match(rules, /type GachaPhase[\s\S]*?'album-registration'/);
   assert.match(rules, /if \(phase === 'album-registration'\) return 'album-registration';/);
-  const consumedBranch = machine.slice(machine.indexOf('if (consumedResult.current === result)'), machine.indexOf('const durations = gachaTimeline'));
-  assert.doesNotMatch(consumedBranch, /album-registration[\s\S]*advancePhase\('result'\)|album-registration[\s\S]*startRewardReveal/, '이미 등록 화면에 들어간 결과를 타이머로 되감지 않는다');
+  const consumedBranch = machine.slice(machine.indexOf('if (consumedResult.current === result)'), machine.indexOf('const burstStyle'));
+  assert.match(consumedBranch, /activeResult\.current === result/);
+  assert.match(consumedBranch, /phaseRef\.current !== 'album-registration'/);
+  assert.doesNotMatch(consumedBranch, /advancePhase\('result'\)/, '이미 등록 화면에 들어간 결과를 직접 최종 결과로 되감지 않는다');
 });
 
 test('미공개 캐릭터 이름은 캐릭터 단계 전 접근성 라벨에 포함되지 않는다', () => {

@@ -10,6 +10,7 @@ import type { ShopRerollResult } from '../../shop/shop-api';
 import * as rules from './gacha-rules';
 
 const source = readFileSync(new URL('./gacha-machine.tsx', import.meta.url), 'utf8');
+const resultEffect = source.slice(source.indexOf('  useEffect(() => {\n    if (!result) return;'), source.indexOf('  const burstStyle ='));
 const result: ShopRerollResult = {
   item: { id: 'friend-a', grade: 'BRONZE', name: '친구' }, balance: 100, replayed: false,
   rewards: {
@@ -18,6 +19,35 @@ const result: ShopRerollResult = {
     sequence: ['MILEAGE', 'CLOTHING', 'CHARACTER'],
   },
 };
+
+function settleExistingRerollResult(initialPhase: string, motionAllowed = true): string {
+  let phase = initialPhase;
+  let effect: () => (() => void) | void = () => undefined;
+  const scheduled: (() => void)[] = [];
+  const activeResult: { current: ShopRerollResult | undefined } = { current: result };
+  const phaseRef = { current: initialPhase };
+  const advancePhase = (next: string) => { phase = next; phaseRef.current = next; };
+  runInNewContext(resultEffect, {
+    result,
+    consumedResult: { current: result },
+    activeResult,
+    phaseRef,
+    motionAllowed,
+    skipRequested: { current: false },
+    drawInFlight: { current: false },
+    cardOpacity: { set: () => undefined },
+    cardScale: { set: () => undefined },
+    withTiming: () => 1,
+    advancePhase,
+    startRewardReveal: () => { activeResult.current = undefined; advancePhase('reward-mileage'); },
+    useEffect: (callback: typeof effect) => { effect = callback; },
+    setTimeout: (callback: () => void) => { scheduled.push(callback); return scheduled.length; },
+    clearTimeout: () => undefined,
+  });
+  effect();
+  for (const callback of scheduled) callback();
+  return phase;
+}
 
 test('새 옷은 지급 뒤 보유 목록에 있어도 서버 신규 판정으로 등록 연출을 받는다', () => {
   const album = renderMachine().album();
@@ -72,13 +102,22 @@ test('등록 화면 헤더는 개봉 건너뛰기를 숨기고 실제 닫기 버
   assert.equal(controls(machine.render()).some((node) => node.props.label === '건너뛰기'), false);
 });
 
-test('개봉 중 실제 헤더 건너뛰기 버튼은 첫 보상 공개로 이동한다', () => {
-  const machine = renderMachine('crank');
+test('우표 개봉 중 실제 헤더 건너뛰기 버튼은 첫 보상 공개로 이동한다', () => {
+  const machine = renderMachine('opening');
   const header = controls(machine.render())[0]!;
   assert.equal(header.props.label, '건너뛰기');
   press(header);
   assert.equal(machine.phase(), 'reward-mileage');
   assert.equal(machine.closeCount(), 0);
+});
+
+test('같은 뽑기 결과 effect 재실행은 우표 개봉을 완료시키지 않는다', () => {
+  assert.equal(settleExistingRerollResult('opening'), 'opening');
+  assert.equal(settleExistingRerollResult('pending'), 'opening');
+});
+
+test('모션 감소에서는 같은 뽑기 결과 재실행도 첫 보상으로 즉시 이동할 수 있다', () => {
+  assert.equal(settleExistingRerollResult('pending', false), 'reward-mileage');
 });
 
 type Element = { type: unknown; props: Record<string, any>; children: unknown[] };
@@ -98,7 +137,7 @@ function press(control: Element) {
   button.props.onPress();
 }
 
-function renderMachine(initialPhase: rules.GachaPhase = 'album-registration', award = result) {
+function renderMachine(initialPhase: rules.GachaPhase | 'opening' = 'album-registration', award = result) {
   const states: unknown[] = [initialPhase];
   let cursor = 0;
   let closeCount = 0;

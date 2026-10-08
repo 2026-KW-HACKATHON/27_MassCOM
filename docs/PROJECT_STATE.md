@@ -1,5 +1,17 @@
 # 프로젝트 상태
 
+## 2026-10-09 PR #445와 main 병합 중 (파일 수정만·미배포)
+
+현재 `.worktrees/pr445`의 `feat/gacha-stamp-reveal` HEAD `dd76e693`에 main `2cfcc8e8`을 합치는 중이다. 양쪽 문서·RNW fixture를 보존하고 Android 영상이 다운로드된 파일 URI 준비 전에 재생되어 공개를 건너뛰는 경로와 소리 설정 준비 전 영상 음성을 수정했다. 대상 9/9·모바일 전체 Node loader 2229/2229, typecheck·lint(기존 경고 1), 접근성·지갑 표면·CI 연결(104개 시험 파일)·운영 제출 준비, fixture 문법·빌드 전용 검사 PASS다. `npm test`는 sandbox tsx IPC `listen EPERM`으로 BLOCKED다. API 674/674는 이전 측정이며 이번 API·새 앱 빌드·브라우저·기기 재생·실제 청음·배포는 NOT_RUN이다. [이번 검증](TEST_STATUS.md). Git index는 미병합 상태로 유지한다.
+
+## 이전 2026-10-09 우표 뽑기 영상·제공 효과음 (Issue #442, Windows 작업 기록)
+
+당시 요청은 `feat/gacha-stamp-reveal`에서 승인된 검은 배경 우표 영상과 사용자 제공 OGG 효과음을 뽑기 화면에 연결해 PR로 제출하는 것이었다. 영상 스트림은 그대로 유지했고 대기 무음 반복 → 서버 결과 확인 → 효과음이 있는 개봉 → 기존 보상·도감 등록으로 연결했다. 당시 Windows 모바일 전체는 **2212/2212**, 타입·린트·브라우저 27/27·Android 네이티브 모듈 컴파일·운영/시연 JS 번들 PASS다. 실제 설치본과 청음·배포는 NOT_RUN이다. [당시 검증](GACHA_STAMP_QA_2026-10-09.md). 아래 2203개 집계와 미커밋 기록은 더 오래된 작업 이력이다.
+
+현재 자동 시험 합계(2026-10-09 KST, PR #445 브랜치 `feat/gacha-stamp-reveal`에 main을 합친 기준): API 단위 674/674 · 모바일 2229/2229. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
+이전 PR #435 리뷰 후속의 당시 합계는 API 674/674(기존 측정)·모바일 2203/2203(당시 재실행)이었다.
+
 ## 2026-10-09 PR #439 통합 중 (미커밋·미배포)
 
 현재 `.worktrees/i439`의 `integ/pr439`에서 main `b37063c0` 위 PR #439(`e7395c96`)를 합치는 중이다. 홈·도감의 다음 행동, 가게 코인 보기와 점주 최근 결과 이동을 T9 은퇴 점포 숨김·BGM·#435 도감 등록 후속·공공자료 고지와 함께 보존한다. 같은 가게 쿠폰 사용 직후 점주 바로가기는 결과를 다시 읽도록 수정하고, 홈 다음 행동의 T9 은퇴 점포 코인권은 기존 공통 필터로 제외한다. Git index는 의도대로 미병합 상태이며 배포·기기 수용은 수행하지 않았다. 현재 합계의 API 값은 앞선 main 측정, 모바일 값은 이번 통합 실측이며 각각의 실행 경계는 TEST_STATUS에 적는다. 아래 수치는 과거 브랜치 이력이다.
@@ -8,7 +20,7 @@
 
 `feat/collection-next-actions`는 열린 PR #435를 기준으로 한 후속 브랜치다. U1/U2/U3/O1 구현과 U5 최소 가게 식별 보완, X2 정책 분석을 수행했다. P4 표시는 잔여 수량·기준 미확정으로 보류한다. 기존 데이터/확률/쿠폰 정책은 변경하지 않았다. [작업별 상태와 증거](SELECTED_ACTIONS_QA_2026-10-09.md). 아래 과거 미커밋·미병합 기록은 당시 상태이며 현재 판단은 원격 PR과 이 절의 검증을 따른다.
 
-현재 자동 시험 합계(2026-10-09 KST, 통합 브랜치 `integ/pr439`에 PR #439를 main `b37063c0` 위로 합친 기준): API 단위 674/674 · 모바일 2216/2216. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+이전 PR #439 통합 당시 합계는 API 674/674(앞선 main 측정)·모바일 2216/2216(당시 통합 실측)이었다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 후속 (파일 수정만·미커밋)
 
