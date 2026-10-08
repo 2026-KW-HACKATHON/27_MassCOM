@@ -1,5 +1,21 @@
 # 테스트 상태
 
+## 2026-10-08 방문 보상 중심 사진 편집기 후속 (PR #418)
+
+점주 첫 화면은 방문 보상 만들기·방문 확인·운영 결과를 각각 표시한다. 제작기는 사진 배치 → 사진 편집 → 코인 만들기 → 결과·방문 보상의 네 단계이며 메뉴 등록을 요구하지 않는다. [실제 조작·화면·PNG 원자료](evidence/merchant-photo-editor-2026-10-08/README.md).
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 사이트 전체 회귀 | PASS | Git LF 체크아웃에서 `node --test tests/site/*.test.mjs` 401/401, skip 0. 점주 화면 분리·두 진입·이전/다음·편집 패널·RGB/HEX 검증·키보드 실행 취소·등급별 보정 색상 포함 |
+| 웹 모듈 문법·diff | PASS | `node --check` editor·studio·renderer·merchant, `git diff --cached --check` |
+| 저장소 빠른 검사·PR 한국어 | PASS | LF 체크아웃 `bash tools/gate.sh`: 비밀·충돌 표시·bootstrap·운영 문서·증거 일관성 PASS. 최종 제목·본문 `check-pr-korean.sh` PASS |
+| 실제 사진 편집·PNG | PASS(합성 점주 fixture) | 사용자 첨부 그림을 파일 선택창으로 업로드, 마우스 이동·잡티 제거·화살표 취소/재실행 후 시연 획 초기화. RGB 26/53/42, 톱니·양각으로 네 등급 PNG를 실제 저장 버튼에서 다운로드. 원본 그림은 336×286px로 낮은 해상도임 |
+| 음각·양각 등급별 재질 | PASS | 실버·골드·프리즘·브론즈 UI 전환 및 PNG, `collectible-relief-grade.test.mjs` 5/5. 잡티 제거·복원·칠하기도 현재 선택 등급의 재질을 사용함 |
+| 결과·방문 보상 게시 | PASS(합성 점주 fixture) | 좁은 브라우저에서 결과 버튼 가림 해소 후 PNG 저장 성공. 1회 브론즈·3회 실버·5회 골드로 로컬 캠페인 게시 v6 및 재열기 확인 |
+| 독립 읽기 전용 리뷰 | PASS | 점주 화면·단계/색상/history·렌더러 보정 경로에서 차단 지적 0건. 최신 PNG 내보내기와 결과 화면도 후속 검토 |
+| 원격 main 재확인 | PASS | `git fetch origin main`, `origin/main=e06c97cdad8d03b4e69b4008a91d39bedbbd874d` |
+| 운영 배포·실계정·실기 | NOT_RUN / 기존 BLOCKED | 이번 후속은 웹 UI·renderer 변경. 운영 점포 승인 부재와 배포 경계는 유지. 실제 고객 앱의 가상 점포는 아래 별도 PostgreSQL 검증 기록을 따름 |
+
 ## 2026-10-08 모양·등급별 고정 음각 뒷면 (PR #418)
 
 웹과 앱에 원형·우표형·톱니형 × 브론즈·실버·골드·프리즘 12종을 연결했다. 이미 발행된 뒷면은 보존하고 새 게시본과 이미지 없는 예전 수집품만 고정 이미지로 렌더링한다. [자산·프롬프트·브라우저 원자료](evidence/fixed-collectible-backs-2026-10-08/README.md).

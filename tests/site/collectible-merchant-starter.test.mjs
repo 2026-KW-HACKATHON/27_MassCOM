@@ -42,7 +42,7 @@ test('대상 캠페인이 여러 개면 선택을 남기고, 명시된 캠페인
   assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns: [fakeCampaigns()[0]] }).campaignId, 'campaign-a');
 });
 
-test('등록 메뉴 시작점은 가게와 메뉴를 표시하고 방문 단계마다 다른 연출을 제안한다', async () => {
+test('등록 메뉴 시작점 모델은 메뉴 이름과 방문 단계마다 다른 연출을 제안하지만 UI 카드는 만들지 않는다', async () => {
   const project = createMerchantStarterProject({ merchantName: '월계 식당', menuName: '국수', suggested: true, campaigns: [fakeCampaigns()[0]] });
   assert.equal(project.name, '국수 방문 수집품');
   assert.equal(project.back.mode, 'default');
@@ -58,11 +58,18 @@ test('등록 메뉴 시작점은 가게와 메뉴를 표시하고 방문 단계�
     ['⌂', 110, 20, 20], ['◯', 8, 110, 24], ['✦', 8, 8, 120],
   ]);
   const ui = await mount(createFakeApi(), { merchantMenuItems: [{ name: '국수', priceWon: 7000 }] });
-  const choice = ui.host.querySelector('[data-action="starter"][data-id="0"]');
-  assert.ok(choice);
-  assert.match(choice.textContent, /국수/);
-  choice.dispatchEvent({ type: 'click' }); await settle();
-  assert.equal(ui.control('name').value, '국수 방문 수집품');
+  assert.equal(ui.host.querySelector('[data-action="starter"][data-id="0"]'), null, '등록 메뉴는 더 이상 홈 스타터 카드를 만들지 않는다');
+  const storeStarter = ui.host.querySelector('[data-action="starter"][data-id="store"]');
+  assert.ok(storeStarter, '가게 스타터는 유지한다');
+  assert.doesNotMatch(storeStarter.textContent, /국수/);
+  assert.match(storeStarter.textContent, /1회/);
+  assert.match(storeStarter.textContent, /3회/);
+  assert.match(storeStarter.textContent, /5회/);
+  storeStarter.dispatchEvent({ type: 'click' }); await settle();
+  assert.equal(ui.control('name').value, '월계 식당 방문 수집품');
+  assert.equal(ui.host.querySelector('[data-reward-count="1"]').value, 'bronze');
+  assert.equal(ui.host.querySelector('[data-reward-count="3"]').value, 'silver');
+  assert.equal(ui.host.querySelector('[data-reward-count="5"]').value, 'gold');
 });
 
 test('가게 그림 버튼은 허용된 같은 출처 경로에서만 보이고 기존 사진 검사를 거쳐 편집에 반영한다', async () => {
@@ -89,6 +96,6 @@ test('시작점 선택을 거절하면 현재 수동 편집을 보존한다', as
   const ui = await mount(createFakeApi(), { merchantMenuItems: [{ name: '국수' }], confirm: () => false });
   ui.control('name').value = '수동 편집';
   ui.control('name').dispatchEvent({ type: 'input' }); await settle();
-  ui.host.querySelector('[data-action="starter"][data-id="0"]').dispatchEvent({ type: 'click' }); await settle();
+  ui.host.querySelector('[data-action="starter"][data-id="store"]').dispatchEvent({ type: 'click' }); await settle();
   assert.equal(ui.control('name').value, '수동 편집');
 });

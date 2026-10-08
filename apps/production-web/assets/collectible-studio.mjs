@@ -1,5 +1,6 @@
 import { THICKNESS_PRESETS, thicknessPresetLabel } from './collectible-model.mjs';
-const steps = ['사진 배치', '등급 미리보기', '세부 조정', '연출과 목소리'];
+import { collectibleMetalColors } from './collectible-renderer.mjs';
+const steps = ['사진 배치', '사진 편집', '코인 만들기', '결과·방문 보상'];
 const seasons = [['기본', '기본'], ['여름축제', '여름축제'], ['겨울방학', '겨울방학'], ['custom', '자유 입력']];
 const node = (tag, className, text) => {
   const value = document.createElement(tag);
@@ -22,6 +23,11 @@ const disclosure = (summary, ...children) => {
   const value = node('details', 'ce-more'), body = node('div', 'ce-detail');
   body.append(...children); value.append(node('summary', '', summary), body);
   return value;
+};
+const toolIcon = (button, path, label) => {
+  button.setAttribute('aria-label', label); button.title = label;
+  button.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${path}"/></svg><span>${label}</span>`;
+  return button;
 };
 function shapeIcon(shape) {
   const icon = node('span', `ce-shape-icon ce-shape-${shape}`); icon.setAttribute('aria-hidden', 'true');
@@ -73,16 +79,16 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const projectList = field('project-list'); projectList.hidden = true;
   const home = node('div', 'ce-studio-home'); home.dataset.view = 'studio-home';
   const hero = node('section', 'ce-studio-hero');
-  const heroText = node('div', 'ce-hero-copy'); heroText.append(node('span', 'ce-eyebrow', '사진으로 만드는 우리 가게의 이야기'), node('h3', '', '들를 때마다,\n하나씩 모으는 즐거움'), node('p', '', '가게, 메뉴, 간판, 그림도 좋아요.\n사진 한 장으로 쉽게 시작하세요.'));
+  const heroText = node('div', 'ce-hero-copy'); heroText.append(node('span', 'ce-eyebrow', '사진으로 만드는 방문 보상'), node('h3', '', '들를 때마다,\n하나씩 모으는 즐거움'), node('p', '', '가게 사진이나 준비한 그림으로\n우리 가게의 코인을 만들어 보세요.'));
   const create = node('div', 'ce-entry-options');
   const aiEntry = action('', 'ai-start', undefined, 'ce-create-card');
-  aiEntry.append(node('strong', '', 'AI로 초안 생성 후 스튜디오 하기'), node('span', '', '가게 이름과 메뉴로 그림을 만들고 골라요 →'));
+  aiEntry.append(node('strong', '', 'AI로 초안 생성 후 스튜디오 하기'), node('span', '', '가게 이름으로 그림을 만들고 골라요 →'));
   const photoEntry = action('', 'prepared-photo', undefined, 'ce-create-card');
   photoEntry.append(node('strong', '', '미리 준비한 이미지 넣어서 스튜디오 가기'), node('span', '', '사진·그림을 직접 골라 바로 편집해요 →'));
   create.append(aiEntry, photoEntry);
   const mascot = node('img', 'ce-hero-mascot'); mascot.src = '/assets/mascot-stamp.png'; mascot.alt = ''; mascot.width = 140; mascot.height = 140;
   hero.append(heroText, mascot, create); home.append(hero);
-  const aiPanel = section('AI 초안 고르기', '가게 이름과 등록된 메뉴로 만들어요. 사진과 음성은 AI에 보내지 않아요. 고른 그림은 스튜디오 초안에만 들어가요.');
+  const aiPanel = section('AI 초안 고르기', '가게 이름으로 시작해요. 메뉴 등록은 필요 없어요. 사진과 음성은 AI에 보내지 않아요.');
   aiPanel.dataset.view = 'ai-panel'; aiPanel.hidden = true;
   const aiStatus = node('p', 'ce-help'); aiStatus.setAttribute('role', 'status'); aiStatus.dataset.view = 'ai-status';
   const aiDrafts = node('div', 'ce-ai-drafts'); aiDrafts.dataset.view = 'ai-drafts';
@@ -93,8 +99,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   {
     const starters = section('가게에서 시작하기');
     const choices = node('div', 'ce-starter-grid');
-    const options = [['store', merchantName || '우리 가게', merchantArtUrl ? '가게 그림' : '사진 추가', '1회 브론즈 · 3회 실버 · 5회 골드'],
-      ...menuNames.map((name, index) => [String(index), name, '등록된 메뉴', '가게 그림 또는 직접 올린 사진으로 시작'])];
+    const options = [['store', merchantName || '우리 가게', merchantArtUrl ? '가게 그림' : '사진 추가', '1회 브론즈 · 3회 실버 · 5회 골드']];
     for (const [id, title, source, detail] of options) {
       const tile = action('', 'starter', id, 'ce-starter-choice');
       const visual = node('span', 'ce-starter-visual');
@@ -106,7 +111,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
       tile.append(visual, node('span', 'ce-starter-source', source), node('strong', '', title), node('span', 'ce-starter-detail', detail));
       choices.append(tile);
     }
-    starters.append(choices); homeOptions.append(disclosure('가게·메뉴에서 시작하기', starters));
+    starters.append(choices); homeOptions.append(disclosure('가게 그림으로 시작하기', starters));
   }
   const resume = node('div', 'ce-resume'); resume.hidden = true;
   const resumeText = node('p', 'ce-resume-text'); resume.append(resumeText, action('이어서 편집하기 →', 'resume', undefined, 'ce-resume-button')); home.append(resume);
@@ -152,39 +157,65 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const zoomOut = action('−', 'zoom-step', '-0.25', 'ce-icon-button'), zoomIn = action('+', 'zoom-step', '0.25', 'ce-icon-button');
   zoomOut.setAttribute('aria-label', '사진 0.25배 축소'); zoomIn.setAttribute('aria-label', '사진 0.25배 확대');
   const zoomRow = node('div', 'ce-zoom-row'); zoomRow.append(zoomOut, cropZoom, zoomIn);
-  // 붓·패럴랙스·living 점·"원본과 비교"는 사진 캔버스(crop)에만 그려지므로 3단계에도 같은 캔버스가 있어야 한다.
-  // 4단계 "살아 있는 그림"의 "이 영역 칠하기"도 같은 캔버스에 칠하므로 4단계에도 칸이 있다.
-  // 캔버스만 1·3·4단계 칸 사이에서 옮기고(2단계는 1단계 칸에 숨겨 둔다), 확대 줄·모양·자르기 동작은 1단계에만 둔다(showStep).
+  // 사진 배치·사진 편집·선택적인 living 영역 칠하기는 같은 캔버스를 옮겨 쓴다.
   const cropSlots = [node('div', 'ce-crop-slot'), node('div', 'ce-crop-slot'), node('div', 'ce-crop-slot')]; cropSlots[0].append(crop);
   const photoStage = node('div', 'ce-photo-stage');
   photoStage.append(node('p', 'ce-photo-instruction', '사진을 움직여 원하는 모양에 맞춰 주세요.'), cropSlots[0], zoomRow, disclosure('더 보기 · 위치 미세 조정', cropMoves, cropActions));
   shape.hidden = true;
-  const shapes = section('모양', '사진의 위치와 확대는 모양을 바꿔도 유지돼요.'); shapes.append(shape, choices('shape', [['circle', '원형'], ['stamp', '우표'], ['serrated', '톱니']], '모양', 'shape'));
+  const shapes = section('모양'); shapes.append(shape, choices('shape', [['circle', '원형'], ['stamp', '우표'], ['serrated', '톱니']], '모양', 'shape'));
   panels[0].append(photo);
   if (merchantArtUrl) panels[0].append(action('가게 그림으로 시작', 'art-photo', undefined, 'ce-text-button'));
-  panels[0].append(photoHelp, shapes, photoStage);
+  panels[0].append(shapes, photoStage, disclosure('사진 규격·보관 안내', photoHelp));
   const style = field('style'); style.hidden = true;
   const styles = section('표현 스타일', '원본 색, 음각, 양각을 직접 비교해 보세요.');
   styles.append(style, choices('style', [['original', '원본'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style'), field('relief'), view('fixed-back'));
-  panels[1].append(styles);
+  panels[2].append(styles);
   const thickness = field('thickness'), thicknessReset = container.querySelector('[data-action="thickness-reset"]'), thicknessHelp = thicknessReset.nextElementSibling;
   const thicknessCustom = node('p', 'ce-thickness-custom'); thicknessCustom.hidden = true;
   const volume = section('수집품 두께', '화면에 보이는 측면 깊이예요. 실물 제작 치수가 아니에요.');
   volume.append(choices('thickness', THICKNESS_PRESETS.map(([value, label]) => [String(value), label]), '두께', 'thickness'), thicknessCustom, disclosure('더 보기 · 두께 세밀하게', thickness, thicknessReset, thicknessHelp));
-  panels[1].append(volume);
+  panels[2].append(volume);
   const gradesDetail = view('grade-manager').closest('details'), gradeContent = gradesDetail.querySelector('.ce-detail');
   const gradeManager = view('grade-manager'), gradeNew = field('grade-name').parentElement, gradeAdd = container.querySelector('[data-action="grade-add"]');
-  panels[1].append(disclosure('더 보기 · 등급 관리(이름·사용·특수 등급)', node('p', 'ce-help', '등급 이름과 사용 여부를 바꿀 수 있어요. 이름이 특정 재질을 강제하지 않아요.'), gradeManager, gradeNew, gradeAdd));
+  panels[2].append(disclosure('더 보기 · 등급 관리', gradeManager, gradeNew, gradeAdd));
+  const background = section('코인 배경색', '사진 아래의 바탕색이에요. 음각·양각 금속색은 선택한 등급을 따라가요.');
+  const backgroundPicker = field('base-color');
+  const backgroundInputs = node('div', 'ce-background-inputs');
+  for (const [name, label] of [['hex', 'HEX'], ['r', 'R'], ['g', 'G'], ['b', 'B']]) {
+    const inputField = node('label', 'ce-field', label), input = node('input');
+    input.dataset.control = `background-${name}`; input.type = name === 'hex' ? 'text' : 'number';
+    if (name === 'hex') { input.maxLength = 7; input.placeholder = '#163D32'; input.setAttribute('aria-label', '배경 HEX 색상'); }
+    else { input.min = '0'; input.max = '255'; input.step = '1'; input.setAttribute('aria-label', `배경 ${label} 값`); }
+    inputField.append(input); backgroundInputs.append(inputField);
+  }
+  const swatches = node('div', 'ce-background-swatches'); swatches.setAttribute('role', 'group'); swatches.setAttribute('aria-label', '배경색 추천');
+  for (const [color, label] of [['#163d32', '포레스트'], ['#123452', '네이비'], ['#f4eee3', '크림'], ['#292933', '차콜'], ['#783f52', '버건디'], ['#bf8149', '브론즈']]) {
+    const swatch = action('', 'background-color', color, 'ce-color-swatch'); swatch.title = label; swatch.setAttribute('aria-label', `${label} 배경색`); swatch.setAttribute('aria-pressed', 'false'); swatches.append(swatch);
+  }
+  background.append(backgroundPicker, swatches, backgroundInputs, disclosure('사진 색 반영', field('photo-color'))); panels[2].insertBefore(background, volume);
   const motionDetail = view('templates').closest('details');
   const photoDetail = control('brush').closest('details'), stickerDetail = control('sticker-kind').closest('details');
-  photoDetail.open = false; stickerDetail.open = true; photoDetail.classList.add('ce-more');
-  photoDetail.querySelector('summary').textContent = '더 보기 · 밝기·바탕·패럴랙스';
+  photoDetail.open = true; stickerDetail.open = true; photoDetail.classList.add('ce-more');
+  photoDetail.querySelector('summary').textContent = '밝기·대비·패럴랙스';
   const brush = field('brush'); brush.hidden = true;
   const tools = node('div', 'ce-step-tools');
   // undo·redo는 1단계 "위치 미세 조정" 접힘(cropActions)이 이미 container 밖의 panels[0]으로 옮겨 가 container에서는 찾을 수 없다.
-  tools.append(cropActions.querySelector('[data-action="undo"]'), cropActions.querySelector('[data-action="redo"]'), container.querySelector('[data-action="compare"]'));
-  const brushPanel = section('붓 도구');
-  brushPanel.append(cropSlots[1], brush, choices('brush', [['move', '사진 이동'], ['clean', '잡티'], ['erase', '투명'], ['restore', '복원'], ['color', '색 통일']], '붓 도구', 'brush'), field('brush-size'), field('brush-color'));
+  const undo = toolIcon(cropActions.querySelector('[data-action="undo"]'), 'M9 5 3 11l6 6 M3 11h11a6 6 0 0 1 0 12', '실행 취소'); undo.title = '실행 취소 · Ctrl/Cmd+Z';
+  const redo = toolIcon(cropActions.querySelector('[data-action="redo"]'), 'm15 5 6 6-6 6 M21 11H10a6 6 0 0 0 0 12', '다시 실행'); redo.title = '다시 실행 · Ctrl/Cmd+Shift+Z';
+  const compare = toolIcon(container.querySelector('[data-action="compare"]'), 'M12 3v18 M4 5h16v14H4z', '원본 비교');
+  tools.append(undo, redo, compare);
+  const photoEditor = node('div', 'ce-photo-editor'); photoEditor.append(tools, cropSlots[1]);
+  const brushChoices = choices('brush', [['move', '이동'], ['clean', '잡티 제거'], ['erase', '지우개'], ['restore', '복원'], ['color', '칠하기']], '사진 도구', 'brush');
+  const brushIcons = { move: 'M12 3v18 M3 12h18 m-12-6 3-3 3 3 m-6 12 3 3 3-3 M6 9l-3 3 3 3 m12-6 3 3-3 3', clean: 'm4 20 12-12 4 4-12 12 M15 3v4 m-2-2h4 M5 3v6 M2 6h6', erase: 'm4 14 9-9a2 2 0 0 1 3 0l5 5-10 10H9z M8 10l7 7 M11 20h11', restore: 'M5 8v-5 M5 8h5 M5 8a8 8 0 1 1-1 8', color: 'm14 3 7 7 M3 21l3-7L17 3l4 4L10 18z M4 20l5-1' };
+  for (const tile of brushChoices.children) { toolIcon(tile, brushIcons[tile.dataset.id], tile.textContent); tile.dataset.editPanel = 'brush'; }
+  const editorTabs = node('div', 'ce-photo-toolbar'); editorTabs.setAttribute('role', 'group'); editorTabs.setAttribute('aria-label', '사진 편집 도구');
+  editorTabs.append(...brushChoices.children);
+  for (const [name, label, path] of [['filter', '필터', 'M4 5h16 M8 12h8 M10 19h4'], ['adjust', '보정', 'M4 7h16 M4 17h16 M8 3v8 M16 13v8'], ['sticker', '텍스트·스티커', 'M4 5h16 M12 5v15 M8 20h8']]) {
+    const tile = toolIcon(node('button', 'ce-choice'), path, label); tile.type = 'button'; tile.dataset.editPanel = name; tile.setAttribute('aria-pressed', 'false'); editorTabs.append(tile);
+  }
+  const brushPanel = section('사진 도구');
+  const brushSize = field('brush-size'), brushColor = field('brush-color');
+  brushPanel.append(brush, node('p', 'ce-help', '도구를 고른 뒤 사진 위를 드래그하세요.'), brushSize, brushColor);
   const FILTERS = [['merge', '색 합치기'], ['simplify', '단순화'], ['cartoon', '만화풍']];
   const filterSliders = new Map(FILTERS.map(([name]) => [name, container.querySelector(`[data-edit="${name}"]`).closest('label')]));
   const filterTiles = node('div', 'ce-choice-grid ce-filter-choices'); filterTiles.setAttribute('role', 'group'); filterTiles.setAttribute('aria-label', '필터 선택');
@@ -204,7 +235,17 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   };
   const filterPanel = section('필터', '고른 필터의 강도만 보여요. 세 값은 함께 저장돼요.');
   filterPanel.append(filterTiles, ...filterSliders.values());
-  panels[2].append(action('사진 바꾸기·자르기는 1단계에서 →', 'step', '1', 'ce-link-step'), tools, brushPanel, filterPanel, stickerDetail, photoDetail);
+  const editOptions = new Map([['brush', brushPanel], ['filter', filterPanel], ['adjust', photoDetail], ['sticker', stickerDetail]]);
+  for (const [name, panel] of editOptions) panel.dataset.editOptions = name;
+  let editPanel = 'brush';
+  const syncEditTools = () => {
+    for (const [name, panel] of editOptions) panel.hidden = name !== editPanel;
+    for (const tile of editorTabs.children) tile.setAttribute('aria-pressed', String(tile.dataset.editPanel === editPanel && (editPanel !== 'brush' || tile.dataset.id === control('brush').value)));
+    brushSize.hidden = control('brush').value === 'move'; brushColor.hidden = control('brush').value !== 'color';
+  };
+  const selectEditPanel = name => { if (!editOptions.has(name)) return; editPanel = name; syncEditTools(); };
+  editorTabs.addEventListener('click', event => { const tile = event.target.closest('[data-edit-panel]'); if (tile) { if (tile.dataset.editPanel === 'brush') control('brush').value = tile.dataset.id; selectEditPanel(tile.dataset.editPanel); } });
+  photoEditor.replaceChildren(tools, editorTabs, cropSlots[1], ...editOptions.values()); panels[1].append(photoEditor);
   const materials = section('효과 스튜디오', '지금 보는 등급 한 개와 효과를 적용할 여러 등급은 따로 골라요.');
   const effectControls = field('effect-type').parentElement; field('effect-type').hidden = true; field('effect-target').hidden = true;
   const materialsChoices = choices('effect-type', Object.entries(effectNames), '재질 효과', 'material');
@@ -222,10 +263,26 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   motionDetail.querySelector('summary').textContent = '움직임';
   livingDetail.querySelector('summary').textContent = '더 보기 · 살아 있는 그림';
   story.querySelector('summary').textContent = '더 보기 · 가게 이야기';
-  rewards.querySelector('summary').textContent = '게시 정보 · 이름·시즌·캠페인';
+  rewards.querySelector('summary').textContent = '방문 보상 설정';
   const rewardsBody = rewards.querySelector('.ce-detail');
-  rewardsBody.prepend(seasonTiles('theme')); rewardsBody.prepend(field('name'));
-  panels[3].append(motionDetail, materials, voice, rewards, livingDetail, story);
+  rewardsBody.prepend(disclosure('시즌 설정', seasonTiles('theme'), field('theme'))); rewardsBody.prepend(field('name'));
+  const result = section('완성된 코인', '방문 보상 조건을 확인한 뒤 게시하면 앱에서 지급할 수 있어요.');
+  const resultSummary = node('p', 'ce-result-summary'); resultSummary.dataset.view = 'result-summary'; result.append(resultSummary, action('코인 이미지 저장', 'export-image', undefined, 'ce-export-button'));
+  const extras = disclosure('추가 꾸미기 · 움직임·효과·목소리');
+  const extraTabs = node('div', 'ce-extra-tabs'); extraTabs.setAttribute('role', 'group'); extraTabs.setAttribute('aria-label', '추가 꾸미기');
+  const extraOptions = new Map([['motion', motionDetail], ['materials', materials], ['voice', voice], ['living', livingDetail], ['story', story]]);
+  for (const [name, label] of [['motion', '움직임'], ['materials', '재질 효과'], ['voice', '목소리'], ['living', '살아 있는 그림'], ['story', '가게 이야기']]) {
+    const tile = node('button', '', label); tile.type = 'button'; tile.dataset.extraPanel = name; tile.setAttribute('aria-pressed', 'false'); extraTabs.append(tile);
+    const panel = extraOptions.get(name); panel.dataset.extraOptions = name; panel.hidden = true;
+  }
+  const selectExtraPanel = name => {
+    for (const [key, panel] of extraOptions) { panel.hidden = key !== name; if (key === name && panel.tagName === 'DETAILS') panel.open = true; }
+    for (const tile of extraTabs.children) tile.setAttribute('aria-pressed', String(tile.dataset.extraPanel === name));
+    if (name) extras.open = true;
+  };
+  extraTabs.addEventListener('click', event => { const tile = event.target.closest('[data-extra-panel]'); if (tile) selectExtraPanel(tile.dataset.extraPanel); });
+  extras.querySelector('.ce-detail').append(extraTabs, ...extraOptions.values());
+  panels[3].append(result, rewards, extras);
   controls.replaceChildren(...panels);
   const preview = grid.querySelector('.ce-preview'), publishBox = grid.querySelector('.ce-publish');
   const previewActions = field('angle').nextElementSibling;
@@ -275,6 +332,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     for (const tile of targets.children) tile.setAttribute('aria-pressed', String(tile.dataset.id === targetControl.value));
     const thicknessValue = Number(control('thickness').value);
     thicknessCustom.hidden = thicknessPresetLabel(thicknessValue) !== null; thicknessCustom.textContent = `직접 지정 ${thicknessValue}`;
+    syncEditTools();
   }
   function showStep(step, focus = true) {
     const entering = workspace.hidden;
@@ -288,12 +346,12 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
       if (brushTarget.value !== 'photo') { brushTarget.value = 'photo'; brushTarget.dispatchEvent(new Event('change', { bubbles: true })); }
     }
     currentStep = next; home.hidden = true; workspace.hidden = false; hasCurrent = true;
-    const cropSlot = cropSlots[currentStep === 3 ? 1 : currentStep === 4 ? 2 : 0];
+    const cropSlot = cropSlots[currentStep === 2 ? 1 : currentStep === 4 ? 2 : 0];
     if (crop.parentElement !== cropSlot) cropSlot.append(crop);
     workspace.dataset.step = String(currentStep); title.textContent = steps[currentStep - 1]; workspace.querySelector('.ce-step-count').textContent = `${currentStep} / 4`;
     for (const panel of panels) panel.hidden = Number(panel.dataset.stepPanel) !== currentStep;
     for (const tile of navigation.children) { if (Number(tile.dataset.id) === currentStep) tile.setAttribute('aria-current', 'step'); else tile.removeAttribute('aria-current'); }
-    grid.querySelector('.ce-preview').hidden = currentStep === 1;
+    grid.querySelector('.ce-preview').hidden = currentStep < 3;
     previous.hidden = currentStep === 1; nextButton.hidden = currentStep === 4;
     fullPreview.hidden = currentStep !== 4; publish.hidden = currentStep !== 4;
     statusLine.prepend(noticeView); syncBackground(); setMenu(false);
@@ -333,7 +391,11 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     for (const tile of container.querySelectorAll('[data-action="home"],[data-action="step"],[data-action="resume"],[data-action="open-project"],[data-action="previous-step"],[data-action="next-step"],[data-action="season"],[data-action="theme"],[data-action="prepared-photo"],[data-action="latest-photo"],[data-action="ai-start"],[data-action="ai-create"],[data-action="ai-use"]')) tile.disabled = value;
   }
   return {
-    showStep, showHome, renderProjects, setBusy, dispose: restoreBackground,
+    showStep, showHome, renderProjects, setBusy, selectEditPanel, selectExtraPanel, dispose: restoreBackground,
+    setPreviewGrade(id, name) {
+      const tint = collectibleMetalColors(id, name)[1];
+      workspace.dataset.previewGrade = ['bronze', 'silver', 'gold', 'prism'].find(grade => collectibleMetalColors(grade)[1] === tint) || 'bronze';
+    },
     showAi(message, drafts = []) {
       const entering = aiPanel.hidden;
       hero.hidden = true; latestPhoto.hidden = true; homeOptions.hidden = true; resume.hidden = true;
@@ -359,6 +421,13 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     },
     sync(project, { dirty, wrapper } = {}) {
       syncFilter(project);
+      const color = project.baseColor.toLowerCase();
+      for (const [name, value] of [['hex', color], ['r', parseInt(color.slice(1, 3), 16)], ['g', parseInt(color.slice(3, 5), 16)], ['b', parseInt(color.slice(5, 7), 16)]]) {
+        const input = control(`background-${name}`); if (input.value !== String(value)) input.value = String(value);
+      }
+      control('base-color').value = color;
+      for (const tile of swatches.children) tile.setAttribute('aria-pressed', String(tile.dataset.id === color));
+      resultSummary.textContent = `${project.name} · ${project.grades.filter(grade => grade.enabled).length}개 등급 · ${project.theme.name}`;
       resumeText.textContent = `${project.name} · ${dirty ? '저장하지 않은 편집을 이어서 할 수 있어요' : wrapper ? `저장 버전 ${wrapper.version}` : '현재 초안을 이어서 만들 수 있어요'}`;
       for (const tile of workspace.querySelectorAll('[data-action="theme"]')) tile.setAttribute('aria-pressed', String(tile.dataset.id === project.theme.name || tile.dataset.id === 'custom' && !seasons.some(([value]) => value === project.theme.name)));
       syncChoices();

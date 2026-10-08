@@ -20,6 +20,37 @@ const creatorStores = new WeakMap();
 const merchantMemberships = new WeakMap();
 const operationBindings = new WeakMap();
 const realWorldCleanups = new WeakMap();
+const merchantSelectedViews = new WeakMap();
+
+const merchantViewOrder = ['create', 'claim', 'results'];
+
+function merchantViewSections(doc) {
+  return [...(doc.body ?? doc).querySelectorAll('[data-merchant-view]')];
+}
+
+function availableMerchantViews(doc) {
+  return merchantViewOrder.filter(view => merchantViewSections(doc)
+    .some(section => section.dataset.merchantView === view && !section.hidden));
+}
+
+export function setMerchantView(doc, requested = merchantSelectedViews.get(doc) ?? 'create') {
+  const nav = doc.getElementById('merchant-owner-nav');
+  const available = availableMerchantViews(doc);
+  const selected = available.includes(requested) ? requested : (available[0] ?? 'create');
+  merchantSelectedViews.set(doc, selected);
+  for (const section of merchantViewSections(doc)) {
+    section.classList.toggle('merchant-view-hidden', section.dataset.merchantView !== selected);
+  }
+  for (const button of (doc.body ?? doc).querySelectorAll('[data-merchant-view-target]')) {
+    const target = button.dataset.merchantViewTarget;
+    button.hidden = !available.includes(target);
+    if (target === selected && available.includes(target)) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  }
+  if (nav) nav.hidden = available.length === 0;
+  return selected;
+}
+
 function clearRealWorld(doc) {
   realWorldCleanups.get(doc)?.();
   realWorldCleanups.delete(doc);
@@ -508,6 +539,8 @@ export async function loadMerchant(fetcher, doc) {
   const claimForm = doc.getElementById('merchant-claim-form');
   const claimSelect = doc.getElementById('merchant-claim-merchant');
   content.hidden = true;
+  merchantSelectedViews.set(doc, 'create');
+  setMerchantView(doc);
   login.hidden = true;
   logout.hidden = true;
   list.replaceChildren();
@@ -612,6 +645,7 @@ export async function loadMerchant(fetcher, doc) {
     registration.hidden = select.children.length === 0;
     registration.querySelector('button').disabled = false;
     content.hidden = false;
+    setMerchantView(doc, 'create');
     logout.hidden = false;
     status.textContent = '점포 권한을 확인했습니다.';
     realWorldCleanups.set(doc, mountRealWorldMerchant(fetcher, doc, mine.merchants));
@@ -658,6 +692,11 @@ export function bindMerchant(fetcher, doc) {
   let couponBusy = false;
   let coupons = [];
   let couponButtons = [];
+  doc.getElementById('merchant-owner-nav')?.addEventListener('click', event => {
+    const button = event.target.closest?.('[data-merchant-view-target]');
+    if (!button || button.hidden) return;
+    setMerchantView(doc, button.dataset.merchantViewTarget);
+  });
   const syncCouponControls = () => {
     couponLookup.disabled = issuing || couponBusy;
     for (const button of couponButtons) button.disabled = issuing || couponBusy;
@@ -1501,7 +1540,10 @@ export function bindMerchant(fetcher, doc) {
             button.disabled = true;
             try {
               await opener.onclick?.();
-              if (creatorStores.get(doc) === merchant.id) jumpTo(doc.getElementById('merchant-creator-title'));
+              if (creatorStores.get(doc) === merchant.id) {
+                setMerchantView(doc, 'create');
+                jumpTo(doc.getElementById('merchant-creator-title'));
+              }
               else select.value = previous;
             } finally { button.disabled = false; }
           });

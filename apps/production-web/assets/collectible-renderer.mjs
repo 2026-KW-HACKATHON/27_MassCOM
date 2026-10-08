@@ -58,29 +58,32 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
   const cartoon = (edits.cartoon || 0) / 100;
   const simplify = Math.round((edits.simplify || 0) / 100 * 3);
   const sample = (x, y, channel) => source[(clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)) * 4 + channel];
+  const reliefSign = style === 'incised' ? -1 : 1;
+  const reliefRgb = (x, y, values, grey = (values[0] * .299 + values[1] * .587 + values[2] * .114) / 255) => {
+    const ridge = ((sample(x - 1, y - 1, 0) + sample(x - 1, y - 1, 1) + sample(x - 1, y - 1, 2)) - (sample(x + 1, y + 1, 0) + sample(x + 1, y + 1, 1) + sample(x + 1, y + 1, 2))) / 3;
+    return values.map((value, channel) => {
+      const metal = base[channel] * (.52 + grey * .58) + reliefSign * ridge * relief / 45;
+      return clamp(metal * (1 - photoColor / 100) + value * photoColor / 100 + reliefSign * ridge * relief / 85);
+    });
+  };
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const index = (y * width + x) * 4;
       const lum = channel => (sample(x, y, channel) + sample(x + simplify, y, channel) + sample(x, y + simplify, channel)) / 3;
       const edge = Math.abs(sample(x - 1, y - 1, 0) - sample(x + 1, y + 1, 0)) / 255;
-      const reliefSign = style === 'incised' ? -1 : 1;
-      const ridge = ((sample(x - 1, y - 1, 0) + sample(x - 1, y - 1, 1) + sample(x - 1, y - 1, 2)) - (sample(x + 1, y + 1, 0) + sample(x + 1, y + 1, 1) + sample(x + 1, y + 1, 2))) / 3;
       const grey = (sample(x, y, 0) * .299 + sample(x, y, 1) * .587 + sample(x, y, 2) * .114) / 255;
+      const values = [];
       for (let channel = 0; channel < 3; channel++) {
         let value = clamp((lum(channel) - 128) * contrast + 128 + brightness);
         value = Math.round(value / quantize) * quantize;
         if (cartoon) value = value * (1 - cartoon) + Math.round(value / 48) * 48 * cartoon - edge * 95 * cartoon;
-        if (style !== 'original') {
-          const metal = base[channel] * (.52 + grey * .58) + reliefSign * ridge * relief / 45;
-          value = metal * (1 - photoColor / 100) + value * photoColor / 100;
-          // Opposite directional highlights distinguish raised and incised relief
-          // even when the merchant keeps some original photographic color.
-          value += reliefSign * ridge * relief / 85;
-        }
-        result[index + channel] = clamp(value);
+        values[channel] = value;
       }
+      const rendered = style === 'original' ? values.map(value => clamp(value)) : reliefRgb(x, y, values, grey);
+      for (let channel = 0; channel < 3; channel++) result[index + channel] = rendered[channel];
     }
   }
+  const restoredPixels = style === 'original' ? source : new Uint8ClampedArray(result);
   for (const stroke of edits.strokes || []) {
     const radius = Math.max(1, (stroke.size || .04) * Math.min(width, height) / 2);
     const paint = rgb(stroke.color);
@@ -99,9 +102,11 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
             if (Math.hypot(x - cx, y - cy) > radius) continue;
             const index = (y * width + x) * 4;
             if (stroke.tool === 'erase') result[index + 3] = 0;
-            else if (stroke.tool === 'restore') for (let channel = 0; channel < 4; channel++) result[index + channel] = source[index + channel];
-            else if (stroke.tool === 'color') for (let channel = 0; channel < 3; channel++) result[index + channel] = paint[channel];
-            else if (stroke.tool === 'clean') for (let channel = 0; channel < 3; channel++) result[index + channel] = result[index + channel] * .2 + source[neighbor + channel] * .8;
+            else if (stroke.tool === 'restore') for (let channel = 0; channel < 4; channel++) result[index + channel] = restoredPixels[index + channel];
+            else if (stroke.tool === 'color') {
+              const values = style === 'original' ? paint : reliefRgb(x, y, paint);
+              for (let channel = 0; channel < 3; channel++) result[index + channel] = values[channel];
+            } else if (stroke.tool === 'clean') for (let channel = 0; channel < 3; channel++) result[index + channel] = result[index + channel] * .2 + restoredPixels[neighbor + channel] * .8;
           }
         }
       }
@@ -110,10 +115,15 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
   return result;
 }
 
-async function photoFor(project, max = 960, style = project.style) {
+export function collectibleReliefTint(project, gradeId = project?.gradeId || '') {
+  const gradeName = project?.grades?.find(item => item.id === gradeId)?.name ?? project?.gradeName ?? '';
+  return collectibleMetalColors(gradeId || project?.gradeId || '', gradeName)[1];
+}
+
+async function photoFor(project, max = 960, style = project.style, gradeId) {
   const source = project.photo?.originalDataUrl;
   if (!source) return null;
-  const edits = structuredClone(project.photoEdits), color = project.baseColor, photoColor = project.photoColor, relief = project.relief;
+  const edits = structuredClone(project.photoEdits), color = style === 'original' ? project.baseColor : collectibleReliefTint(project, gradeId), photoColor = project.photoColor, relief = project.relief;
   if (source !== currentPhotoSource) { currentPhotoSource = source; photoCache.clear(); photoGeneration++; }
   // Avoid serializing megabytes of unchanged original image bytes on every frame.
   const key = JSON.stringify([photoGeneration, edits, style, color, photoColor, relief, max]);
@@ -317,7 +327,7 @@ export async function livingOverlayFor(project, gradeId, size, phase) {
   if (!items.length) return null;
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
   traceShape(context, project.shape, size, size); context.clip();
-  const photo = await photoFor(project);
+  const photo = await photoFor(project, 960, project.style, gradeId);
   for (const item of items) await paintLivingItem(context, project, item, gradeId, size, phase, photo);
   return canvas;
 }
@@ -327,7 +337,7 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
   traceShape(context, project.shape, size, size); context.clip();
   context.fillStyle = project.baseColor || '#c7974e'; context.fillRect(0, 0, size, size);
-  const photo = await photoFor(project);
+  const photo = await photoFor(project, 960, project.style, gradeId);
   const parallaxStrength = Math.max(0, Math.min(100, project.parallax?.strength ?? 0));
   const parallaxStrokes = project.parallax?.strokes ?? [];
   const hasParallax = applyEffects && parallaxStrength > 0 && parallaxStrokes.length > 0;
@@ -565,7 +575,7 @@ async function maskFor(project, gradeId, target, size) {
   traceShape(context, project.shape, size, size); context.clip();
   if (target === 'surface') { context.fillStyle = '#fff'; context.fillRect(0, 0, size, size); }
   else if (target === 'photo') {
-    const photo = await photoFor(project); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
+    const photo = await photoFor(project, 960, project.style, gradeId); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
   } else if (target === 'border') {
     traceShape(context, project.shape, size * .97, size * .97, size * .015, size * .015); context.strokeStyle = '#fff'; context.lineWidth = size * .055; context.stroke();
   } else {

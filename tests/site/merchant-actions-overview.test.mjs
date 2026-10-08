@@ -68,6 +68,40 @@ test('운영 요청은 가게 ID와 서버가 알려준 누락값만 포함하�
   assert.match(readinessRequestText({ id: 'm1', name: '월계 식당' }, steps()[2]), /필요한 내용: 현재 가게의 점주 지정$/);
 });
 
+test('점주 보상 업무는 제작기를 기본 화면으로 두고 방문 확인과 운영 결과만 전환한다', async () => {
+  const f = await fixture();
+  try {
+    const buttons = [...f.doc.body.querySelectorAll('[data-merchant-view-target]')];
+    assert.deepEqual(buttons.map(button => button.textContent), ['방문 보상 만들기', '방문 확인', '운영 결과']);
+    assert.equal(buttons[0].getAttribute('aria-current'), 'page');
+    assert.equal(f.doc.getElementById('merchant-creator').classList.contains('merchant-view-hidden'), false);
+    assert.equal(f.doc.getElementById('merchant-overview').classList.contains('merchant-view-hidden'), true);
+    const claimPanel = f.doc.getElementById('merchant-claim-title').closest('section');
+    assert.equal(claimPanel.classList.contains('merchant-view-hidden'), true);
+
+    await f.click(buttons[1]);
+    assert.equal(buttons[1].getAttribute('aria-current'), 'page');
+    assert.equal(claimPanel.classList.contains('merchant-view-hidden'), false);
+    assert.equal(f.doc.getElementById('merchant-creator').classList.contains('merchant-view-hidden'), true);
+
+    await f.click(buttons[2]);
+    assert.equal(buttons[2].getAttribute('aria-current'), 'page');
+    assert.equal(f.doc.getElementById('merchant-overview').classList.contains('merchant-view-hidden'), false);
+    assert.equal(f.doc.getElementById('merchant-reversal').classList.contains('merchant-view-hidden'), false);
+    assert.equal(claimPanel.classList.contains('merchant-view-hidden'), true);
+  } finally { f.restore(); }
+});
+
+test('보상 업무 HTML은 메뉴·직원·실제 정보 양식을 보조 구역으로 남기되 기본 흐름에 노출하지 않는다', () => {
+  const html = readFileSync(new URL('../../apps/production-web/merchant.html', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../../apps/production-web/assets/production.css', import.meta.url), 'utf8');
+  assert.match(html, /id="merchant-owner-nav"[\s\S]*방문 보상 만들기[\s\S]*방문 확인[\s\S]*운영 결과/);
+  for (const id of ['merchant-operations', 'merchant-profile', 'real-world-merchant']) {
+    assert.match(html, new RegExp(`id="${id}"[^>]*merchant-workflow-secondary`));
+  }
+  assert.match(css, /\.merchant-view-hidden, \.merchant-workflow-secondary \{ display: none !important; \}/);
+});
+
 test('미완료 단계는 실행 하나씩, 점주 부재는 운영 요청으로, 점주만 제작기로 연결한다', async () => {
   const f = await fixture();
   try {

@@ -58,7 +58,7 @@ async function mountViaMerchant(api, { confirm = () => true, merchants = [{ id: 
   return Object.assign(ui, { asked, select, host, openEditor, panel: document.getElementById('merchant-creator') });
 }
 
-test('메뉴는 인증된 점포 항목만 쓰고 같은 이름의 공개 점포 메뉴를 섞지 않는다', async () => {
+test('방문 보상 제작은 메뉴 등록 없이 인증된 점포의 캠페인으로 시작한다', async () => {
   const api = createFakeApi();
   const requested = [];
   const fetcher = async (path, init) => {
@@ -84,7 +84,8 @@ test('메뉴는 인증된 점포 항목만 쓰고 같은 이름의 공개 점포
   const select = doc.getElementById('merchant-creator-editor').querySelector('[data-control="campaign"]');
   assert.deepEqual(select.options.map(item => item.value), ['', 'campaign-a', 'campaign-b']);
   assert.equal(select.options[1].textContent, '가상 방문 캠페인');
-  assert.match(doc.getElementById('merchant-creator-editor').querySelector('[data-action="starter"][data-id="0"]').textContent, /국수/);
+  assert.equal(doc.getElementById('merchant-creator-editor').querySelector('[data-action="starter"][data-id="0"]'), null);
+  assert.ok(doc.getElementById('merchant-creator-editor').querySelector('[data-action="starter"][data-id="store"]'));
   assert.doesNotMatch(doc.getElementById('merchant-creator-editor').textContent, /다른 점포 메뉴/);
   assert.equal(requested.includes('/merchants'), false);
   assert.ok(requested.includes('/api/web/merchant/merchants/m1/collectible-campaigns'));
@@ -524,7 +525,7 @@ test('뒷면은 모양·등급별 고정 음각으로 안내하고 앞면 스티
   for (const control of ['sticker-side', 'back-mode', 'back-color']) assert.equal(ui.control(control), null, control);
   const note = ui.container.querySelector('[data-view="fixed-back"]');
   assert.match(note.textContent, /원형 · 브론즈 고정 음각/);
-  assert.equal(note.closest('[data-step-panel]').dataset.stepPanel, '2');
+  assert.equal(note.closest('[data-step-panel]').dataset.stepPanel, '3');
   await ui.change('shape', 'stamp');
   ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
   assert.match(note.textContent, /우표 · 실버 고정 음각/);

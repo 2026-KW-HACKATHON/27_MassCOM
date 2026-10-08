@@ -62,11 +62,16 @@ async function mount(api, options = {}) {
   return { host, control, action, click, upload, save, get notice() { return host.querySelector('[data-view="notice"]').textContent; } };
 }
 
-test('홈은 AI 초안과 준비 이미지 두 진입점을 보여 주고 준비 이미지는 기존 저장 계약으로 이어진다', async () => {
+test('홈은 메뉴 등록 없이 AI 초안과 준비 이미지 두 진입점을 보여 주고 준비 이미지는 기존 저장 계약으로 이어진다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   assert.match(ui.host.textContent, /AI로 초안 생성 후 스튜디오 하기/);
+  assert.doesNotMatch(ui.host.querySelector('[data-view="studio-home"]').textContent, /등록된 메뉴로 만들어요/);
   assert.match(ui.host.textContent, /미리 준비한 이미지 넣어서 스튜디오 가기/);
+  assert.equal(ui.host.querySelector('[data-action="starter"][data-id="0"]'), null, '메뉴 스타터 카드는 홈에서 제거한다');
+  const storeStarter = ui.host.querySelector('[data-action="starter"][data-id="store"]');
+  assert.ok(storeStarter, '가게 자체 스타터는 접힌 선택지로 남긴다');
+  assert.equal(storeStarter.closest('details').open, false, '가게 스타터 묶음은 기본 접힘이다');
 
   let chooserOpened = 0;
   ui.control('photo').click = () => { chooserOpened++; };

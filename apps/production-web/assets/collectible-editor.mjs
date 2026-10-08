@@ -375,6 +375,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function option(select, text, value) { select.append(element('option', text, { value })); }
   function renderGrades() {
+    studio.setPreviewGrade(selectedGrade, project.grades.find(grade => grade.id === selectedGrade)?.name);
     view('grade-tabs').replaceChildren(); view('grade-manager').replaceChildren();
     control('grade-copy').replaceChildren(element('option', '효과 없이 새로 시작', { value: '' }));
     for (const grade of project.grades) {
@@ -776,19 +777,19 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
     if (!project.name.trim()) { navigateStep(4); control('name').closest('details').open = true; notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
     if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
-    if (project.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
-    if (project.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
-    if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
+    if (project.stickers.some(item => !item.text.trim())) { navigateStep(2); studio.selectEditPanel('sticker'); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
+    if (project.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(2); studio.selectEditPanel('sticker'); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지워 주세요.', true); return; }
+    if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); studio.selectExtraPanel('voice'); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
     // PR #310 리뷰(P1): region 대상 living 항목은 서버가 점 1~20개를 요구한다(rules.ts parseLivingItem). 칠한
     // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
     // 초안 저장조차 거절된다(validateCollectibleProject는 등급 연결 여부와 무관하게 구조 전체를 검사한다).
     if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
-      navigateStep(4); control('living-kind').closest('details').open = true; notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
+      navigateStep(4); studio.selectExtraPanel('living'); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
     }
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
-      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
+      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') studio.selectExtraPanel('story'); notice(reason, true); return; } }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
     // 복원·업그레이드 경로에 놓친 곳이 있어도 서버로 나가는 프로젝트는 항상 v2여야 한다(PR #293 P1 방어선).
     const revision = upgradeProject(cloneProject(project)), savedSerial = editSerial;
@@ -985,8 +986,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function navigateStep(step) {
     stopHiddenMedia(); studio.showStep(step); start = performance.now();
-    if (studio.step === 1 || studio.step === 3 || studio.step === 4) drawCrop(); // 4단계 "살아 있는 그림"에도 같은 사진 캔버스가 있다.
-    if (studio.step !== 1) schedulePreview();
+    if (studio.step === 1 || studio.step === 2 || studio.step === 4) drawCrop();
+    if (studio.step >= 3) schedulePreview();
   }
   // 저장하지 않은 편집이 있으면 새로 시작하거나 다른 프로젝트를 열기 전에 묻는다. 거절하면 지금 프로젝트를 그대로 둔다.
   const newProjectDiscardMessage = '저장하지 않은 편집이 있어요. 지금 새로 시작하거나 다른 프로젝트를 열면 사라져요. 계속할까요?';
@@ -1062,6 +1063,20 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'ai-back') { stopAi(); studio.hideAi(); studio.showHome(); return; }
     if (action === 'home') { stopAi(); studio.hideAi(); stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(); return; }
     if (action === 'resume') { navigateStep(studio.step); return; }
+    if (action === 'background-color') {
+      if (!/^#[0-9a-f]{6}$/i.test(id) || project.baseColor.toLowerCase() === id.toLowerCase()) return;
+      mutate(() => { project.baseColor = id.toLowerCase(); }); return;
+    }
+    if (action === 'export-image') {
+      if (!project.photo.originalDataUrl) { notice('먼저 사진을 추가해 주세요.', true); navigateStep(1); return; }
+      const image = document.createElement('canvas'); image.width = image.height = 1024;
+      await renderCollectible(image, cloneProject(project), selectedGrade, { staticFrame: true, angle: 0, textureSize: 1024, merchantName });
+      const file = await new Promise(resolve => image.toBlob(resolve, 'image/png'));
+      if (!file) throw new Error('코인 이미지를 저장하지 못했어요.');
+      const url = URL.createObjectURL(file), link = document.createElement('a');
+      link.href = url; link.download = `${project.name.replace(/[\\/:*?"<>|]/g, '_')}-${selectedGrade}.png`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000); notice('현재 등급의 코인 이미지를 PNG로 저장했어요.'); return;
+    }
     if (action === 'step' || action === 'previous-step' || action === 'next-step') { navigateStep(action === 'step' ? id : studio.step + (action === 'next-step' ? 1 : -1)); return; }
     if (action === 'open-project') { stopHiddenMedia(); await loadProject(id); return; }
     if (action === 'season') { studio.selectHomeTheme(id); return; }
@@ -1257,8 +1272,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   listen(container, 'click', event => { const target = event.target.closest('[data-action]'); if (target && container.contains(target)) act(target.dataset.action, target.dataset.id, target).catch(error => notice(collectibleErrorMessage(error, error.status ? undefined : error.message || '처리하지 못했어요. 다시 시도해 주세요.'), true)); });
   listen(container, 'pointerdown', event => { if (event.target.matches('input[type="range"],input[type="color"]')) remember(); });
-  listen(container, 'focusin', event => { if (event.target.matches('textarea,input:not([type]),input[type="text"]')) remember(); });
-  listen(container, 'keydown', event => { if (event.target.matches('input[type="range"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) remember(); });
+  listen(container, 'focusin', event => { if (!event.target.dataset.control?.startsWith('background-') && event.target.matches('textarea,input:not([type]),input[type="text"],input[type="number"]')) remember(); });
+  listen(container, 'keydown', event => {
+    const typing = event.target.matches('textarea,input:not([type]),input[type="text"],input[type="number"],input[type="email"],input[type="password"]') || event.target.isContentEditable;
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !typing && ['z', 'y'].includes(event.key.toLowerCase())) {
+      event.preventDefault(); act(event.shiftKey || event.key.toLowerCase() === 'y' ? 'redo' : 'undo').catch(error => notice(collectibleErrorMessage(error), true)); return;
+    }
+    if (event.target.matches('input[type="range"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) remember();
+  });
   listen(container, 'input', event => {
     const target = event.target;
     if (target.dataset.edit) { project.photoEdits[target.dataset.edit] = Number(target.value); changed(); drawCrop(); schedulePreview(); return; }
@@ -1287,6 +1308,17 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     } else if (target.dataset.overrideText) {
       const override = project.greetingOverrides.find(item => item.id === target.dataset.overrideText);
       if (override) { override.text = target.value; changed(); }
+    } else if (field === 'background-hex' || ['background-r', 'background-g', 'background-b'].includes(field)) {
+      let color;
+      if (field === 'background-hex') {
+        if (!/^#[0-9a-f]{6}$/i.test(target.value)) return; color = target.value.toLowerCase();
+      } else {
+        if (target.value.trim() === '' || !Number.isInteger(Number(target.value)) || Number(target.value) < 0 || Number(target.value) > 255) return;
+        const channels = [1, 3, 5].map(offset => parseInt(project.baseColor.slice(offset, offset + 2), 16));
+        channels[['background-r', 'background-g', 'background-b'].indexOf(field)] = Number(target.value);
+        color = `#${channels.map(value => value.toString(16).padStart(2, '0')).join('')}`;
+      }
+      if (color !== project.baseColor.toLowerCase()) mutate(() => { project.baseColor = color; });
     } else if (['base-color', 'photo-color', 'relief'].includes(field)) {
       project[{ 'base-color': 'baseColor', 'photo-color': 'photoColor', relief: 'relief' }[field]] = field === 'base-color' ? target.value : Number(target.value); changed(); schedulePreview();
     } else if (field === 'story-cartoon') { project.story.cartoon = Number(target.value); changed(); }
