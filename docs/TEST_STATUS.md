@@ -6,7 +6,7 @@
 
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |
-| 사이트 전체 회귀 | 최종 실행 중 | LF QA 체크아웃에서 macOS Chrome 전용 `verify_showcase_theme_test.mjs`를 제외한668건. 최신 main 시험의 Windows URL·경로 정규화 오류를 수정해 단독2/2 PASS, 기존 의미·대상 assertion은 유지했다. 최종 전체 결과는 아래에 확정한다. |
+| 사이트 전체 회귀 | PASS | LF QA 체크아웃에서 macOS Chrome 전용 `verify_showcase_theme_test.mjs`를 제외한668/668 PASS. 최신 main 시험의 Windows URL·경로 정규화 오류를 수정해 단독2/2 PASS, 기존 의미·대상 assertion은 유지했다. 최종 명령 종료0·fail0·skip0. |
 | API 계약 | PASS | collectible-project-rules30/30, API typecheck. 새 Flame speed·강도·대상과 흑백·붓 경도 계약 포함 |
 | 앱 계약·렌더 순수 로직 | PASS | artwork/back/motion/material/aura/edge62/62, 모바일 typecheck·변경 파일 ESLint. 새 효과 metadata 파서·획득 snapshot 보존·75ms/도 실제 재생·얇은 측면 포함 |
 | 독립 읽기 전용 리뷰 | PASS | 저장/게시 경합·이미지 비동기 가드·256→512 표시/드래그 좌표·geometry·등급별 림 확인. 관련8파일204/204, 새P1/P2 차단0 |
