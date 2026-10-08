@@ -1,14 +1,13 @@
-import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withSpring, withTiming, type SharedValue } from 'react-native-reanimated';
-import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Svg, { G, Line } from 'react-native-svg';
 
 import { ThemeOutfitPreview } from '@/experience/theme-pack-board';
 import type { DisplayExperienceProfile, ExperienceProfile } from '@/experience/experience-api';
 import { RegistrationAlbum, type RegistrationItem } from '@/acquisition/registration-album';
-import { CosmeticArt, PackArt } from '@/illustration/artwork';
+import { CosmeticArt } from '@/illustration/artwork';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
 import { ConfettiBurst } from '@/gamification/confetti';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
@@ -20,7 +19,8 @@ import { CharacterArt } from '@/illustration/character-art';
 import { AvatarWardrobe, equippedClothingArt, type EquippedClothingArt } from '@/shop/wardrobe';
 import { drawRewardDisclosure, rerollDisclosure } from '@/shop/shop-rules';
 
-import { cosmeticSequenceDisclosure, gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, gachaTimeline, isNewDraw, type GachaPhase, type GachaRewardPhase, type GachaStage } from './gacha-rules';
+import { cosmeticSequenceDisclosure, gachaAffordability, gachaNextRewardPhase, gachaPhaseAfter, isNewDraw, type GachaPhase, type GachaRewardPhase } from './gacha-rules';
+import { StampDrawStage } from './stamp-draw-stage';
 
 type Props = {
   snapshot: ShopSnapshot;
@@ -53,31 +53,22 @@ export const gradeStyle: Record<MileageGrade, { name: string; color: string; pal
   SILVER: { name: '실버', color: '#B9D2E8', pale: '#E8F5FF' },
   GOLD: { name: '골드', color: '#F8C758', pale: '#FFF2B8' },
 };
-const stages: GachaStage[] = ['crank', 'shake', 'drop', 'wobble', 'split', 'burst', 'pop'];
-
 /** The same full-screen purchase experience opens from the shop and the visit reward reel. */
 export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEquipBonus, result, selectedGrade, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
   receiptId, wishId, onWish, onRecoverPending, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
-  const [phase, setPhase] = useState<GachaPhase>('detail');
+  const [phase, setPhase] = useState<GachaPhase | 'opening'>('detail');
   const phaseRef = useRef<typeof phase>('detail');
   const consumedResult = useRef<ShopRerollResult | undefined>(undefined);
   const activeResult = useRef<ShopRerollResult | undefined>(undefined);
+  const drawInFlight = useRef(false);
   const skipRequested = useRef(false);
   const [registeredReceiptId, setRegisteredReceiptId] = useState<string>();
   const [drawing, setDrawing] = useState<ShopGradeView>();
   const [pendingCloseMessage, setPendingCloseMessage] = useState<string>();
-  const timelineTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const advancePhase = useCallback((next: typeof phase) => { phaseRef.current = next; setPhase(next); }, []);
-  const bob = useSharedValue(0);
-  const shake = useSharedValue(0);
-  const jiggle = useSharedValue(0);
-  const crank = useSharedValue(0);
-  const capsuleDrop = useSharedValue(0);
-  const capsuleWobble = useSharedValue(0);
-  const capsuleSplit = useSharedValue(0);
   const burst = useSharedValue(0);
   const cardScale = useSharedValue(0.55);
   const cardOpacity = useSharedValue(0);
@@ -121,22 +112,21 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     if (current === 'reward-mileage' || current === 'reward-clothing' || current === 'reward-character') startRewardReveal(gachaNextRewardPhase(current));
   }, [startRewardReveal]);
 
-  useFocusEffect(useCallback(() => {
-    if (motionAllowed) bob.set(withRepeat(withSequence(withTiming(-5, { duration: 1100 }), withTiming(0, { duration: 1100 })), -1));
-    return () => { cancelAnimation(bob); bob.set(0); };
-  }, [bob, motionAllowed]));
-
   useEffect(() => {
     if (!result) return;
     if (consumedResult.current === result) {
-      // Effect cleanup can cancel the timeline on an OS setting change or StrictMode re-setup.
-      // Finish that in-flight result once; a repeat picker has cleared activeResult below.
-      if (activeResult.current === result && phaseRef.current !== 'result') {
-        timelineTimers.current.forEach(clearTimeout);
-        crank.set(360); shake.set(0); jiggle.set(0); capsuleDrop.set(1); capsuleWobble.set(0); capsuleSplit.set(1);
-        burst.set(1); cardScale.set(1); cardOpacity.set(1);
-        const timer = setTimeout(() => startRewardReveal('reward-mileage'), 0);
-        return () => { clearTimeout(timer); };
+      if (activeResult.current === result && phaseRef.current !== 'result' && phaseRef.current !== 'album-registration') {
+        drawInFlight.current = false;
+        if (!motionAllowed || result.replayed || skipRequested.current) {
+          skipRequested.current = false;
+          const timer = setTimeout(() => {
+            if (activeResult.current === result) startRewardReveal('reward-mileage');
+          }, 0);
+          cardOpacity.set(withTiming(1, { duration: 180 }));
+          cardScale.set(1);
+          return () => { clearTimeout(timer); };
+        }
+        if (phaseRef.current !== 'opening') advancePhase('opening');
       }
       return;
     }
@@ -144,58 +134,49 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     activeResult.current = result;
     if (!motionAllowed || result.replayed || skipRequested.current) {
       skipRequested.current = false;
-      const timer = setTimeout(() => startRewardReveal('reward-mileage'), 0);
+      drawInFlight.current = false;
+      const timer = setTimeout(() => {
+        if (activeResult.current === result) startRewardReveal('reward-mileage');
+      }, 0);
       cardOpacity.set(withTiming(1, { duration: 180 }));
       cardScale.set(1);
       return () => { clearTimeout(timer); };
     }
-    const durations = gachaTimeline(false);
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    timelineTimers.current = timers;
-    let elapsed = 0;
-    const enter = (stage: GachaStage) => {
-      advancePhase(stage);
-      switch (stage) {
-        case 'crank': crank.set(withTiming(360, { duration: durations.crank })); break;
-        case 'shake':
-          shake.set(withSequence(withTiming(-8, { duration: 75 }), withTiming(8, { duration: 75 }), withTiming(-8, { duration: 75 }), withTiming(8, { duration: 75 }), withTiming(-7, { duration: 75 }), withTiming(0, { duration: 75 })));
-          jiggle.set(withSequence(withTiming(1, { duration: 75 }), withTiming(-1, { duration: 75 }), withTiming(1, { duration: 75 }), withTiming(-1, { duration: 75 }), withTiming(1, { duration: 75 }), withTiming(0, { duration: 75 })));
-          break;
-        case 'drop': capsuleDrop.set(withSpring(1, { damping: 8, stiffness: 130 })); void drawHaptic(); playUiSound('open'); break;
-        case 'wobble': capsuleWobble.set(withSequence(withTiming(-15, { duration: 100 }), withTiming(15, { duration: 100 }), withTiming(0, { duration: 100 }))); break;
-        case 'split': capsuleSplit.set(withTiming(1, { duration: durations.split, easing: Easing.out(Easing.cubic) })); playUiSound('flip'); break;
-        case 'burst': burst.set(withTiming(1, { duration: durations.burst })); playUiSound('success'); break;
-        case 'pop': cardOpacity.set(1); cardScale.set(withSpring(1, { damping: 7, stiffness: 180 })); void drawHaptic(); break;
-      }
-    };
-    stages.forEach((stage) => { timers.push(setTimeout(() => enter(stage), elapsed)); elapsed += durations[stage]; });
-    timers.push(setTimeout(() => startRewardReveal('reward-mileage'), elapsed));
-    return () => { timers.forEach(clearTimeout); };
-  }, [result, motionAllowed, advancePhase, burst, capsuleDrop, capsuleSplit, capsuleWobble, cardOpacity, cardScale, crank, jiggle, shake, startRewardReveal]);
+    drawInFlight.current = false;
+    advancePhase('opening');
+    void drawHaptic();
+  }, [result, motionAllowed, advancePhase, cardOpacity, cardScale, startRewardReveal]);
 
-  const machineStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.get() }, { translateX: shake.get() }] }));
-  const crankStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${crank.get()}deg` }] }));
-  const dropStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -60 + capsuleDrop.get() * 90 }, { rotate: `${capsuleWobble.get()}deg` }] }));
-  const splitStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -capsuleSplit.get() * 65 }, { rotate: `${capsuleSplit.get() * 42}deg` }] }));
   const burstStyle = useAnimatedStyle(() => ({ opacity: burst.get(), transform: [{ rotate: `${burst.get() * 35}deg` }, { scale: 0.7 + burst.get() * 0.6 }] }));
   const resultStyle = useAnimatedStyle(() => ({ opacity: cardOpacity.get(), transform: [{ scale: cardScale.get() }] }));
 
+  const finishOpening = useCallback(() => {
+    if (phaseRef.current !== 'opening' || activeResult.current !== result) return;
+    startRewardReveal('reward-mileage');
+  }, [result, startRewardReveal]);
 
   const startDraw = async (selected: ShopGradeView) => {
+    if (drawInFlight.current || busy || refreshing) return;
+    drawInFlight.current = true;
     setDrawing(selected);
     skipRequested.current = false;
     setPendingCloseMessage(undefined);
     activeResult.current = undefined;
-    advancePhase(gachaPhaseAfter(phaseRef.current, { type: 'draw-started' }));
-    crank.set(0); shake.set(0); jiggle.set(0); capsuleDrop.set(0); capsuleWobble.set(0); capsuleSplit.set(0); burst.set(0);
+    advancePhase('pending');
+    burst.set(0);
     cardScale.set(0.55); cardOpacity.set(0);
     const succeeded = await onDraw(selected);
     if (!succeeded) {
+      drawInFlight.current = false;
       skipRequested.current = false;
-      advancePhase(gachaPhaseAfter(phaseRef.current, { type: 'purchase-failed' }));
+      advancePhase(phaseRef.current === 'pending' ? 'detail' : phaseRef.current);
     }
   };
   const skip = () => {
+    if (phaseRef.current === 'opening') {
+      burst.set(1); cardScale.set(1); cardOpacity.set(1); startRewardReveal('reward-mileage');
+      return;
+    }
     const next = gachaPhaseAfter(phaseRef.current, { type: 'skip', busy });
     if (next === 'pending') { skipRequested.current = true; return; }
     if (next === 'detail' || !result) {
@@ -203,14 +184,12 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
       advancePhase('detail');
       return;
     }
-    timelineTimers.current.forEach(clearTimeout);
-    crank.set(360); shake.set(0); jiggle.set(0); capsuleDrop.set(1); capsuleWobble.set(0); capsuleSplit.set(1);
     burst.set(1); cardScale.set(1); cardOpacity.set(1); startRewardReveal('reward-mileage');
   };
   const displayPhase = phase;
   const rewardPhase = displayPhase === 'reward-mileage' || displayPhase === 'reward-clothing' || displayPhase === 'reward-character' ? displayPhase : undefined;
   const showResult = !!rewardPhase || displayPhase === 'result' || displayPhase === 'pop';
-  const animating = result && displayPhase !== 'detail' && displayPhase !== 'pending' && !rewardPhase && displayPhase !== 'result' && displayPhase !== 'album-registration';
+  const animating = displayPhase === 'opening';
   const requestClose = () => {
     if (displayPhase === 'pending') {
       setPendingCloseMessage('구매 확인 중이에요. 결과를 받으면 닫을 수 있어요.');
@@ -232,7 +211,16 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
           {displayPhase === 'detail' ? (
             <>
               <Text accessibilityRole="header" style={styles.heading}>{gradeStyle[selected.grade].name} 재뽑기권</Text>
-              <PackArt grade={selected.grade} size={180} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${selected.price.toLocaleString('ko-KR')} 마일리지로 뽑기`}
+                accessibilityState={{ disabled: !selectedAvailability.enabled || busy || refreshing }}
+                disabled={!selectedAvailability.enabled || busy || refreshing}
+                onPress={() => { void startDraw(selected); }}
+                style={styles.stageButton}
+              >
+                <StampDrawStage phase="idle" compact />
+              </Pressable>
               <View style={styles.catalog}>{snapshot.items.filter((item) => item.grade === selected.grade).map((item) => <Pressable
                 key={item.id} accessibilityRole="button" disabled={item.owned || busy}
                 accessibilityState={{ disabled: item.owned || busy, selected: wishId === item.id }}
@@ -261,7 +249,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
           ) : displayPhase === 'pending' ? (
             <>
               <Text accessibilityRole="header" style={styles.heading}>친구를 만나러 가는 중…</Text>
-              <Machine tone={tone} machineStyle={machineStyle} crankStyle={crankStyle} jiggle={jiggle} />
+              <View style={styles.stageArea}><StampDrawStage phase="idle" /></View>
               <Text accessibilityLiveRegion="polite" style={styles.description}>뽑기 결과를 확인하고 있어요.</Text>
               {pendingCloseMessage ? <Text accessibilityLiveRegion="polite" style={styles.error}>{pendingCloseMessage}</Text> : null}
             </>
@@ -278,14 +266,8 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
             <>
               <Text accessibilityRole="header" style={styles.heading}>{rewardPhase ? '보상을 하나씩 열어요' : showResult ? result.replayed ? '이전 결과를 확인했어요' : '새 친구를 만났어요!' : '두근두근, 누가 나올까요?'}</Text>
               {!showResult ? (
-                <View style={styles.machineArea}>
-                  <Machine tone={tone} machineStyle={machineStyle} crankStyle={crankStyle} jiggle={jiggle} />
-                  {['drop', 'wobble', 'split', 'burst'].includes(displayPhase) ? <Animated.View style={[styles.capsuleWrap, dropStyle]}>
-                    <View style={[styles.capsuleBottom, { backgroundColor: tone.color }]} />
-                    <Animated.View style={[styles.capsuleTop, { backgroundColor: tone.pale }, splitStyle]} />
-                  </Animated.View> : null}
-                  {displayPhase === 'burst' ? <Animated.View style={[styles.rays, burstStyle]}><BurstRays color={tone.color} /></Animated.View> : null}
-                  {displayPhase === 'burst' ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={140} originY={160} width={280} height={280} count={grade === 'GOLD' ? 34 : grade === 'SILVER' ? 22 : 12} /> : null}
+                <View style={styles.stageArea}>
+                  <StampDrawStage phase="opening" onComplete={finishOpening} />
                 </View>
               ) : <View style={styles.resultWrap}>
                 {motionAllowed && !result.replayed && !alreadyRegistered ? <Animated.View pointerEvents="none" style={[styles.resultRays, burstStyle]}><BurstRays color={tone.color} /></Animated.View> : null}
@@ -417,33 +399,6 @@ function ResultSummary({ result, tone, ownedBefore, clothing, bonusProfile }: { 
   </>;
 }
 
-export function Machine({ tone, machineStyle, crankStyle, jiggle }: { tone: { color: string; pale: string }; machineStyle: object; crankStyle: object; jiggle: SharedValue<number> }) {
-  return <Animated.View style={[styles.machine, machineStyle]} accessibilityLabel="뽑기 기계" accessible>
-    <Svg width={240} height={270} viewBox="0 0 240 270">
-      <Defs><LinearGradient id="dome" x1="0" y1="0" x2="1" y2="1"><Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.68" /><Stop offset="1" stopColor="#AFDBF2" stopOpacity="0.18" /></LinearGradient></Defs>
-      <Ellipse cx="120" cy="246" rx="105" ry="13" fill="#081528" opacity="0.4" />
-      <Path d="M34 130 V104a86 86 0 0 1 172 0v26z" fill="#8BBFE0" stroke="#E7F7FF" strokeWidth="6" />
-      <Path d="M34 130 V104a86 86 0 0 1 172 0v26z" fill="url(#dome)" />
-      <Path d="M62 60 Q71 36 91 29" fill="none" stroke="#FFFFFF" strokeWidth="7" opacity="0.7" strokeLinecap="round" />
-      <Rect x="25" y="127" width="190" height="94" rx="22" fill="#FFCB72" stroke="#FFF0C8" strokeWidth="5" />
-      <Rect x="66" y="204" width="108" height="41" rx="12" fill="#E2A558" />
-      <Rect x="80" y="210" width="80" height="35" rx="9" fill="#263A58" />
-      <Path d="M89 233h62" stroke="#607C9B" strokeWidth="3" />
-      <Circle cx="120" cy="172" r="29" fill="#FFF4D1" stroke="#CE914E" strokeWidth="4" />
-    </Svg>
-    <JiggleCapsule x={64} y={82} color={tone.color} factor={1} jiggle={jiggle} />
-    <JiggleCapsule x={115} y={73} color="#FFC578" factor={-1.4} jiggle={jiggle} />
-    <JiggleCapsule x={146} y={93} color="#D5B7F3" factor={0.8} jiggle={jiggle} />
-    <JiggleCapsule x={91} y={101} color={tone.pale} factor={-0.9} jiggle={jiggle} />
-    <Animated.View style={[styles.crank, crankStyle]}><Svg width={54} height={54} viewBox="0 0 54 54"><Line x1="27" y1="6" x2="27" y2="48" stroke="#C67C40" strokeWidth="7" strokeLinecap="round" /><Line x1="6" y1="27" x2="48" y2="27" stroke="#C67C40" strokeWidth="7" strokeLinecap="round" /><Circle cx="27" cy="27" r="8" fill="#FFDF88" /></Svg></Animated.View>
-  </Animated.View>;
-}
-
-function JiggleCapsule({ x, y, color, factor, jiggle }: { x: number; y: number; color: string; factor: number; jiggle: SharedValue<number> }) {
-  const style = useAnimatedStyle(() => ({ transform: [{ translateX: jiggle.get() * 7 * factor }, { translateY: Math.abs(jiggle.get()) * -4 * Math.abs(factor) }, { rotate: `${jiggle.get() * 12 * factor}deg` }] }));
-  return <Animated.View style={[styles.innerCapsule, { left: x, top: y, backgroundColor: color }, style]} />;
-}
-
 export function BurstRays({ color }: { color: string }) {
   return <Svg width={240} height={240} viewBox="0 0 240 240"><G>{Array.from({ length: 12 }, (_, index) => <Line key={index} x1="120" y1="24" x2="120" y2="5" stroke={color} strokeWidth={index % 2 ? 3 : 6} strokeLinecap="round" transform={`rotate(${index * 30} 120 120)`} />)}</G></Svg>;
 }
@@ -453,7 +408,7 @@ export function Control({ label, onPress, primary, purchase, disabled }: { label
 }
 
 export const styles = StyleSheet.create({
-  root: { flex: 1, minHeight: 0, backgroundColor: '#142724', paddingHorizontal: 22 },
+  root: { flex: 1, minHeight: 0, backgroundColor: '#000000', paddingHorizontal: 22 },
   topBar: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   balance: { color: '#FFE5A4', fontSize: 15, fontWeight: '800' },
   scroll: { flex: 1, minHeight: 0 },
@@ -468,15 +423,9 @@ export const styles = StyleSheet.create({
   rewardList: { alignSelf: 'stretch', gap: 8, marginVertical: 4 },
   rewardLine: { color: '#FFFFFF', fontSize: 17, fontWeight: '800', textAlign: 'center' },
   rewardStep: { color: '#FFE5A4', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  machine: { width: 240, height: 270, alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
-  innerCapsule: { position: 'absolute', width: 38, height: 38, borderRadius: 19, borderColor: '#FFFFFF', borderWidth: 3 },
-  crank: { position: 'absolute', left: 93, top: 145, width: 54, height: 54 },
   disabled: { opacity: 0.48 },
-  machineArea: { width: 280, height: 320, alignItems: 'center', justifyContent: 'flex-start' },
-  capsuleWrap: { position: 'absolute', top: 202, width: 68, height: 68 },
-  capsuleBottom: { position: 'absolute', top: 30, width: 68, height: 38, borderBottomLeftRadius: 34, borderBottomRightRadius: 34, borderWidth: 3, borderColor: '#FFFFFF' },
-  capsuleTop: { position: 'absolute', top: 0, width: 68, height: 38, borderTopLeftRadius: 34, borderTopRightRadius: 34, borderWidth: 3, borderColor: '#FFFFFF' },
-  rays: { position: 'absolute', top: 62, left: 20 },
+  stageArea: { width: '100%', minHeight: 330, alignItems: 'center', justifyContent: 'center' },
+  stageButton: { width: '100%', minHeight: 250, alignItems: 'center', justifyContent: 'center' },
   resultCard: { width: '100%', minHeight: 390, alignItems: 'center', justifyContent: 'center', padding: 8, gap: 8 },
   resultWrap: { alignSelf: 'stretch', minHeight: 340, alignItems: 'center', justifyContent: 'center' },
   resultRays: { position: 'absolute', top: 45, left: '50%', marginLeft: -120 },
