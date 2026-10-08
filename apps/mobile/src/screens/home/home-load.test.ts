@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { CollectionSnapshot } from '@/commerce/commerce-api';
 import type { Recommendation } from '@/recommendation/recommendation-api';
+import type { CoinShop } from '@/shop/coin-api';
 import { homeErrorText, markHomePending, needsFirstStoreRecommendation, pickFirstStore, settleHomeSection, startHomeLoad, type HomeData } from './home-load';
 
 const noVisits = { visits: [], collectibles: [] } as unknown as CollectionSnapshot;
@@ -25,7 +26,7 @@ test('a first load waits on the five requests and each one settles alone', () =>
   assert.equal(data.rewardCount, 0, 'a zero count is a value, not "missing"');
 });
 
-test('a refresh keeps what is on screen, clears old errors and only re-waits for sections that never answered', () => {
+test('a refresh keeps content but marks every action source pending until fresh answers arrive', () => {
   let data = startHomeLoad(undefined, 100);
   data = settleHomeSection(data, 'collection', { ok: true, value: oneVisit });
   data = settleHomeSection(data, 'rewards', { ok: true, value: 0 });
@@ -34,7 +35,39 @@ test('a refresh keeps what is on screen, clears old errors and only re-waits for
   assert.equal(again.loadedAt, 200);
   assert.equal(again.collection, oneVisit);
   assert.deepEqual(again.errors, []);
-  assert.deepEqual(again.pending, ['studio', 'coins', 'merchants']);
+  assert.deepEqual(again.pending, ['studio', 'coins', 'rewards', 'collection', 'merchants']);
+});
+
+test('only newly observed server entitlements or a consumed coin ticket mark acquisition for this focus', () => {
+  const collectible = { entitlementId: 'entitlement-1' } as CollectionSnapshot['collectibles'][number];
+  const coinTicket = { id: 'ticket-1', status: 'UNUSED' } as CoinShop['tickets'][number];
+  const coins = (status: CoinShop['tickets'][number]['status']): CoinShop =>
+    ({ tickets: [{ ...coinTicket, status }], pools: [], mileage: { earned: 0, spent: 0, balance: 0 } });
+  let data = startHomeLoad(undefined, 1);
+  data = settleHomeSection(data, 'collection', { ok: true, value: { visits: [], collectibles: [collectible] } });
+  data = settleHomeSection(data, 'coins', { ok: true, value: coins('UNUSED') });
+  assert.equal(data.acquiredSinceLastView, undefined, 'an initial snapshot is not an acquisition event');
+
+  data = startHomeLoad(data, 2);
+  assert.equal(data.acquiredSinceLastView, undefined);
+  data = settleHomeSection(data, 'collection', { ok: true, value: { visits: [], collectibles: [collectible, { ...collectible, entitlementId: 'entitlement-2' }] } });
+  assert.equal(data.acquiredSinceLastView, 'collectible');
+  data = settleHomeSection(data, 'coins', { ok: true, value: coins('USED') });
+  assert.equal(data.acquiredSinceLastView, 'coin', 'the consumed draw ticket has the more specific destination');
+  assert.equal(startHomeLoad(data, 3).acquiredSinceLastView, undefined, 'the prompt ends at the next focus');
+  assert.equal(settleHomeSection(data, 'coins', { ok: false }).acquiredSinceLastView, 'coin');
+});
+
+test('a ticket bought and used away from Home is new even when Home never saw it unused', () => {
+  const empty: CoinShop = { tickets: [], pools: [], mileage: { earned: 0, spent: 0, balance: 0 } };
+  const used: CoinShop = { ...empty, tickets: [{ id: 'ticket-new', status: 'USED' } as CoinShop['tickets'][number]] };
+  const first = settleHomeSection(startHomeLoad(undefined, 1), 'coins', { ok: true, value: used });
+  assert.equal(first.acquiredSinceLastView, undefined, 'initial load cannot infer a new result');
+  const unchanged = settleHomeSection(startHomeLoad(first, 2), 'coins', { ok: true, value: used });
+  assert.equal(unchanged.acquiredSinceLastView, undefined, 'a known used ticket is not announced twice');
+  const beforeDraw = settleHomeSection(startHomeLoad(undefined, 1), 'coins', { ok: true, value: empty });
+  const afterDraw = settleHomeSection(startHomeLoad(beforeDraw, 2), 'coins', { ok: true, value: used });
+  assert.equal(afterDraw.acquiredSinceLastView, 'coin');
 });
 
 test('a failed refresh keeps the older value and reports the failure', () => {

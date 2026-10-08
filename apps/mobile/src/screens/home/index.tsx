@@ -12,6 +12,7 @@ import { StudioScene } from '@/studio/studio-scene';
 import { homeErrorText, markHomePending, needsFirstStoreRecommendation, pickFirstStore, settleHomeSection, startHomeLoad, type HomeData, type HomeSection, type HomeValues } from './home-load';
 import { homeVisitGoal } from './visit-goal';
 import { visibleHomeMerchantItems } from './showcase-visibility';
+import { homeNextAction } from './next-action';
 import type { AccountCredential } from '@/auth/account-credential';
 import { createBadgeApiClient, type BadgeApiClient, type BadgeBook, type OpenedReward } from '@/gamification/badge-api';
 import { useExperience } from '@/experience/use-experience';
@@ -116,6 +117,7 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const firstStore = pickFirstStore(data, goal);
   const roomItems = data?.studio ? visibleHomeMerchantItems(displayStudioItems(data.studio), packageId) : [];
   const emptyRoom = data?.studio && roomItems.length === 0;
+  const nextAction = homeNextAction(data, goal, packageId);
   const collectedCount = data?.collection?.collectibles.length ?? 0;
   const heading = { color: world.cardInk, fontSize: 21, fontWeight: '800' as const };
   const body = { color: world.cardMuted, fontSize: 13, lineHeight: 19 };
@@ -136,11 +138,15 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
       contentContainerStyle={{ paddingBottom: clearance + 8 }}>
       <AppHeader title="홈" showFriendsEntry showMailEntry compact />
       <View style={{ width: '100%', maxWidth: 540, alignSelf: 'center', gap: 10, paddingHorizontal: 16 }}>
-        {data?.collection?.visits.length === 0 ? <Link href="/search" asChild><Pressable accessibilityRole="button" accessibilityLabel="가게 찾기"
-          style={{ minHeight: 56, borderRadius: 18, backgroundColor: palette.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <TabGlyph name="explore" color={palette.onPrimary} size={24} />
-          <Text style={{ color: palette.onPrimary, fontWeight: '800', fontSize: 16 }}>가게 찾기</Text>
-        </Pressable></Link> : null}
+        {nextAction ? <Link href={nextAction.kind === 'next-visit'
+          ? { pathname: '/merchants/[merchantId]', params: { merchantId: nextAction.merchantId } }
+          : nextAction.href} asChild><Pressable accessibilityRole="button"
+          accessibilityLabel={`${nextAction.title}. ${nextAction.detail}`}
+          style={{ minHeight: 64, borderRadius: 18, backgroundColor: palette.primary, padding: 12, justifyContent: 'center', gap: 3 }}>
+          <Text style={{ color: palette.onPrimary, fontWeight: '900', fontSize: 16 }}>{nextAction.title} ›</Text>
+          <Text style={{ color: palette.onPrimary, fontSize: 13 }}>{nextAction.detail}</Text>
+        </Pressable></Link> : <Text accessibilityLiveRegion="polite" style={body}>{data?.errors.some((section) => ['rewards', 'coins', 'collection', 'merchants'].includes(section))
+          ? '다음 행동을 불러오지 못했어요. 아래에서 다시 시도해 주세요.' : '다음 행동을 확인하고 있어요.'}</Text>}
         {firstStore ? <Link href={{ pathname: '/merchants/[merchantId]', params: { merchantId: firstStore.merchantId, from: 'recommendation' } }} asChild>
           <Pressable accessibilityRole="button" accessibilityLabel={`처음이라면 ${publicDataDemoStoreName(firstStore.merchantId, firstStore.name)}부터. ${firstStore.reason} 코인과 방문 조건을 확인해요`}
             style={StyleSheet.flatten({ backgroundColor: palette.primaryContainer, borderRadius: 18, padding: 14, minHeight: 56, gap: 2 })}>
@@ -188,9 +194,6 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           </View>
           {goal ? <Text style={{ ...body, color: palette.primary }}>{goal.next ? `${goal.next - goal.count}회 더 방문하면 다음 보상 목표예요` : '이 가게의 방문 목표를 달성했어요'}</Text> : null}
         </Pressable></Link>
-        {data?.rewardCount ? <Link href="/home/tickets" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ backgroundColor: palette.primaryContainer, padding: 12, minHeight: 48, borderRadius: 16, justifyContent: 'center' })}>
-          <Text style={{ color: palette.onPrimaryContainer, fontWeight: '800' }}>도착한 방문 보상 {data.rewardCount}개 열기</Text>
-        </Pressable></Link> : null}
         {shopEntryVisible(stage, shop?.mileage.balance ?? 0, cheapestDrawPrice(shop)) ? <Link href="/shop" asChild><Pressable accessibilityRole="button"
           accessibilityLabel={`마일리지 ${shop?.mileage.balance ?? 0}포인트로 상점에서 뽑기를 해 볼 수 있어요`}
           style={StyleSheet.flatten({ backgroundColor: palette.primaryContainer, padding: 12, minHeight: 48, borderRadius: 16, justifyContent: 'center', gap: 2 })}>

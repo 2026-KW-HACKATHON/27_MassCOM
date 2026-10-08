@@ -18,7 +18,9 @@ const fields = { studio: 'studio', coins: 'coinShop', rewards: 'rewardCount', co
 export type HomeData = {
   loadedAt: number; studio?: StudioSnapshot; coinShop?: CoinShop; collection?: CollectionSnapshot;
   merchants?: readonly PublicMerchant[]; rewardCount?: number; recommendations?: readonly Recommendation[];
-  /** Sections still waiting for their first answer. */
+  /** A server-confirmed entitlement or used coin ticket newly observed during this focus. */
+  acquiredSinceLastView?: 'coin' | 'collectible';
+  /** Sections still waiting for an answer from the current load. */
   pending: readonly HomeSection[];
   /** Sections whose latest request failed (a value from an earlier load may still be shown). */
   errors: readonly HomeSection[];
@@ -26,10 +28,10 @@ export type HomeData = {
 
 const firstLoad: readonly HomeSection[] = ['studio', 'coins', 'rewards', 'collection', 'merchants'];
 
-/** Begin a load: sections that already have a value keep it on screen; the others show as loading. */
+/** Begin a load: keep old content on screen, but wait for fresh answers before choosing an action. */
 export function startHomeLoad(previous: HomeData | undefined, loadedAt: number): HomeData {
   const kept = previous ?? { loadedAt, pending: [], errors: [] };
-  return { ...kept, loadedAt, errors: [], pending: firstLoad.filter((section) => kept[fields[section]] === undefined) };
+  return { ...kept, loadedAt, acquiredSinceLastView: undefined, errors: [], pending: firstLoad };
 }
 
 export const markHomePending = (data: HomeData, section: HomeSection): HomeData =>
@@ -38,7 +40,18 @@ export const markHomePending = (data: HomeData, section: HomeSection): HomeData 
 export function settleHomeSection<K extends HomeSection>(data: HomeData, section: K, outcome: { ok: true; value: HomeValues[K] } | { ok: false }): HomeData {
   const pending = data.pending.filter((item) => item !== section);
   const errors = data.errors.filter((item) => item !== section);
-  return outcome.ok ? { ...data, [fields[section]]: outcome.value, pending, errors } : { ...data, pending, errors: [...errors, section] };
+  if (!outcome.ok) return { ...data, pending, errors: [...errors, section] };
+  let acquiredSinceLastView = data.acquiredSinceLastView;
+  if (section === 'coins' && data.coinShop) {
+    const current = outcome.value as CoinShop;
+    const knownUsed = new Set(data.coinShop.tickets.filter((ticket) => ticket.status === 'USED').map((ticket) => ticket.id));
+    if (current.tickets.some((ticket) => ticket.status === 'USED' && !knownUsed.has(ticket.id))) acquiredSinceLastView = 'coin';
+  }
+  if (section === 'collection' && data.collection && acquiredSinceLastView !== 'coin') {
+    const known = new Set(data.collection.collectibles.map((item) => item.entitlementId));
+    if ((outcome.value as CollectionSnapshot).collectibles.some((item) => !known.has(item.entitlementId))) acquiredSinceLastView = 'collectible';
+  }
+  return { ...data, [fields[section]]: outcome.value, acquiredSinceLastView, pending, errors };
 }
 
 /**
