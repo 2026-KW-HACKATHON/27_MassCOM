@@ -9,6 +9,7 @@
 | API·PostgreSQL | PASS | API601/601·typecheck·build, 전용 PostgreSQL29/29. 네 기본 등급과 모든 활성 등급의 이미지·living 준비 확인, 추가 ID 보존 |
 | 사이트 | PASS | LF 체크아웃·PYTHONUTF8=1에서 *.test.mjs와 *_test.mjs609/609·skip0. macOS Chrome 실행 파일을 요구하는 verify_showcase_theme_test.mjs 한 파일은 NOT_RUN |
 | 모바일 | PASS | LF 체크아웃2077/2077·typecheck·lint. Android Metro/Hermes export에서 v2 뒷면12개 SHA 일치·v1 PNG0개. APK 설치·실기 재생은 NOT_RUN |
+| 실제 시드·점주 게시 경합 | PASS | 첫 CI에서 R-333 재시드·실제 점주 게시 경합 시험의 과거 단일등급 입력이 새 네 등급 계약에 거절됐다. 서버 검증과 과거 시드 helper는 유지하고 해당 게시 fixture만 네 등급으로 바꿨다. 실제 발행행4개 assertion 추가 후 관련 PostgreSQL25/25·규칙/시드30/30·API typecheck 통과. CI 재실행은 별도로 확인한다. |
 | 최신 메인 통합 | PASS / 환경 한계 | 제품 코드 충돌 없음. 새 최소 크기 시험의 Windows 경로만 정규화해5/5·전체2077/2077 통과. Worker82개 중77 통과·5개는 Windows 권한/심볼릭 링크 제약, typecheck·build 통과. Compose13개 중5 통과·8개는 docker ENOENT로 NOT_RUN. 보안 검사를 완화하지 않음 |
 | 실제 브라우저 | PASS(합성 fixture) | 프리즘 음각0/±45/180°·자동 회전, 네 등급 게시·재읽기·편집 원본과 저장 프레임 비교. 게시 JSON2,563,589바이트(2.45MiB), 프레임251.6~300.1KiB |
 | 확장·용량 | PASS | 총16등급·전체8MiB·각 프레임1MiB·각 뒷면256KiB 상한 유지, 초과 시 해상도448→384→320→256 축소·최종 초과는 거절. 독립 리뷰 APPROVE(지적0). CDN·새 고유 재질·운영 배포는 별도 |

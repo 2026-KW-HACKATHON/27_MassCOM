@@ -47,6 +47,8 @@
 
 ## 검증과 재현
 
+첫 CI에서 R-333 재시드·실제 점주 게시 경합 시험의 과거 단일등급 입력이 새 네 등급 계약에 거절됐다. 서버 검증과 과거 시드 helper는 유지하고 해당 게시 fixture만 네 등급으로 바꿨다. 실제 발행행4개 assertion 추가 후 관련 PostgreSQL25/25·규칙/시드30/30·API typecheck 통과. CI 재실행은 별도로 확인한다.
+
 원격 main `8841efea`(PR #420·#423)을 통합한 뒤 API·사이트·모바일 전체와 타입·lint·Android export를 재검증했다. Windows 경로 구분자가 새 최소 크기 시험의 예외 파일 비교를 깨뜨려 경로만 정규화했다. 보안 관련 Worker 시험5건은 Windows 파일 권한/심볼릭 링크 한계, Docker 관련8건과 macOS Chrome 전용 테마 한 파일은 환경상 검증하지 못했다. [명령별 경계](../../TEST_STATUS.md).
 
 - API 단위 601/601·타입·빌드, 실제 PostgreSQL 관련 통합 29/29 통과. 기본4 필수·추가 custom ID 발행·미디어 제거·권한·기존 발행 보존을 검증했다.
