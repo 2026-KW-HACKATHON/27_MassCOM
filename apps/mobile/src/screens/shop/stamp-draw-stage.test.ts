@@ -11,23 +11,36 @@ import {
 } from './stamp-draw-media';
 
 test('stamp playback keeps idle looping muted and opens with enabled effect volume only while active', () => {
-  assert.deepEqual(stampPlaybackConfig('idle', true, { soundEffectsEnabled: true, soundEffectsVolume: 0.7 }), {
+  assert.deepEqual(stampPlaybackConfig('idle', true, { ready: true, soundEffectsEnabled: true, soundEffectsVolume: 0.7 }), {
     media: 'idle',
     loop: true,
     muted: true,
     volume: 0,
     playing: true,
   });
-  assert.deepEqual(stampPlaybackConfig('opening', true, { soundEffectsEnabled: true, soundEffectsVolume: 0.7 }), {
+  assert.deepEqual(stampPlaybackConfig('opening', true, { ready: true, soundEffectsEnabled: true, soundEffectsVolume: 0.7 }), {
     media: 'opening',
     loop: false,
     muted: false,
     volume: 0.7,
     playing: true,
   });
-  assert.equal(stampPlaybackConfig('opening', false, { soundEffectsEnabled: true, soundEffectsVolume: 0.7 }).playing, false);
-  assert.equal(stampPlaybackConfig('opening', true, { soundEffectsEnabled: false, soundEffectsVolume: 0.7 }).muted, true);
-  assert.equal(stampPlaybackConfig('opening', true, { soundEffectsEnabled: true, soundEffectsVolume: 0.7 }, true).playing, false);
+  assert.equal(stampPlaybackConfig('opening', false, { ready: true, soundEffectsEnabled: true, soundEffectsVolume: 0.7 }).playing, false);
+  assert.equal(stampPlaybackConfig('opening', true, { ready: true, soundEffectsEnabled: false, soundEffectsVolume: 0.7 }).muted, true);
+  assert.equal(stampPlaybackConfig('opening', true, { ready: true, soundEffectsEnabled: true, soundEffectsVolume: 0.7 }, true).playing, false);
+});
+
+test('opening animation stays silent until saved sound settings are ready', () => {
+  const loading = stampPlaybackConfig('opening', true, { ready: false, soundEffectsEnabled: true, soundEffectsVolume: 0.7 });
+  assert.equal(loading.playing, true);
+  assert.equal(loading.muted, true);
+  assert.equal(loading.volume, 0);
+  const disabled = stampPlaybackConfig('opening', true, { ready: true, soundEffectsEnabled: false, soundEffectsVolume: 0.7 });
+  assert.equal(disabled.muted, true);
+  assert.equal(disabled.volume, 0);
+  const zeroVolume = stampPlaybackConfig('opening', true, { ready: true, soundEffectsEnabled: true, soundEffectsVolume: 0 });
+  assert.equal(zeroVolume.muted, true);
+  assert.equal(zeroVolume.volume, 0);
 });
 
 test('reduced motion completes opening immediately and watchdog stays bounded beyond the reveal duration', () => {

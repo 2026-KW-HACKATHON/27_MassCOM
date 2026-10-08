@@ -3,6 +3,7 @@ import type { ImageSourcePropType } from 'react-native';
 export type StampDrawPhase = 'idle' | 'opening';
 
 export type StampDrawSoundSettings = {
+  ready: boolean;
   soundEffectsEnabled: boolean;
   soundEffectsVolume: number;
 };
@@ -38,8 +39,8 @@ export function stampPlaybackConfig(
   return {
     media: phase,
     loop: !opening,
-    muted: !opening || !active || !sound.soundEffectsEnabled,
-    volume: opening && active && sound.soundEffectsEnabled ? sound.soundEffectsVolume : 0,
+    muted: !opening || !active || !sound.soundEffectsEnabled || !sound.ready || sound.soundEffectsVolume <= 0,
+    volume: opening && active && sound.ready && sound.soundEffectsEnabled ? sound.soundEffectsVolume : 0,
     playing: active && (!opening || !finishedOpening),
   };
 }

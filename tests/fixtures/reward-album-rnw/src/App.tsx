@@ -7,6 +7,9 @@ import { GachaMachine } from '../../../../apps/mobile/src/screens/shop/gacha-mac
 import type { GradeDrawPool, GradeDrawResult } from '../../../../apps/mobile/src/shop/grade-draw-api';
 import type { ShopRerollResult, ShopSnapshot } from '../../../../apps/mobile/src/shop/shop-api';
 import coinThumbnail from '../../../../apps/mobile/assets/images/collectibles/showcase-a.png';
+import { CoinReveal } from '../../../../apps/mobile/src/screens/coin-shop/coin-reveal';
+import { CollectionScenario } from './CollectionScenario';
+import { HomeScenario } from './HomeScenario';
 
 function coinArt(label: string, tone: string) {
   return (
@@ -127,35 +130,60 @@ const rerollResult: ShopRerollResult = {
   },
 };
 
-type ScenarioName = 'album' | 'grade' | 'gacha' | 'grade-delayed' | 'grade-error' | 'gacha-delayed';
+type ScenarioName = 'album' | 'grade' | 'gacha' | 'grade-delayed' | 'grade-error' | 'gacha-delayed' | 'coin' | 'collection' | 'home';
 
 function scenarioName(): ScenarioName {
   const value = new URLSearchParams(window.location.search).get('scenario');
-  return value === 'grade' || value === 'gacha' || value === 'grade-delayed' || value === 'grade-error' || value === 'gacha-delayed' ? value : 'album';
+  return value === 'grade' || value === 'gacha' || value === 'grade-delayed' || value === 'grade-error' || value === 'gacha-delayed' || value === 'coin' || value === 'collection' || value === 'home' ? value : 'album';
 }
 
 export function App() {
   const [scenario, setScenario] = useState<ScenarioName>(() => scenarioName());
+  const [route, setRoute] = useState('');
   useEffect(() => {
     const onScenario = (event: Event) => {
       const detail = (event as CustomEvent<ScenarioName>).detail;
-      if (detail === 'album' || detail === 'grade' || detail === 'gacha' || detail === 'grade-delayed' || detail === 'grade-error' || detail === 'gacha-delayed') {
+      if (detail === 'album' || detail === 'grade' || detail === 'gacha' || detail === 'grade-delayed' || detail === 'grade-error' || detail === 'gacha-delayed' || detail === 'coin' || detail === 'collection' || detail === 'home') {
         setScenario(detail);
       }
     };
     window.addEventListener('qa:set-scenario', onScenario);
     return () => window.removeEventListener('qa:set-scenario', onScenario);
   }, []);
+  useEffect(() => {
+    const record = (event: Event) => setRoute(JSON.stringify((event as CustomEvent).detail));
+    window.addEventListener('reward-album-router-push', record);
+    return () => window.removeEventListener('reward-album-router-push', record);
+  }, []);
   return (
     <View style={styles.app}>
+      {route ? <Text>QA 이동 요청: {route}</Text> : null}
       {scenario === 'album' ? <AlbumScenario /> : null}
       {scenario === 'grade' ? <GradeScenario /> : null}
       {scenario === 'grade-delayed' ? <GradeDelayedScenario /> : null}
       {scenario === 'grade-error' ? <GradeDelayedScenario fail /> : null}
       {scenario === 'gacha' ? <GachaScenario /> : null}
       {scenario === 'gacha-delayed' ? <GachaDelayedScenario /> : null}
+      {scenario === 'coin' ? <CoinScenario /> : null}
+      {scenario === 'collection' ? <CollectionScenario /> : null}
+      {scenario === 'home' ? <HomeScenario /> : null}
     </View>
   );
+}
+
+function CoinScenario() {
+  const [done, setDone] = useState(false);
+  const params = new URLSearchParams(window.location.search);
+  return <ScrollView contentContainerStyle={styles.albumPage}>
+    <Text style={styles.fixtureTitle}>가게 코인 연출 QA · 합성 결과</Text>
+    {done ? <Text>수동 확인 완료</Text> : <CoinReveal sourceLabel="QA 음식점 · 방문 기념" gradeId={params.get('rarity') ?? 'prism'} recovered={params.get('recovered') === '1'}>
+      <Text accessibilityRole="header">코인을 받았어요</Text>
+      <Image source={{ uri: coinThumbnail }} style={{ width: 160, height: 160, alignSelf: 'center' }} />
+      <Text>QA 코인 · 총 1개 · 신규</Text>
+      <Text>QA 음식점 · 방문 기념</Text>
+      <Pressable accessibilityRole="button" onPress={() => setDone(true)} style={{ minHeight: 48, padding: 12 }}><Text>확인하고 다음으로</Text></Pressable>
+    </CoinReveal>}
+  </ScrollView>;
 }
 
 function AlbumScenario() {

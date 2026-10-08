@@ -33,6 +33,8 @@ const alias = {
   'expo-constants': fromFixture('src/mocks/expo-constants.ts'),
   'expo-haptics': fromFixture('src/mocks/expo-haptics.ts'),
   'expo-router': fromFixture('src/mocks/expo-router.ts'),
+  'expo-router/tabs': fromFixture('src/mocks/expo-router-tabs.ts'),
+  'expo-crypto': fromFixture('src/mocks/expo-crypto.ts'),
   'expo-sharing': fromFixture('src/mocks/expo-sharing.ts'),
   'html2canvas': fromFixture('src/mocks/html2canvas.ts'),
   react: mobileRequire.resolve('react'),
@@ -73,6 +75,8 @@ const aliasPlugin = {
     build.onResolve({ filter: /^@\/motion\/use-motion$/ }, () => ({
       path: fromFixture('src/mocks/use-motion.ts'),
     }));
+    build.onResolve({ filter: /^@\/auth\/auth-provider$/ }, () => ({ path: fromFixture('src/mocks/auth-provider.ts') }));
+    build.onResolve({ filter: /^(expo-router\/tabs|expo-crypto)$/ }, (args) => ({ path: alias[args.path] }));
     build.onResolve({ filter: /^@\/assets\// }, (args) => ({
       path: resolveSource(path.join(mobileRoot, 'assets', args.path.slice('@/assets/'.length))),
     }));
@@ -141,6 +145,7 @@ async function buildBundle() {
     sourcemap: false,
     absWorkingDir: fixtureRoot,
     define: {
+      'process.env': '{}',
       'process.env.NODE_ENV': '"development"',
       'process.env.JEST_WORKER_ID': 'undefined',
       __DEV__: 'true',
@@ -826,6 +831,13 @@ async function stampViewportCases(browser, baseUrl, report) {
 }
 
 async function main() {
+  if (process.argv.includes('--build-only')) { await buildBundle(); return; }
+  if (process.argv.includes('--serve-only')) {
+    await buildBundle();
+    const server = await serveFixture();
+    console.log(`QA fixture: http://127.0.0.1:${server.address().port}`);
+    return;
+  }
   ensureDir(screenshotDir);
   for (const name of fs.readdirSync(screenshotDir)) if (name.endsWith('.png')) fs.rmSync(path.join(screenshotDir, name));
   ensureDir(videoDir);

@@ -1,0 +1,60 @@
+{
+  "date": "2026-10-09",
+  "surface": "Codex in-app Browser, actual RNW components, synthetic read-only fixtures",
+  "checks": [
+    {
+      "case": "home-loading",
+      "pass": true
+    },
+    {
+      "case": "home-error",
+      "pass": true
+    },
+    {
+      "case": "collection-empty",
+      "pass": true
+    },
+    {
+      "case": "collection-merchant-route",
+      "pass": false
+    },
+    {
+      "case": "home-first",
+      "pass": true
+    },
+    {
+      "case": "home-coin-route",
+      "pass": true
+    },
+    {
+      "case": "home-reward",
+      "pass": true
+    },
+    {
+      "case": "home-progress",
+      "pass": true
+    },
+    {
+      "case": "coin-source-open-result-holds",
+      "pass": true
+    },
+    {
+      "case": "coin-skip-result-holds",
+      "pass": true
+    },
+    {
+      "case": "coin-reduced-motion",
+      "pass": true
+    },
+    {
+      "case": "coin-recovered-direct-result",
+      "pass": true
+    }
+  ],
+  "limits": [
+    "Router is a fixture event recorder; destination payload verified, not a live navigation stack.",
+    "fontScale=2 overrides hook only; native 200% text pixels and TalkBack NOT_RUN.",
+    "RNW SVG emits existing accessible=false DOM warning; no app-crash after fixture setup repair.",
+    "Sound and haptics mocked; no production API or real reward issued."
+  ]
+}

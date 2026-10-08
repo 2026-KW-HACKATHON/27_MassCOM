@@ -28,7 +28,7 @@ function moduleAsset(source: ImageSourcePropType) {
 
 function initialAssetUri(source: ImageSourcePropType): string | null {
   const asset = moduleAsset(source);
-  return asset.localUri ?? asset.uri ?? null;
+  return asset.localUri ?? null;
 }
 
 function useAssetUri(source: ImageSourcePropType, onError?: (error: unknown) => void): string | null {
@@ -37,9 +37,8 @@ function useAssetUri(source: ImageSourcePropType, onError?: (error: unknown) => 
   useEffect(() => {
     let alive = true;
     const asset = moduleAsset(source);
-    const readyUri = asset.localUri ?? asset.uri;
     asset.downloadAsync().then((downloaded) => {
-      if (alive) setUri(downloaded.localUri ?? downloaded.uri ?? readyUri ?? null);
+      if (alive) setUri(downloaded.localUri ?? null);
     }, (error: unknown) => {
       if (alive) onError?.(error);
     });
@@ -67,7 +66,10 @@ export function StampVideo({ source, posterSource, playing, loop, muted, volume,
     style={style}
     onReady={onReady}
     onEnded={onEnded}
-    onError={(event) => onError?.(event.nativeEvent ?? event)}
+    onError={(event) => {
+      if (!uri) return;
+      onError?.(event.nativeEvent ?? event);
+    }}
   />;
 }
 

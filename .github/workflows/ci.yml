@@ -1,18 +1,72 @@
+# 기존 검사를 API·PostgreSQL 2샤드·앱·웹/운영/문서·계약/worker로 병렬 실행하고 bootstrap-contract가 결과를 모은다.
 name: CI
 
+# PR마다 한 번만 돈다. main에는 PR에서 통과한 커밋만 머지하므로 머지 뒤 같은 검사를 다시 돌리지 않는다.
 on:
   pull_request:
-  push:
-    branches: [main]
+
+# 같은 PR에 다시 push하면 이전 실행을 취소한다.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  bootstrap-contract:
+  api:
     runs-on: ubuntu-latest
-    # 평소 11~12분이다. 시험이 끝나지 않을 때 기본 6시간을 다 쓰지 않도록 끊는다(#358).
     timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          submodules: true
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.10.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+      - name: 필요한 의존성 설치
+        run: |
+          npm ci --prefix apps/api
+      - name: API 단위 시험·타입검사·빌드
+        run: |
+          # PostgreSQL 통합 시험은 별도 샤드에서 실행하고 단위 시험만 커버리지를 잰다(보고용).
+          # pipefail은 tee 앞의 npm 실패를 놓치지 않도록 유지한다.
+          (set -o pipefail; npm run test:cov --prefix apps/api | tee "$RUNNER_TEMP/api-unit-cov.txt")
+          npm run typecheck --prefix apps/api
+          npm run build --prefix apps/api
+          npm run audit:ci --prefix apps/api
+      - name: API 단위 시험 커버리지 요약
+        if: always()
+        run: |
+          {
+            echo '### API 단위 시험 커버리지 (보고용, 기준선 없음)'
+            echo 'PostgreSQL 통합 시험은 포함하지 않는다.'
+            echo '```'
+            if [ -f "$RUNNER_TEMP/api-unit-cov.txt" ]; then
+              grep -E '(^|[[:space:]])(file|all files)[[:space:]]+\|' "$RUNNER_TEMP/api-unit-cov.txt" || echo '커버리지 줄을 찾지 못했습니다'
+            else
+              echo '커버리지 출력이 없습니다(앞 단계가 시험 전에 멈췄습니다)'
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  api-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1]
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+      TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+      PGPASSWORD: postgres
     services:
       postgres:
         image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
@@ -31,6 +85,106 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
+          fetch-depth: 1
+          submodules: true
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.10.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+      - name: 필요한 의존성 설치
+        run: |
+          npm ci --prefix apps/api
+      - name: API PostgreSQL 마이그레이션
+        run: |
+          npm run db:migrate --prefix apps/api
+      - name: API PostgreSQL 샤드 시험
+        env:
+          SHARD_INDEX: ${{ matrix.shard }}
+        run: |
+          cd apps/api
+          files=()
+          while IFS= read -r file; do
+            files+=("$file")
+          done < <(find src -type f -name '*.postgres.integration.ts' | LC_ALL=C sort | awk -v shard="$SHARD_INDEX" '(NR - 1) % 2 == shard')
+          test "${#files[@]}" -gt 0
+          ./node_modules/.bin/tsx --test --test-concurrency=1 "${files[@]}"
+
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          submodules: true
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.10.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/mobile/package-lock.json
+      - name: 필요한 의존성 설치
+        run: |
+          npm ci --prefix apps/mobile
+      - name: 모바일 접근성 semantics 검사
+        run: bash tests/mobile/check_accessibility_semantics_test.sh
+      - name: Verify release wallet surface check
+        run: bash tests/release/check_release_wallet_surface_test.sh
+      - name: Verify AAB signature verdict and build flow
+        run: bash tests/release/verify_aab_signature_test.sh
+      - name: Verify AAB assessment provenance
+        run: bash tests/release/assess_release_aab_test.sh
+      - name: Verify AAB manifest reader
+        run: bash tests/release/dump_aab_manifest_test.sh
+      - name: Verify release Keychain signing boundary
+        run: bash tests/release/verify_release_keychain_test.sh
+      - name: 빌드에 들어간 API 주소 검사
+        run: bash tests/release/check_embedded_api_test.sh
+      - name: 시연 APK 전용 빌드 경계 검사
+        run: |
+          bash tests/release/verify_showcase_apk_test.sh
+          bash tests/release/verify_showcase_keychain_test.sh
+      - name: 앱 테스트·정적검사·운영/시연/웹 번들
+        run: |
+          npm test --prefix apps/mobile
+          npm run typecheck --prefix apps/mobile
+          npm run lint --prefix apps/mobile
+          CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=production \
+            MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" EXPO_PUBLIC_API_URL=https://api.masscom.kr \
+            npm run export:android --prefix apps/mobile -- --output-dir dist/production
+          CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
+            MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" \
+            MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-ci.apps.googleusercontent.com \
+            EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
+            npm run export:android --prefix apps/mobile -- --output-dir dist/showcase
+          node scripts/verify-mobile-variant-assets.mjs
+          CI=1 EXPO_NO_DOTENV=1 \
+            MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" \
+            MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-ci.apps.googleusercontent.com \
+            npm run export:web:showcase --prefix apps/mobile -- --output-dir dist/showcase-web
+          # 웹 첫 화면 대기 안내(apps/mobile/public/index.html)가 내보낸 index.html에 실제로 들어갔는지(없으면 번들이 내려오는 동안 흰 화면).
+          grep -q 'class="boot"' apps/mobile/dist/showcase-web/index.html
+          # 웹 번들에 지갑 SDK·ethers가 들어오지 않았는지(웹 자리 채움 .web 파일과 metro.config.js 리다이렉트가 빠지면 번들이 약 2.2 MB 커진다).
+          # `! grep`은 bash -e에서 단계를 실패시키지 못하므로 if로 쓴다. 폴더가 없으면 grep이 오류(2)로 끝나 if가 조용히 통과하므로 먼저 폴더를 확인한다.
+          test -d apps/mobile/dist/showcase-web/_expo/static/js/web || { echo '웹 번들 폴더가 없습니다' >&2; exit 1; }
+          if grep -rlE 'walletconnect|@reown|ethers/' apps/mobile/dist/showcase-web/_expo/static/js/web; then
+            echo '웹 번들에 지갑 SDK(walletconnect·@reown·ethers)가 들어 있습니다. .web 자리 채움 파일과 metro.config.js 리다이렉트를 확인하세요.' >&2
+            exit 1
+          fi
+          npm run audit:ci --prefix apps/mobile
+
+  web-ops-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
           fetch-depth: 0
           submodules: true
       - name: Node.js 설정
@@ -40,8 +194,9 @@ jobs:
           cache: npm
           cache-dependency-path: |
             apps/api/package-lock.json
-            apps/mobile/package-lock.json
-            apps/worker/package-lock.json
+      - name: 필요한 의존성 설치
+        run: |
+          npm ci --prefix apps/api
       - name: 저장소 비밀값 검사
         run: |
           bash scripts/check-secrets.sh
@@ -144,28 +299,57 @@ jobs:
           docker run --rm -v "$PWD/infra/lightsail/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10.2-alpine caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null \
             | node scripts/verify-showcase-edge-routes.mjs
-      - name: 모바일 접근성 semantics 검사
-        run: bash tests/mobile/check_accessibility_semantics_test.sh
       - name: 증거 수치 정합 검사
         run: bash tests/site/verify_evidence_consistency_test.sh
-      - name: Verify release wallet surface check
-        run: bash tests/release/check_release_wallet_surface_test.sh
       - name: Verify Base Sepolia deploy preflight
         run: bash tests/release/deploy_base_sepolia_preflight_test.sh
-      - name: Verify AAB signature verdict and build flow
-        run: bash tests/release/verify_aab_signature_test.sh
-      - name: Verify AAB assessment provenance
-        run: bash tests/release/assess_release_aab_test.sh
-      - name: Verify AAB manifest reader
-        run: bash tests/release/dump_aab_manifest_test.sh
-      - name: Verify release Keychain signing boundary
-        run: bash tests/release/verify_release_keychain_test.sh
-      - name: 빌드에 들어간 API 주소 검사
-        run: bash tests/release/check_embedded_api_test.sh
-      - name: 시연 APK 전용 빌드 경계 검사
+      - name: 개인정보 로그 검사
         run: |
-          bash tests/release/verify_showcase_apk_test.sh
-          bash tests/release/verify_showcase_keychain_test.sh
+          bash scripts/check-privacy.sh
+          bash tests/bootstrap/check_privacy_test.sh
+      - name: 병렬 CI 샤드·집계 회귀 시험
+        run: |
+          node --test tests/ci/parallel_jobs.test.mjs
+
+  contracts-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+      TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
+      PGPASSWORD: postgres
+    services:
+      postgres:
+        image: postgres:16.10-alpine@sha256:029660641a0cfc575b14f336ba448fb8a75fd595d42e1fa316b9fb4378742297
+        env:
+          POSTGRES_DB: masscom_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d masscom_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 1
+          submodules: true
+      - name: Node.js 설정
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.10.0'
+          cache: npm
+          cache-dependency-path: |
+            apps/api/package-lock.json
+            apps/worker/package-lock.json
+      - name: 필요한 의존성 설치
+        run: |
+          npm ci --prefix apps/api
+          npm ci --prefix apps/worker
       - name: NFT 계약 포맷·빌드·테스트
         run: |
           ./scripts/forge.sh --version | grep -q 'forge Version: 1.8.3'
@@ -173,49 +357,14 @@ jobs:
           ./scripts/forge.sh build
           ./scripts/forge.sh test -vvv
           ./scripts/forge.sh lint
-      - name: 앱·API 의존성 설치
+      - name: Worker PostgreSQL·단위 시험·타입검사·빌드
         run: |
-          npm ci --prefix apps/api
-          npm ci --prefix apps/mobile
-          npm ci --prefix apps/worker
-      - name: 개인정보 로그 검사
-        run: |
-          bash scripts/check-privacy.sh
-          bash tests/bootstrap/check_privacy_test.sh
-      - name: API·PostgreSQL 테스트·타입검사·빌드
-        env:
-          DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
-          TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
-          PGPASSWORD: postgres
-        run: |
-          npm run db:migrate --prefix apps/api
-          # 단위 시험만 커버리지를 잰다(보고용). PostgreSQL 통합 시험은 커버리지를 켜면 로컬에서 약 24분이 걸려 25분 제한에 맞지 않으므로 그대로 둔다.
-          # pipefail은 tee 앞의 npm 실패를 놓치지 않으려는 것이라 이 한 줄에만 적용한다.
-          (set -o pipefail; npm run test:cov --prefix apps/api | tee "$RUNNER_TEMP/api-unit-cov.txt")
-          npm run test:postgres --prefix apps/api
-          node --test tests/ops/verify_web_auth_rollback_test.mjs
-          npm run typecheck --prefix apps/api
-          npm run build --prefix apps/api
-          npm run audit:ci --prefix apps/api
           npm run test:postgres --prefix apps/worker
           npm test --prefix apps/worker
           npm run typecheck --prefix apps/worker
           npm run build --prefix apps/worker
           npm run audit:ci --prefix apps/worker
-      - name: API 단위 시험 커버리지 요약
-        if: always()
-        run: |
-          {
-            echo '### API 단위 시험 커버리지 (보고용, 기준선 없음)'
-            echo 'PostgreSQL 통합 시험은 포함하지 않는다.'
-            echo '```'
-            if [ -f "$RUNNER_TEMP/api-unit-cov.txt" ]; then
-              grep -E '(^|[[:space:]])(file|all files)[[:space:]]+\|' "$RUNNER_TEMP/api-unit-cov.txt" || echo '커버리지 줄을 찾지 못했습니다'
-            else
-              echo '커버리지 출력이 없습니다(앞 단계가 시험 전에 멈췄습니다)'
-            fi
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          node --test tests/ops/verify_web_auth_rollback_test.mjs
       - name: DB 백업·복원 드릴 시험
         env:
           DRILL_DATABASE_URL: postgresql://postgres@127.0.0.1:5432/masscom_test
@@ -247,31 +396,21 @@ jobs:
         run: |
           bash tests/ops/showcase_host_readiness_test.sh
           bash tests/ops/run_showcase_host_postgres.sh
-      - name: 앱 테스트·정적검사·운영/시연/웹 번들
+
+  bootstrap-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [api, api-postgres, mobile, web-ops-docs, contracts-worker]
+    if: ${{ always() }}
+    steps:
+      - name: 모든 CI 작업 결과 확인
+        env:
+          NEEDS_RESULTS: ${{ toJSON(needs) }}
         run: |
-          npm test --prefix apps/mobile
-          npm run typecheck --prefix apps/mobile
-          npm run lint --prefix apps/mobile
-          CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=production \
-            MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" EXPO_PUBLIC_API_URL=https://api.masscom.kr \
-            npm run export:android --prefix apps/mobile -- --output-dir dist/production
-          CI=1 EXPO_NO_DOTENV=1 APP_VARIANT=showcase \
-            MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" \
-            MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-ci.apps.googleusercontent.com \
-            EXPO_PUBLIC_API_URL=https://demo-api.masscom.kr \
-            npm run export:android --prefix apps/mobile -- --output-dir dist/showcase
-          node scripts/verify-mobile-variant-assets.mjs
-          CI=1 EXPO_NO_DOTENV=1 \
-            MASSCOM_BUILD_SOURCE_COMMIT="$GITHUB_SHA" \
-            MASSCOM_SHOWCASE_GOOGLE_WEB_CLIENT_ID=123-ci.apps.googleusercontent.com \
-            npm run export:web:showcase --prefix apps/mobile -- --output-dir dist/showcase-web
-          # 웹 첫 화면 대기 안내(apps/mobile/public/index.html)가 내보낸 index.html에 실제로 들어갔는지(없으면 번들이 내려오는 동안 흰 화면).
-          grep -q 'class="boot"' apps/mobile/dist/showcase-web/index.html
-          # 웹 번들에 지갑 SDK·ethers가 들어오지 않았는지(웹 자리 채움 .web 파일과 metro.config.js 리다이렉트가 빠지면 번들이 약 2.2 MB 커진다).
-          # `! grep`은 bash -e에서 단계를 실패시키지 못하므로 if로 쓴다. 폴더가 없으면 grep이 오류(2)로 끝나 if가 조용히 통과하므로 먼저 폴더를 확인한다.
-          test -d apps/mobile/dist/showcase-web/_expo/static/js/web || { echo '웹 번들 폴더가 없습니다' >&2; exit 1; }
-          if grep -rlE 'walletconnect|@reown|ethers/' apps/mobile/dist/showcase-web/_expo/static/js/web; then
-            echo '웹 번들에 지갑 SDK(walletconnect·@reown·ethers)가 들어 있습니다. .web 자리 채움 파일과 metro.config.js 리다이렉트를 확인하세요.' >&2
-            exit 1
-          fi
-          npm run audit:ci --prefix apps/mobile
+          node -e '
+            const jobs = JSON.parse(process.env.NEEDS_RESULTS);
+            for (const [name, { result }] of Object.entries(jobs)) {
+              console.log(`${name}: ${result}`);
+            }
+            if (Object.values(jobs).some(({ result }) => result !== "success")) process.exit(1);
+          '

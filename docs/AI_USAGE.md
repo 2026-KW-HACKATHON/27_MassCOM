@@ -1,12 +1,26 @@
 # AI 사용 기록
 
+## 2026-10-09 PR #445와 main 병합 충돌 해결 (직접 요청, 파일 수정만)
+
+Codex가 `feat/gacha-stamp-reveal`에서 문서·브라우저 fixture의 양쪽 변경을 보존하고 Android 영상 준비 및 영상 음소거 조건을 수정했다. 기존 시험을 약화하지 않고 대상 9/9와 모바일 전체 대체 실행 2229/2229, 타입·린트·접근성·지갑 표면·CI 연결·운영 제출 준비를 확인했다. npm 진입점은 sandbox tsx IPC `listen EPERM`으로 `BLOCKED`이며 API·브라우저·설치본·실제 청음·배포는 `NOT_RUN`이다([TEST_STATUS](TEST_STATUS.md)). Git add·commit·stash·merge·rebase·push는 수행하지 않는다.
+
 ## 2026-10-09 우표 뽑기 영상·효과음 연결 (Issue #442)
 
 사용자가 승인한 우표 영상을 뽑기 화면에 적용하고 제공한 OGG 사운드로 효과음을 교체해 PR을 만들도록 직접 요청했다. Codex가 최신 main의 별도 작업 트리에서 통합하고 native 서브에이전트가 공통 재생기, 두 뽑기 화면, Android 재생 뷰, 사운드 분석, 실제 브라우저 검증을 나누어 맡았다. 독립 code-reviewer와 보조 critic 검토도 수행했다. 기존 일반 모델 운용 정책 자체는 변경하지 않는다. 영상 스트림과 보상 API·확률·마일리지 차감·도감 등록 규칙을 유지한다. 실제 청음은 지원되지 않아 주파수·음량 수치로 판단했다. 검사와 설치본 검증 경계는 [이번 QA 문서](GACHA_STAMP_QA_2026-10-09.md)에 기록한다.
+## 2026-10-09 CI 병렬 작업 분리 (소유자 직접 요청, 미커밋)
+
+Codex가 `ci/parallel-jobs`에서 기존 15분 직렬 CI를 API·PostgreSQL 2샤드·모바일·웹/운영/문서·계약/worker로 나누고 `bootstrap-contract` 필수 상태를 최종 집계로 유지했다. 읽기 전용 explore가 기존 YAML 파서와 의존성 경계를 확인했고 독립 code-reviewer가 검사 보존·DB 격리·집계를 검토해 구체적인 결함을 찾지 않았다. 새 샤드/집계 회귀 2/2, CI 연결 104개, 기존 CI YAML 참조 시험·PyYAML 파싱·명령 보존·문법 검증은 [TEST_STATUS](TEST_STATUS.md)에 기록했다. actionlint 미설치·실제 GitHub CI 시간은 `NOT_RUN`; Git add·commit·stash·merge·rebase·push는 수행하지 않았다.
+## 2026-10-09 PR #439 통합 충돌·점주 결과 리뷰 수정 (직접 요청, 미커밋)
+
+사용자의 직접 요청으로 Codex와 파일별 native 하위 에이전트가 `integ/pr439`에서 main `b37063c0`의 T9·BGM·#435 후속·공공자료 고지와 PR #439의 다음 행동·코인 보기·점주 결과 이동을 함께 보존한다. 점주 결과 바로가기의 같은 가게 쿠폰 사용 직후 stale 조회를 수정하고, 홈 다음 행동에서 은퇴 점포 코인권을 기존 가시성 필터로 제외하는 회귀 시험을 추가한다. Git add·commit·stash·merge·rebase·push, 배포·실기 수용은 하지 않으며 현재 검증 결과는 [TEST_STATUS](TEST_STATUS.md) 최상단을 따른다.
+
+## 2026-10-09 선택 작업 P4·U1·U2·U3·U5·X2·O1 (Issue #438)
+
+사용자가 지정한 7개 작업에 대해 Codex가 구현·통합을 맡고 native 하위 에이전트가 정책/보안 근거, 코인 중복 변경, 홈·도감·점주 동선을 나누어 검사했다. 독립 검토의 홈 stale 안내와 획득 직후 누락을 수정하고 시험했다. 기존 공통 UI·조회·서버 결과를 재사용했으며 새 의존성·확률·보상 지급·DB 변경은 없다. 미정 P4/X2는 정책안과 실제 코드 상태를 구분해 기록했다. 실제 RNW 합성 fixture 검증과 운영/실기 NOT_RUN은 [작업 QA](SELECTED_ACTIONS_QA_2026-10-09.md)에 분리했다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 4건 후속 (직접 요청, 미커밋)
 
-사용자의 직접 요청으로 Codex가 `fix/album-registration-followups`의 옷 신규 판정·등록 헤더 처리기를 수정하고 native executor 두 세션이 코인 등록 모달 움직임 감소·등급 등록 단계 보존을 각각 맡았다. 서버의 기존 중복 플래그·공통 motion hook·기존 modal 및 React 상태 갱신을 재사용했다. 기존 시험을 약화하지 않고 회귀 12건을 추가했다. 모바일2203/2203·대상60/60·타입·린트·접근성·CI 연결 검증은 [TEST_STATUS](TEST_STATUS.md) 최상단에 기록한다. 기존 모델 운용 정책 자체를 변경하지 않는다. Git add·commit·stash·merge·rebase·push·배포·실기 검수는 수행하지 않았다.
+사용자의 직접 요청으로 Codex가 `fix/album-registration-followups`의 옷 신규 판정·등록 헤더 처리기를 수정하고 native executor 두 세션이 코인 등록 모달 움직임 감소·등급 등록 단계 보존을 각각 맡았다. 서버의 기존 중복 플래그·공통 motion hook·기존 modal 및 React 상태 갱신을 재사용했다. 기존 시험을 약화하지 않고 회귀 12건을 추가했다. 모바일2203/2203·대상60/60·타입·린트·접근성·CI 연결 당시 검증은 [TEST_STATUS](TEST_STATUS.md)의 PR #435 절에 기록한다. 기존 모델 운용 정책 자체를 변경하지 않는다. Git add·commit·stash·merge·rebase·push·배포·실기 검수는 수행하지 않았다.
 
 ## 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (직접 요청, 미커밋)
 
@@ -518,4 +532,3 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 - Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
 - 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.
-
