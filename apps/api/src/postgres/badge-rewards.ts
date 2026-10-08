@@ -316,10 +316,16 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
          WHERE account_id = $1 AND merchant_id = $2 AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at > $3`,
         [identity.customerAccountId, input.merchantId, now],
       );
+      const benefitCoupons = await client.query<{ id: string; title: string; detail: string; expires_at: Date }>(
+        `SELECT id, title, detail, expires_at FROM campaign_benefit_coupons
+         WHERE customer_account_id = $1 AND merchant_id = $2
+           AND status = 'ISSUED' AND usable_from <= $3 AND expires_at > $3`,
+        [identity.customerAccountId, input.merchantId, now],
+      );
       await client.query('COMMIT');
       return {
         identityExpiresAt: identity.expiresAt.toISOString(),
-        coupons: [...coupons.rows, ...seriesCoupons.rows].sort((a, b) => a.expires_at.getTime() - b.expires_at.getTime()).map((row) => ({
+        coupons: [...coupons.rows, ...seriesCoupons.rows, ...benefitCoupons.rows].sort((a, b) => a.expires_at.getTime() - b.expires_at.getTime()).map((row) => ({
           couponId: row.id, title: row.title, detail: row.detail,
           expiresAt: row.expires_at.toISOString(),
         })),
@@ -365,7 +371,35 @@ export class PostgresBadgeRewardService implements BadgeRewardService {
             WHERE coupon.id = $1 AND coupon.account_id = $2 AND coupon.merchant_id = $3
               AND coupon.revoked_at IS NULL
             FOR UPDATE OF coupon`, [input.couponId, identity.customerAccountId, input.merchantId])).rows[0];
-        if (!seriesCoupon) throw new BadgeRewardError('COUPON_NOT_FOUND');
+        if (!seriesCoupon) {
+          const benefitCoupon = (await client.query<{
+            id: string; customer_account_id: string; status: 'ISSUED' | 'REDEEMED' | 'VOIDED';
+            usable_from: Date; expires_at: Date; redeemed_at: Date | null; merchant_is_demo: boolean;
+          }>(`SELECT coupon.id, coupon.customer_account_id, coupon.status, coupon.usable_from,
+                     coupon.expires_at, coupon.redeemed_at, merchant.is_demo AS merchant_is_demo
+              FROM campaign_benefit_coupons AS coupon
+              JOIN merchants AS merchant ON merchant.id = coupon.merchant_id
+              WHERE coupon.id = $1 AND coupon.customer_account_id = $2 AND coupon.merchant_id = $3
+              FOR UPDATE OF coupon`, [input.couponId, identity.customerAccountId, input.merchantId])).rows[0];
+          if (!benefitCoupon) throw new BadgeRewardError('COUPON_NOT_FOUND');
+          if (benefitCoupon.customer_account_id === input.staffAccountId && !benefitCoupon.merchant_is_demo) {
+            throw new BadgeRewardError('COUPON_SELF_REDEEM');
+          }
+          if (benefitCoupon.status === 'VOIDED') throw new BadgeRewardError('COUPON_VOIDED');
+          if (benefitCoupon.status === 'REDEEMED') {
+            await client.query('COMMIT');
+            return { couponId: benefitCoupon.id, status: 'REDEEMED',
+              redeemedAt: benefitCoupon.redeemed_at!.toISOString(), replayed: true };
+          }
+          if (benefitCoupon.expires_at <= now) throw new BadgeRewardError('COUPON_EXPIRED');
+          if (benefitCoupon.usable_from > now) throw new BadgeRewardError('COUPON_NOT_YET_USABLE');
+          await client.query(`UPDATE campaign_benefit_coupons
+            SET status = 'REDEEMED', redeemed_at = $2, redeemed_by_account_id = $3
+            WHERE id = $1 AND status = 'ISSUED' AND usable_from <= $2 AND expires_at > $2`,
+          [benefitCoupon.id, now, input.staffAccountId]);
+          await client.query('COMMIT');
+          return { couponId: benefitCoupon.id, status: 'REDEEMED', redeemedAt: now.toISOString(), replayed: false };
+        }
         if (seriesCoupon.account_id === input.staffAccountId && !seriesCoupon.merchant_is_demo) {
           throw new BadgeRewardError('COUPON_SELF_REDEEM');
         }

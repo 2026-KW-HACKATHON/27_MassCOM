@@ -14,7 +14,7 @@ import {
   type PollingState,
 } from '@/commerce/collection-recovery';
 import { CommerceApiError, createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
-import { createBadgeApiClient, type Coupon, type MedalKind, type OpenedReward, type RewardMilestone } from '@/gamification/badge-api';
+import { createBadgeApiClient, type CampaignBenefit, type Coupon, type MedalKind, type OpenedReward, type RewardMilestone } from '@/gamification/badge-api';
 import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { couponsOf, explorerRank, shouldStackTrio, type ShareVariant } from '@/gamification/badge-rules';
 import { CouponTicket } from '@/gamification/coupon-ticket';
@@ -130,6 +130,12 @@ export function CollectionScreen({
     [apiUrl, credential, onSessionInvalid],
   );
   const badges = useBadgeBook(badgeApi);
+  const [campaignBenefits, setCampaignBenefits] = useState<readonly CampaignBenefit[]>([]);
+  const [benefitsError, setBenefitsError] = useState(false);
+  const refreshCampaignBenefits = useCallback(async () => {
+    try { setCampaignBenefits(await badgeApi.getCampaignBenefits()); setBenefitsError(false); }
+    catch { setBenefitsError(true); }
+  }, [badgeApi]);
   const router = useRouter();
   const { focus, entitlement, coupon } = useLocalSearchParams<{ focus?: string; entitlement?: string | string[]; coupon?: string | string[] }>();
   const scrollView = useRef<ScrollView>(null);
@@ -309,19 +315,19 @@ export function CollectionScreen({
   const handleDismissReaction = useCallback(() => setReactionQueue(dismissReactionEvent), []);
   const legacyCollectibles = useMemo(() => ungroupedCollectibles(collection?.collectibles ?? []), [collection]);
   const detailMedal = badges.book?.medals.find((medal) => medal.kind === detailKind);
-  const coupons = couponsOf(badges.book);
+  const coupons = useMemo(() => [...couponsOf(badges.book), ...campaignBenefits.flatMap((benefit) => benefit.coupon ? [benefit.coupon] : [])], [badges.book, campaignBenefits]);
 
   // Notification links open only a coupon returned by this account's own badge book.
   useEffect(() => {
     if (!badges.book || coupon === undefined) return;
     const selected = typeof coupon === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(coupon)
-      ? couponsOf(badges.book).find(item => item.couponId === coupon) : undefined;
+      ? coupons.find(item => item.couponId === coupon) : undefined;
     const frame = requestAnimationFrame(() => {
       clearCollectionFocusParams(router, { coupon: undefined });
       if (selected) setUsingCoupon(selected);
     });
     return () => cancelAnimationFrame(frame);
-  }, [badges.book, coupon, router]);
+  }, [badges.book, coupon, coupons, router]);
 
   useEffect(() => {
     let active = true;
@@ -403,6 +409,7 @@ export function CollectionScreen({
 
   useFocusEffect(useCallback(() => {
     focusCount.current += 1;
+    void refreshCampaignBenefits();
     if (focusCount.current === 1) return;
     void refreshBadgesQuietly();
     const generation = startRequest();
@@ -413,7 +420,7 @@ export function CollectionScreen({
       setBinding(resolved.binding);
       if (!resolved.bindingError) setBindingError(undefined);
     });
-  }, [api, walletApi, refreshBadgesQuietly, startRequest, applySnapshot]));
+  }, [api, walletApi, refreshBadgesQuietly, refreshCampaignBenefits, startRequest, applySnapshot]));
 
   async function refresh() {
     setRefreshing(true);
@@ -425,6 +432,7 @@ export function CollectionScreen({
         walletApi.getActiveBinding(),
         refreshMerchants(),
         badges.status === 'ready' ? badges.refreshQuietly() : badges.retry(),
+        refreshCampaignBenefits(),
       ]);
       const resolved = resolveCollectionLoad(collectionResult, bindingResult);
       if (!resolved.ok) {
@@ -705,8 +713,9 @@ export function CollectionScreen({
                 onOpenFailed={onOpenFailed}
               />
               <Text style={styles.subsectionTitle}>내 쿠폰</Text>
+              {benefitsError ? <SectionRetry message="캠페인 혜택 쿠폰을 확인하지 못했어요." onRetry={() => void refreshCampaignBenefits()} busy={false} /> : null}
               {coupons.length === 0 ? (
-                <EmptyCopy text="상자를 열면 쿠폰이 여기에 모여요." />
+                <EmptyCopy text="받은 쿠폰이 여기에 모여요." />
               ) : (
                 coupons.map((coupon) => <CouponTicket key={coupon.couponId} coupon={coupon} onUse={setUsingCoupon} />)
               )}
@@ -806,7 +815,10 @@ export function CollectionScreen({
         createIdentity={createIdentity}
         revokeIdentity={revokeIdentity}
         loadBadgeBook={loadBadgeBook}
+        loadCoupon={campaignBenefits.some((benefit) => benefit.coupon?.couponId === usingCoupon?.couponId)
+          ? async () => (await badgeApi.getCampaignBenefits()).find((benefit) => benefit.coupon?.couponId === usingCoupon?.couponId)?.coupon : undefined}
         onBadgeBook={replaceBadgeBook}
+        onCoupon={() => { void refreshCampaignBenefits(); }}
         onClose={() => setUsingCoupon(undefined)}
       />
     </SkyBackdrop>

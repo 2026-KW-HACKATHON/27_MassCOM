@@ -9,11 +9,16 @@ const root = new URL('../../', import.meta.url).pathname;
 const merchantFacing = [
   'apps/production-web/merchant.html', 'apps/production-web/admin.html',
   'apps/production-web/assets/merchant.mjs', 'apps/production-web/assets/admin.mjs',
+  'apps/production-web/assets/campaign-benefit-status.mjs',
   'apps/production-web/assets/real-world-merchant.mjs', 'apps/production-web/assets/merchant-profile.mjs',
   'apps/mobile/src/merchant-insights', 'apps/mobile/src/screens/merchant-home', 'apps/mobile/src/screens/merchant-claim',
   'apps/mobile/src/screens/merchant-detail', 'apps/mobile/src/merchant/campaign-purpose.ts',
   'apps/api/src/postgres/merchant-operations.ts', 'apps/api/src/postgres/merchant-overview.ts',
   'apps/api/src/merchant-overview-rules.ts', 'apps/api/src/campaign-purpose-rules.ts',
+  'apps/api/src/campaign-benefit-rules.ts', 'apps/api/src/campaign-benefits.ts',
+  'apps/api/src/postgres/campaign-benefits.ts',
+  'apps/mobile/src/gamification/badge-api.ts', 'apps/mobile/src/gamification/coupon-use-sheet.tsx',
+  'apps/mobile/src/screens/collection/index.tsx',
   'docs/MERCHANT_ONBOARDING.md',
 ];
 
@@ -29,7 +34,10 @@ test('merchant-facing screens, CSV and guides never call anyone a new customer o
   const files = merchantFacing.flatMap(sourceFiles);
   // 시험이 비어 있는 목록을 통과시키지 않도록 대표 파일이 실제로 검사 대상인지 먼저 본다.
   for (const required of ['apps/production-web/assets/merchant.mjs', 'apps/mobile/src/merchant-insights/view-model.ts',
-    'apps/api/src/postgres/merchant-operations.ts', 'apps/production-web/admin.html', 'docs/MERCHANT_ONBOARDING.md']) {
+    'apps/api/src/postgres/merchant-operations.ts', 'apps/production-web/admin.html', 'docs/MERCHANT_ONBOARDING.md',
+    'apps/api/src/campaign-benefit-rules.ts', 'apps/api/src/campaign-benefits.ts',
+    'apps/api/src/postgres/campaign-benefits.ts', 'apps/mobile/src/gamification/badge-api.ts',
+    'apps/mobile/src/gamification/coupon-use-sheet.tsx', 'apps/mobile/src/screens/collection/index.tsx']) {
     assert.ok(files.includes(required), required);
   }
   assert.ok(files.length >= 20, `only ${files.length} files scanned`);

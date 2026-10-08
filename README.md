@@ -105,6 +105,10 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 현재 자동 시험 합계(2026-10-09 KST, 미완성 보완 브랜치 `fix/ai-image-gap-fixes`, main `055d0523` 기준): API 단위 618/618 · 모바일 2093/2093. 이 브랜치에서 재실행했고 PostgreSQL 통합은 재실행하지 않았습니다. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)).
 
+T3 PR 2 단독 브랜치 검증 기록(통합 브랜치 재시험 전): (2026-10-09 KST, Issue #412 T3 PR 2 `feat/campaign-benefits`, 기준 main `055d0523`): API 단위 625/625 · PostgreSQL 557건 중 554 pass / 0 fail / 3 skip · 모바일 2098/2098 · 사이트 584/584와 Chrome 1건 BLOCKED. 이 worktree에서 측정한 결과이며 필수 36개 ID의 기존 판정 31 PASS / 2 BLOCKED / 3 NOT_RUN을 바꾸지 않습니다.
+
+Issue #412 T3 PR 2의 캠페인 혜택·발급 상한·추가 원가 패널·고객 쿠폰 수령은 로컬 구현/검증됐다([D-094](docs/DECISIONS.md), [실행 결과](docs/TEST_STATUS.md)). 운영·시연 배포와 설치본은 바꾸지 않았다(소유자 결정 A).
+
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
 
 ## 지금 열어보기

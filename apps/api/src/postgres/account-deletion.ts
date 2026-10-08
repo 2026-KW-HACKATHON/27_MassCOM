@@ -399,6 +399,9 @@ async function pseudonymizeAccount(
     'UPDATE badge_coupons SET redeemed_by_account_id = $1 WHERE redeemed_by_account_id = $2',
     [deletedAlias, accountId],
   );
+  await client.query('UPDATE campaign_benefit_coupons SET customer_account_id = $1 WHERE customer_account_id = $2', [deletedAlias, accountId]);
+  await client.query('UPDATE campaign_benefit_coupons SET redeemed_by_account_id = $1 WHERE redeemed_by_account_id = $2', [deletedAlias, accountId]);
+  await client.query('UPDATE campaign_benefit_coupons SET voided_by_account_id = $1 WHERE voided_by_account_id = $2', [deletedAlias, accountId]);
   // 되돌리기(Issue #243)의 처리자 열: 방문을 취소한 점원, 쿠폰을 무효로 한 점원, 사용을 되돌린 점원과 원래 사용 처리자.
   await client.query(
     'UPDATE visit_events SET canceled_by_account_id = $1 WHERE canceled_by_account_id = $2',

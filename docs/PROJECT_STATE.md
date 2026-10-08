@@ -2,7 +2,19 @@
 
 현재 자동 시험 합계(2026-10-09 KST, 미완성 보완 브랜치 `fix/ai-image-gap-fixes`, main `055d0523` 기준): API 단위 618/618 · 모바일 2093/2093. 이 브랜치에서 재실행했고 PostgreSQL 통합은 재실행하지 않았습니다. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)).
 
+T3 PR 2 단독 브랜치 검증 기록(통합 브랜치 재시험 전): (2026-10-09 KST, Issue #412 T3 PR 2 `feat/campaign-benefits`, 기준 main `055d0523`): API 단위 625/625 · PostgreSQL 557건 중 554 pass / 0 fail / 3 skip · 모바일 2098/2098 · 사이트 584/584와 Chrome 1건 BLOCKED. 이 worktree에서 측정한 결과이며 필수 36개 ID의 기존 판정 31 PASS / 2 BLOCKED / 3 NOT_RUN을 바꾸지 않습니다.
+
 README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
+
+## 2026-10-09 캠페인 혜택과 추가 원가 상한 (Issue #412 T3 PR 2, 배포 동결)
+
+기준 main `055d0523`(T3 PR 1, PR #425 병합) 위의 `feat/campaign-benefits` 작업이다. 예약 번호 migration `0069_campaign_benefits.sql`과 [D-094](DECISIONS.md)를 사용했다. D-093·다른 브랜치의 0068·0072는 손대지 않았다.
+
+- 관리자 동의 다섯 항목·문서 참조로 혜택을 만들고 중지한다. 단일 원가 집계 질의는 중지된 과거 혜택도 반환해 새 혜택 생성 뒤 이전 약속을 숨기지 않는다. 고객은 별도 수령 경로와 기존 쿠폰/QR 모양을 사용하고 비용 금액을 받지 않는다.
+- 목적별 적격·KST 다음 사용 시작·상한 조건부 증가·재전송·방문 취소의 무효화/상한 반환·직원 조회/사용·10분 되돌리기·삭제 가명화를 연결했다. 방문 확정 거래는 그대로다. 상한과 중지는 기존 쿠폰을 취소하지 않는다.
+- 단순화: 기존 동의 정규화·쿠폰 UI·직원 조회·계정 수명주기/권한 검사를 재사용하고, 새 의존성과 방문 거래의 보상 발급을 추가하지 않았다. API unit 625/625, PostgreSQL 557건 중 554 pass / 0 fail / 3 skip, 모바일 2098/2098, 사이트 584/584(Chrome 1건 BLOCKED)다. typecheck·API build·모바일 lint와 자세한 gate 결과는 [TEST_STATUS](TEST_STATUS.md) 맨 위가 정본이다.
+
+운영 API·DB·웹·Android와 시연 API·DB·웹·Android는 배포/설치하지 않았다(소유자 결정 A). 공통 고객 코드가 두 variant에 적용되지만 실제 둘의 기기 수용은 각각 NOT_RUN이다. 결과 카드·설문·파일럿 설정/안내물은 T3 후속 PR 범위이며, 지정 스키마에 되돌리기 재생 원장이 없어 두 번째 undo는 COUPON_NOT_REDEEMED다.
 
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
