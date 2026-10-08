@@ -1,9 +1,10 @@
 import type { PlayRecord } from '@/play/play-api';
 import type { GameKind } from '../../../../api/src/play-rules';
+import type { SeriesSlot } from '../collection/store-series';
 
 export const gameCopy: Record<GameKind, { title: string; tag: string; rule: string; color: string }> = {
   stack: { title: '타이밍 쌓기', tag: '타이밍', rule: '움직이는 포장 상자를 아래 상자에 겹쳐 놓아요. 어긋난 부분이 잘리고, 남은 폭으로 여섯 층을 쌓아요.', color: '#DF6D62' },
-  memory: { title: '짝 찾기', tag: '기억', rule: '등록된 메뉴·간판·내 수집품과 연습 그림을 두 장씩 찾아요. 발견한 여섯 쌍이 도감에 남아요.', color: '#699CCB' },
+  memory: { title: '짝 찾기', tag: '기억', rule: '방문한 가게의 코인을 두 장씩 찾아요. 가게가 여섯 곳보다 적으면 연습 그림이 빈자리를 채워요. 찾은 코인은 어느 가게 것인지 도감과 이어져요.', color: '#699CCB' },
   delivery: { title: '세 갈래 배달', tag: '피하기', rule: '포장 꾸러미를 가게 간판 앞까지 운반해요. 세 길에서 공사 상자를 피하세요. 세 번 부딪히면 도전이 끝나요.', color: '#67A989' },
   orders: { title: '주문 맞추기', tag: '조합', rule: '등록된 메뉴와 연습 그림으로 만든 주문표의 물건 세 개를 담아 전달해요. 순서는 자유이고 잘못 담으면 고칠 수 있어요.', color: '#D7A14E' },
 };
@@ -14,6 +15,12 @@ export const gamePrompt: Record<GameKind, string> = {
   delivery: '공사 상자를 피해 길을 바꾸며 12구간을 지나가요',
   orders: '주문표의 물건 3개를 담고 전달해요',
 };
+
+/** Orders and delivery borrow a store's menu and photos, so they must say they are pretend and never look like a real order. */
+export const virtualPlayNotice = '가게 메뉴 정보로 만든 가상 놀이예요. 실제 주문·결제·매출은 없어요.';
+export const virtualPlayNoticeFor = (kind: GameKind): string | undefined => kind === 'orders' || kind === 'delivery' ? virtualPlayNotice : undefined;
+
+export const nextCollectibleLabel = (slot: SeriesSlot): string => `다음 수집품: ${slot.targetVisitCount}회 방문 시 ${slot.displayName}`;
 
 export const themeNames: Record<string, string> = { daylight: '햇살 방', evening: '노을 방', garden: '정원 방' };
 

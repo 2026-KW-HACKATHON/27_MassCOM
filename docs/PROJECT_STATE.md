@@ -2,6 +2,10 @@
 
 현재 자동 시험 합계(2026-10-08 KST, #410 반영 main 기준): API 단위 567/567 · 모바일 1901/1901. README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 
+## 2026-10-08 놀이를 방문한 가게와 모은 코인에 잇기 (Issue #412, 배포 동결)
+
+기준 main `b572184e` 위의 브랜치 `feat/play-store-memory`는 클라이언트만 바꿔 짝 찾기를 방문한 가게들의 코인으로 만들고(결과판에 가게 이름·다음 수집품 안내·도감 이동, 방문 버튼 없음), 주문·배달에 가상 놀이 고지를 붙이고 가격을 보이지 않으며, 방문·도감·쿠폰 흐름이 놀이 없이도 동작하도록 시험으로 고정했다. 서버 판정·점수·보상은 그대로이고 모바일 시험은 1919/1919(이 브랜치 기준)이며 배포하지 않았다(소유자 결정 A). 맨 위 "현재 자동 시험 합계"는 main 기준 수치라 그대로 둔다.
+
 ## 2026-10-08 운영 웹 Caddy의 `/api/web/v1/*` 라우트 누락 수정 (배포 동결)
 
 `www.masscom.kr/api/web/v1/*`가 `infra/lightsail/Caddyfile`의 `@webSession`에 빠져 404였고(가게 실세계 프로필 편집기 장애), `@privateSurface`에도 없어 캐시 방지 헤더가 붙지 않았다. 설정과 시험(`tests/ops/verify_web_session_proxy_test.mjs` 등)은 `fix/caddy-web-v1-routes`에서 고쳤고, 배포하지 않아 웹/Caddy를 배포하기 전까지 라이브는 계속 404다(소유자 결정 A). 후속인 `real-world-http.ts` 쓰기의 계정별 제한은 트랙 T6, [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)이다. 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
