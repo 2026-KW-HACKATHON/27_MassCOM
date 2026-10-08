@@ -28,7 +28,7 @@ import { PostgresNotificationService, fcmConfigFromEnv } from './postgres/notifi
 import { startNotificationScheduler } from './notification-scheduler.js';
 import { isGameKind, type GameAction } from './play-rules.js';
 import { GoogleIdTokenVerifier } from './google-id-token.js';
-import { WebAuthError, WebAuthService, resolveWebAuthConfig } from './web-auth.js';
+import { WebAuthService, resolveWebAuthConfig } from './web-auth.js';
 import { WebSessionError, freshWebSessionMs } from './web-session.js';
 import { resolveWebOrigin } from './web-origin.js';
 import { parseNftMintingMode } from './collection.js';
@@ -98,7 +98,6 @@ import {
 } from './http/request-body.js';
 import {
   authLoginClientKey,
-  optionalWebCookie,
   requireBearerToken,
   requireWebCookie,
 } from './http/request-auth.js';
@@ -107,6 +106,7 @@ import { respondWithError } from './http/error-response.js';
 import { sendJson, setCommonHeaders } from './http/response.js';
 import type { RouteContext } from './routes/context.js';
 import { handleAccount } from './routes/account.js';
+import { handleAccountDeletion } from './routes/account-deletion.js';
 import { handleAuth } from './routes/auth.js';
 import { handleCoinsRooms } from './routes/coins-rooms.js';
 import { handleCustomer } from './routes/customer.js';
@@ -118,6 +118,7 @@ import { handlePlayStudio } from './routes/play-studio.js';
 import { handlePublicAssets } from './routes/public-assets.js';
 import { handleShowcase } from './routes/showcase.js';
 import { handleWalletClaims } from './routes/wallet-claims.js';
+import { handleWebAuth } from './routes/web-auth.js';
 
 export { renderClaimQr, FixedWindowAuthLoginLimiter };
 export type { AuthLoginLimiter };
@@ -159,8 +160,8 @@ export function createApiServer(deps: ApiDeps) {
   const {
     merchantAccess, claimSlots, collection,
     authLoginLimiter,
-    webAuth, customerIdentities, admin, deletionIntake, staffRegistration, badges,
-    showcaseDeletionIntake, deletionProcessing, reversals, consent, collectibleProjects,
+    webAuth, customerIdentities, admin, staffRegistration, badges,
+    deletionProcessing, reversals, consent, collectibleProjects,
     merchantOverview, visitorFeedback,
     adminFunnel, play, merchantProfile, social,
   } = deps;
@@ -170,7 +171,7 @@ export function createApiServer(deps: ApiDeps) {
   const { merchantOperations, realWorld, tmap, mapProvider, coinEconomy, roomCommunity } = experienceServices;
   const runtime = createApiRuntime(deps);
   const {
-    resolveAccountId, requireCustomerScan, requireCurrentPlayConsent, consumeDeletionStatus,
+    resolveAccountId, requireCustomerScan, requireCurrentPlayConsent,
     merchantProfileWriteLimiter, merchantOperationLimiter,
     socialWriteLimiter, coinWriteLimiter, roomWriteLimiter, discoveryEventLimiter,
     discoveryMapLimiter, collectibleWriteLimiter,
@@ -217,51 +218,7 @@ export function createApiServer(deps: ApiDeps) {
           }
         },
       })) return;
-      if (path === '/api/web/auth/start' && request.method === 'GET') {
-        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
-        if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
-        if (authLoginLimiter) {
-          const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
-          if (!decision.allowed) {
-            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-            sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
-            return;
-          }
-        }
-        const returnTo = new URL(request.url!, 'http://localhost').searchParams.get('returnTo') === 'account-deletion'
-          ? '/account-deletion' : undefined;
-        const started = await webAuth.start(origin, returnTo);
-        response.setHeader('x-robots-tag', 'noindex, nofollow');
-        response.setHeader('set-cookie', `web_auth_state=${started.state}; Path=/api/web/auth; Max-Age=300; HttpOnly; Secure; SameSite=Lax`);
-        response.setHeader('location', started.location);
-        response.writeHead(302);
-        response.end();
-        return;
-      }
-      if (path === '/api/web/auth/callback' && request.method === 'GET') {
-        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
-        if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
-        response.setHeader('x-robots-tag', 'noindex, nofollow');
-        response.setHeader('set-cookie', 'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
-        const query = new URL(request.url!, 'http://localhost').searchParams;
-        if (query.getAll('code').length !== 1 || query.getAll('state').length !== 1) {
-          throw new WebAuthError('WEB_AUTH_STATE_INVALID');
-        }
-        const session = await webAuth.complete(
-          query.get('code')!, query.get('state')!, requireWebCookie(request, 'web_auth_state'),
-          origin,
-        );
-        response.setHeader('set-cookie', [
-          'web_auth_state=; Path=/api/web/auth; Max-Age=0; HttpOnly; Secure; SameSite=Lax',
-          `web_session=${session.token}; Path=/api/web; HttpOnly; Secure; SameSite=Lax`,
-        ]);
-        response.setHeader('location', session.returnTo === '/merchant/' ? '/merchant/'
-          : session.returnTo === '/admin/' ? '/admin/'
-          : session.returnTo === '/account-deletion' ? '/account-deletion' : '/app/');
-        response.writeHead(303);
-        response.end();
-        return;
-      }
+      if (await handleWebAuth(routeContext)) return;
       if (path === '/api/web/collection' && request.method === 'GET') {
         const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
         if (!webAuth || !collection) throw new RequestError(503, 'WEB_COLLECTION_NOT_CONFIGURED');
@@ -910,78 +867,7 @@ export function createApiServer(deps: ApiDeps) {
         }
         throw new RequestError(404, 'NOT_FOUND');
       }
-      if (path === '/api/web/logout') {
-        if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
-        if (request.headers.origin !== origin) throw new RequestError(403, 'ORIGIN_FORBIDDEN');
-        if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');
-        response.setHeader('x-robots-tag', 'noindex, nofollow');
-        const sessionToken = optionalWebCookie(request, 'web_session');
-        if (sessionToken) await webAuth.logout(sessionToken, origin);
-        response.setHeader('set-cookie', 'web_session=; Path=/api/web; Max-Age=0; HttpOnly; Secure; SameSite=Lax');
-        response.writeHead(204);
-        response.end();
-        return;
-      }
-      if (path === '/api/web/account-deletion-intake' || path === '/api/web/account-deletion-intake/cancel' ||
-          path === '/api/web/account-deletion-status') {
-        if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-        const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
-        if (request.headers.origin !== origin ||
-            !/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers['content-type'] ?? '')) {
-          throw new RequestError(403, 'ORIGIN_FORBIDDEN');
-        }
-        if (!deletionIntake) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
-        response.setHeader('x-robots-tag', 'noindex, nofollow');
-        if (path === '/api/web/account-deletion-status') {
-          // 접수번호만으로 조회한다(삭제 뒤에는 로그인할 계정이 없다). 접수번호는 본문에서만 받고 URL에는 두지 않는다.
-          if (!consumeDeletionStatus(request, response)) return;
-          const body = await readJson(request);
-          if (Object.keys(body).some(key => key !== 'receipt')) throw new RequestError(400, 'INVALID_REQUEST');
-          sendJson(response, 200, await deletionIntake.status(requireString(body, 'receipt')));
-          return;
-        }
-        if (!webAuth) throw new RequestError(503, 'WEB_DELETION_INTAKE_NOT_CONFIGURED');
-        // 접수·다시 받기·취소는 방금 한 로그인이어야 한다. 이 세션 쿠키는 /app/·/merchant/·/admin/과 함께 쓰여서, 브라우저에
-        // 오래 남은 로그인으로 남의 접수번호를 무효로 만들거나 삭제를 접수하지 못하게 한다(조회는 접수번호만 쓴다).
-        const session = await webAuth.resolveSessionWithAge(requireWebCookie(request, 'web_session'), origin);
-        if (session.ageMs > freshWebSessionMs) throw new WebSessionError('WEB_SESSION_REAUTH_REQUIRED');
-        const accountId = session.accountId;
-        const body = await readJson(request);
-        if (path === '/api/web/account-deletion-intake/cancel') {
-          sendJson(response, 200, await deletionIntake.cancel(accountId));
-        } else {
-          sendJson(response, 202, await deletionIntake.request(accountId, { reissue: body.reissue === true }));
-        }
-        return;
-      }
-
-      // 시연 앱 전용(#194, D-052): 시연 서버에서만 서비스가 만들어진다. 운영 API에는 이 경로가 없고 운영 앱은 웹 페이지를 쓴다.
-      if (showcaseDeletionIntake && (path === '/account-deletion-intake' ||
-          path === '/account-deletion-intake/cancel' || path === '/account-deletion-status')) {
-        if (path === '/account-deletion-status') {
-          if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-          if (!consumeDeletionStatus(request, response)) return;
-          const body = await readJson(request);
-          if (Object.keys(body).some(key => key !== 'receipt')) throw new RequestError(400, 'INVALID_REQUEST');
-          sendJson(response, 200, await showcaseDeletionIntake.status(requireString(body, 'receipt')));
-          return;
-        }
-        if (path === '/account-deletion-intake' && request.method === 'GET') {
-          const accountId = await resolveAccountId(request);
-          sendJson(response, 200, { request: await showcaseDeletionIntake.current(accountId) });
-          return;
-        }
-        if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
-        const accountId = await resolveAccountId(request);
-        const body = await readJson(request, true);
-        if (path === '/account-deletion-intake/cancel') {
-          sendJson(response, 200, await showcaseDeletionIntake.cancel(accountId));
-        } else {
-          sendJson(response, 202, await showcaseDeletionIntake.request(accountId, { reissue: body.reissue === true }));
-        }
-        return;
-      }
+      if (await handleAccountDeletion(routeContext)) return;
 
       if (await handleAuth(routeContext)) return;
 
