@@ -41,6 +41,16 @@ test('loads authenticated recommendations with explanation fields', async () => 
   assert.deepEqual(await client.listRecommendations(), payload.recommendations);
 });
 
+test('accepts a course hint without changing the existing reason code contract', async () => {
+  const course = { courseId: 'course-1', title: '동네 한 바퀴', situation: 'AFTER_MEAL', done: 1, total: 3 };
+  const client = createRecommendationApiClient({
+    apiUrl: 'https://api.example.test',
+    credential: { kind: 'bearer', sessionToken: 'server-session' },
+    fetcher: async () => Response.json({ recommendations: [{ ...payload.recommendations[0], course }] }),
+  });
+  assert.deepEqual((await client.listRecommendations())[0]?.course, course);
+});
+
 test('rejects unknown reason codes instead of rendering an unexplained recommendation', async () => {
   const client = createRecommendationApiClient({
     apiUrl: 'https://api.example.test',

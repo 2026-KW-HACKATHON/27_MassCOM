@@ -64,6 +64,8 @@ test('customer screens use the art bridge except for validated collectible inlin
     // 가게 코인도 발행 수집품 파서가 확인한 인라인 썸네일만 표시한다.
     'screens/coin-shop/index.tsx',
     'screens/coin-collection/index.tsx',
+    // 코스 장면은 course-api가 parseCollectibleArtwork로 검증한 가게별 코인 썸네일만 사용한다.
+    'screens/courses/index.tsx',
     // 새 등급 뽑기 응답도 grade-draw-api가 검증한 인라인 썸네일만 그린다.
     'screens/shop/grade-draw-machine.tsx',
   ]);

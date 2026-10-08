@@ -2,6 +2,13 @@ import { headersForCredential, type AccountCredential } from '@/auth/account-cre
 import { shouldInvalidateSession } from '@/auth/session-invalid';
 
 export type RecommendationReasonCode = 'NEW_PLACE' | 'NEXT_REWARD' | 'COLLECTION_COMPLETE';
+export type RecommendationCourse = {
+  courseId: string;
+  title: string;
+  situation: 'AFTER_MEAL' | 'TAKEOUT' | 'OTHER';
+  done: number;
+  total: number;
+};
 
 export type Recommendation = {
   merchantId: string;
@@ -14,6 +21,7 @@ export type Recommendation = {
   demo: boolean;
   reasonCode: RecommendationReasonCode;
   reasonText: string;
+  course?: RecommendationCourse;
   nextGoal?: {
     targetVisitCount: 1 | 3 | 5;
     displayName: string;
@@ -93,6 +101,7 @@ function parseRecommendation(value: unknown): Recommendation {
   }
 
   const nextGoal = value.nextGoal === undefined ? undefined : parseNextGoal(value.nextGoal);
+  const course = value.course === undefined ? undefined : parseCourse(value.course);
   if (value.reasonCode !== 'COLLECTION_COMPLETE' && !nextGoal) {
     throw invalidResponse();
   }
@@ -108,8 +117,20 @@ function parseRecommendation(value: unknown): Recommendation {
     demo: value.demo,
     reasonCode: value.reasonCode,
     reasonText: value.reasonText,
+    ...(course ? { course } : {}),
     ...(nextGoal ? { nextGoal } : {}),
   };
+}
+
+function parseCourse(value: unknown): RecommendationCourse {
+  if (!isRecord(value) || !isString(value.courseId) || !isString(value.title) ||
+    (value.situation !== 'AFTER_MEAL' && value.situation !== 'TAKEOUT' && value.situation !== 'OTHER') ||
+    !isNonNegativeInteger(value.done) || !Number.isInteger(value.total) ||
+    (value.total as number) < 2 || (value.total as number) > 4 || (value.done as number) > (value.total as number)) {
+    throw invalidResponse();
+  }
+  return { courseId: value.courseId, title: value.title, situation: value.situation,
+    done: value.done as number, total: value.total as number };
 }
 
 function parseNextGoal(value: unknown): NonNullable<Recommendation['nextGoal']> {
