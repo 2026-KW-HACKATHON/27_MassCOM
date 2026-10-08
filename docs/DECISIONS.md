@@ -415,3 +415,7 @@ migration `0072_courses.sql`은 새 표 세 개·가드·감사 action을 더하
 **구현:** 네이티브는 루트 첫 렌더 뒤 지연 타이머, 웹은 기존 UI 소리의 첫 `pointerdown`·`keydown`·`touchstart` 경로에서 음악을 활성화한다. 설정 hydrate·BGM 켜짐·전경·backend 준비 조건에서 플레이어를 만들고 loop를 시작한다. 큰 MP3의 플레이어 지연 생성과 기존 자산 경로를 유지한다. 웹 autoplay 거절은 버전 고정 expo-audio 패치에서 promise를 처리하고 재생 상태를 정리하며 UI를 중단하지 않는다.
 
 공통 코드가 운영·시연 variant와 Expo 웹에 적용된다. 자동 시험과 한계는 [TEST_STATUS](TEST_STATUS.md)의 앱 시작 배경음 절을 따른다. 실제 브라우저 autoplay/청음·각 Android variant 실기·첫 화면 성능·배포는 NOT_RUN이다. 되돌리기는 이번 공통 컨트롤러·입력 이벤트·expo-audio 패치를 되돌리며, 저장 설정 형식과 API/DB는 그대로다.
+
+## 2026-10-09 시연 Reown 프로젝트 공유 (Issue #447)
+
+`USER_CONFIRMED`: Reown 신규 프로젝트 생성이 현 요금제 한도로 거절되자 소유자가 "기존 프로젝트 공유해서 진행"을 선택했다. 기존 Reown 프로젝트의 공개 ID를 `MASSCOM_SHOWCASE_REOWN_PROJECT_ID`에 명시하여 시연 앱에서 사용한다. 운영 환경변수 자동 상속은 계속 차단한다. Reown 사용량·통계는 공유되지만 package/scheme·API/DB·계정별 세션 저장소 및 주소 확인 서명 경계는 유지한다. 유료 업그레이드·자산 이동은 실행하지 않는다.

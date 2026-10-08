@@ -63,3 +63,9 @@ NAVER_SEARCH_CLIENT_SECRET=
 현재 로컬 환경은 TMAP의 `/Users/choi/.config/masscom/tmap.env`와 NAVER Maps의 `/Users/choi/.config/masscom/naver.env`를 사용한다. 두 파일은 Git 밖·권한600이며 실제 값을 문서/로그에 넣지 않는다. 신규 Maps masscom 등록·대표 계정·실제 주소 대체를 확인했다. [후속 증거](evidence/naver-live-2026-10-07/README.md)는 SDK 준비 순서 복구와 미완료 타일/단말 검증을 구분한다. 지역 검색용 NAVER_SEARCH 두 키는 별도 발급이 필요하다.
 
 환경 파일을 명시적으로 전달한 Node 빌드 래퍼는 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID 등 공개 식별자만 앱 프로세스에 주고 Secret은 제거한다. 키 값을 바꾸고 Expo export를 재검증할 때 `--clear`로 이전 변환 캐시를 비운다. 공개 서버 적용·공개 APK 배포는 이 로컬 설정 저장과 별도다.
+
+## 시연 APK의 지도 키 누락 방지 (Issue #447)
+
+`scripts/build-showcase-apk.sh`는 `EXPO_PUBLIC_TMAP_MAP_APP_KEY`가 비어 있으면 사전 검사에서 중단한다. 네이버 대체 지도에는 `EXPO_PUBLIC_NAVER_MAP_CLIENT_ID`도 전달한다. `EXPO_NO_DOTENV=1`이므로 로컬 파일을 저장하는 것만으로 적용되지 않는다. 빌드를 호출하는 프로세스에 공개 값만 명시하고 서버 Secret은 전달하지 않는다.
+
+빌드 후 `scripts/check-embedded-maps.mjs`가 APK와 AAB의 Expo 설정 및 실제 JS/Hermes 번들에 예상 공개 값이 모두 들어 있는지 검사한다. 검증 프로세스에 `NAVER_MAP_CLIENT_SECRET`/`NAVER_SEARCH_CLIENT_SECRET`를 제공하면 해당 비밀값의 산출물 포함도 거절한다. 출력에는 실제 키가 없다. 단순 Expo export 및 CI 더미 빌드는 실제 지도 인증·타일 수용 근거가 아니다.

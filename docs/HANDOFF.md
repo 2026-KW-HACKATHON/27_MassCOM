@@ -1,5 +1,9 @@
 # HANDOFF
 
+## 2026-10-09 시연 지갑·지도 설정 복구 (Issue #447)
+
+`fix/showcase-wallet-map-config`는 `2cfcc8e8` 기준 격리 작업트리다. Samsung 설치본에서 Reown 설정 누락과 지도 실패를 재현했고, APK의 공개 TMAP/NAVER 키 누락을 값 출력 없이 확인했다. 시연 Reown 명시 설정 경로와 지도 빌드 입력/산출물 검사를 추가한다. 모바일2218/2218, 집중설정33, 지도산출물6, 타입 검사 PASS; lint 기존 경고1/오류0. 실제 새 APK 설치와 지갑 연결은 아직 검증 중이며 공개 배포하지 않았다. 네이버 결제수단 등록 상태는 콘솔에서 확인했고, Reown 신규 프로젝트는 현 요금제 한도로 생성되지 않았다.
+
 **2026-10-09 CI 병렬 작업 분리 (PR #443)**
 
 작업 위치 `.worktrees/ci`, 브랜치 `ci/parallel-jobs`, 기준 HEAD `3645c4c7dedc3fc750e9ebadc218432a74a23e0a`. 기존 검사를 API·PG 2샤드·모바일·웹/운영/문서·계약/worker로 분리하고 필수 `bootstrap-contract` 집계를 유지했다. 변경 파일은 `.github/workflows/ci.yml`, 새 `tests/ci/parallel_jobs.test.mjs`, TEST_STATUS·AI_USAGE·이 인수인계 항목이다. 로컬 CI 연결·기존 YAML 참조 회귀·샤드/집계 2/2·YAML/문법/명령 보존 PASS; 실제 GitHub 약 5~6분 예상은 미측정, actionlint 미설치. 다음 로컬 확인은 `bash tests/ci/ci_wiring_test.sh`와 `node --test tests/ci/parallel_jobs.test.mjs`; 상세는 [TEST_STATUS](TEST_STATUS.md) 최상단. 사용자 지시로 Git add·commit·stash·merge·rebase·push와 원격 CI 실행은 하지 않았다.
