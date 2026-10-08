@@ -45,7 +45,6 @@ import { MerchantAccessError } from './merchant-access.js';
 import { MerchantProfileError } from './merchant-profile.js';
 import { isDetailViewSource } from './merchant-discovery.js';
 import { mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing } from './mint-request-service.js';
-import type { ReversalService } from './reversal.js';
 import type { PublishCoinPoolInput, PublishCoinSeriesInput } from './coin-economy.js';
 import { isMileageGrade } from './mileage-rules.js';
 import { RecommendationService } from './recommendation-service.js';
@@ -95,6 +94,7 @@ import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-bi
 import { developmentHeaderAccountResolver, type AccountResolver, type ApiDeps, type ExperienceServices, type ReauthenticationGuard } from './api-deps.js';
 import { createApiRuntime } from './api-runtime.js';
 import { renderClaimQr } from './http/claim-qr.js';
+import { matchReversalRoute, runReversalRoute } from './http/reversal-route.js';
 import { FixedWindowAuthLoginLimiter, type AuthLoginLimiter } from './http/login-limiter.js';
 import {
   MAX_BODY_BYTES, decodePathParameter, readConsentBody, readJson, requireEmptyBody,
@@ -111,6 +111,7 @@ import { RequestError } from './http/request-error.js';
 import { respondWithError } from './http/error-response.js';
 import { sendJson, setCommonHeaders } from './http/response.js';
 import type { RouteContext } from './routes/context.js';
+import { handleMerchantApp } from './routes/merchant-app.js';
 import { handlePublicAssets } from './routes/public-assets.js';
 import { handleShowcase } from './routes/showcase.js';
 import { handleWalletClaims } from './routes/wallet-claims.js';
@@ -153,7 +154,7 @@ export function realWorldAdminCheck(accountLifecycle: PostgresAccountLifecycle):
 
 export function createApiServer(deps: ApiDeps) {
   const {
-    baseAccountResolver, merchantCatalog, merchantAccess, claimSlots, collection, recommendations,
+    merchantCatalog, merchantAccess, claimSlots, collection, recommendations,
     authSessions, authLoginLimiter,
     webAuth, customerIdentities, admin, deletionIntake, staffRegistration, badges, friends,
     showcaseDeletionIntake, deletionProcessing, reversals, consent, collectibleProjects, mileageShop,
@@ -1603,159 +1604,7 @@ export function createApiServer(deps: ApiDeps) {
         return;
       }
 
-      if (
-        request.method === 'GET' &&
-        /^\/merchant\/merchants\/[^/]+\/context$/.test(request.url ?? '')
-      ) {
-        if (!merchantAccess) {
-          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        }
-        const accountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(request.url!.split('/')[3]!);
-        const grant = await merchantAccess.requirePermission({
-          accountId,
-          merchantId,
-          permission: 'VIEW_MERCHANT',
-        });
-        sendJson(response, 200, grant);
-        return;
-      }
-
-      if (
-        request.method === 'POST' &&
-        /^\/merchant\/merchants\/[^/]+\/claim-slots$/.test(request.url ?? '')
-      ) {
-        if (!merchantAccess) {
-          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        }
-        const accountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(request.url!.split('/')[3]!);
-        await merchantAccess.requirePermission({
-          accountId,
-          merchantId,
-          permission: 'CONFIRM_VISIT',
-        });
-        if (!claimSlots) {
-          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
-        }
-        const body = await readJson(request);
-        if ('customerIdentityToken' in body) {
-          if (body.useConfirmed !== true || 'customerAccountId' in body) throw new RequestError(400, 'INVALID_REQUEST');
-          const issued = await claimSlots.issue({ merchantId,
-            customerIdentityToken: requireString(body, 'customerIdentityToken'),
-            merchantReference: requireString(body, 'merchantReference'),
-            createdByAccountId: accountId });
-          sendJson(response, 'replayed' in issued ? 200 : 201, issued);
-        } else {
-          if ('useConfirmed' in body) throw new RequestError(400, 'INVALID_REQUEST');
-          if (baseAccountResolver !== developmentHeaderAccountResolver) throw new RequestError(403, 'CUSTOMER_IDENTITY_REQUIRED');
-          const issued = await claimSlots.issue({ merchantId,
-            customerAccountId: requireString(body, 'customerAccountId'),
-            merchantReference: requireString(body, 'merchantReference'),
-            createdByAccountId: accountId });
-          sendJson(response, 201, issued);
-        }
-        return;
-      }
-
-      const identityResolveMatch = request.url?.match(/^\/merchant\/merchants\/([^/]+)\/customer-identities\/resolve$/);
-      if (request.method === 'POST' && identityResolveMatch) {
-        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        if (!customerIdentities) throw new RequestError(503, 'CUSTOMER_IDENTITY_NOT_CONFIGURED');
-        const staffAccountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(identityResolveMatch[1]!);
-        await requireCustomerScan(staffAccountId, merchantId);
-        const body = await readJson(request);
-        sendJson(response, 200, await customerIdentities.resolve({
-          token: requireString(body, 'customerIdentityToken'), merchantId, staffAccountId,
-        }));
-        return;
-      }
-
-      const couponLookupMatch = request.url?.match(/^\/merchant\/merchants\/([^/]+)\/coupons\/lookup$/);
-      const couponRedeemMatch = request.url?.match(/^\/merchant\/merchants\/([^/]+)\/coupons\/([^/]+)\/redeem$/);
-      if (request.method === 'POST' && (couponLookupMatch || couponRedeemMatch)) {
-        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        if (!badges) throw new RequestError(503, 'BADGE_REWARDS_NOT_CONFIGURED');
-        const staffAccountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter((couponLookupMatch ?? couponRedeemMatch)![1]!);
-        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: 'REDEEM_COUPON' });
-        const customerIdentityToken = requireIdentityTokenBody(await readJson(request));
-        if (couponLookupMatch) {
-          sendJson(response, 200, await badges.lookupCoupons({
-            token: customerIdentityToken, merchantId, staffAccountId,
-          }));
-        } else {
-          sendJson(response, 200, await badges.redeemCoupon({
-            token: customerIdentityToken, merchantId, staffAccountId,
-            couponId: decodePathParameter(couponRedeemMatch![2]!),
-          }));
-        }
-        return;
-      }
-
-      const mobileReversal = matchReversalRoute(request.method, path, '/merchant/merchants/');
-      if (mobileReversal) {
-        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        if (!reversals) throw new RequestError(503, 'REVERSALS_NOT_CONFIGURED');
-        const staffAccountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(mobileReversal.merchantId);
-        await merchantAccess.requirePermission({ accountId: staffAccountId, merchantId, permission: mobileReversal.kind === 'recent-coupons' || mobileReversal.kind === 'undo-coupon' ? 'REDEEM_COUPON' : 'CONFIRM_VISIT' });
-        sendJson(response, 200, await runReversalRoute(reversals, mobileReversal, merchantId, staffAccountId, request));
-        return;
-      }
-
-      // 모바일 점주 현황(#341): 시연 점포도 활성 멤버십과 방문 확인 권한으로 조회한다.
-      const mobileOverview = path.match(/^\/merchant\/merchants\/([^/]+)\/overview$/);
-      if (mobileOverview && request.method === 'GET') {
-        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        if (!merchantOverview) throw new RequestError(503, 'MERCHANT_OVERVIEW_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(mobileOverview[1]!);
-        await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
-        sendJson(response, 200, await merchantOverview.overview({ merchantId }));
-        return;
-      }
-
-      // 모바일 손님 의견 요약은 웹과 같은 응답을 쓰되 실제 점포 전용 목록으로 제한하지 않는다.
-      const mobileVisitorFeedback = path.match(/^\/merchant\/merchants\/([^/]+)\/visitor-feedback$/);
-      if (mobileVisitorFeedback && request.method === 'GET') {
-        if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        if (!visitorFeedback) throw new RequestError(503, 'VISITOR_FEEDBACK_NOT_CONFIGURED');
-        const accountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(mobileVisitorFeedback[1]!);
-        await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' });
-        sendJson(response, 200, await visitorFeedback.merchantSummary(merchantId));
-        return;
-      }
-
-      const reissueMatch = request.url?.match(
-        /^\/merchant\/merchants\/([^/]+)\/claim-slots\/([^/]+)\/reissue$/,
-      );
-      if (request.method === 'POST' && reissueMatch) {
-        if (!merchantAccess) {
-          throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
-        }
-        if (!claimSlots) {
-          throw new RequestError(503, 'CLAIM_SLOT_SERVICE_NOT_CONFIGURED');
-        }
-        const accountId = await resolveAccountId(request);
-        const merchantId = decodePathParameter(reissueMatch[1]!);
-        await merchantAccess.requirePermission({
-          accountId,
-          merchantId,
-          permission: 'CONFIRM_VISIT',
-        });
-        const body = await readJson(request);
-        const issued = await claimSlots.reissue({
-          merchantId,
-          claimSlotId: decodePathParameter(reissueMatch[2]!),
-          expectedTokenVersion: requirePositiveInteger(body, 'expectedTokenVersion'),
-          requestedByAccountId: accountId,
-        });
-        sendJson(response, 200, issued);
-        return;
-      }
+      if (await handleMerchantApp(routeContext)) return;
 
       if (await handleWalletClaims(routeContext)) return;
 
@@ -1817,55 +1666,6 @@ async function runCollectibleProjectRoute(
   else if (route.kind === 'unpublish') sendJson(response, 200, await projects.unpublish({ ...input, projectId, expectedVersion }));
   else if (route.kind === 'delete') sendJson(response, 200, await projects.remove({ ...input, projectId, expectedVersion }));
   else sendJson(response, 200, await projects.publish({ ...input, projectId, expectedVersion, campaignId: requireString(body, 'campaignId') }));
-}
-
-type ReversalRoute =
-  | { kind: 'recent-visits' | 'recent-coupons'; merchantId: string }
-  | { kind: 'cancel-visit'; merchantId: string; visitId: string }
-  | { kind: 'undo-coupon'; merchantId: string; couponId: string };
-
-// 방문 취소·쿠폰 사용 되돌리기 경로표(앱과 점주 웹이 접두사만 다르다). 알 수 없는 경로·메서드는 undefined라 다른 경로처럼 처리된다.
-// ID는 아직 디코딩하지 않은 값이고 권한을 확인한 뒤에 디코딩한다.
-function matchReversalRoute(method: string | undefined, path: string, prefix: string): ReversalRoute | undefined {
-  if (!path.startsWith(prefix)) return undefined;
-  const parts = path.slice(prefix.length).split('/');
-  const [merchantId, first, second, third] = parts;
-  if (!merchantId) return undefined;
-  if (parts.length === 2 && method === 'GET') {
-    if (first === 'recent-visits') return { kind: 'recent-visits', merchantId };
-    if (first === 'recent-coupon-redemptions') return { kind: 'recent-coupons', merchantId };
-  }
-  if (parts.length === 4 && method === 'POST' && second) {
-    if (first === 'visits' && third === 'cancel') return { kind: 'cancel-visit', merchantId, visitId: second };
-    if (first === 'coupons' && third === 'undo-redeem') return { kind: 'undo-coupon', merchantId, couponId: second };
-  }
-  return undefined;
-}
-
-async function runReversalRoute(
-  reversals: ReversalService,
-  route: ReversalRoute,
-  merchantId: string,
-  staffAccountId: string,
-  request: IncomingMessage,
-): Promise<object> {
-  switch (route.kind) {
-    case 'recent-visits':
-      return reversals.listRecentVisits({ merchantId, staffAccountId });
-    case 'recent-coupons':
-      return reversals.listRecentCouponRedemptions({ merchantId, staffAccountId });
-    case 'cancel-visit': {
-      const body = await readJson(request);
-      if (Object.keys(body).some(key => key !== 'reason' && key !== 'note')) throw new RequestError(400, 'INVALID_REQUEST');
-      return reversals.cancelVisit({
-        merchantId, staffAccountId, visitEventId: decodePathParameter(route.visitId),
-        reason: body.reason, note: body.note,
-      });
-    }
-    case 'undo-coupon':
-      requireEmptyBody(await readJson(request, true));
-      return reversals.undoCouponRedemption({ merchantId, staffAccountId, couponId: decodePathParameter(route.couponId) });
-  }
 }
 
 const maxSessionTtlMs = 365 * 24 * 60 * 60 * 1000;
