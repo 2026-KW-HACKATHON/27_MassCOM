@@ -144,7 +144,13 @@ function adminPage({ routes = {} } = {}) {
   const ids = ['admin-status', 'admin-login', 'admin-content', 'admin-merchants', 'admin-create', 'admin-logout',
     'admin-offer-form', 'admin-offers', 'admin-campaign-draft', 'admin-campaign-drafts', 'admin-campaigns'];
   const nodes = Object.fromEntries(ids.map(id => [id, { ...element(), hidden: true }]));
-  const purposeNodes = ['NEW_CUSTOMERS REVISIT OFF_PEAK', 'REVISIT', 'OFF_PEAK'].map(purposeFor => ({ ...element(), hidden: true, dataset: { purposeFor } }));
+  const purposeNodes = ['NEW_CUSTOMERS REVISIT OFF_PEAK', 'REVISIT', 'OFF_PEAK'].map((purposeFor, index) => {
+    const names = [['purposeMenu'], ['revisitMinDays', 'revisitWindowDays', 'nextStepText'],
+      [1, 2, 3].flatMap(index => [`window${index}Days`, `window${index}Start`, `window${index}End`])][index];
+    const controls = names.map(name => ({ ...element(), name, disabled: false }));
+    return { ...element(), hidden: true, dataset: { purposeFor }, controls,
+      querySelectorAll(selector) { assert.equal(selector, 'input, select, textarea'); return controls; } };
+  });
   const offerSelect = element();
   const offerButton = element();
   nodes['admin-offer-form'].querySelector = selector => selector.startsWith('select') ? offerSelect : offerButton;
@@ -159,7 +165,14 @@ function adminPage({ routes = {} } = {}) {
   const merchant = { id: 'real-1', name: '월계 김밥', story: '', roadAddress: '서울', minimumSpendWon: 0, menuItems: [],
     businessHours: '', status: 'PAUSED', demo: false, version: 1, consentDocumentRef: null, publishedAt: null };
   const doc = { getElementById(id) { return nodes[id]; }, createElement: element,
-    defaultView: { confirm: () => true, addEventListener() {}, FormData: class { constructor(source) { return source.values ?? new Map(); } } } };
+    defaultView: { confirm: () => true, addEventListener() {}, FormData: class {
+      constructor(source) {
+        const values = source.values ?? new Map();
+        const disabledNames = purposeNodes.flatMap(node => node.controls.filter(control => control.disabled).map(control => control.name));
+        return { get: name => disabledNames.includes(name) ? null : values.get(name),
+          getAll: name => disabledNames.includes(name) ? [] : values.getAll?.(name) ?? [] };
+      }
+    } } };
   const json = value => ({ ok: true, json: async () => value });
   const fetcher = async (path, options = {}) => {
     const method = options.method ?? 'GET';
@@ -201,6 +214,38 @@ test('choosing a purpose shows only its own fields, and saving sends it and rese
   assert.deepEqual(post.body.purpose, { purpose: 'OFF_PEAK', timeWindows: [{ days: [1, 2], start: '14:00', end: '17:00' }] });
   assert.equal(page.form.elements.purpose.value, '');
   assert.deepEqual(visible(), [false, false, false]);
+});
+
+test('hidden purpose controls are disabled, retain values, and never reach the submitted payload', async () => {
+  const page = adminPage();
+  await bindAdmin(page.fetcher, page.doc);
+  const revisitMinDays = page.purposeNodes[1].controls[0];
+  revisitMinDays.value = '0';
+  const staleFields = { revisitMinDays: '0', revisitWindowDays: '14', nextStepText: '다시 와 주세요',
+    window1Days: ['1'], window1Start: '14:00', window1End: '17:00' };
+  const assertControls = () => {
+    for (const section of page.purposeNodes) {
+      for (const control of section.controls) assert.equal(control.disabled, section.hidden, control.name);
+    }
+    assert.equal(revisitMinDays.value, '0');
+  };
+  assertControls();
+  for (const kind of ['REVISIT', 'NEW_CUSTOMERS', '', 'OFF_PEAK', 'REVISIT']) {
+    page.form.elements.purpose.value = kind;
+    await page.form.fire('change', { target: { name: 'purpose' } });
+    assertControls();
+  }
+  for (const kind of ['NEW_CUSTOMERS', '']) {
+    page.form.elements.purpose.value = kind;
+    await page.form.fire('change', { target: { name: 'purpose' } });
+    assertControls();
+    page.form.values = form({ ...staleFields, purpose: kind, purposeMenu: '김밥' });
+    await page.form.submit();
+    const posts = page.calls.filter(call => call.method === 'POST' && call.path === '/api/web/admin/campaign-drafts');
+    assert.equal(posts.length, kind ? 1 : 2);
+    assert.deepEqual(posts.at(-1).body, campaignDraftPayload(form(kind ? { purpose: kind, purposeMenu: '김밥' } : {})));
+    assertControls();
+  }
 });
 
 test('binding the admin page shows the fields of a purpose the browser already restored in the form', async () => {
@@ -245,11 +290,11 @@ test('drafts and published campaigns show their purpose in the admin lists', asy
 
 test('the merchant web staff screen explains a code made outside the campaign window and says the visit still counts', () => {
   const source = readFileSync(new URL('../../apps/production-web/assets/merchant.mjs', import.meta.url), 'utf8');
-  assert.match(source, /const outsideWindowStaffNote = '이 코드를 만든 시각은 캠페인 시간대 밖이에요\(방문은 인정돼요\)';/);
+  assert.match(source, /const outsideWindowStaffNote = '방문 확인 시점 기준으로 점주가 정한 캠페인 시간대 밖이에요\. 방문과 수집품은 그대로 인정돼요\.';/);
   // 혜택은 뒤 PR에서 생기므로 점원 안내도 혜택을 말하지 않는다.
   assert.doesNotMatch(/const outsideWindowStaffNote = '[^']*'/.exec(source)[0], /혜택/);
   assert.match(source, /issued\.windowStatus === 'OUTSIDE_WINDOW' \? ` · \$\{outsideWindowStaffNote\}` : ''/);
   const mobile = readFileSync(new URL('../../apps/mobile/src/commerce/benefit-window.ts', import.meta.url), 'utf8');
   // 웹과 모바일 점원 화면의 안내 문구는 같은 문장이다.
-  assert.ok(mobile.includes("'이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)'"));
+  assert.ok(mobile.includes("'방문 확인 시점 기준으로 점주가 정한 캠페인 시간대 밖이에요. 방문과 수집품은 그대로 인정돼요.'"));
 });

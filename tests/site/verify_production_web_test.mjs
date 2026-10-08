@@ -1129,7 +1129,7 @@ test('점포 웹은 캠페인 시간대 밖에서 만든 방문 코드에만 안
     await nodes['merchant-claim-form'].submit();
     return nodes['merchant-claim-result'].textContent;
   };
-  const note = '이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)';
+  const note = '방문 확인 시점 기준으로 점주가 정한 캠페인 시간대 밖이에요. 방문과 수집품은 그대로 인정돼요.';
   const outside = await issueWith({ windowStatus: 'OUTSIDE_WINDOW' });
   assert.match(outside, /방문 코드: window-claim-token/);
   assert.ok(outside.endsWith(` · ${note}`), outside);

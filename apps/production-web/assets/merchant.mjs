@@ -3,8 +3,8 @@ import { campaignEndingNotice } from './commercial-operation.mjs';
 import { profileReadOnlyReason, serializeMerchantProfile } from './merchant-profile.mjs';
 import { mountRealWorldMerchant } from './real-world-merchant.mjs';
 
-// 점주 목적형 캠페인(#412): 시간대 밖에서 만든 방문 코드에 붙는 점원 안내. 모바일 점원 화면과 같은 문구다. 혜택은 뒤 PR에서 생기므로 말하지 않는다.
-const outsideWindowStaffNote = '이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)';
+// 점주 목적형 캠페인(#412): 서버가 시간대 밖으로 판정한 방문 코드에 붙는 점원 안내. 모바일 점원 화면과 같은 문구다. 혜택은 뒤 PR에서 생기므로 말하지 않는다.
+const outsideWindowStaffNote = '방문 확인 시점 기준으로 점주가 정한 캠페인 시간대 밖이에요. 방문과 수집품은 그대로 인정돼요.';
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
@@ -673,7 +673,7 @@ export function bindMerchant(fetcher, doc) {
     reissue.hidden = false;
   };
   const showToken = issued => {
-    // 점주 목적형 캠페인의 시간대 조건(#412): 코드를 만든 시각이 시간대 밖이면 알려 준다. 방문 인정과는 무관하다.
+    // 점주 목적형 캠페인의 시간대 조건(#412): 서버가 시간대 밖으로 판정하면 알려 준다. 방문 인정과는 무관하다.
     const windowNote = issued.windowStatus === 'OUTSIDE_WINDOW' ? ` · ${outsideWindowStaffNote}` : '';
     claimResult.textContent = `방문 코드: ${issued.token} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}${
       issued.qrRenderFailed || !issued.qrSvgDataUrl ? ' · QR 그림을 만들지 못했습니다. 방문 코드를 고객 앱에 직접 입력해 주세요.' : ''}${windowNote}`;

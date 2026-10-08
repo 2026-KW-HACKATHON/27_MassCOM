@@ -6,7 +6,7 @@ import { progressNote } from './progress-note';
 import { customerBenefitNote, outsideWindowCustomerNote, outsideWindowStaffNote, staffWindowNote } from './benefit-window';
 
 test('the staff note appears only for a code issued outside the benefit window and says the visit still counts', () => {
-  assert.equal(outsideWindowStaffNote, '이 코드를 만든 시각은 캠페인 시간대 밖이에요(방문은 인정돼요)');
+  assert.equal(outsideWindowStaffNote, '방문 확인 시점 기준으로 점주가 정한 캠페인 시간대 밖이에요. 방문과 수집품은 그대로 인정돼요.');
   // 혜택은 뒤 PR에서 생기므로 아직 혜택을 말하지 않는다.
   assert.doesNotMatch(outsideWindowStaffNote, /혜택/);
   assert.equal(staffWindowNote({ windowStatus: 'OUTSIDE_WINDOW' }), outsideWindowStaffNote);

@@ -455,6 +455,7 @@ function syncPurposeFields(form) {
   const kind = String(form?.elements?.purpose?.value ?? '');
   for (const node of form?.querySelectorAll?.('[data-purpose-for]') ?? []) {
     node.hidden = !String(node.dataset?.purposeFor ?? node.getAttribute?.('data-purpose-for') ?? '').split(' ').includes(kind);
+    for (const control of node.querySelectorAll('input, select, textarea')) control.disabled = node.hidden;
   }
 }
 
