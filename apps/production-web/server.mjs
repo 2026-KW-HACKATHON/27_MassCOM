@@ -31,7 +31,7 @@ for (const prefix of ['/assets/', '/app/assets/', '/admin/assets/', '/merchant/a
   files.set(`${prefix}real-world-merchant.mjs`, ['assets/real-world-merchant.mjs', 'text/javascript; charset=utf-8']);
   files.set(`${prefix}real-world-merchant.css`, ['assets/real-world-merchant.css', 'text/css; charset=utf-8']);
 }
-for (const file of ['collectible-model.mjs', 'collectible-back-assets.mjs', 'collectible-errors.mjs', 'collectible-assist.mjs', 'collectible-editor.mjs', 'collectible-studio.mjs', 'collectible-waveform.mjs', 'collectible-renderer.mjs', 'collectible-viewer.mjs', 'collectible-editor.css', 'collectible-viewer.css']) {
+for (const file of ['collectible-model.mjs', 'collectible-back-assets.mjs', 'collectible-edge.mjs', 'collectible-aura.mjs', 'collectible-errors.mjs', 'collectible-assist.mjs', 'collectible-editor.mjs', 'collectible-studio.mjs', 'collectible-waveform.mjs', 'collectible-viewer.mjs', 'collectible-renderer.mjs', 'collectible-editor.css', 'collectible-viewer.css']) {
   const mime = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
   for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) files.set(`${prefix}${file}`, [`assets/${file}`, mime]);
 }

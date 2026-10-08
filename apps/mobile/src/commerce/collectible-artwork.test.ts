@@ -91,6 +91,32 @@ test('회전 속도는 .25~3배의 유효한 값만 보존하며 기존 등급 �
   }
 });
 
+test('게시 효과는 보존하고 불꽃 오라의 선택 속도는 기존 필드 없이도 호환된다', () => {
+  const flame = { type: 'flame', target: 'aura', strength: 70, color: '#5dd8ff', roughness: 0 };
+  const material = { type: 'hologram', target: 'surface', strength: 50, color: '#ffffff', roughness: 10 };
+  const effects = [material, flame];
+  assert.deepEqual(parsePublishedCollectible({ ...detail, effects }), { ...detail, effects });
+  assert.equal('speed' in parsePublishedCollectible({ ...detail, effects })!.effects![1]!, false);
+  for (const speed of [.25, 1, 1.5, 3]) {
+    const effects = [{ ...flame, speed }];
+    assert.deepEqual(parsePublishedCollectible({ ...detail, effects }), { ...detail, effects });
+  }
+  assert.deepEqual(parsePublishedCollectible({ ...detail, effects: [] }), { ...detail, effects: [] });
+  assert.equal('effects' in parsePublishedCollectible(detail)!, false);
+});
+
+test('잘못된 오라 metadata는 효과만 버리고 기존 사진과 모션 상세는 보존한다', () => {
+  const flame = { type: 'flame', target: 'aura', strength: 70, color: '#5dd8ff', roughness: 0 };
+  const invalid = [
+    { ...flame, target: 'photo' }, { ...flame, type: 'glow' }, { ...flame, type: 'unknown' },
+    { ...flame, strength: 101 }, { ...flame, color: 'url(https://example.test/)' },
+    ...[0, .249, 3.001, Infinity, NaN, '1', null].map(speed => ({ ...flame, speed })),
+  ];
+  for (const effect of invalid) {
+    assert.deepEqual(parsePublishedCollectible({ ...detail, ...v2Extras, effects: [effect] }), { ...detail, ...v2Extras });
+  }
+});
+
 test('잘못된 새 필드 하나는 그 필드만 버리고 상세 전체는 거절하지 않는다', () => {
   const jpeg = png.replace('image/png', 'image/jpeg');
   for (const bad of [jpeg, 'https://example.test/back.png', 123]) {

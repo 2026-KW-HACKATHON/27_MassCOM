@@ -1,0 +1,96 @@
+{
+  "version": 6,
+  "published": true,
+  "projectBytes": 2347463,
+  "stickers": 0,
+  "style": "raised",
+  "rotationSpeed": 2,
+  "effects": [
+    {
+      "id": "effect-821d53db-692e-4423-8c29-7c674c7b572a",
+      "type": "matte",
+      "target": "surface",
+      "gradeIds": [
+        "bronze"
+      ],
+      "strength": 55,
+      "color": "#ac7044",
+      "roughness": 25
+    },
+    {
+      "id": "effect-41c51b47-5e6c-4e74-906b-ff1420240c43",
+      "type": "pearl",
+      "target": "surface",
+      "gradeIds": [
+        "silver"
+      ],
+      "strength": 55,
+      "color": "#dceaf1",
+      "roughness": 25
+    },
+    {
+      "id": "effect-e0e3b599-bb0f-4304-b040-f24cef7198e1",
+      "type": "metallic",
+      "target": "border",
+      "gradeIds": [
+        "gold"
+      ],
+      "strength": 55,
+      "color": "#f4c957",
+      "roughness": 25
+    },
+    {
+      "id": "effect-a16e6aae-ebb4-4a0d-a2e8-33786b5d56dc",
+      "type": "hologram",
+      "target": "surface",
+      "gradeIds": [
+        "prism"
+      ],
+      "strength": 70,
+      "color": "#8B5CF6",
+      "roughness": 25
+    },
+    {
+      "id": "effect-70b59a9c-0949-4373-ba34-d868895b5465",
+      "type": "flame",
+      "target": "aura",
+      "gradeIds": [
+        "prism"
+      ],
+      "strength": 100,
+      "color": "#ff974d",
+      "roughness": 25,
+      "speed": 1
+    }
+  ],
+  "grades": [
+    {
+      "grade": "bronze",
+      "frameBytes": 524354,
+      "effectMaskTargets": [
+        "surface"
+      ]
+    },
+    {
+      "grade": "silver",
+      "frameBytes": 443270,
+      "effectMaskTargets": [
+        "surface"
+      ]
+    },
+    {
+      "grade": "gold",
+      "frameBytes": 580485,
+      "effectMaskTargets": [
+        "border"
+      ]
+    },
+    {
+      "grade": "prism",
+      "frameBytes": 635522,
+      "effectMaskTargets": [
+        "surface"
+      ]
+    }
+  ]
+}

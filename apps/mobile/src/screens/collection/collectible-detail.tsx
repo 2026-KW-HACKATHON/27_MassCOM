@@ -18,9 +18,11 @@ import { StateScene } from '@/ui/state-scene';
 
 import { CollectibleDefaultBack, CollectibleFaceOutline, CollectibleFaceShape, collectibleGradeColors, collectibleWebClipPath } from './collectible-default-back';
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
+import { CollectibleAuraLayer } from './collectible-aura-layer';
+import { CollectibleEdgeLayer } from './collectible-edge-layer';
 import type { CollectibleDetailInput, LegacyCollectibleDetail } from './legacy-collectible-detail';
 import {
-  angleFrameWebMask, angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
+  angleFrameWebMask, angleFrameBlend, angleFrameOpacities, collectibleFace, collectibleEdgeOffset, collectibleMotionFrame, collectibleRotationAngle, firstLoopMotion, livingCell, motionEntrySequence, motionSequenceEnd,
   onceMotions, ONCE_MS, particleAt,
 } from './collectible-motion';
 import { TiltSensor } from './collectible-tilt';
@@ -247,6 +249,9 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
   const lightClipId = `collectible-light-outline-${useId().replace(/:/g, '')}`;
   const materialActive = moving && !scene && cardVisible;
   const materialClock = useGradeMaterialClock(materialActive);
+  const auraActive = Boolean(snapshot.effects?.some(effect => effect.type === 'flame' && effect.target === 'aura' && effect.strength > 0))
+    && playing && moving && !dragging && !scene && cardVisible;
+  const auraClock = useGradeMaterialClock(auraActive);
   const materialAngle = useSharedValue(snapshot.angle);
   const dragLight = useSharedValue({ x: 0, y: 0 });
   const gravityLight = useSharedValue({ x: 0, y: 0 });
@@ -316,12 +321,11 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
       }
       if (playing && !dragging) {
         setAnimationTime(elapsed);
-        if (activeAnimation === 'rotate') {
-          angleRef.current = ((startAngle + collectibleMotionFrame('rotate', elapsed, 0, snapshot.rotationSpeed).rotation + 180) % 360) - 180;
-          setAngle(angleRef.current);
-          setDraftAngle(angleRef.current);
-          gesture.current.angle = angleRef.current;
-        }
+        // 선택한 떠오름·빛·입자 동작 위에 회전을 함께 재생한다.
+        angleRef.current = collectibleRotationAngle(startAngle, elapsed, snapshot.rotationSpeed);
+        setAngle(angleRef.current);
+        setDraftAngle(angleRef.current);
+        gesture.current.angle = angleRef.current;
       }
     }, 60);
     return () => clearInterval(timer);
@@ -462,24 +466,24 @@ function DetailBody({ snapshot, merchantId, merchantName, intro = false, onClose
         ) : (
           <GestureDetector gesture={materialGesture}>
           <View style={{ width: size, height: size, transform: [{ translateY: animationFrame.lift }, { scale: animationFrame.scale }] }} accessible accessibilityLabel={`${reverse ? '뒷면' : '앞면'} ${snapshot.name}, ${snapshot.gradeName} ${shapeName(snapshot.shape)}, 두께 ${snapshot.thickness}, 각도 ${Math.round(angle)}도`}>
-            {[1, .8, .6, .4, .2].map((fraction) => <View key={fraction} pointerEvents="none" accessible={false}
-              style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09 + depth * fraction, transform: [{ scaleX }] }}>
-              <CollectibleFaceShape shape={snapshot.shape} size={displayFace} fill={gradeColors.shade} />
-            </View>)}
+            <CollectibleAuraLayer effects={snapshot.effects} shape={snapshot.shape} size={size} faceSize={displayFace}
+              horizontal={scaleX} angle={materialAngle} clock={auraClock} />
+            <CollectibleEdgeLayer shape={snapshot.shape} size={displayFace} horizontal={scaleX} depth={depth}
+              left={size * .09} top={size * .09} material={material} shade={gradeColors.shade} />
             {reverse ? (
               snapshot.backImageDataUrl ? (
                 <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
                 <CollectibleFaceShape shape={snapshot.shape} size={displayFace} fill={gradeColors.container} />
                 <FaceImage uri={snapshot.backImageDataUrl} shape={snapshot.shape} size={displayFace} />
                 <GradeMaterialLayer material={material} size={displayFace} shape={snapshot.shape}
-                  tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} />
+                  tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} showGlints />
                 </View>
               ) : (
                 <View style={{ position: 'absolute', width: displayFace, height: displayFace, top: size * .09, left: size * .09, transform: [{ scaleX }] }}>
                   <CollectibleDefaultBack shape={snapshot.shape} size={displayFace} merchantName={merchantName}
                     name={snapshot.name} gradeId={snapshot.gradeId} gradeName={snapshot.gradeName} />
                   <GradeMaterialLayer material={material} size={displayFace} shape={snapshot.shape}
-                    tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} intensityScale={.45} />
+                    tilt={materialTilt} clock={materialClock} variant="detail" active={materialActive} intensityScale={.45} showGlints />
                 </View>
               )
             ) : (

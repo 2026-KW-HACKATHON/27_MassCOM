@@ -70,8 +70,9 @@ test('상세 화면의 수집품 면 접근성 이름에 앞면·뒷면과 수�
 
 test('상세 화면은 각도별 모서리 이동과 등급별 어두운 색을 사용한다', () => {
   assert.match(detail, /collectibleEdgeOffset\(angle,/);
-  assert.match(detail, /left:\s*size\s*\*\s*\.09\s*\+\s*depth\s*\*\s*fraction/);
-  assert.match(detail, /<CollectibleFaceShape\s+shape=\{snapshot\.shape\}[^>]*fill=\{gradeColors\.shade\}/);
+  assert.match(detail, /<CollectibleEdgeLayer shape=\{snapshot\.shape\} size=\{displayFace\} horizontal=\{scaleX\} depth=\{depth\}/);
+  assert.match(detail, /left=\{size \* \.09\} top=\{size \* \.09\} material=\{material\} shade=\{gradeColors\.shade\}/);
+  assert.doesNotMatch(detail, /depth \* fraction/);
 });
 
 test('기본 뒷면은 모양·등급별 고정 로컬 이미지만 사용한다', () => {
@@ -113,6 +114,8 @@ test('앞면·사용자 뒷면·기본 뒷면은 회전 부모 안에서 같은 
   assert.match(detail, /<GradeMaterialLayer material=\{material\} size=\{displayFace\} shape=\{snapshot\.shape\}/);
   assert.match(detail, /clipPath: collectibleWebClipPath\(snapshot\.shape\)/);
   assert.match(detail, /intensityScale=\{animationFrame\.light \? \.9 : 1\}/);
+  assert.equal((detail.match(/showGlints/g) ?? []).length, 2, '고정 뒷면과 사용자 뒷면에만 별빛을 켠다');
+  assert.match(detail, /materialAngle\.set\(dragging \? draftAngle : angle\)/);
   // 상세는 Modal 안이라 제스처 루트를 다시 둬야 한다(#358: 없으면 개발 빌드는 렌더 오류, 릴리스는 재질·끌기가 빠진다).
   assert.match(detail, /<GestureHandlerRootView style=\{\{ flex: 1 \}\}>\s*<ScrollView/);
 });

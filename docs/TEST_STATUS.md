@@ -1,5 +1,17 @@
 # 테스트 상태
 
+## 2026-10-09 새 점주 제작기 PR 준비 (회전·움직임 분리, 오라, reeded edge)
+
+브랜치 `feat/collectible-reeded-edge`의 새 PR용 후속이다. PR #418을 직접 갱신하지 않고 `feat/merchant-dual-studio` 위에 쌓는 범위로 기록한다. 구현 범위는 3단계 표현 스타일 상단 배치, 회전/움직임 분리 탭, 단일 재생/정지 버튼, 편집 확대100~300%, 붓 경도0~100, 신규 기본 스티커 자동 삽입 제거, 새 점포 추천 motif·메뉴 문구 스티커 생성 제거, 재질 즉시 적용·강도 no-op, 실버 림 등급 금속색 gradient, 오라 `flame` metadata, 후면 실시간 조명·glint, 모양별 reeded edge다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 웹 제작기 레이아웃·상호작용 | PASS / 재확인 대기 | `collectible-studio-layout.test.mjs` focused 147/147 PASS. 회전 기본 탭, 움직임 별도 탭, 표현 스타일 순서, 오라 탭, 확대·붓 경도, 기본 스티커 자동 삽입 제거를 포함한다. 루트의 최종 전체 웹 회귀는 다시 확인한다. |
+| 웹 렌더러·효과 순수 로직 | TBD | 오라 strength/speed, 재질 강도0 no-op, 고정 후면 조명·프리즘 glint, reeded edge 픽셀 검사는 이번 PR의 새/갱신 시험 대상이다. 최종 PASS 수는 아직 확정하지 않는다. |
+| API·Android 계약 | PASS / 재확인 대기 | focused API 47/47, native 관련 76/76, 양쪽 typecheck와 native 관련 lint PASS. 루트의 최종 fresh 검증과 PostgreSQL CI는 아직 대기다. Android 실기 재생은 이 문서에서 완료로 세지 않는다. |
+| 실제 브라우저 캡처 | TBD | PR 설명에 첨부할 화면 증거는 별도로 생성한다. 합성 fixture와 실제 운영 계정·운영 배포를 구분한다. |
+| 성능·운영 배포·실기기 | NOT_RUN / 미확정 | 렌더 성능 개선은 진행 중이라 수치를 확정하지 않는다. 새 PR은 코드·문서·로컬 QA 전달 범위다. 운영 서버 배포, 실제 점주 승인 계정 게시, Android 실기 설치·재생은 아직 실행하지 않았다. |
+
 ## 2026-10-08 제작 순서·두께48·재생 속도 (PR #418)
 
 PASS: 웹 수집품 회귀290/290, 최신 뒷면 정지 드래그 방어 회귀1/1, 저장본·fixture 비교7/7, API 관련45/45, 모바일 관련60/60, API·앱 typecheck와 변경 앱 파일 ESLint. 읽기 전용 독립 리뷰에서 뒷면 정지 중 앞면 스티커 드래그 허용 결함을 고친 뒤 APPROVE·차단 지적0. 브라우저는 격리 합성 점주 fixture에서 실제 재생·속도2배·정지·두께48과 게시본 저장/획득 상세 재읽기를 검수했다. 이름·시즌1단계, 애니메이션3단계 기본 열림, 결과4단계 단순화·빈 이름/시즌 안내·녹음 단계 회귀도 PASS. 실제 PostgreSQL의 두께48·속도2 게시→획득 왕복 assertion은 기존 통합 시험에 추가했으며 최신 CI에서 별도로 확인한다. Android 실기·운영 배포는 NOT_RUN. [근거·재현](evidence/rotation-playback-2026-10-08/README.md).

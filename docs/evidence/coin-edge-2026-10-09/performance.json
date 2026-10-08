@@ -1,0 +1,59 @@
+{
+  "scenario": "최대두께48·톱니·양각80·프리즘·불꽃65·72각도5도 간격",
+  "samples": [
+    {
+      "textureSize": 640,
+      "outputSize": 512,
+      "frames": 72,
+      "medianMs": 88.5,
+      "p95Ms": 103,
+      "maxMs": 133.6,
+      "over50Ms": 72
+    },
+    {
+      "textureSize": 256,
+      "outputSize": 512,
+      "frames": 72,
+      "medianMs": 56.3,
+      "p95Ms": 106.1,
+      "maxMs": 118.3,
+      "over50Ms": 71
+    },
+    {
+      "textureSize": 256,
+      "outputSize": 256,
+      "frames": 72,
+      "medianMs": 63.6,
+      "p95Ms": 90.3,
+      "maxMs": 108.8,
+      "over50Ms": 72
+    }
+  ],
+  "canvasProfile": {
+    "clip": {
+      "calls": 750,
+      "ms": 19.90000006556511
+    },
+    "drawImage": {
+      "calls": 1938,
+      "ms": 79.49999988079071
+    },
+    "getImageData": {
+      "calls": 216,
+      "ms": 3483.799999922514
+    },
+    "putImageData": {
+      "calls": 216,
+      "ms": 11.999999970197678
+    },
+    "stroke": {
+      "calls": 28940,
+      "ms": 16.40000009536743
+    },
+    "fill": {
+      "calls": 1074,
+      "ms": 2.4000000059604645
+    }
+  },
+  "limitation": "로컬 브라우저 합성 QA 단일 실행. GPU·기기별 FPS 보장 아님. 최악의 각도별 사진 재계산은 여전히 50ms를 넘음."
+}

@@ -149,6 +149,7 @@ const recordingCanvasDom = () => {
         if (key in target) return target[key];
         if (key === 'drawImage') return (...args) => { draws.push(args); calls.push(['drawImage', args]); };
         if (key === 'translate') return (...args) => { calls.push(['translate', args]); };
+        if (key === 'moveTo' || key === 'lineTo') return (...args) => { calls.push([key, args]); };
         if (key === 'getImageData' || key === 'createImageData') return (x, y, width = element.width, height = element.height) => ({ data: new Uint8ClampedArray(width * height * 4), width, height });
         if (key === 'createLinearGradient' || key === 'createRadialGradient' || key === 'createPattern') return () => ({ addColorStop() {} });
         if (key === 'measureText') return () => ({ width: 10 });
@@ -186,14 +187,13 @@ test('web volume side slices offset to opposite sides for positive and negative 
     canvas.width = canvas.height = 208;
     await renderPublishedCollectible(canvas, snapshot, { angle: 35 });
     const positiveOffsets = dom.calls.filter(([method, args]) => method === 'translate' && args[1] === 0).map(([, args]) => args[0]);
-    assert.ok(Math.max(...positiveOffsets) > 0 && Math.min(...positiveOffsets) < 0, `positive angle should draw depth slices around the face: ${positiveOffsets.join(',')}`);
     assert.ok(positiveOffsets.at(-1) < 0, `positive angle face offset should be negative: ${positiveOffsets.at(-1)}`);
+    assert.ok(dom.calls.filter(([method]) => method === 'lineTo' || method === 'moveTo').length > 40, 'positive angle should still draw a swept side outline');
 
     dom.calls.length = 0;
     await renderPublishedCollectible(canvas, snapshot, { angle: -35 });
     const negativeOffsets = dom.calls.filter(([method, args]) => method === 'translate' && args[1] === 0).map(([, args]) => args[0]);
-    assert.ok(Math.max(...negativeOffsets) > 0 && Math.min(...negativeOffsets) < 0, `negative angle should keep the same absolute slice span: ${negativeOffsets.join(',')}`);
     assert.ok(negativeOffsets.at(-1) > 0, `negative angle face offset should be positive: ${negativeOffsets.at(-1)}`);
-    assert.equal(Math.ceil(Math.max(...positiveOffsets) - Math.min(...positiveOffsets)), Math.ceil(Math.max(...negativeOffsets) - Math.min(...negativeOffsets)), 'positive and negative angles should keep the same absolute depth span');
+    assert.ok(dom.calls.filter(([method]) => method === 'lineTo' || method === 'moveTo').length > 40, 'negative angle should still draw a swept side outline');
   } finally { dom.restore(); }
 });

@@ -538,14 +538,18 @@ test('a v1-shaped publication detail row (written before the v2 schema) is retur
   assert.equal('motions' in detail, false); assert.equal('backImageDataUrl' in detail, false);
 });
 
-test('a v2 publish round-trips through getAcquired with motions, rotation speed, thickness 48 and the back image intact', async t => {
+test('a v2 draft and acquisition preserve brush hardness, monochrome, flame speed, rotation, thickness 48 and back image', async t => {
   const { projects, input, claim, setDay } = await setup(t);
   const raw = photoProject(); raw.motion = raw.motion.map(item => ({ ...item, gradeIds: ['silver'] }));
   raw.rotationSpeed = 2;
   raw.thickness = 48;
+  raw.style = 'monochrome';
+  raw.photoEdits.strokes = [{ tool: 'erase', points: [{ x: .5, y: .5 }], size: .05, color: '#000000', hardness: 40 }];
+  raw.effects.push({ id: 'aura-silver', type: 'flame', target: 'aura', gradeIds: ['silver'], strength: 70, color: '#5dd8ff', roughness: 0, speed: 1.5 });
   const draft = await projects.create({ ...input, project: raw });
   assert.equal(draft.project.rotationSpeed, 2);
   assert.equal(draft.project.thickness, 48);
+  assert.equal(draft.project.style, 'monochrome'); assert.equal(draft.project.photoEdits.strokes[0]!.hardness, 40);
   const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
   await claim('customer-v2-round-trip', 'first');
   setDay(1); await claim('customer-v2-round-trip', 'second');
@@ -556,6 +560,7 @@ test('a v2 publish round-trips through getAcquired with motions, rotation speed,
   assert.equal(detail.animation, 'float'); assert.deepEqual(detail.motions, [{ type: 'float', playback: 'loop' }]);
   assert.equal(detail.rotationSpeed, 2);
   assert.equal(detail.thickness, 48);
+  assert.deepEqual(detail.effects, [{ type: 'flame', target: 'aura', strength: 70, color: '#5dd8ff', roughness: 0, speed: 1.5 }]);
   assert.equal(detail.backImageDataUrl, tinyPng); assert.equal('parallax' in detail, false); assert.equal('strokes' in detail, false);
 });
 

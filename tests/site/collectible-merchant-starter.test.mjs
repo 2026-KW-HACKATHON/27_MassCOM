@@ -48,7 +48,7 @@ test('대상 캠페인은 정확한 1·3·5회 활성 캠페인이 하나일 때
   assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns: [{ ...fakeCampaigns()[0], status: 'ENDED' }] }).campaignId, '');
 });
 
-test('등록 메뉴 시작점 모델은 메뉴 이름과 방문 단계마다 다른 연출을 제안하지만 UI 카드는 만들지 않는다', async () => {
+test('등록 메뉴 시작점 모델은 메뉴 이름과 방문 단계 연출만 제안하고 기본 스티커는 만들지 않는다', async () => {
   const project = createMerchantStarterProject({ merchantName: '월계 식당', menuName: '국수', suggested: true, campaigns: [fakeCampaigns()[0]] });
   assert.equal(project.name, '국수 방문 수집품');
   assert.equal(project.back.mode, 'default');
@@ -59,10 +59,7 @@ test('등록 메뉴 시작점 모델은 메뉴 이름과 방문 단계마다 다
   assert.deepEqual(project.motion.map(item => [item.gradeIds[0], item.type]), [
     ['bronze', 'stamp'], ['silver', 'float'], ['gold', 'shine'],
   ]);
-  assert.deepEqual(project.stickers.slice(0, 3).map(item => [item.text,
-    item.layouts.bronze.size, item.layouts.silver.size, item.layouts.gold.size]), [
-    ['⌂', 110, 20, 20], ['◯', 8, 110, 24], ['✦', 8, 8, 120],
-  ]);
+  assert.deepEqual(project.stickers, [], '기본 초안은 자동 장식 스티커를 넣지 않는다');
   const ui = await mount(createFakeApi(), { merchantMenuItems: [{ name: '국수', priceWon: 7000 }] });
   assert.equal(ui.host.querySelector('[data-action="starter"][data-id="0"]'), null, '등록 메뉴는 더 이상 홈 스타터 카드를 만들지 않는다');
   const storeStarter = ui.host.querySelector('[data-action="starter"][data-id="store"]');
@@ -75,6 +72,19 @@ test('등록 메뉴 시작점 모델은 메뉴 이름과 방문 단계마다 다
   assert.equal(ui.control('name').value, '월계 식당 방문 수집품');
   assert.equal(ui.host.querySelector('[data-reward-count]'), null);
   assert.match(ui.host.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
+});
+
+test('가게 시작점 뒤에 점주가 직접 추가한 스티커는 저장한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api, { merchantMenuItems: [{ name: '국수', priceWon: 7000 }] });
+  ui.host.querySelector('[data-action="starter"][data-id="store"]').dispatchEvent({ type: 'click' }); await settle();
+  ui.host.querySelector('[data-action="step"][data-id="2"]').dispatchEvent({ type: 'click' }); await settle();
+  ui.control('sticker-new').value = '직접 추가';
+  ui.host.querySelector('[data-action="sticker-add"]').dispatchEvent({ type: 'click' }); await settle();
+
+  await ui.click('draft');
+  const project = api.calls.find(call => call.method === 'POST')?.body.project;
+  assert.deepEqual(project.stickers.map(item => item.text), ['직접 추가']);
 });
 
 test('가게 그림 버튼은 허용된 같은 출처 경로에서만 보이고 기존 사진 검사를 거쳐 편집에 반영한다', async () => {
