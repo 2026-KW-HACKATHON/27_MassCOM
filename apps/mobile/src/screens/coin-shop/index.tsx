@@ -24,6 +24,7 @@ import { Fold } from '@/ui/fold';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
+import { CoinReveal } from './coin-reveal';
 
 const gradeName = { BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '프리즘' } as const;
 const dateText = (value: string) => new Date(value).toLocaleString('ko-KR', { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
@@ -214,7 +215,8 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
     {pendingTicketId ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => void openCoinTicket(pendingTicketId)} style={[styles.button, { backgroundColor: palette.primaryContainer }]}>
       <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이전 뽑기 결과 다시 확인</Text>
     </Pressable> : null}
-    {result ? <FloatingCard style={styles.card}><Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인을 받았어요</Text>
+    {result ? <CoinReveal key={resultReceiptId} sourceLabel={resultSourceLabel} gradeId={result.gradeId} recovered={resultStatus === 'owned'}>
+      <FloatingCard style={styles.card}><Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인을 받았어요</Text>
       {parseCollectibleArtwork(result.summary) ? <Image source={{ uri: parseCollectibleArtwork(result.summary)!.thumbnailDataUrl }}
         accessibilityLabel={`${result.name} 코인 그림`} style={styles.coinImage} resizeMode="contain" /> : null}
       <Text style={{ color: palette.label }}>{result.name} · 총 {result.quantity}개{resultStatus === 'new' ? ' · 신규' : resultStatus === 'duplicate' ? ' · 중복 수집' : ' · 확인됨'}</Text>
@@ -244,7 +246,7 @@ export function CoinShopScreen({ apiUrl, accountId, credential, onSessionInvalid
       }} style={styles.link}>
         <Text style={{ color: palette.primary }}>마이룸 전시하기 ›</Text>
       </Pressable>
-    </FloatingCard> : null}
+    </FloatingCard></CoinReveal> : null}
     {confirmTicket ? <FloatingCard style={styles.card}>
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>뽑기권을 사용할까요?</Text>
       <Text style={{ color: palette.label }}>{publicDataDemoStoreName(shop?.pools.find((pool) => pool.id === confirmTicket.poolId)?.merchantId, shop?.pools.find((pool) => pool.id === confirmTicket.poolId)?.merchantName ?? '가게')} · {confirmTicket.eventName}</Text>

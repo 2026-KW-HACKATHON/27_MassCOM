@@ -255,6 +255,13 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
           }
         }}><FloatingCard style={styles.card}>
           <Text accessibilityRole="header" style={[styles.name, { color: palette.label }]}>{publicDataDemoStoreName(merchant.merchantId, merchant.merchantName)} · {owned}/{grades.length}등급</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${publicDataDemoStoreName(merchant.merchantId, merchant.merchantName)} 가게 상세 보기`}
+            onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: merchant.merchantId, from: 'collection' } })} style={styles.link}>
+            <Text style={{ color: palette.primary }}>관련 가게에서 방문 방법 확인 ›</Text>
+          </Pressable>
+          {owned < grades.length ? <Pressable accessibilityRole="button" onPress={() => router.push('/coin-shop')} style={styles.link}>
+            <Text style={{ color: palette.primary }}>뽑기권 판매 여부 확인 ›</Text>
+          </Pressable> : null}
           {merchant.types.map((type) => {
             const acquired = type.grades.filter((grade) => grade.quantity > 0).length;
             const typeKey = `${merchant.merchantId}:${type.publicationId}`;
@@ -281,6 +288,7 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
                   gradeId: grade.gradeId, merchantId: merchant.merchantId, merchantName: merchant.merchantName })} style={styles.link}>
                   <Text style={{ color: palette.primary, textAlign: 'center' }}>크게 보기 · 뒷면 · 3D ›</Text>
                 </Pressable> : null}
+                {grade.quantity === 0 ? <Text style={{ color: palette.secondaryLabel, textAlign: 'center' }}>획득 정보: 가게 상세·뽑기권에서 확인</Text> : null}
                 {focused && focusedReceiptId ? <Text accessibilityLiveRegion="polite" style={{ color: palette.primary, textAlign: 'center', fontWeight: '800' }}>방금 등록한 코인</Text> : null}
                 {grade.quantity > 0 ? <Text style={{ color: palette.secondaryLabel, textAlign: 'center' }}>
                   {[
@@ -320,12 +328,21 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
       })}
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>내 코인 상세</Text>
       {displayState.showEmpty ? <StateScene kind="empty" title="아직 모은 코인이 없어요" action={{ label: '가게 찾기', onPress: () => router.push('/search') }} /> :
-        collection.coins.map((coin) => <FloatingCard key={`${coin.publicationId}:${coin.gradeId}`} style={styles.card}>
-          {parseCollectibleArtwork(coin.summary) ? <Image source={{ uri: parseCollectibleArtwork(coin.summary)!.thumbnailDataUrl }}
-            accessibilityLabel={`${coin.name} 코인 그림`} style={styles.coinImage} resizeMode="contain" /> : null}
-          <Text style={[styles.name, { color: palette.label }]}>{coin.name} ×{coin.quantity}</Text>
-          <Text style={{ color: palette.secondaryLabel }}>방문 {coin.visitQuantity} · 뽑기 {coin.drawQuantity} · 리롤 {coin.rerollQuantity ?? 0}</Text>
-        </FloatingCard>)}
+        collection.coins.map((coin) => {
+          const merchant = collection.catalog.find((item) => item.types.some((type) => type.publicationId === coin.publicationId
+            && type.grades.some((grade) => grade.gradeId === coin.gradeId)));
+          return <FloatingCard key={`${coin.publicationId}:${coin.gradeId}`} style={styles.card}>
+            {parseCollectibleArtwork(coin.summary) ? <Image source={{ uri: parseCollectibleArtwork(coin.summary)!.thumbnailDataUrl }}
+              accessibilityLabel={`${coin.name} 코인 그림`} style={styles.coinImage} resizeMode="contain" /> : null}
+            <Text style={[styles.name, { color: palette.label }]}>{coin.name} ×{coin.quantity}</Text>
+            {merchant ? <Text style={{ color: palette.secondaryLabel }}>가게 · {publicDataDemoStoreName(merchant.merchantId, merchant.merchantName)}</Text> : null}
+            <Text style={{ color: palette.secondaryLabel }}>방문 {coin.visitQuantity} · 뽑기 {coin.drawQuantity} · 리롤 {coin.rerollQuantity ?? 0}</Text>
+            {merchant ? <Pressable accessibilityRole="button" accessibilityLabel={`${publicDataDemoStoreName(merchant.merchantId, merchant.merchantName)} 가게 상세 보기`}
+              onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: merchant.merchantId, from: 'collection' } })} style={styles.link}>
+              <Text style={{ color: palette.primary }}>관련 가게 보기 ›</Text>
+            </Pressable> : null}
+          </FloatingCard>;
+        })}
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인 리롤</Text>
       <Text style={{ color: palette.secondaryLabel }}>기존 코인 1개를 회수하고 리롤권 1장을 사용해 같은 가게 풀에서 다시 뽑아요. 같은 코인이나 낮은 등급도 나올 수 있어요.</Text>
       <Text style={{ color: palette.secondaryLabel }}>NFT 받기를 완료하면 해당 코인은 회수하거나 리롤할 수 없어요. 발급이 진행 중일 때도 리롤은 잠시 잠겨요.</Text>
@@ -416,6 +433,8 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>코인 시리즈</Text>
       {collection.series.length === 0 ? <Text style={{ color: palette.secondaryLabel }}>지금 진행 중인 시리즈가 없어요. 실제 가게의 쿠폰 조건이 정해지면 표시돼요.</Text> :
         collection.series.map((series) => <SeriesCard key={series.id} series={series} busy={Boolean(busyId)}
+          onOpenMerchant={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: series.merchantId, from: 'collection' } })}
+          onOpenShop={() => router.push('/coin-shop')}
           onClaim={() => void claim(series.id)} onUse={() => setUsingCoupon(series)} palette={palette} />)}
       {displayState.showShopLink ? <Pressable accessibilityRole="button" onPress={() => router.push('/coin-shop')} style={styles.link}>
         <Text style={{ color: palette.primary }}>가게 뽑기권 보러 가기 ›</Text>
@@ -463,8 +482,9 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
 }
 
 function Tier({ tier, palette }: { tier: SeriesTier; palette: ReturnType<typeof colorsForScheme> }) {
+  const owned = tier.slots.filter((slot) => slot.quantity > 0).length;
   return <View style={styles.tier}>
-    <Text style={[styles.tierTitle, { color: palette.label }]}>{tier.title} · {tier.complete ? '완성' : '모으는 중'}</Text>
+    <Text style={[styles.tierTitle, { color: palette.label }]}>{tier.title} · {owned}/{tier.slots.length}종 · {tier.complete ? '완성' : '모으는 중'}</Text>
     <Text style={{ color: palette.secondaryLabel }}>{tier.detail}</Text>
     {tier.slots.map((slot) => <Text key={`${slot.publicationId}:${slot.gradeId}`} style={{ color: palette.secondaryLabel }}>
       {slot.name} · {slot.quantity > 0 ? '보유' : '미보유'} ({slot.quantity}개)
@@ -472,12 +492,18 @@ function Tier({ tier, palette }: { tier: SeriesTier; palette: ReturnType<typeof 
   </View>;
 }
 
-function SeriesCard({ series, busy, onClaim, onUse, palette }: { series: CoinSeries; busy: boolean; onClaim: () => void; onUse: () => void;
+function SeriesCard({ series, busy, onOpenMerchant, onOpenShop, onClaim, onUse, palette }: { series: CoinSeries; busy: boolean; onOpenMerchant: () => void; onOpenShop: () => void; onClaim: () => void; onUse: () => void;
   palette: ReturnType<typeof colorsForScheme> }) {
   const [confirmingBaseFor, setConfirmingBaseFor] = useState<string>();
   const confirmingBase = confirmingBaseFor === series.id && series.claimable === 'BASE' && !series.coupon;
+  const missing = [...series.base.slots, ...series.prism.slots].some((slot) => slot.quantity === 0);
   return <FloatingCard style={styles.card}>
     <Text style={[styles.name, { color: palette.label }]}>{series.title} · {publicDataDemoStoreName(series.merchantId, series.merchantName)}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${publicDataDemoStoreName(series.merchantId, series.merchantName)} 가게 상세 보기`}
+      onPress={onOpenMerchant} style={styles.link}><Text style={{ color: palette.primary }}>{missing ? '부족한 코인: 관련 가게 보기 ›' : '관련 가게 보기 ›'}</Text></Pressable>
+    {missing ? <Pressable accessibilityRole="button" onPress={onOpenShop} style={styles.link}>
+      <Text style={{ color: palette.primary }}>뽑기권 판매 여부 확인 ›</Text>
+    </Pressable> : null}
     <Text style={{ color: palette.secondaryLabel }}>진행 기한 {new Date(series.endsAt).toLocaleDateString('ko-KR')}</Text>
     <Tier tier={series.base} palette={palette} /><Tier tier={series.prism} palette={palette} />
     <Text style={{ color: palette.secondaryLabel }}>시리즈당 쿠폰 1회 · 기본 수령 후 프리즘으로 변경하거나 추가 발급할 수 없어요.</Text>

@@ -17,6 +17,40 @@
 - 신규 API·migration·앱 소스는 운영·시연에 미배포. 실제 Android 기기와 유료 OpenAI 생성은 `NOT_RUN`. 서버 키 연결과 기존 이미지 health 확인은 별도 운영 증거([OpenAI 설정](evidence/openai-ai-art-enable-2026-10-09.json))에 기록한다.
 
 
+## 2026-10-09 PR #439 통합·점주 결과 바로가기 수정 (파일 수정만·미배포)
+
+환경: macOS 제한 sandbox, `.worktrees/i439`, 브랜치 `integ/pr439`, HEAD main `b37063c0`, MERGE_HEAD PR #439 `e7395c96`, Git index 미병합. main의 T9 은퇴 점포 필터·BGM·#435 등록 후속·공공자료 고지와 #439의 홈/도감 다음 행동·가게 코인 보기·점주 결과 이동을 합쳤다. 홈 다음 행동에 은퇴 점포 코인권이 다시 나타날 수 있어 기존 `visibleHomeMerchantItems` 필터를 재사용했다. 추가 회귀 시험은 수정 전 첫 방문 대신 은퇴 코인권을 골라 실패하고 수정 뒤 통과했다. 점주 최근 결과 바로가기는 같은 점포에서 쿠폰을 사용한 직후에도 새로 조회하게 하고 회귀 시험을 추가했다. 기존 시험을 약화하지 않았다.
+
+| 검사 | 결과 | 실제 근거·한계 |
+| --- | --- | --- |
+| `npm test --prefix apps/mobile` | `BLOCKED` | 제한 sandbox에서 tsx IPC `listen EPERM`, 시험 시작 전 종료. 같은 glob의 Node loader로 재실행 |
+| `cd apps/mobile && node --import tsx --test 'src/**/*.test.ts'` | **2216/2216 `PASS`** | fail 0·skip 0·exit 0. `/tmp/pr439-mobile-final.log`. 홈 T9 회귀 수정 뒤 최종 통합 소스 기준 |
+| 홈·gacha·BGM 대상 | **86/86 `PASS`** | T9 은퇴 코인권 필터와 main의 `clothing.duplicate` 판정 보존을 포함 |
+| 점주 사이트 선택 시험 | **86/86 `PASS`** | `node --test tests/site/{merchant-actions-overview,commercial-merchant,commercial-merchant-operations,merchant-copy-no-newcomer,real-world-merchant,collectible-merchant-starter,production-recovery,campaign-benefits-web}.test.mjs`, fail 0·skip 0. `/tmp/pr439-merchant-site.log`; 같은 점포 쿠폰 사용→바로가기 재조회·10분 되돌리기 회귀 포함 |
+| 추가 운영 웹 전체 시험 | `BLOCKED` | `node --test --test-timeout=10000 tests/site/verify_production_web_test.mjs`: 전역 before의 로컬 서버 listen 대기에서 10초 timeout·exit 1. 최소 socket 재현도 `EPERM listen 127.0.0.1` 확인(`/tmp/pr439-socket-probe.log`, `/tmp/pr439-production-web-bounded.log`). 앞선 제한 없는 실행은 대기 후 중단했으며 PASS로 기록하지 않는다. 서버 bind가 필요 없는 위 점주 8개 시험은 통과했다 |
+| 모바일 typecheck / lint | `PASS` | 최종 통합 소스 재실행 exit 0. lint 오류 0, 기존 `collectible-aura.test.ts` 미사용 `runInNewContext` 경고 1개 |
+| 접근성 의미 / CI 연결 / 운영 제출 준비 | `PASS` | `bash tests/mobile/check_accessibility_semantics_test.sh` · `bash tests/ci/ci_wiring_test.sh`(103개 파일) · `bash tests/bootstrap/operations_submission_readiness_test.sh` |
+| README·PROJECT_STATE 최신 합계 | `PASS` | 동일한 한 줄: API 674/674은 앞선 main 측정값이며 이번 API 시험 재실행이 아니다. 모바일 2216/2216은 이 통합 worktree 실측이다 |
+| API 전체·두 variant 설치본·실기·배포 | `NOT_RUN` | 이번 요청의 검증 범위 밖. 브라우저/RNW 합성 이력을 실제 설치본 수용으로 옮기지 않는다 |
+
+아래 2183/2183·2203/2203·674/674 등의 수치는 이전 브랜치의 기록이다. Git add·commit·stash·merge·rebase·push는 실행하지 않았으며 파일의 충돌 해결이 Git 병합 완료를 뜻하지 않는다.
+
+## 2026-10-09 선택 작업 후속 (Issue #438, 이전 브랜치 기록)
+
+PR #435 `644beb75` 위 `feat/collection-next-actions`. 공통 고객 UI는 운영·시연 소스 모두에 적용하며 API/DB/확률/권리 변경은 없다. [작업 QA](SELECTED_ACTIONS_QA_2026-10-09.md), [브라우저 근거](evidence/selected-actions-2026-10-09/README.md).
+
+| 검사 | 결과 | 실제 근거·한계 |
+| --- | --- | --- |
+| `npm test --prefix apps/mobile` | PASS | 2183/2183, macOS 로컬. 홈 새로고침·미확인 획득 회귀 포함 |
+| 모바일 typecheck / lint | PASS | 기존 collectible-aura.test.ts 미사용 import 경고1. 새 Reanimated shared value는 set/get으로 수정 |
+| `node --test tests/site/merchant-actions-overview.test.mjs tests/site/merchant-*.test.mjs` | PASS | 17/17 |
+| `node --test tests/site/verify_production_web_test.mjs` | PASS | 137/137. 첫 CI는 현황을 맨 위로 고정한 옛 순서 단언1건 실패. O1의 최근 결과 우선 순서로 갱신하고 접근성/HTML 안전성 단언 유지 |
+| 모바일 접근성 계약 / `tools/gate.sh` / `git diff --check` | PASS | 소스 계약·비밀·충돌·대형 파일·문서·배포표 검사, 실제 운영 배포는 아님 |
+| 실제 RNW 컴포넌트 브라우저 QA | PASS | 홈/도감/가게 코인 단계·건너뛰기·수동 유지·복구·움직임 감소. 합성 데이터, 라우터·음향/진동 경계 mock |
+| 운영·시연 Android export | PASS | 소스 `833f000010cba51629e0f6582e5616881a9801ca`, 두 variant 각각 `npx expo export --platform android`. 시연 OAuth는 공개 QA 형식 식별자이며 실제 로그인 검증 아님. 첫 시도 SHA 누락은 설정 후 재실행 해소 |
+| Android 설치·TalkBack·200% 글자·음향·진동·실제 QR/쿠폰·점주 계정 | NOT_RUN | 자동 시험/브라우저로 대체하지 않음 |
+| P4 잔여 확률 표시·X2 강화권 지급 | BLOCKED | 표시 기준/잔여 데이터·동일 방문 인증/보상 규칙 미확정. [근거](SELECTED_POLICY_REVIEW_2026-10-09.md) |
+
 ## 2026-10-09 PR #435 도감 등록 리뷰 4건 수정 (파일 수정만·미커밋·미배포)
 
 환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/album`, 브랜치 `fix/album-registration-followups`, HEAD `5e4e648e99a7c028e117c0b219e5b11507ed9221` 위 미커밋 수정. 기준 통합에는 PR #434·#435·#437이 포함된다. 공통 고객 코드에 적용되므로 운영·시연 variant 모두 같은 수정이 적용되지만 각 설치본 수용은 별도다.

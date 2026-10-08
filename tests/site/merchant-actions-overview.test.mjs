@@ -22,7 +22,7 @@ const overview = () => ({
   weekCoupons: { issued: 3, redeemed: 2 }, weekDetailViews: 12,
 });
 const response = body => ({ ok: true, status: 200, json: async () => body });
-async function fixture({ role = 'OWNER', data = overview(), clipboard, campaigns = [], merchants } = {}) {
+async function fixture({ role = 'OWNER', data = overview(), clipboard, campaigns = [], merchants, couponState } = {}) {
   const env = installMiniDom();
   const { document: doc } = env;
   const createElement = doc.createElement.bind(doc);
@@ -42,7 +42,18 @@ async function fixture({ role = 'OWNER', data = overview(), clipboard, campaigns
     if (path.endsWith('/registration-merchants')) return response({ merchants: [merchant] });
     if (path.endsWith('/overview')) return response(data);
     if (path.endsWith('/recent-visits')) return response({ businessDate: '2026-10-03', visits: [] });
-    if (path.endsWith('/recent-coupon-redemptions')) return response({ coupons: [] });
+    if (path.endsWith('/recent-coupon-redemptions')) return response({ coupons: couponState?.redeemed ? [{
+      couponId: 'coupon-1', title: '음료 1잔', customerLabel: '손님 K7QM',
+      redeemedAt: couponState.redeemedAt, undoUntil: couponState.undoUntil, canUndo: true,
+    }] : [] });
+    if (couponState && path.endsWith('/customer-identities/resolve')) return response({ expiresAt: '2026-10-09T10:10:00Z' });
+    if (couponState && path.endsWith('/coupons/lookup')) return response({ coupons: [{
+      couponId: 'coupon-1', title: '음료 1잔', detail: '', expiresAt: '2026-10-10T10:00:00Z',
+    }] });
+    if (couponState && path.endsWith('/coupons/coupon-1/redeem')) {
+      couponState.redeemed = true;
+      return response({ status: 'REDEEMED' });
+    }
     if (path.endsWith('/visitor-feedback')) return response({ tags: [], suggestions: [], notes: [] });
     if (path.endsWith('/collectible-campaigns')) return response({ campaigns });
     if (path.endsWith('/collectible-projects')) return response({ projects: [] });
@@ -92,10 +103,54 @@ test('점주 보상 업무는 제작기를 기본 화면으로 두고 방문 확
   } finally { f.restore(); }
 });
 
+test('방문 확인에서 최근 처리 목록으로 바로 이동하며 선택 점포와 초점을 맞춘다', async () => {
+  const f = await fixture({ merchants: [
+    { id: 'm1', name: '월계 식당', role: 'OWNER' },
+    { id: 'm2', name: '두 번째 가게', role: 'OWNER' },
+  ] });
+  try {
+    const claimStore = f.doc.getElementById('merchant-claim-merchant');
+    claimStore.value = 'm2';
+    await f.click(f.doc.getElementById('merchant-claim-recent'));
+    assert.equal(f.doc.getElementById('merchant-reversal-merchant').value, 'm2');
+    assert.equal(f.doc.getElementById('merchant-overview-merchant').value, 'm2');
+    assert.equal(f.doc.getElementById('merchant-reversal').classList.contains('merchant-view-hidden'), false);
+    assert.equal(f.doc.activeElement.id, 'merchant-reversal-title');
+    assert.ok(f.calls.some(call => call.path.endsWith('/merchants/m2/recent-visits')));
+  } finally { f.restore(); }
+});
+
+test('같은 점포에서 쿠폰을 사용한 뒤 최근 처리 바로가기는 새 결과와 되돌리기를 보여준다', async () => {
+  const redeemedAt = Date.now();
+  const couponState = { redeemed: false, redeemedAt: new Date(redeemedAt).toISOString(),
+    undoUntil: new Date(redeemedAt + 10 * 60_000).toISOString() };
+  const f = await fixture({ couponState });
+  try {
+    f.doc.defaultView.confirm = () => true;
+    assert.equal(f.doc.getElementById('merchant-reversal-merchant').value, 'm1');
+    assert.equal(f.doc.getElementById('merchant-redemption-list').children.length, 0);
+    f.doc.getElementById('merchant-claim-token').value = 'customer-qr';
+    await f.click(f.doc.getElementById('merchant-claim-resolve'));
+    await f.click(f.doc.getElementById('merchant-coupon-lookup'));
+    await f.click(f.doc.getElementById('merchant-coupon-list').querySelector('button'));
+    assert.equal(couponState.redeemed, true);
+    assert.equal(f.doc.getElementById('merchant-redemption-list').children.length, 0);
+
+    await f.click(f.doc.getElementById('merchant-claim-recent'));
+    const result = f.doc.getElementById('merchant-redemption-list').children[0];
+    assert.match(result.textContent, /음료 1잔.*손님 K7QM/);
+    assert.match(result.textContent, /까지 되돌릴 수 있어요/);
+    assert.equal(result.querySelector('button').textContent, '사용 되돌리기');
+    assert.equal(f.doc.activeElement.id, 'merchant-reversal-title');
+    assert.equal(f.calls.filter(call => call.path.endsWith('/recent-coupon-redemptions')).length, 2);
+  } finally { f.restore(); }
+});
+
 test('보상 업무 HTML은 메뉴·직원·실제 정보 양식을 보조 구역으로 남기되 기본 흐름에 노출하지 않는다', () => {
   const html = readFileSync(new URL('../../apps/production-web/merchant.html', import.meta.url), 'utf8');
   const css = readFileSync(new URL('../../apps/production-web/assets/production.css', import.meta.url), 'utf8');
   assert.match(html, /id="merchant-owner-nav"[\s\S]*방문 보상 만들기[\s\S]*방문 확인[\s\S]*운영 결과/);
+  assert.ok(html.indexOf('id="merchant-reversal"') < html.indexOf('id="merchant-overview"'));
   for (const id of ['merchant-operations', 'merchant-profile', 'real-world-merchant']) {
     assert.match(html, new RegExp(`id="${id}"[^>]*merchant-workflow-secondary`));
   }
