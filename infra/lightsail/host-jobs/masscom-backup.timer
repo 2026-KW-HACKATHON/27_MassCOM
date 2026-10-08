@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily MassCOM production DB backup
+
+[Timer]
+# 매일 18:50:00 UTC(한국 시간 03:50). 정리 작업(19:20)보다 먼저라 새 백업이 생긴 뒤에 오래된 것을 지운다. 꺼져 있던 동안 놓친 실행은 다음 부팅 때 한 번 만회한다.
+OnCalendar=*-*-* 18:50:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

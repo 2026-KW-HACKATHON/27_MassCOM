@@ -1,0 +1,39 @@
+[Unit]
+Description=MassCOM showcase daily DB backup (pg_dump, archive read back with pg_restore, sha256 sidecar)
+Documentation=https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412
+After=docker.service
+Wants=docker.service
+# 실패하면 10분 뒤 다시 시도하되 2시간 안에 처음 실행을 포함해 3번까지만 한다(다음 날 타이머 실행은 이 제한과 따로다). oneshot의 Restart=on-failure는 systemd 244 이상에서 된다.
+StartLimitIntervalSec=2h
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+Restart=on-failure
+RestartSec=10min
+# 종료 코드 3은 BACKUP_SIZE_DROP(새 백업이 직전의 50% 미만)이다: 다시 받아도 작은 파일과 비교되어 통과하므로 재시도하지 않고 실패로 남긴다.
+RestartPreventExitStatus=3
+ExecStart=/usr/local/sbin/masscom-showcase-backup
+TimeoutStartSec=30min
+Nice=10
+# 백업 작업이 root로 도는 만큼 정리 작업과 같이 권한을 좁힌다(Issue #253·#412). docker 소켓 연결은 읽기 전용 마운트에서도 되므로 ProtectSystem=strict와 함께 동작하고,
+# 쓸 수 있는 곳은 이 스택의 백업 폴더뿐이다(정리 작업과 나누는 잠금도 그 폴더 자체에 건다). pg_dump는 컨테이너 안에서 돌아 이 유닛은 결과 파일만 쓴다. 백업 폴더는 install.sh가 만들어 둔다.
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/masscom-showcase/backups
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+# docker CLI는 유닉스 소켓(/run/docker.sock)으로만 말하므로 주소 계열을 AF_UNIX로 좁혀도 동작한다.
+RestrictAddressFamilies=AF_UNIX
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native

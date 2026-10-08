@@ -5,15 +5,15 @@
 ## 1. 기준 커밋과 작업 위치
 
 - 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
-- PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
+- PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
 - 병합 순서: PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결, `a742e32d`) → #406(재측정·대체 시연 영상·제출 후보 기록, `6ce8ad03`) → #408(Issue #407의 낮은 화면 결함 4건 수정과 #402를 다음 설치본·웹 체험에 반영, `687427c2`). Issue #401은 #403 병합으로 닫혔다.
 - 운영·시연 서버 배포와 수정본 `/play/` 재측정은 끝났다. Issue #407의 코드(`5ca98955`)로 운영 test.13·시연 Preview 22를 게시했고 시연 `/play/`를 같은 소스로 전환했다. #402의 변경도 이 설치본과 `/play/`에 들어 있다. 라이브 `/open`은 test.13·Preview 22를 가리킨다(2026-10-08 확인).
 
-- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)(첫 사용 경험)의 T2 작업은 브랜치 `feat/first-use-v2`에 있고 아직 main에 없다. PR #413·#414가 병합된 main `108f6b38` 위로 리베이스했다. 위 기준 SHA와 별개의 줄이다. 결정은 [D-083~D-087](DECISIONS.md)이다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)(첫 사용 경험)의 T2 작업(브랜치 `feat/first-use-v2`)은 PR #415로 병합돼 main `e06c97cd`에 있고 배포하지 않았다. 결정은 [D-083~D-087](DECISIONS.md)이다. 같은 이슈의 T5(운영 품질) 작업은 브랜치 `chore/ops-quality-t5`에 있고 main `e06c97cd` 위로 리베이스했으며 아직 push하지 않았다.
 
 ## 2. 현재 통합 상태
 
-- PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414는 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
+- PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414·#415는 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
 - PR #396은 닫혔으나 main에 병합되지 않았다. 미병합 초안을 공개본 기능으로 계산하지 않는다.
 - 재개 시 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 다시 대조한다.
 
@@ -38,7 +38,9 @@
 - 저장소 정리: worktree 82→12개, 로컬 브랜치 207→30개(main에 병합된 것만 삭제), 원격(origin) 브랜치 162→22개(main에 완전히 포함된 140개 삭제, 미병합과 `sync/*` 유지)다.
 - 운영 웹 Caddy 라우트 수정(PR #413으로 병합): `@webSession`·`@privateSurface`에 `/api/web/v1/*`를 더하고 실제 Caddy 컨테이너 시험(`verify_web_session_proxy_test.mjs`)·배포 검증기·웹 smoke·웹 배포 probe에 이 경로를 고정했다. 시연 호스트는 같은 Caddyfile을 써서 별도 수정이 없다. 후속으로 `apps/api/src/real-world-http.ts` 쓰기의 계정별 제한을 트랙 T6, [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)로 넘겼다.
 
-- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 신규 사용자의 첫 코인 흐름과 첫 화면 즉시 반응이다(소유자 2026-10-08 방향). 앱 코드만 바뀌었고 API·DB는 그대로다. (1) 웹 대기 안내 `apps/mobile/public/index.html`과 웹 번들의 지갑 SDK 제외(진입 번들 6,375,429B → 4,119,372B), 지연 소리 생성. (2) 동의 화면의 늘 보이는 정확한 요약·접힌 전체 안내·"전체 동의". (3) 홈의 요청별 표시와 "처음이라면 이 가게부터", 가게 카드·상세의 사실 표시 원칙, 첫 코인 "내 공간에 놓기" 제안. (4) 웹 마스코트·랜드마크 접근성. 배포·게시는 하지 않았다(소유자 결정 A).
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 신규 사용자의 첫 코인 흐름과 첫 화면 즉시 반응이다(소유자 2026-10-08 방향, PR #415로 병합). 앱 코드만 바뀌었고 API·DB는 그대로다. (1) 웹 대기 안내 `apps/mobile/public/index.html`과 웹 번들의 지갑 SDK 제외(진입 번들 6,375,429B → 4,119,372B), 지연 소리 생성. (2) 동의 화면의 늘 보이는 정확한 요약·접힌 전체 안내·"전체 동의". (3) 홈의 요청별 표시와 "처음이라면 이 가게부터", 가게 카드·상세의 사실 표시 원칙, 첫 코인 "내 공간에 놓기" 제안. (4) 웹 마스코트·랜드마크 접근성. 배포·게시는 하지 않았다(소유자 결정 A).
+
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 기능 수준 감시와 운영 품질 작업이다. 브랜치 `chore/ops-quality-t5`(main `e06c97cd`, PR #415 병합 위로 리베이스, 커밋은 `git log -1 chore/ops-quality-t5`로 확인)에 15분 가동 점검(`.github/workflows/uptime.yml`, 실패는 `uptime` 라벨 이슈, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(`masscom-backup`, 호스트에 설치하지 않음), `scripts/db-restore-drill.sh --restore-only`, 큰 파일 가드(`scripts/check-large-files.sh`와 예외 목록), 현재 배포 상태를 손으로 고치는 기준 파일 `docs/CURRENT_RELEASE.json`과 생성·검사 스크립트(검사 범위는 `open.html` 블록 밖·README "바로 체험"·DEMO_RUNBOOK·SUBMISSION_CHECKLIST이고, 날짜별 이력 표인 `docs/ANDROID_DOWNLOADS.md`는 밖이다), CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용)을 더했다. 설치본 용량은 [분석 문서](APK_SIZE_ANALYSIS.md)에 측정값과 가설만 적었다. 배포하지 않았고(소유자 결정 A) 공개 상태는 3절 그대로다. 절차는 [운영 절차](OPERATIONS_RUNBOOK.md)의 Issue #412 절에 있다.
 
 ## 5. 시연 배포 순서
 
@@ -72,8 +74,9 @@
 - Issue #412 놀이 변경(PR #414): 모바일 `npm test` 1919/1919, typecheck·lint·접근성 의미 검사·지갑 표면 검사·CI 연결 검사·gate PASS. 독립 리뷰(Claude Sonnet 5.5) 승인 후 후속 6건 반영. 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 - PR #402는 모바일 1,878/1,878·gate 통과, 독립 리뷰 승인 뒤 병합했다. 앞 문장의 Issue #401 결과와 PR #404 문서 worktree 검사는 당시 기록이며, 현재 문서 브랜치의 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 별도로 기록한다.
 - Caddy `/api/web/v1/*` 수정(`fix/caddy-web-v1-routes`, PR #413): `verify_web_session_proxy_test.mjs` 2/2(옛 Caddyfile은 2건 FAIL), `verify_lightsail_deployment_test.sh`·`run_aws_web_smoke.sh`·`deploy_lightsail_web_test.sh`·`ci_wiring_test.sh`·gate PASS, 관련 `node --test` 31/31. 라이브 재측정은 NOT_RUN이다. 자세한 결과는 [TEST_STATUS](TEST_STATUS.md)에 둔다.
-- Issue #412 브랜치 `feat/first-use-v2`: 모바일 `npm test` 1992/1992(PR #414 위로 리베이스한 뒤의 합계, 리베이스 전 이 브랜치 단독 1974), typecheck·lint PASS, 접근성 의미 검사·지갑 표면 검사·CI 연결 PASS, 시연 웹 export PASS(번들에 지갑 SDK 문자열 0건, `class="boot"` 대기 안내 포함). 사이트 시험 `verify_production_web_test.mjs`·`legal-pages.test.mjs` 147/147. API 시험은 567/567 그대로이고 API 코드는 바뀌지 않았다. 코드 교차 리뷰(Claude Sonnet·Claude Opus) 두 차례 뒤 지적 반영. 명령별 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
+- Issue #412 첫 사용 경험(PR #415, 브랜치 `feat/first-use-v2`): 모바일 `npm test` 1992/1992(PR #414 위로 리베이스한 뒤의 합계, 리베이스 전 이 브랜치 단독 1974), typecheck·lint PASS, 접근성 의미 검사·지갑 표면 검사·CI 연결 PASS, 시연 웹 export PASS(번들에 지갑 SDK 문자열 0건, `class="boot"` 대기 안내 포함). 사이트 시험 `verify_production_web_test.mjs`·`legal-pages.test.mjs` 147/147. API 시험은 567/567 그대로이고 API 코드는 바뀌지 않았다. 코드 교차 리뷰(Claude Sonnet·Claude Opus) 두 차례 뒤 지적 반영. 명령별 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 - 기본 재현: `bash tools/gate.sh`, `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tests/ops/showcase_host_readiness_test.sh`.
+- Issue #412 T5 브랜치(이 세션에서 직접 실행, main `e06c97cd` 위로 리베이스한 뒤 사이트·운영·CI 연결·큰 파일 시험과 `bash tools/gate.sh`를 다시 실행해 통과, API 커버리지와 실제 컨테이너 행은 리베이스 전 측정): 가동 점검·매일 백업·정리 작업·복원 드릴(가짜 도구와 일회용 로컬 Postgres 16.10)·큰 파일 가드 시험, `current_release_test.mjs` 포함 사이트 시험 26/26, `render-current-release.mjs --check`, `ci_wiring_test.sh`(시험 파일 90개 모두 연결), API 단위 567/567(커버리지 포함), `bash tools/gate.sh` PASS. 독립 리뷰 2건의 변경 요청(🔴 없음)은 후속 커밋에서 반영했고 반영분의 재검토와 GitHub Actions 전체 CI는 `NOT_RUN`이다. 결과표는 [TEST_STATUS](TEST_STATUS.md) 맨 위 절.
 
 ## 10. 수동 수용과 미실행 항목
 
@@ -81,6 +84,7 @@
 - 사용자 판정 필요: Issue #409의 웹 history 수정(`history.get(nextIndex)`) 뒤로는, 깊은 흐름을 지난 뒤 홈 탭을 누르면 브라우저 기록이 가장 앞선 홈 항목까지 되감긴다. 그 뒤 브라우저 뒤로 가기를 한 번 더 누르면 `/play/`를 벗어난다. 수정 전에는 뒤로 가기가 직전 화면으로 돌아갔다. 새 동작은 네이티브/React Navigation과 같지만 사용자가 알아챌 수 있다. 배포하지 않았으므로(결정 A) 다음 빌드 전에 소유자가 유지할지 정한다.
 - 사용자 판정 필요(Issue #412): 짝 찾기 결과판의 코인 줄(가게 이름·다음 수집품 안내·도감에서 보기) 배치와 글자 크기는 실제 화면에서 확인하지 않았다(`NOT_RUN`). 배포하지 않았으므로(결정 A) 다음 빌드 전에 확인한다.
 - 사용자 판정 필요(Issue #412): 동의 화면의 요약 문구와 "전체 동의"(법률 검토 별개), 첫 코인 제안 화면, 가게 카드·상세의 새 표시는 실제 기기 렌더링을 보지 못했다(소스 시험과 웹 export 열람까지). 첫 화면의 실제 네트워크 바이트·시간 측정과 설치본·이미지·음원 용량 분석은 `NOT_RUN`이다.
+- Issue #412에서 소유자 몫으로 남은 항목: ① 매일 백업 타이머 설치 승인(운영 `sudo bash infra/lightsail/host-jobs/install.sh masscom-backup`, 시연 `sudo bash infra/showcase-host/host-jobs/install.sh masscom-showcase-backup`), ② 가동 점검의 쓰기 점검 예약 여부(체험 자리를 쓰며 지금은 수동 전용, 실제 시연 서버에 대해 `NOT_RUN`), ③ 서버 밖 백업 보관 위치·비용, ④ `deploy-lightsail.sh` 배포 후 관문에 백업 첫 실행 성공을 넣는 후속(시험이 무거워 따로 한다), ⑤ 서버 백업으로 잰 복원 시간(RTO)은 없음(`NOT_RUN`).
 - `NOT_RUN` 또는 소유자 몫으로 남은 항목: 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설(사람), 대회 최종 제출(소유자 승인 필요).
 - 로컬 자동 시험, 서명된 빌드, 서버 배포, 다운로드, 실기 수용, 최종 제출은 각각 다른 증거로 기록한다.
 
@@ -96,13 +100,13 @@
 ## 12. 다음 실행 명령
 
 1. 완료: PR #408 병합과 운영 웹 재배포로 라이브 `/open`이 test.13·Preview 22를 가리킨다.
-1. 완료: PR #408 병합과 운영 웹 재배포로 라이브 `/open`이 test.13·Preview 22를 가리킨다.
-2. Issue #409·#410 코드와 PR #413(Caddy)·#414(놀이)는 main에 있고, Issue #412 T2(첫 사용 경험) 코드는 브랜치 `feat/first-use-v2`에 있다(#414 병합 뒤의 main `108f6b38` 위로 리베이스). 모두 배포하지 않았다(소유자 결정 A). PR 상태는 `gh pr list --state all`로 확인한다. 새 Preview·test 번호와 게시 시점은 소유자가 정한다. 다음 빌드 전에 10절의 사용자 판정 항목(홈 탭 뒤로 가기)도 소유자가 정한다.
+2. Issue #409·#410 코드와 PR #413(Caddy)·#414(놀이)·#415(첫 사용 경험)는 main에 있고 모두 배포하지 않았다(소유자 결정 A). PR 상태는 `gh pr list --state all`로 확인한다. 새 Preview·test 번호와 게시 시점은 소유자가 정한다. 다음 빌드 전에 10절의 사용자 판정 항목(홈 탭 뒤로 가기)도 소유자가 정한다.
 3. 웹/Caddy 배포 때 `scripts/deploy-lightsail-web.sh` probe가 `/api/web/v1/merchant/merchants/x/real-world-profile`의 JSON 401을 확인한다. 배포 뒤 `curl -si https://www.masscom.kr/api/web/v1/merchant/merchants/x/real-world-profile`이 404가 아니라 JSON 401(`cache-control: no-store`)인지 본다. 배포 시점은 소유자가 정한다(결정 A).
-4. Issue #412 T2 브랜치 `feat/first-use-v2`는 푸시·PR·병합 여부를 `git`/`gh`로 확인한 뒤 진행한다. 다음 빌드 전에 놀이 화면(짝 찾기 결과판, 주문·배달 안내)과 T2 화면(동의 요약·첫 코인 제안·가게 카드)을 실제 휴대전화나 시연 웹에서 확인한다.
+4. 다음 빌드 전에 놀이 화면(짝 찾기 결과판, 주문·배달 안내)과 첫 사용 화면(동의 요약·첫 코인 제안·가게 카드)을 실제 휴대전화나 시연 웹에서 확인한다.
 5. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 확인하고, 필요하면 위 남은 🟡 중 (3)(4)(6)의 처리 여부를 정한다.
 6. 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설은 소유자 판단·수동 항목이다.
 7. 대회 최종 제출과 Google Play는 소유자 승인이 필요한 별도 경계다. 승인 전에는 제출 버전을 고정하지 않는다.
+8. Issue #412 브랜치(`chore/ops-quality-t5`)는 아직 push하지 않았다. push·PR·CI·독립 리뷰는 PR 절차를 따른다. 설치본·`/open`을 바꾸는 다음 배포부터는 `docs/CURRENT_RELEASE.json`을 고치고 `node scripts/render-current-release.mjs` → `--check` 순서로 한 뒤, `scripts/verify-project-site.sh`·`tests/site/public-entry.test.mjs`·`tests/site/verify_project_site_test.sh`에 박힌 태그 문자열을 직접 새 태그로 고친다(절차는 [운영 절차](OPERATIONS_RUNBOOK.md)).
 
 PR 제목·본문 검사:
 

@@ -1,6 +1,6 @@
 # Android 설치본과 GitHub 배포 상태
 
-상태 확인일: 2026-10-08. 대회 조직 저장소는 `PUBLIC`·활성 상태이고 운영 test.13·시연 Preview 22 Release를 게시했습니다. 개인 당시 개발 저장소 `choijunhuk/MassCOM`은 `PRIVATE`로 보존합니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다.
+상태 확인일: 2026-10-08. 대회 조직 저장소는 `PUBLIC`·활성 상태이고 운영 test.13·시연 Preview 22 Release를 게시했습니다. 개인 당시 개발 저장소 `choijunhuk/MassCOM`은 `PRIVATE`로 보존합니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다. 이 문서는 날짜별 이력 표라 옛 태그가 정상이고, 현재 배포 일치 검사(`node scripts/render-current-release.mjs --check`, 기준 파일 [CURRENT_RELEASE.json](CURRENT_RELEASE.json)) 밖입니다. 새 설치본이 나오면 "최신" 행을 사람이 고칩니다.
 
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |

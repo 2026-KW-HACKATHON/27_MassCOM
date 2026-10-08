@@ -34,4 +34,40 @@ fi
 grep -q 'restore drill FAILED' <<<"$tampered_out" || { echo "tampered drill failed for an unrelated reason: $tampered_out" >&2; exit 1; }
 rm -f "$tampered"
 
+# Issue #412: --restore-only restores an existing backup into a scratch database without dumping the source or touching the file.
+kept_dir="$(mktemp -d -t drill-kept.XXXXXX)"
+kept="$kept_dir/kept.dump"
+extra_table_dropped() { pg psql "$url" --no-psqlrc -qc 'DROP TABLE IF EXISTS drill_restore_only_extra' >/dev/null 2>&1 || true; }
+trap 'extra_table_dropped; rm -rf "$kept_dir"' EXIT
+bash "$drill" "$kept" >/dev/null
+# A second dump to the same path is refused without --overwrite (a forgotten --restore-only must not replace a real backup).
+if bash "$drill" "$kept" >/dev/null 2>&1; then echo "the drill overwrote an existing backup without --overwrite" >&2; exit 1; fi
+kept_sum="$(shasum -a 256 "$kept")"
+no_scratch() { [[ "$(pg psql "${base%/*}/postgres$query" --no-psqlrc -tAc "SELECT count(*) FROM pg_database WHERE datname LIKE '%\_restore\_test'")" == 0 ]] || { echo "scratch database was left behind ($1)" >&2; exit 1; }; }
+
+out="$(bash "$drill" --restore-only "$kept")"
+grep -Eq '^restore-only drill passed: [0-9]+ tables match the live database, [0-9]+ migrations, restored in [0-9]+ seconds$' <<<"$out" \
+  || { echo "restore-only success line is wrong: $out" >&2; exit 1; }
+[[ "$(shasum -a 256 "$kept")" == "$kept_sum" ]] || { echo "--restore-only changed the backup file" >&2; exit 1; }
+no_scratch success
+
+# A file that is not a backup fails and leaves nothing behind.
+printf 'not a dump' >"$kept.garbage"
+if bash "$drill" --restore-only "$kept.garbage" >/dev/null 2>&1; then echo "restore-only accepted a file that is not a dump" >&2; exit 1; fi
+[[ -f "$kept.garbage" ]] || { echo "restore-only removed the file it was given" >&2; exit 1; }
+no_scratch garbage
+
+# A backup whose schema_migrations is empty restores with exit 0 but is not a usable backup.
+pg pg_dump --format=custom --no-owner --exclude-table-data=schema_migrations "$url" >"$kept.nodata"
+if nodata_out="$(bash "$drill" --restore-only "$kept.nodata" 2>&1)"; then echo "restore-only accepted a backup with an empty schema_migrations" >&2; exit 1; fi
+grep -q 'schema_migrations is missing or empty' <<<"$nodata_out" || { echo "empty schema_migrations was not reported: $nodata_out" >&2; exit 1; }
+no_scratch nodata
+
+# The live database gained a table after the backup: the table sets differ.
+pg psql "$url" --no-psqlrc -qc 'CREATE TABLE drill_restore_only_extra (id integer)' >/dev/null
+if extra_out="$(bash "$drill" --restore-only "$kept" 2>&1)"; then echo "restore-only accepted a backup that lacks a live table" >&2; exit 1; fi
+grep -q 'restored tables differ from the live database' <<<"$extra_out" || { echo "table set mismatch was not reported: $extra_out" >&2; exit 1; }
+extra_table_dropped
+no_scratch extra-table
+
 echo "restore drill tests passed"
