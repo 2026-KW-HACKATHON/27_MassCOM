@@ -50,3 +50,8 @@ B-028이 지적한 "시연 직원 부여는 감사 행이 없다"(`grant-staff.t
 
 - `BLOCKED` 환경: 이 sandbox에서 `cd apps/mobile && node ../../scripts/audit-ci.mjs`(종료 1, 결과를 읽지 못함)와 `npm audit --omit=dev --json`을 실행했지만 registry DNS 접근이 차단됐다(`ENOTFOUND registry.npmjs.org`; 재시도 0회·요청 상한 5초로 실행, 로그 `/private/tmp/343-round2-live-check.log`·`/private/tmp/343-round2-live-audit.json`). 네트워크가 가능한 환경에서 같은 명령으로 재검증한다.
 - 수정 1차의 전체 순회가 `expo`·`react-native` 이후 런타임 의존까지 검사하던 설계 문제는 두 단계 `levels` 검사로 해소했다. 제공된 실제 덤프(`/private/tmp/claude-501/audit-mobile.json`) 전체 재평가는 `PASS`(실패 0개·braces/node-forge 예외 2개), 관련 항목을 복사한 내장 fixture 회귀 시험도 `PASS`이며 실시간 audit 통과와는 구분한다.
+
+
+## 2026-10-09 Issue #412 T3 PR 2 로컬 Chrome 테마 시험
+
+`BLOCKED`: 변경하지 않은 `node --test tests/site/verify_showcase_theme_test.mjs`가 전체 사이트 실행과 단독 재현에서 두 번 `Chrome DevTools 시작 실패: exit=null signal=SIGABRT`로 끝났다. 이 환경의 Chrome 실행 단계 실패이고 CSS 단언까지 도달하지 못했으므로 테마 회귀 통과를 주장하지 않는다. 원인은 SIGABRT 이외에는 확인하지 않았다. 전체 로그 `/private/tmp/t3b-site-all.log`, 최소 재현 로그 `/private/tmp/t3b-site-theme.log`. Chrome 실행이 가능한 환경에서 같은 명령으로 재검증한다. 쿠폰 관련 가짜 DOM·정적 모듈·API·PostgreSQL 검사는 따로 실행한다.
