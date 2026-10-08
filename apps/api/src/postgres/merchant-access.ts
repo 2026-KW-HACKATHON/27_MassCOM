@@ -37,11 +37,10 @@ export class PostgresMerchantAccessControl implements MerchantAccessControl {
     permission: MerchantPermission;
   }): Promise<MerchantAccessGrant> {
     const result = await this.pool.query<MerchantMembershipRow>(
-      `SELECT merchant_id, role, staff_can_confirm_visit, staff_can_redeem_coupon
-       FROM merchant_members
-       WHERE merchant_id = $1
-         AND account_id = $2
-         AND status = 'ACTIVE'`,
+      `SELECT member.merchant_id, member.role, member.staff_can_confirm_visit, member.staff_can_redeem_coupon
+       FROM merchant_members member JOIN merchants merchant ON merchant.id = member.merchant_id
+       WHERE member.merchant_id = $1 AND member.account_id = $2 AND member.status = 'ACTIVE'
+         AND NOT (merchant.is_demo AND merchant.id LIKE 'showcase-wolgye-%')`,
       [input.merchantId, input.accountId],
     );
     const membership = result.rows[0];

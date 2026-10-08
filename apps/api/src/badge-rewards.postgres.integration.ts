@@ -12,6 +12,7 @@ import { PostgresBadgeRewardService } from './postgres/badge-rewards.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService, hashCustomerIdentityToken } from './postgres/customer-identity.js';
 import { runMigrations } from './postgres/migrate.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from './showcase/local-seed.js';
 
 const hmacSecret = 'test-only-account-deletion-secret-at-least-32-bytes';
 const day = 24 * 60 * 60 * 1000;
@@ -125,6 +126,42 @@ async function identityFor(db: Db, account: string, shop: Shop): Promise<string>
 }
 
 const rejectsWith = (code: string) => ({ code });
+
+test('fresh customer badge offers hide the practice store name while regular offers keep theirs', async (t) => {
+  const { pool, badges } = await setup(t);
+  await pool.query(
+    `INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status, is_demo)
+     VALUES ($1, '체험 점주 가게', 'test', 'test', 0, 'ACTIVE', true)`,
+    [SHOWCASE_PRACTICE_MERCHANT_ID],
+  );
+  await pool.query(
+    `INSERT INTO badge_reward_offers
+       (id, milestone, merchant_id, title, detail, valid_days, status, consent_note)
+     VALUES ($1, 1, $2, '체험 음료 1잔', '시연 혜택입니다.', 30, 'ACTIVE', '시연 시험'),
+            ($3, 2, $2, '체험 디저트', '시연 혜택입니다.', 30, 'ACTIVE', '시연 시험'),
+            ($4, 3, $2, '체험 세트', '시연 혜택입니다.', 30, 'ACTIVE', '시연 시험')`,
+    [randomUUID(), SHOWCASE_PRACTICE_MERCHANT_ID, randomUUID(), randomUUID()],
+  );
+
+  const fresh = await badges.getBadges('fresh-customer');
+  assert.deepEqual(fresh.rewards.map(({ state, offer }) =>
+    [state, offer?.merchantId, offer?.merchantName]), [
+    ['LOCKED', SHOWCASE_PRACTICE_MERCHANT_ID, '시연 혜택'],
+    ['LOCKED', SHOWCASE_PRACTICE_MERCHANT_ID, '시연 혜택'],
+    ['LOCKED', SHOWCASE_PRACTICE_MERCHANT_ID, '시연 혜택'],
+  ]);
+  assert.ok(!JSON.stringify(fresh).includes('체험 점주 가게'));
+
+  await threeTiers(pool, 'fresh-customer');
+  const opened = await badges.openReward({ accountId: 'fresh-customer', milestone: 1 });
+  assert.equal(opened.coupon.merchantId, SHOWCASE_PRACTICE_MERCHANT_ID);
+  assert.equal(opened.coupon.merchantName, '시연 혜택');
+  assert.equal((await badges.getBadges('fresh-customer')).rewards[0]?.coupon?.merchantName, '시연 혜택');
+
+  await pool.query('UPDATE badge_reward_offers SET merchant_id = $1 WHERE milestone = 2', ['shop-b']);
+  const regular = await badges.getBadges('fresh-customer');
+  assert.equal(regular.rewards[1]?.offer?.merchantName, '가상 shop-b');
+});
 
 async function addMember(pool: Pool, shop: Shop, account: string, status: 'ACTIVE' | 'REVOKED' = 'ACTIVE') {
   await pool.query(

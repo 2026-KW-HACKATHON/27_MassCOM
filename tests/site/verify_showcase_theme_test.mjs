@@ -115,7 +115,7 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
       assert.equal(actual.background, `rgb(${rgb(expected[scheme]['--paper']).join(', ')})`);
       const fromRgb = (value) => `#${value.match(/\d+/g).slice(0, 3).map((channel) => Number(channel).toString(16).padStart(2, '0')).join('')}`;
       assert.ok(contrast(fromRgb(actual.ribbon.color), fromRgb(actual.ribbon.background)) >= 4.5, `${scheme} 고지 대비 부족`);
-      assert.ok(contrast(fromRgb(actual.tag.color), fromRgb(actual.tag.background)) >= 4.5, `${scheme} 가상 점포 태그 대비 부족`);
+      assert.ok(contrast(fromRgb(actual.tag.color), fromRgb(actual.tag.background)) >= 4.5, `${scheme} 공공데이터 가게 태그 대비 부족`);
       for (const [width, height] of [[360, 800], [1440, 900]]) {
         await send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width === 360 });
         for (const fontSize of ['100%', '200%']) {
@@ -138,7 +138,7 @@ test('시연 웹의 실제 라이트·다크 계산 색과 주요 글자 대비'
       await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
       const focus = await send('Runtime.evaluate', { expression: "JSON.stringify({text: document.activeElement.textContent.trim(), outline: getComputedStyle(document.activeElement).outlineStyle, width: getComputedStyle(document.activeElement).outlineWidth})", returnByValue: true });
       const focused = JSON.parse(focus.result.value);
-      assert.ok(['본문으로 건너뛰기', '가상 점포', '예시 도감'].includes(focused.text), `${scheme} 키보드 초점 대상: ${focused.text}`);
+      assert.ok(['본문으로 건너뛰기', '월계 가게', '예시 도감'].includes(focused.text), `${scheme} 키보드 초점 대상: ${focused.text}`);
       assert.equal(focused.outline, 'solid');
       assert.notEqual(focused.width, '0px');
       if (process.env.SHOWCASE_CAPTURE_DIR) {

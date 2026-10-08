@@ -578,7 +578,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const fcmConfig = fcmConfigFromEnv();
   const notifications = pool && accountLifecycle
     ? new PostgresNotificationService(pool, { accountLifecycle, ...(fcmConfig ? { fcm: fcmConfig } : {}) }) : undefined;
-  const adminService = pool && accountDeletionHmacSecret && webAuthConfig && !showcaseInvites
+  const adminService = pool && accountDeletionHmacSecret && webAuthConfig && !showcaseDeployment
     ? new PostgresAdminService(pool, accountDeletionHmacSecret,
       process.env.MERCHANT_REFERENCE_HMAC_SECRET || accountDeletionHmacSecret) : undefined;
   const realWorld = pool ? new PostgresRealWorldService(pool, {

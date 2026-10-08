@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 
 import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
 import { assertHostedShowcaseDatabaseUrl } from './host-seed.js';
-import { assertLocalShowcaseDatabaseUrl, SHOWCASE_MERCHANT_ID } from './local-seed.js';
+import { assertLocalShowcaseDatabaseUrl, SHOWCASE_PRACTICE_MERCHANT_ID } from './local-seed.js';
 import { grantShowcaseStaffTx } from './grant-staff.js';
 
 // 부트스트랩(#294): 승인자 후보가 앱에서 보낸 요청 코드를 사람이 메일로 받아 운영자에게 전달한 뒤 이 명령을 돌린다.
@@ -61,9 +61,9 @@ async function main() {
          VALUES ($1, $2, 'GRANT', session_user)`,
         [randomUUID(), row.account_id],
       );
-      // 승인자는 가상 점포 A 직원 권한도 함께 받는다(일반 승인과 같은 핵심, #294).
+      // 승인자는 비공개 체험 점포 직원 권한도 함께 받는다(일반 승인과 같은 핵심, #294).
       await grantShowcaseStaffTx(client, {
-        accountId: row.account_id, merchantId: SHOWCASE_MERCHANT_ID, accountLifecycle,
+        accountId: row.account_id, merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, accountLifecycle,
       });
       await client.query(
         `UPDATE showcase_access_requests

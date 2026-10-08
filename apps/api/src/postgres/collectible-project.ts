@@ -247,8 +247,11 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
       // that UPDATE's MVCC snapshot and survive the deletion of an inherited contributor.
       await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`collectible-sources:${input.merchantId}`]);
       // This check happens on every operation, within the mutation transaction. Hide/revoke must wait for these row locks.
-      const merchant = await client.query(`SELECT 1 FROM merchants WHERE id = $1 AND status = 'ACTIVE' FOR SHARE`, [input.merchantId]);
-      if(!merchant.rowCount) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+      const merchant = await client.query<{ is_demo: boolean }>(
+        `SELECT is_demo FROM merchants WHERE id = $1 AND status = 'ACTIVE' FOR SHARE`, [input.merchantId]);
+      if (!merchant.rowCount || (merchant.rows[0]?.is_demo && input.merchantId.startsWith('showcase-wolgye-'))) {
+        throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+      }
       // Match the revoke/hide transaction's merchant-before-member lock order.
       const access = await client.query<{ role: string }>(
         `SELECT role FROM merchant_members WHERE merchant_id = $1 AND account_id = $2 AND status = 'ACTIVE' FOR SHARE`, [input.merchantId, input.accountId]);

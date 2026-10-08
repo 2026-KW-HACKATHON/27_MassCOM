@@ -98,9 +98,9 @@ tier1() {
   check prod_health "$prod_api/health" '.status == "ok"'
   check prod_merchants "$prod_api/merchants" '.merchants | type == "array"'
   check showcase_health "$show_api/health" '.status == "ok"'
-  # 시연 목록은 가상 점포 3곳 이상이고 전부 demo:true여야 한다(scripts/build-showcase-apk.sh와 같은 기준).
+  # 고객 시연은 월계 공공자료 점포 30곳만 허용한다. 연습 가게와 은퇴 fixture는 장애로 잡는다.
   merchant_id=''
-  if check showcase_merchants "$show_api/merchants" '.merchants | type == "array" and length >= 3 and all(.[]; .demo == true)'; then
+  if check showcase_merchants "$show_api/merchants" '.merchants | type == "array" and length == 30 and all(.[]; .demo == true and (.id | startswith("showcase-wolgye-"))) and (map(.id) | unique | length == 30)'; then
     merchant_id="$(jq -r '.merchants[0].id | @uri' "$tmp/body")"
   fi
   if [[ -n "$merchant_id" ]]; then

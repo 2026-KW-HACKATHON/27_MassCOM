@@ -22,7 +22,7 @@ async function setup(t: TestContext) {
   const pool = new Pool({ connectionString }); t.after(() => pool.end()); await runMigrations(pool);
   await pool.query('TRUNCATE merchants, account_deletion_requests CASCADE');
   await pool.query(`INSERT INTO merchants (id,name,story,road_address,minimum_spend_won,status,is_demo) VALUES
-    ('merchant-a','가상 점포 A','시험','시험',0,'ACTIVE',true),('merchant-b','가상 점포 B','시험','시험',0,'ACTIVE',true)`);
+    ('merchant-a','체험 점주 가게','시험','시험',0,'ACTIVE',true),('merchant-b','다른 체험 점주 가게','시험','시험',0,'ACTIVE',true)`);
   await pool.query(`INSERT INTO merchant_members (merchant_id,account_id,role,status) VALUES
     ('merchant-a','owner-a','OWNER','ACTIVE'),('merchant-a','owner-backup','OWNER','ACTIVE'),
     ('merchant-a','staff-a','STAFF','ACTIVE'),('merchant-b','owner-b','OWNER','ACTIVE')`);

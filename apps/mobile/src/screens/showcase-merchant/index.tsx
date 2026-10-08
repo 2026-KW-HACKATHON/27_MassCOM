@@ -3,8 +3,7 @@ import { ActivityIndicator, BackHandler, Linking, Pressable, Text, View, useColo
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { CommerceApiError, createCommerceApiClient, type ShowcaseAccessRequest, type ShowcaseAccessState } from '@/commerce/commerce-api';
-import { createMerchantApiClient } from '@/merchant/merchant-api';
-import { findShowcaseStaffMerchant } from '@/merchant/showcase-staff';
+import { findShowcaseStaffMerchant, showcaseOwnerMerchantIds } from '@/merchant/showcase-staff';
 import { useAppForeground } from '@/merchant-art/use-merchant-art';
 import { MerchantArtScreen } from '@/screens/merchant-art';
 import { MerchantHomeScreen } from '@/screens/merchant-home';
@@ -101,21 +100,13 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
   useEffect(() => {
     if (!apiUrl || !client) return;
     let mounted = true;
-    void Promise.all([
-      createMerchantApiClient(apiUrl).listMerchants(),
-      client.getShowcaseAccessState(),
-    ])
-      .then(async ([merchants, accessState]) => {
-        const demoMerchants = merchants.filter((merchant) => merchant.demo);
-        // 체험 로그인(#309)의 개인 체험 가게는 is_public은 true지만(D-064(e)) 서버가 공개 목록·추천에서
-        // 걸러 내므로 여기서도 보이지 않는다 — 자기 가게 id를 먼저 넣어 찾는다.
-        const merchantIds = accessState.trialMerchantId
-          ? [accessState.trialMerchantId, ...demoMerchants.map((merchant) => merchant.id)]
-          : demoMerchants.map((merchant) => merchant.id);
+    void client.getShowcaseAccessState()
+      .then(async (accessState) => {
+        // 공개 가게는 점주 체험 대상이 아니다. 서버가 이 계정에 연결한 개인·비공개 체험 가게만 조회한다.
+        const merchantIds = showcaseOwnerMerchantIds(accessState);
         const context = await findShowcaseStaffMerchant(merchantIds, client.getMerchantContext);
-        // 체험 가게는 /merchants 목록에 없어 artUrl을 거기서 가져올 수 없다 — art 화면이 첫 조회로 채운다.
         const allowed = context
-          ? { merchantId: context.merchantId, role: context.role, merchantName: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.name ?? '나의 체험 가게', artUrl: demoMerchants.find((merchant) => merchant.id === context.merchantId)?.artUrl ?? null }
+          ? { merchantId: context.merchantId, role: context.role, merchantName: context.merchantId === accessState.trialMerchantId ? '나의 체험 가게' : '체험 점주 가게', artUrl: null }
           : undefined;
         return { allowed, accessState };
       })
@@ -253,13 +244,13 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
     </View> : null}
     <View style={{ alignItems: 'center' }}><Mascot pose="puzzled" size={100} /></View>
     <Text selectable style={{ color: colors.secondaryLabel, fontSize: 16, lineHeight: 25 }}>
-      가상 점포를 체험하는 화면이에요. 역할 선택만으로 점주 권한이 생기지 않아요. 서버에서 방문 확인 권한을 확인해요.
+      내 체험 가게를 운영하는 화면이에요. 역할 선택만으로 점주 권한이 생기지 않아요. 서버에서 방문 확인 권한을 확인해요.
     </Text>
     <View accessibilityLiveRegion="polite" style={{ gap: 12 }}>
       {status === 'loading' ? <ActivityIndicator color={colors.primary} /> : null}
       <Text selectable style={{ color: colors.label, fontSize: 16 }}>
         {status === 'loading' ? '점포 권한을 확인하고 있어요.'
-          : status === 'denied' ? '이 계정에는 가상 점포의 방문 확인 권한이 없어요.'
+          : status === 'denied' ? '이 계정에는 체험 가게의 방문 확인 권한이 없어요.'
             : '점포 정보를 확인하지 못했어요. 연결을 확인하고 다시 시도해 주세요.'}
       </Text>
     </View>

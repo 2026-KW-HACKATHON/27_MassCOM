@@ -118,9 +118,9 @@ test('ids that look like object keys are ordinary ids', () => {
   assert.equal(new Set(placed.values()).size, 3);
 });
 
-test('the showcase shops A, B and C sit on fixed, well separated spots', () => {
-  assert.deepEqual(Object.keys(SHOWCASE_ANCHORS), ['showcase-local-merchant', 'showcase-local-merchant-b', 'showcase-local-merchant-c']);
-  const { placed } = assignAnchors(['showcase-local-merchant-c', 'showcase-local-merchant', 'showcase-local-merchant-b']);
+test('the three nearby public-data shops sit on fixed, well separated spots', () => {
+  assert.deepEqual(Object.keys(SHOWCASE_ANCHORS), ['showcase-wolgye-MA010120220813334279', 'showcase-wolgye-MA010120220809686086', 'showcase-wolgye-MA010120220812445724']);
+  const { placed } = assignAnchors(['showcase-wolgye-MA010120220812445724', 'showcase-wolgye-MA010120220813334279', 'showcase-wolgye-MA010120220809686086']);
   for (const [id, slot] of Object.entries(SHOWCASE_ANCHORS)) assert.equal(placed.get(id), slot, id);
   const points = Object.values(SHOWCASE_ANCHORS).map((slot) => TOWN_MAP_ANCHORS[slot]!);
   const ratio = TOWN_MAP_ART.height / TOWN_MAP_ART.width;
@@ -132,7 +132,7 @@ test('the showcase shops A, B and C sit on fixed, well separated spots', () => {
 
 test('showcase spots stay fixed among other shops, and other shops never take them', () => {
   const others = Array.from({ length: 14 }, (_, index) => `real-${index}`);
-  const ids = ['showcase-local-merchant', ...others, 'showcase-local-merchant-b', 'showcase-local-merchant-c'];
+  const ids = ['showcase-wolgye-MA010120220813334279', ...others, 'showcase-wolgye-MA010120220809686086', 'showcase-wolgye-MA010120220812445724'];
   const { placed, overflow } = assignAnchors(ids);
   for (const [id, slot] of Object.entries(SHOWCASE_ANCHORS)) assert.equal(placed.get(id), slot, id);
   assert.equal(new Set(placed.values()).size, 8, 'no two shops share a spot');

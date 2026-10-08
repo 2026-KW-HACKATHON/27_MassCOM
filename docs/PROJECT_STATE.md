@@ -1,10 +1,22 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, PR #429 브랜치 `feat/collectible-reeded-edge`에 PR #430 반영 main `a1a3eef3`를 병합한 기준): API 단위 672/672 · 모바일 2148/2148. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, Issue #412 T9 브랜치 `feat/showcase-real-only`에 PR #429 반영 main `8aa8b724`를 병합한 기준): API 단위 674/674 · 모바일 2154/2154. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
+## 2026-10-09 T9 공공자료 점포 30곳만 사용하는 시연 (미커밋·미배포)
+
+현재 HEAD `65699443`에서 PR #429 반영 main `8aa8b724`를 병합 중이다. 이번 문서 충돌 해결은 T9(D-101)와 코인 제작기 후속(D-102)을 함께 보존했으며 운영 제출 준비·CI 연결 103개 파일·문서 구조·충돌 표식·diff 검사는 PASS다. Git index는 미병합 상태를 유지한다. 전체 API·모바일 합계는 위 자리표시자를 오케스트레이터가 채우며, 아래 수치는 이전 작업의 기록이다([TEST_STATUS](TEST_STATUS.md)).
+
+`feat/showcase-real-only`, worktree `.worktrees/t9-real`, 기준 HEAD `c0449f1b`에서 소유자의 D-101 요청을 구현했다. 고객 점포는 월계 공공자료 30곳만 공개하고 기존 A/B/C는 `PAUSED`·비게시, 연결 캠페인은 `ENDED`·비공개로 전환한다. 삭제 없이 방문·코인·발급 쿠폰·코스 이력을 보존한다. 새 DB에는 은퇴 점포를 만들지 않는다. 재시드 가드와 충돌 검사는 유지한다.
+
+프리즘은 월계역 28m의 더까까주까월계역점 하나에만 1·3·5회 브론즈·실버·프리즘으로 연결한다. 나머지 29곳은 골드를 유지하고 기존 그림만 쓴다. 새 코스는 이 점포·갱스터떡볶이인덕대점·하다식당 세 곳이다. 기존 게시 코스는 종료한다. 점주 모드는 본인 임시 가게 또는 서버가 승인한 비공개 체험 점주 가게만 사용하고 공공자료 점포의 관리 권한은 서버가 거절한다. 직원·승인자 CLI와 요청 승인은 연습 가게만 대상으로 한다. 운영 배치·운영 데이터는 그대로다.
+
+초기 T9 검증은 API 단위 671/671·모바일 2138/2138·각 typecheck·모바일 lint PASS였다. 별도 disposable hosted PostgreSQL 3/3 PASS(기존 A/B/C 은퇴·소유 코인/쿠폰 보존 포함). 사이트 요청 명령은 645건 중 644 PASS·Chrome 시작 SIGABRT 1 환경 BLOCKED이며 socket으로 막힌 시험은 없다. CI·문서·접근성·지갑·전체 gate는 PASS다. 전체 PostgreSQL은 591건 중 588 PASS·0 FAIL·기존 hosted 3 SKIP이고, hosted 3건은 별도 disposable 컨테이너에서 3/3 PASS다. 명령·단언 변경·검증 제한은 [TEST_STATUS](TEST_STATUS.md) T9 항목에 있다. Git add·commit·stash·merge·rebase·push·배포·새 APK·실기 검증은 하지 않았다. 아래 T8 33곳과 통합 기록은 T9 이전 상태다.
+
+HEAD `04f9ea2a` 후속 리뷰 수정 6건은 파일로 반영했다. ENDED/PAUSED 코스는 미회수 unlock 소유자의 지난 코스 목록·상세·획득 장면에 남고 신규 unlock·추천은 거절한다. 배지 혜택/쿠폰은 `시연 혜택`으로 표시하며 내부 연습 점포 연결은 유지한다. 연습 점포의 추첨 풀·코인 카탈로그 노출과 공공자료 점포의 취소 이력 권한 틈을 막고 practice 상수를 재사용했다. 후속 실측은 API 672/672·모바일 2138/2138·타입·모바일 lint·API build PASS, PostgreSQL 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP와 별도 hosted 3/3 PASS다. CI 연결·운영 문서·gate·diff 검사 PASS이며 사이트/실기/배포는 새로 측정하지 않았다. [TEST_STATUS](TEST_STATUS.md) T9 후속 절에 명령·제한이 있다.
 
 ## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
 
-`feat/collectible-reeded-edge`의 HEAD `9a433fee`에서 main `a1a3eef3`를 병합 중이다. PR #429의 회전·움직임 분리·Flame 오라·reeded edge와 main의 T3 혜택·T4 코스·T8 공공자료 시연 점포를 보존한다. 공공자료 점포명이 보이는 상세 화면의 고지와 접근성 이름을 함께 유지한다. Git index는 의도대로 미병합 상태다. 모바일 typecheck·lint·동일 glob 대체 단위 2148/2148, 대상 32/32, 운영 제출 준비·CI 연결 103개 파일·접근성은 PASS다. `npm test`는 tsx IPC `EPERM`으로 BLOCKED이고 운영·시연 배포 및 실제 설치본 수용은 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). 위 전체 합계는 요청대로 자리표시자를 유지한다.
+앞선 `feat/collectible-reeded-edge`의 HEAD `9a433fee`에서 main `a1a3eef3`를 병합한 당시 기록이다. PR #429의 회전·움직임 분리·Flame 오라·reeded edge와 main의 T3 혜택·T4 코스·T8 공공자료 시연 점포를 보존한다. 공공자료 점포명이 보이는 상세 화면의 고지와 접근성 이름을 함께 유지한다. Git index는 의도대로 미병합 상태다. 모바일 typecheck·lint·동일 glob 대체 단위 2148/2148, 대상 32/32, 운영 제출 준비·CI 연결 103개 파일·접근성은 PASS다. `npm test`는 tsx IPC `EPERM`으로 BLOCKED이고 운영·시연 배포 및 실제 설치본 수용은 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). 당시 전체 합계 자리표시자는 유지했다. 현재 T9와 main `8aa8b724` 병합의 전체 합계는 오케스트레이터가 확정한다.
 
 ## 2026-10-09 앞선 T3 혜택·T4 코스·T8 시연 점포 통합 (Issue #412, 배포하지 않음)
 

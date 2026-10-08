@@ -7,6 +7,7 @@ import {
   type CoinTicket, type PublishCoinPoolInput, type PublishCoinSeriesInput,
 } from '../coin-economy.js';
 import { isCompleteOwnerOfferConsent, normalizeDocumentReference } from '../store-go-live-rules.js';
+import { SHOWCASE_PRACTICE_MERCHANT_ID } from '../showcase/local-seed.js';
 import { assertPlatformAdmin } from './admin.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { earnedAndSpent } from './mileage-shop.js';
@@ -598,7 +599,8 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
         FROM collectible_publications publication
         JOIN merchants merchant ON merchant.id = publication.merchant_id
         JOIN collectible_publication_grades grade ON grade.publication_id = publication.id
-        WHERE NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
+        WHERE merchant.id <> '${SHOWCASE_PRACTICE_MERCHANT_ID}'
+          AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
           WHERE trial.merchant_id = merchant.id AND trial.account_id <> $1)
         AND publication.id IN (
           SELECT publication_id FROM campaign_collectible_publications link JOIN campaigns campaign

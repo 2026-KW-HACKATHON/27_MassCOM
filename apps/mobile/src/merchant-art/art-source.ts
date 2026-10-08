@@ -5,7 +5,7 @@ const ART_PATH = /^\/merchant-art\/[0-9a-f]{64}\.webp$/;
 
 /** Note drawn on a picture the owner chose; the bundled showcase picture keeps its own note. */
 export const AI_ART_NOTE = '사장님이 고른 AI 그림';
-export const SHOWCASE_ART_NOTE = '가상 점포 시연 그림';
+export const SHOWCASE_ART_NOTE = '체험용 예시 그림';
 
 /** The API's public art path (`/merchant-art/<sha256>.webp`); anything else is not ours to load, so it becomes null. */
 export function parseMerchantArtPath(value: unknown): string | null {
