@@ -1001,7 +1001,7 @@ PR #164 독립 검토에서 비정규 OAuth 환경변수 형식의 덮어쓰기 
 | M07 | DB·Worker | PASS | 민팅 도중 프로필 지갑 변경 | 이미 고정한 수령인 유지 | binding 해제/새 버전과 무관하게 job recipient·실제 owner 동일 |
 | M08 | 복원 | PASS | DB 백업 복원 후 재처리 | 기존 NFT를 다시 발행하지 않음 | 로컬 asset/event 행 제거 뒤 기존 reward key/token #1을 조회해 attempt 0으로 자산·이벤트 복원 |
 | C01 | Foundry 계약 | PASS | 비민터 발행·민터 권한 상승 | 계약에서 거절 | 비민터 mint와 MINTER의 admin grant 모두 `AccessControlUnauthorizedAccount` |
-| C02 | Foundry 속성 | PASS | 누적 상한 경계·중복 발행 키 | 상한·일회성 유지 | cap+1·중복 rewardKey 거절, 128회 fuzz에서 `everMinted ≤ maxEverMinted` |
+| C02 | Foundry 속성 | PASS | 상한 없음·중복 발행 키 | 상한은 해제(D-092), 일회성 유지 | 같은 rewardKey 재사용 거절, 128회 fuzz로 상한 없이 1~64개를 연속 발행해 `everMinted`가 발행 수와 같음. 2026-10-08 `forge test` 8개 통과(고정 이미지 foundry sha256:2e428727…) |
 | C03 | Foundry 계약 | PASS | 모든 전송·우회 경로 | 잠긴 NFT는 이전 불가 | approve·setApprovalForAll·transferFrom·safeTransferFrom 2종과 내부 `_update` 거절 |
 | C04 | Foundry 계약 | PASS | 시리즈 활성화 후 조건 변경 | 동결된 값 변경 불가 | 비활성 mint 거절, 중복 생성·재활성화 거절, 설정 변경 함수 없음 |
 | D01 | API·Worker | PASS | 발급 중 탈퇴 | 미전송·제출됨을 구분 | 동시 10요청 하나로 수렴, 미전송 1건 `CANCELLED`, 제출 1건 결과 대기, 확정 NFT 1건 보존, 원 account ID 참조 0 |

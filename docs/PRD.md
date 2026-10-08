@@ -21,7 +21,7 @@
 | RQ-011 | 멱등 발행 | 같은 권리·요청·Worker 재시도에서 온체인 효과 1회 | `VERIFIED` |
 | RQ-012 | Outbox 복구 | 권리 소비와 작업 생성이 원자적이며 장애 후 복구 | `VERIFIED` |
 | RQ-013 | 체인 대조 | receipt뿐 아니라 체인·계약·수령인·발행 이벤트 확인 | `VERIFIED` |
-| RQ-014 | 공급 상한 | 누적 발행·예약·조건부 예약이 디자인 상한 이하 | `VERIFIED` |
+| RQ-014 | 공급 상한 | 해제: 시리즈 발행 수량 상한을 두지 않는다([D-092](DECISIONS.md)). 중복 발행 방지(보상권 1회·reward key)만 유지 | `RETIRED` |
 | RQ-015 | 개인정보 최소화 | 개인정보·주문번호·정확한 식사 시각을 공개 메타데이터에서 제외 | `VERIFIED` |
 | RQ-016 | 클라우드 API·DB | 외부 HTTPS, PostgreSQL, 환경·권한 분리 | `IN_PROGRESS` |
 | RQ-017 | 실제 Android 앱 | 설치 빌드, 앱 복귀, 카메라 대체 입력, 오프라인 상태 검증 | `IN_PROGRESS` |

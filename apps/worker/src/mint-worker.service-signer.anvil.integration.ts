@@ -69,7 +69,7 @@ test('W-100 service signer record-before-send survives crashes, lost responses, 
   await contract.waitForDeployment();
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('service-signer-series');
-  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://service-signer/', 10));
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://service-signer/'));
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
 
   const rewardKeys = [id('service-signer-reward-1'), id('service-signer-reward-2')] as const;
@@ -220,7 +220,7 @@ test('W-100 lost broadcast response confirms the same hash on restart with exact
   await contract.waitForDeployment();
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('service-signer-lost-response-series');
-  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://lost-response/', 5));
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://lost-response/'));
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
 
   const rewardKey = id('service-signer-lost-response-reward');
@@ -308,7 +308,7 @@ test('W-100 consecutive submissions get consecutive nonces and two racing worker
   await contract.waitForDeployment();
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('service-signer-race-series');
-  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://race/', 10));
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://race/'));
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
 
   const rewardKeys = [id('service-signer-race-reward-1'), id('service-signer-race-reward-2')] as const;
@@ -413,7 +413,7 @@ test('W-100 a recorded but unbroadcast transaction keeps its nonce when the next
   await contract.waitForDeployment();
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('service-signer-straggler-series');
-  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://straggler/', 10));
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://straggler/'));
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
   const rewardKeys = [id('service-signer-straggler-1'), id('service-signer-straggler-2')] as const;
   const jobIds = [
@@ -496,7 +496,7 @@ test('H1 a straggler that never broadcasts blocks the next job until its own job
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('service-signer-permanent-straggler-series');
   await waitFor(
-    await contract.getFunction('createSeries').send(seriesKey, 'ipfs://permanent-straggler/', 10),
+    await contract.getFunction('createSeries').send(seriesKey, 'ipfs://permanent-straggler/'),
   );
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
   const rewardKeys = [
@@ -619,7 +619,7 @@ test('W-100 a fee quote above the per-mint ceiling is refused before anything is
   await contract.waitForDeployment();
   const contractAddress = getAddress(await contract.getAddress());
   const seriesKey = id('service-signer-fee-ceiling-series');
-  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://fee/', 10));
+  await waitFor(await contract.getFunction('createSeries').send(seriesKey, 'ipfs://fee/'));
   await waitFor(await contract.getFunction('activateSeries').send(seriesKey));
   const rewardKeys = [id('service-signer-fee-1'), id('service-signer-fee-2')] as const;
   const jobIds = [

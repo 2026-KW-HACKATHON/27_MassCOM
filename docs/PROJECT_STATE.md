@@ -581,7 +581,7 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 - 공개 음식점·캠페인, 점포별 OWNER/STAFF 권한, 1인 일회용 방문 코드
 - QR slot 소비·방문·KST 일일 진행·첫/3/5회 고정 보상권 원자 처리
 - 방문·앱 수집품·실제 NFT를 분리한 도감과 이유가 보이는 다음 가게 추천
-- OpenZeppelin ERC-721/ERC-5192 계약의 역할·누적 상한·reward key·영구 잠금
+- OpenZeppelin ERC-721/ERC-5192 계약의 역할·reward key(누적 상한은 D-092로 해제)·영구 잠금
 - 보상권·고정 수령인 mint job·Outbox 원자 생성과 동일 요청 20개 수렴
 - Worker의 `SKIP LOCKED` lease·heartbeat, 제출 attempt, 체인 이벤트, NFT 자산, cursor 저장
 - 전송 전 chain/contract/MINTER 검사와 receipt·계약·수령인·series·reward key·owner·locked 대조

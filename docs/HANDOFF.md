@@ -16,6 +16,7 @@
 
 - PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414·#415·#420·#421·#422는 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
 - NFT 발행 Worker 상시 실행([D-089](DECISIONS.md))의 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)은 병합돼 main `48a14811`에 있고 서버 배포·운영 활성화는 하지 않았다.
+- NFT 시리즈 발행 수량 상한 해제([D-092](DECISIONS.md)): 브랜치 `feat/remove-nft-series-cap`(PR 미생성, `gh` CLI가 이 PC에 없어 Issue·PR을 만들지 못했다). 컨트랙트 `createSeries`가 2인자로 바뀌고(`series()` getter는 `(string,uint64,bool)`) API 수량 검사·`CAPACITY_UNAVAILABLE`을 없앴으며 migration 0068이 `nft_series.max_ever_minted`의 NOT NULL만 푼다. 배포하지 않았다. Base Sepolia의 기존 컨트랙트(상한 1)는 그대로이고 상한 없는 시리즈는 새 컨트랙트를 배포해야 한다. 다음 명령: `git status -sb`, `git log -1 --oneline`, PR을 열기 전 `bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"`.
 - PR #396은 닫혔으나 main에 병합되지 않았다. 미병합 초안을 공개본 기능으로 계산하지 않는다.
 - 재개 시 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 다시 대조한다.
 

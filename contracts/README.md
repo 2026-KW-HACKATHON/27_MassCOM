@@ -57,6 +57,6 @@ export BASE_SEPOLIA_ADMIN=0x... BASE_SEPOLIA_MINTER=0x... BASE_SEPOLIA_PAUSER=0x
 - `DEFAULT_ADMIN_ROLE`: 시리즈 생성·활성화, 역할 관리, 중지 해제
 - `MINTER_ROLE`: 활성 시리즈 발행
 - `PAUSER_ROLE`: 신규 발행 긴급 중지
-- `rewardKey` 한 번만 사용, 디자인별 누적 상한 유지
+- `rewardKey` 한 번만 사용. 시리즈 발행 수량 상한은 없음(D-092, `createSeries(seriesId, baseTokenURI)`)
 - 모든 NFT는 ERC-5192 `locked=true`
 - 승인·일반 전송·소각·교환·관리자 회수·업그레이드 프록시 없음

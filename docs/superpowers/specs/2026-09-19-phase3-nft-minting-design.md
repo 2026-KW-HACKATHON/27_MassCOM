@@ -33,7 +33,7 @@ Android 발행 확인
 - `DEFAULT_ADMIN_ROLE`: 시리즈 생성·활성화, 민터/중지 역할 관리, 중지 해제
 - `MINTER_ROLE`: 활성 시리즈의 발행만 가능
 - `PAUSER_ROLE`: 신규 발행 긴급 중지 가능
-- 시리즈는 `seriesId`, 메타데이터 base URI, `maxEverMinted`, `everMinted`, 활성 상태를 가진다.
+- 시리즈는 `seriesId`, 메타데이터 base URI, 누적 발행 수 `everMinted`, 활성 상태를 가진다. 수량 상한(`maxEverMinted`)은 2026-10-08 D-092로 없앴다.
 - 시리즈 생성 뒤 설정 변경 API를 제공하지 않고, 활성화 뒤에는 발행만 허용한다.
 - `rewardKey`는 추측 불가능한 32바이트 값이며 계약에서 한 번만 소비한다.
 - 발행 이벤트는 `rewardKey`, `tokenId`, `recipient`, `seriesId`만 포함한다.

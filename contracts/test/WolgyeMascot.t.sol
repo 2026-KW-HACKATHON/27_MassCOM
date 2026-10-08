@@ -14,7 +14,6 @@ import { WolgyeMascot } from "../src/WolgyeMascot.sol";
 
 contract WolgyeMascotTest is Test {
     bytes32 internal constant SERIES = keccak256("merchant-a:campaign-a:goal-1");
-    bytes32 internal constant SECOND_SERIES = keccak256("merchant-a:campaign-a:goal-3");
     bytes32 internal constant REWARD_KEY = keccak256("test-reward-key-1");
 
     address internal admin = makeAddr("admin");
@@ -28,7 +27,7 @@ contract WolgyeMascotTest is Test {
     function setUp() public {
         mascot = new WolgyeMascot(admin, minter, pauser);
         vm.startPrank(admin);
-        mascot.createSeries(SERIES, "ipfs://bafy-demo/series-1/", 5);
+        mascot.createSeries(SERIES, "ipfs://bafy-demo/series-1/");
         mascot.activateSeries(SERIES);
         vm.stopPrank();
     }
@@ -76,14 +75,9 @@ contract WolgyeMascotTest is Test {
         mascot.mintWithRewardKey(recipient, SERIES, REWARD_KEY);
     }
 
-    function testC02RewardKeyAndSupplyCapArePermanent() public {
-        vm.startPrank(admin);
-        mascot.createSeries(SECOND_SERIES, "ipfs://bafy-demo/series-3/", 1);
-        mascot.activateSeries(SECOND_SERIES);
-        vm.stopPrank();
-
+    function testC02RewardKeyIsPermanent() public {
         vm.prank(minter);
-        uint256 tokenId = mascot.mintWithRewardKey(recipient, SECOND_SERIES, REWARD_KEY);
+        uint256 tokenId = mascot.mintWithRewardKey(recipient, SERIES, REWARD_KEY);
         assertEq(tokenId, 1);
         assertEq(mascot.tokenByRewardKey(REWARD_KEY), tokenId);
 
@@ -92,38 +86,27 @@ contract WolgyeMascotTest is Test {
             abi.encodeWithSelector(WolgyeMascot.RewardKeyAlreadyUsed.selector, REWARD_KEY)
         );
         mascot.mintWithRewardKey(attacker, SERIES, REWARD_KEY);
-
-        vm.prank(minter);
-        vm.expectRevert(
-            abi.encodeWithSelector(WolgyeMascot.SeriesSupplyExceeded.selector, SECOND_SERIES, 1)
-        );
-        mascot.mintWithRewardKey(recipient, SECOND_SERIES, keccak256("another-reward"));
     }
 
-    function testFuzzC02NeverExceedsConfiguredCap(uint8 capSeed) public {
-        uint64 cap = uint64(bound(capSeed, 1, 32));
-        bytes32 seriesId = keccak256(abi.encodePacked("fuzz-series", cap));
+    function testFuzzC02SeriesHasNoSupplyCap(uint8 countSeed) public {
+        uint64 count = uint64(bound(countSeed, 1, 64));
+        bytes32 seriesId = keccak256(abi.encodePacked("fuzz-series", count));
         vm.startPrank(admin);
-        mascot.createSeries(seriesId, "ipfs://bafy-demo/fuzz/", cap);
+        mascot.createSeries(seriesId, "ipfs://bafy-demo/fuzz/");
         mascot.activateSeries(seriesId);
         vm.stopPrank();
 
         vm.startPrank(minter);
-        for (uint64 index = 0; index < cap; index++) {
+        for (uint64 index = 0; index < count; index++) {
             mascot.mintWithRewardKey(
-                recipient, seriesId, keccak256(abi.encodePacked("fuzz-reward", cap, index))
+                recipient, seriesId, keccak256(abi.encodePacked("fuzz-reward", count, index))
             );
         }
-        vm.expectRevert(
-            abi.encodeWithSelector(WolgyeMascot.SeriesSupplyExceeded.selector, seriesId, cap)
-        );
-        mascot.mintWithRewardKey(recipient, seriesId, keccak256("cap-plus-one"));
         vm.stopPrank();
 
-        (, uint64 maxEverMinted, uint64 everMinted, bool active) = mascot.series(seriesId);
+        (, uint64 everMinted, bool active) = mascot.series(seriesId);
         assertTrue(active);
-        assertEq(maxEverMinted, cap);
-        assertEq(everMinted, cap);
+        assertEq(everMinted, count);
     }
 
     function testC02RejectsZeroRecipientAndZeroRewardKey() public {
@@ -160,7 +143,7 @@ contract WolgyeMascotTest is Test {
     function testC04SeriesMustActivateAndCannotBeRecreated() public {
         bytes32 draftSeries = keccak256("draft-series");
         vm.prank(admin);
-        mascot.createSeries(draftSeries, "ipfs://bafy-demo/draft/", 3);
+        mascot.createSeries(draftSeries, "ipfs://bafy-demo/draft/");
 
         vm.prank(minter);
         vm.expectRevert(abi.encodeWithSelector(WolgyeMascot.SeriesNotActive.selector, draftSeries));
@@ -171,7 +154,7 @@ contract WolgyeMascotTest is Test {
         vm.expectRevert(
             abi.encodeWithSelector(WolgyeMascot.SeriesAlreadyExists.selector, draftSeries)
         );
-        mascot.createSeries(draftSeries, "ipfs://changed/", 100);
+        mascot.createSeries(draftSeries, "ipfs://changed/");
         vm.expectRevert(
             abi.encodeWithSelector(WolgyeMascot.SeriesAlreadyActive.selector, draftSeries)
         );

@@ -385,3 +385,8 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 - Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
 - 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.
+
+## 2026-10-08 — NFT 시리즈 발행 수량 상한 해제 (D-092)
+
+- Claude Sonnet 5.5가 컨트랙트 `createSeries`의 상한 인자·오류 제거, API 발행 신청의 수량 검사·`CAPACITY_UNAVAILABLE` 제거, migration 0068, 관련 시험(Foundry·API·Worker)과 문서 수정을 구현했다. 소유자가 오프라인 회의의 합의와 "상한을 보존하지 않고 코드를 고친다"는 결정을 지시했다.
+- 검증: `forge test` 8개, API PostgreSQL 통합 524 통과·0 실패·3 건너뜀(건너뛴 3개는 `_merchant_test` DB 전용이라 따로 돌려 4개 통과), Worker Anvil 12/12, Worker PostgreSQL 30/30. 변경 전 커밋 `8841efea`에서도 같은 모바일 15개·Worker 5개·API 단위 1개가 실패한다(Windows 줄바꿈 CRLF·미적용 패치·권한 시험). 독립 코드 검토는 하지 않았다.
