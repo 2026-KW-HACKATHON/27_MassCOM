@@ -1,8 +1,34 @@
 # 테스트 상태
 
+## 2026-10-08 API 서버 구조 정리 마무리: deps 고정·기본값 한곳·콜백 쿠키와 삭제 접수 배선 고정 (Issue #412 트랙 T1, 배포 동결)
+
+기준 main `b572184e`에서 시작한 작업 브랜치 `refactor/api-deps-routes`를 main `b707ed09`(PR #413·#414·#415·#421 병합) 위로 옮겼다. 그 네 PR은 `apps/api/src`를 건드리지 않아(#421은 `apps/api/package.json`에 `test:cov`·`test:postgres:cov` 스크립트만 더했다) API 시험 수는 그대로다. 코드는 `apps/api`만 바뀌었고 요청·응답 동작은 바뀌지 않았다. 교차 리뷰(Claude Sonnet·Claude Opus)가 승인(🔴 0·🟠 0)하며 남긴 🟡 5건을 반영했다. (1) `createApiServer`가 deps를 복사해 한 번만 얼린다. (2) `trustProxyClientIp`·`webWwwEnabled`·`experienceServices`의 기본값을 한곳에서 정하고 경로 처리기 13곳의 `??`를 지웠다. (3) 웹 로그인 콜백의 쿠키 응답을 시험으로 고정했다. (4) 계정 삭제 접수 서비스 두 개의 배선을 소스 시험으로 고정했다. (5) `experienceServices`를 `Required<ExperienceServices>`로 만들어 안쪽 키 누락도 컴파일에서 잡는다. 배포·게시는 하지 않았다(소유자 결정 A).
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| API 단위 시험·typecheck | PASS | `npm run typecheck --prefix apps/api && npm test --prefix apps/api` 597/597. 이 작업 전 591/591에서 새 시험 6건이 늘었다: 콜백 쿠키 3건(`server-web-auth-callback.test.ts`), 만든 뒤 deps 객체를 바꿔도 서버에 반영되지 않음 1건(`server-deps.test.ts`), 삭제 접수 배선 2건(`server-deletion-intake-wiring.test.ts`) |
+| PostgreSQL 통합 시험 | PASS | 새 DB `masscom_t1final_test`(컨테이너 `masscom-pg-test` 55432)에 migration을 한 번 적용하고 `npm run test:postgres`(전체 59개 파일, `--test-concurrency=1`)를 돌렸다: 527건 중 524 pass / 0 fail / 3 skip. skip 3건은 전용 55435 hosted seed 컨테이너가 필요한 시험이다(이전 기록과 같다). 서비스 배선과 맞닿은 12개 파일(auth-session, claim-slot, merchant-catalog, customer-identity, merchant-art, nft-metadata, merchant-access, visitor-feedback, guest-trials, play, test-visit, access-requests)만 따로 새 DB에서 다시 돌려 142/142 pass. 시험 뒤 DB를 지웠다 |
+| 인라인 동등성 | PASS | `server.ts`의 요청 처리 본문과 17개 `routes/*.ts` 처리기 본문을 원래 자리로 다시 펼쳐 `89d7a5e4`의 같은 구간과 공백을 정규화한 줄 단위로 비교했다: 1797/1797줄. 차이는 로그아웃(`/api/web/logout`) 블록의 위치뿐이다(옛 코드는 뒤쪽, 지금은 웹 로그인 처리기 안의 콜백 바로 뒤). 이 경로는 다른 처리기의 접두어·정규식과 겹치지 않아 순서가 응답을 바꾸지 않는다 |
+| 변이 점검 | PASS | 시험이 정말 잡는지 코드를 일부러 깨 봤고 모두 실패를 확인한 뒤 원래대로 되돌렸다. 콜백 앞쪽의 state 쿠키 지우기 줄(`routes/web-auth.ts`) 삭제 → 콜백 검증 실패 시험 2건 실패(성공 경로 시험은 통과: 성공 응답은 뒤쪽 배열이 덮는다). 성공 쿠키 순서 뒤집기 → 순서 시험 실패. `deletionIntake:`의 `!showcaseInvites` 삭제 → 배선 시험 실패. `showcaseDeletionIntake:`의 `{ source: 'SHOWCASE_APP' }` 삭제 → 배선 시험 실패. deps 복사 대신 호출자 객체에 직접 기본값을 덮어쓰기 → 복사 시험 실패. `experienceServicesDeps`에서 `tmap` 키 삭제 → typecheck `TS2741` 실패 |
+| 빌드·부팅 | PASS | `npm run build --prefix apps/api` 성공. `PORT=39217 node dist/server.js`로 띄워 `GET /health`가 200 `{"status":"ok"}`, 없는 경로가 404 `NOT_FOUND`였다. 데이터베이스·비밀값 없는 부팅이다 |
+| 사이트 시험·개인정보 검사 | PASS | `node --test tests/site/collectible-errors.test.mjs tests/site/legal-pages.test.mjs` 14/14, `bash scripts/check-privacy.sh` PASS |
+| 실제 서버 영향 | 없음 | 운영·시연 서버와 설치본은 바뀌지 않았다. 배포하지 않았다(소유자 결정 A) |
+
+### Issue #412 T1 마무리의 로컬 검사
+
+환경: macOS, `.worktrees/api-split` worktree, 2026-10-08 KST. 다음은 이 세션에서 직접 실행한 검사이고, main `e06c97cd` 위에서 한 번, `b707ed09`(PR #421 병합) 위로 다시 옮긴 뒤 한 번 실행해 결과가 같았다(API 시험 597/597, 나머지 PASS). 두 번째 실행에서는 #421이 더한 `npm run test:cov --prefix apps/api`도 597/597로 통과했다(`all files` 줄 커버리지 58.79%).
+
+| 명령 | 결과 |
+| --- | --- |
+| `npm run typecheck --prefix apps/api && npm test --prefix apps/api` | PASS (597/597) |
+| `bash tools/gate.sh` | PASS (exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (exit 0) |
+| `bash tests/ci/ci_wiring_test.sh` | PASS (exit 0) |
+
 ## 2026-10-08 기능 수준 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 단일 원본 (Issue #412, 배포 동결)
 
-작업 브랜치 `chore/ops-quality-t5`다. 처음 기준은 main `b572184e`(PR #411 병합)였고 PR #413·#414·#415가 병합된 main `e06c97cd` 위로 리베이스했다. 아래 로컬 행은 이 세션에서 직접 실행한 결과다. 리베이스 뒤에는 사이트·운영·CI 연결·큰 파일 시험과 `bash tools/gate.sh`를 다시 실행해 모두 통과했다. API 단위 커버리지와 실제 컨테이너 백업·복원 행은 리베이스 전 측정이며 다시 돌리지 않았다(main이 `apps/api`·`scripts/db-restore-drill.sh`·`infra/*/host-jobs`를 바꾸지 않았다). 배포·호스트 설치·게시는 하지 않았다(소유자 결정 A). 공개 서버·설치본은 그대로다.
+작업 브랜치 `chore/ops-quality-t5`이며 PR #421로 main `b707ed09`에 병합됐다. 처음 기준은 main `b572184e`(PR #411 병합)였고 PR #413·#414·#415가 병합된 main `e06c97cd` 위로 리베이스했다. 아래 로컬 행은 이 세션에서 직접 실행한 결과다. 리베이스 뒤에는 사이트·운영·CI 연결·큰 파일 시험과 `bash tools/gate.sh`를 다시 실행해 모두 통과했다. API 단위 커버리지와 실제 컨테이너 백업·복원 행은 리베이스 전 측정이며 다시 돌리지 않았다(main이 `apps/api`·`scripts/db-restore-drill.sh`·`infra/*/host-jobs`를 바꾸지 않았다). 배포·호스트 설치·게시는 하지 않았다(소유자 결정 A). 공개 서버·설치본은 그대로다.
 
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |

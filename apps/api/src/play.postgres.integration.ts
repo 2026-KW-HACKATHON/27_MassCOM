@@ -15,7 +15,7 @@ import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { runMigrations } from './postgres/migrate.js';
 import { PostgresPlayService } from './postgres/play.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const secret = 'test-only-account-deletion-secret-at-least-32-bytes';

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import {
   MintRequestError, consentVersionRefusal, mintConsentVersionFromEnv, type MintRequestService,
 } from './mint-request-service.js';
-import { createApiServer } from './server.js';
+import { createApiServer } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 test('API 시작 판은 비어 있으면 nft-mint-v2이고 v2보다 낮거나 형식이 틀리면 시작하지 않는다', () => {

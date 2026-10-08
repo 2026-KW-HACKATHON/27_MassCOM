@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { COLLECTIBLE_ERROR_CODES, COLLECTIBLE_ERROR_MESSAGES, collectibleErrorMessage, localError } from '../../apps/production-web/assets/collectible-errors.mjs';
 
 const read = path => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
+// 서버 응답 코드는 server.ts와 거기서 나뉜 http/·routes/ 모듈에 흩어져 있다.
+const apiSources = ['apps/api/src/server.ts', ...['http', 'routes'].flatMap(dir => existsSync(new URL(`../../apps/api/src/${dir}`, import.meta.url))
+  ? readdirSync(new URL(`../../apps/api/src/${dir}`, import.meta.url)).filter(name => name.endsWith('.ts')).sort().map(name => `apps/api/src/${dir}/${name}`) : [])];
 const doc = read('docs/COLLECTIBLE_CREATOR.md');
 const customerOnly = new Set(['COLLECTIBLE_NOT_FOUND']); // 보유자 상세 API 전용이라 제작기에서는 나오지 않는다.
 const generic = collectibleErrorMessage({ status: 400, code: 'UNKNOWN_CODE' });
@@ -14,7 +17,7 @@ const union = read('apps/api/src/collectible-project.ts').match(/CollectibleProj
 const fromService = [...union.matchAll(/'([A-Z_]+)'/g)].map(match => match[1]);
 const discoveryUnion = read('apps/api/src/merchant-discovery.ts').match(/MerchantDiscoveryErrorCode =([^;]+);/)?.[1] ?? '';
 const fromDiscoveryService = [...discoveryUnion.matchAll(/'([A-Z_]+)'/g)].map(match => match[1]);
-const fromServer = [...read('apps/api/src/server.ts').matchAll(/'((?:COLLECTIBLE_[A-Z_]+)|BODY_TOO_LARGE|MERCHANT_ACCESS_DENIED|MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED|VIEW_SOURCE_INVALID|VIEW_RATE_LIMITED|ADMIN_FUNNEL_NOT_CONFIGURED|FUNNEL_DAYS_INVALID)'/g)].map(match => match[1]);
+const fromServer = [...apiSources.map(read).join('\n').matchAll(/'((?:COLLECTIBLE_[A-Z_]+)|BODY_TOO_LARGE|MERCHANT_ACCESS_DENIED|MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED|VIEW_SOURCE_INVALID|VIEW_RATE_LIMITED|ADMIN_FUNNEL_NOT_CONFIGURED|FUNNEL_DAYS_INVALID)'/g)].map(match => match[1]);
 const all = [...new Set([...documented, ...fromService, ...fromDiscoveryService, ...fromServer])].filter(code => !customerOnly.has(code));
 
 test('계약 문서·서버가 돌려주는 수집품·탐색·집계 오류 코드를 모두 읽어 낸다', () => {
