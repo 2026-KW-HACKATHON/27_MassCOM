@@ -22,23 +22,6 @@ test('flame aura renders at most four active layers in saved order without chang
   assert.deepEqual(effects, original);
 });
 
-test('inline animated flame paths match the geometry helper and hide missing tongues', () => {
-  const layer = readFileSync(new URL('./collectible-aura-layer.tsx', import.meta.url), 'utf8');
-  const body = layer.match(/const pathProps = useAnimatedProps\(\(\) => \{([\s\S]*?)\n  \}\);/)?.[1];
-  assert.ok(body, 'the animated path callback must be inspected');
-  for (const shape of ['circle', 'stamp', 'serrated']) {
-    for (const angle of [-180, -90, 0, 45, 90, 180]) {
-      const tongues = collectibleFlameFrame(shape, 256, angle, 350, 2, 65);
-      for (let index = 0; index <= tongues.length; index++) {
-        const props = runInNewContext(`(() => {${body}})()`, { frame: { get: () => tongues }, index });
-        const tongue = tongues[index];
-        assert.equal(props.d, tongue ? collectibleFlamePath(tongue) : '');
-        assert.equal(props.opacity, tongue?.alpha ?? 0);
-      }
-    }
-  }
-});
-
 test('flame geometry uses fixed native perimeter slots and finite upward tips for all three shapes', () => {
   for (const shape of ['circle', 'stamp', 'serrated']) {
     for (const size of [131.2, 209.92, 295.2]) {
@@ -111,4 +94,16 @@ test('native flame keeps the shared UI frame phase on pause and only adds a mask
   assert.match(layer, /maskType="luminance"/);
   assert.match(layer, /<CollectibleFaceOutline shape=\{shape\} fill="black"/);
   assert.ok(detail.indexOf('<CollectibleAuraLayer') < detail.indexOf('<CollectibleEdgeLayer'), 'aura is behind the physical coin');
+});
+
+test('flame paths are shared UI-frame data and animated props never invoke imported geometry helpers', () => {
+  const layer = readFileSync(new URL('./collectible-aura-layer.tsx', import.meta.url), 'utf8');
+  const geometry = readFileSync(new URL('./collectible-aura.ts', import.meta.url), 'utf8');
+  const props = layer.slice(layer.indexOf('const gradientProps = useAnimatedProps'), layer.indexOf('return <>'));
+  assert.match(props, /d: tongue\.d, opacity: tongue\.alpha/);
+  assert.doesNotMatch(props, /collectibleFlame(?:Path|FrameForAnchors)\(/);
+  assert.match(layer, /const frame = useDerivedValue\([\s\S]*?d: collectibleFlamePath\(tongue\)/);
+  for (const helper of ['collectibleFlameFrameForAnchors', 'collectibleFlamePath', 'effectSpeedValue', 'effectStrengthValue']) {
+    assert.match(geometry, new RegExp(`export function ${helper}\\([^{]*\\{\\s*'worklet';`), `${helper} must remain UI-runtime serializable`);
+  }
 });
