@@ -1,4 +1,15 @@
-현재 자동 시험 합계(2026-10-09 KST, PR #429 브랜치 `feat/collectible-reeded-edge`에 PR #430 반영 main `a1a3eef3`를 병합한 기준): API 단위 672/672 · 모바일 2148/2148. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, 브랜치 `fix/ai-image-gap-fixes`에 `origin/main` `8aa8b724`를 병합한 HEAD `43c0cee0` 기준): API 단위 675/675 · 모바일 2165/2165. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이 한 줄은 README와 PROJECT_STATE가 동일하게 유지합니다. 이전 기준선·브랜치별 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존합니다.
+
+
+## 2026-10-09 현재 통합 기능 상태 (HEAD `43c0cee0`, 새 기능 미배포)
+
+새 통합 소스는 음식점 마스코트 뽑기권을 가진 고객에게만 남은 공유 풀의 확률을 공개한다. 기본 재고는 100개(브론즈 50·실버 35·골드 14·프리즘 1)이며, 추첨 차감은 고객 간 공유되고 프리즘 지급 때 회차를 올려 100개를 다시 채운다. 사용하지 않은 음식점 권은 발급 후 최대 7일에 만료한다.
+
+일반 상자는 캐릭터와 음식점 코인을 지급하지 않고, 재뽑기권·마일리지·가구·테마 중 하나를 지급한다. 브론즈 상자는 모든 보상 등급을, 실버는 실버 이상을, 골드는 골드 이상을 뽑는다. 가구 카탈로그는 등급 정보가 없어 브론즈에만 둔다. 재뽑기는 코인 1개와 권 1장을 원자적으로 사용하며 등급 하락도 가능하다. NFT 발행 중·완료 코인은 잠긴다.
+
+연합 미션은 실제 등록·동의된 가게 2–4곳을 연결하며, 지정 기간 안의 취소되지 않은 비직원 방문만 진행에 포함한다. 순서는 자유이고 고객은 다음 미완료 가게로 이동한다. 점주 체험 AI 이미지 생성에는 계정 전체 기준 한국 날짜별 시안 3회·최종 3회와 생성 요청 사이 60초 제한이 적용된다. 점포별 기존 제한·월 USD 5 예산도 남는다.
+
+위 기능은 API·migration·모바일 소스와 자동 시험 및 로컬 실브라우저 검증에 반영됐으며 아직 운영·시연에 배포되지 않았다. 실제 local API/DB와 가상 시연 계정 A/B/C를 사용한 390×844 브라우저 흐름은 [캡처·응답·visual verdict 93](evidence/alliance-draw-2026-10-09/README.md)에 기록했다. 현장 방문·점주 동의 증거는 아니다. 새 개인정보 안내는 API·웹·운영/시연 APK·시연 웹을 같은 릴리스로 제공해야 한다. 실제 OpenAI 생성·앱 설치 실기·이 기능의 공개 배포는 `NOT_RUN`이다. 운영·시연 API의 키 연결/healthy 증거는 [OpenAI 설정 기록](evidence/openai-ai-art-enable-2026-10-09.json)을 본다.
 
 T4 단독 브랜치 자동 시험 합계(2026-10-09 KST, Issue #412 T4 브랜치 `feat/cross-store-courses`에 PR #425 반영 main `055d0523`를 병합한 기준): API 단위 652/652 · 모바일 2110/2110. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
 

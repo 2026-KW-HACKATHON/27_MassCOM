@@ -1,3 +1,9 @@
+## 2026-10-09 Codex — 통합 기능 및 점주 AI 사용량 제한
+
+사용자가 요청한 연합 미션, 공유 음식점 마스코트 뽑기, 일반 보상 상자·재뽑기와 계정당 AI 이미지 생성 제한을 병렬 구현했다. AI 제한은 여러 가게를 운영하는 한 계정에 합산하며, KST 날짜별 시안 3회·최종 3회와 요청 사이 60초 쿨다운을 PostgreSQL 거래에서 검사한다. 응답은 계정 잔여량·초기화·쿨다운을 전달하고 초과 요청은 `429`와 `Retry-After`를 보낸다. 점포별 제한과 월 예산도 계속 적용된다.
+
+자동 검증은 API 675/675, 모바일 2165/2165, 사이트 493/493, 별도 PostgreSQL 기능 시험(공유 풀 11/11·상자 15/15·연합 코스 24/24·AI 제한 71건) PASS다. 전체 PostgreSQL 통합 600건 중 597 PASS/0 FAIL/3 SKIP이며 SKIP 3건도 fresh host-seed DB에서 각각 1/1 PASS로 재실행했다(단일 runner 600/600 PASS로 합산 표기하지 않음). 실제 로컬 브라우저에서 일반 상자·공유 풀·재뽑기·보유 상세·권 만료·시연 코스 완주·AI quota 표시까지 확인했고 visual verdict 93 PASS다([캡처](evidence/alliance-draw-2026-10-09/README.md)). 시연 가상 방문은 실제 점주 동의나 현장 방문 증거가 아니다. 두 서버에 OpenAI 키를 설정해 기존 이미지의 API health를 확인했지만 실제 유료 이미지는 생성하지 않았다. 신규 소스/migration/APK는 운영·시연에 배포하지 않았다. 새 개인정보 안내의 동시 릴리스 조건과 NOT_RUN 항목은 [HANDOFF](HANDOFF.md), [TEST_STATUS](TEST_STATUS.md)를 따른다.
+
 ## 2026-10-09 T4·T3 병합 충돌 해결 (Issue #412)
 
 이번 사용자의 명시적인 Codex 요청에 따라 `feat/cross-store-courses`와 PR #425가 포함된 main `055d0523`의 충돌을 파일 수정만으로 해결했다. 기본 세션이 README·PROJECT_STATE·HANDOFF·감사 시험·운영 migration 수를 통합하고 별도 executor 세션이 AI_USAGE·DECISIONS·TEST_STATUS의 양쪽 기록을 보존했다. 운영 문서 회귀·CI 연결(94개 시험 파일)·API typecheck는 PASS다. API·모바일 단위 시험 합계는 통합 재측정 대기 그대로 두고 오케스트레이터가 채운다. add·commit·stash·rebase·push·운영 배포는 실행하지 않았다.

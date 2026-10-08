@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-09",
+  "timezone": "Asia/Seoul",
+  "scope": "isolated-local-api-postgres-browser-qa",
+  "apiUnit": {
+    "passed": 675,
+    "failed": 0
+  },
+  "mobileUnit": {
+    "passed": 2165,
+    "failed": 0
+  },
+  "siteUnit": {
+    "passed": 493,
+    "failed": 0
+  },
+  "postgres": {
+    "uniqueCovered": 600,
+    "fullRunPassed": 597,
+    "fullRunSkipped": 3,
+    "followupHostSeedPassed": 3,
+    "failed": 0
+  },
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "screenshots": {
+    "01-general-boxes.jpg": {
+      "sha256": "bc769089c1f91640df109f8cf506474f963dee08b85c3f48df8b01873bdbda62",
+      "bytes": 42887
+    },
+    "02-general-result.jpg": {
+      "sha256": "48b42329942d616bcf520526477ace9ea9c5b0d2abc0df78d2dd5fc7daa5b20e",
+      "bytes": 17163
+    },
+    "05-final-store-odds.jpg": {
+      "sha256": "9db4e2c6efde5affe423575c1dbdecc6cbef21730fb3ae61fb4f648c31140340",
+      "bytes": 48462
+    },
+    "06-ticket-confirm.jpg": {
+      "sha256": "fb0c5971eb1f91cfd78bdca6d90cace9ee1e8cb5d434d186ff552f692afef89f",
+      "bytes": 47222
+    },
+    "08-reroll-confirm.jpg": {
+      "sha256": "d671bdc515287b33883d2edd7167f0963a6b7d92ff7a4c9d7038e61f33a9ce80",
+      "bytes": 42813
+    },
+    "09-reroll-result.jpg": {
+      "sha256": "6d4f095cd8e07a6a5ac44cd2fb2d951ec0abc4556f99e821e8c6e38c8d6b7582",
+      "bytes": 34935
+    },
+    "10-no-ticket-odds.jpg": {
+      "sha256": "552024af7b7981210a2f1267bebaa1d4e738b9ede19e2d21096d512a1826a93e",
+      "bytes": 45234
+    },
+    "11-owned-detail.jpg": {
+      "sha256": "0b26af04ec518e3ffdce326488354dc088d92a8d0c6b87c9244beee9a973090a",
+      "bytes": 35829
+    },
+    "12-alliance-start.jpg": {
+      "sha256": "32413f5e5ab7cedf8f02071a96b15e7923184b8975215f8878123adaf1ffb537",
+      "bytes": 31086
+    },
+    "13-alliance-ready.jpg": {
+      "sha256": "4a36e49994d1253b336c8244ad3c1fc89dc6d760e50f08d573c75dd54b872e1d",
+      "bytes": 30665
+    },
+    "14-alliance-complete.jpg": {
+      "sha256": "524fa4b11239caedc8b8a3a8f4a2b58c4c60e75ae323b1b9f84383e370e7e58e",
+      "bytes": 37816
+    },
+    "15-account-ai-quota.jpg": {
+      "sha256": "91f5c0084342085666923beb4e1f915cf77b4364b61b506646886c6429d0e8c7",
+      "bytes": 28309
+    }
+  },
+  "notRun": [
+    "physical-android",
+    "audible-audio-haptics",
+    "paid-openai-image-generation",
+    "new-application-deployment"
+  ],
+  "visualVerdict": "visual-verdict.json"
+}

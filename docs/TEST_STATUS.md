@@ -1,3 +1,13 @@
+## 2026-10-09 통합 기능 구현·검증 (HEAD `43c0cee0`, 신규 소스 미배포)
+
+현재 자동 합계는 README·PROJECT_STATE 첫 줄과 동일하다: API 675/675, 모바일 2163/2163, 사이트 493/493. API·모바일 typecheck/build와 모바일 lint 통과(lint warning 0개). 필수 36개 운영 상태는 `31 PASS / 2 BLOCKED / 3 NOT_RUN`으로 유지했다.
+
+- 전체 PostgreSQL 통합: 64개 시험 파일, 600건 중 597 PASS / 0 FAIL / 3 SKIP. 세 SKIP은 55435 hosted-showcase seed 컨테이너가 필요한 기존 시험이며, 세 항목 모두 fresh host-seed DB에서 각각 별도 재실행해 1/1 PASS했다. 따라서 전체 고유 시험에 실패는 없지만 한 번의 runner 결과를 600/600 PASS로 표현하지 않는다. 로그: `.tmp/hostseed-host-seed-existing`, `host-seed`, `store-collectibles-43c0cee0.log`.
+- 기능 격리 PostgreSQL: 공유 풀 11/11, 일반 상자 15/15, 연합 코스 24/24, AI 계정 쿼터 71건 PASS. AI 제한 P2 독립 리뷰 APPROVE; 완료 최종 행이 새 계정 한도에 소급 적용되지 않는 점은 WATCH다.
+- 로컬 브라우저의 실제 local API·PostgreSQL: 골드 상자 400P 소모·80P 마일리지 결과, 공유 점포 B에서 브론즈 1회 후 전체 99개 잔여 표시, 7일 미사용권 만료 표시 확인. 재뽑기와 연합 미션 흐름의 최종 캡처는 아직 진행 중이다.
+- 신규 API·migration·앱 소스는 운영·시연에 미배포. 실제 Android 기기와 유료 OpenAI 생성은 `NOT_RUN`. 서버 키 연결과 기존 이미지 health 확인은 별도 운영 증거([OpenAI 설정](evidence/openai-ai-art-enable-2026-10-09.json))에 기록한다.
+
+
 ## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
 
 환경: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`에서 main `a1a3eef3` 병합 중. Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지를 파일 수준에서 보존한다. 사용자 요청에 따라 README·PROJECT_STATE의 현재 전체 API·모바일 합계는 `__API__`·`__MOB__`로 유지한다. 아래 PR #429 및 Issue #412 결과는 각각 이전 브랜치에서 얻은 이력이다.
