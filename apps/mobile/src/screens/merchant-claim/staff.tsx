@@ -188,6 +188,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
     if (!handedOver) return;
     cancel();
     issuedVisitController.current?.clear();
+    scanGate.reset();
     scanned(handedOver, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 복구 확인이 끝나는 때 한 번만 받는다.
   }, [restore]);

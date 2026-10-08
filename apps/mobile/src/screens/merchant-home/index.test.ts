@@ -119,7 +119,7 @@ test('#412 시연 1인 2역: 단추는 시연·개발 빌드(웹 포함)에서�
   const modal = staff.slice(staff.indexOf('<Modal'), staff.indexOf('</Modal>'));
   assert.match(modal, /demoHandoff && ownIdentity && onBrowseAsCustomer && !issuedUncertain && seconds > 0 \? <Button styles=\{styles\} label="손님 화면에서 받기"/);
   // 내 계정이 직접 만든 식별 QR일 때만 켜진다: 시연 손님 QR을 만들 때와 손님 화면이 넘긴 QR을 받을 때. 새 촬영·취소·완료에서는 꺼진다.
-  assert.match(staff, /if \(!handedOver\) return;\s*cancel\(\);\s*issuedVisitController\.current\?\.clear\(\);\s*scanned\(handedOver, true\);/);
+  assert.match(staff, /if \(!handedOver\) return;\s*cancel\(\);\s*issuedVisitController\.current\?\.clear\(\);\s*scanGate\.reset\(\);\s*scanned\(handedOver, true\);/);
   // 카메라로 찍은 QR은 내 것이 아니다: scanned는 기본값 false로 플래그를 다시 쓴다.
   assert.match(staff, /function scanned\(raw: string, own = false\) \{[\s\S]*?setOwnIdentity\(own\);/);
   assert.match(staff, /onBarcodeScanned=\{\(\{ data \}\) => scanned\(data\)\}/);
