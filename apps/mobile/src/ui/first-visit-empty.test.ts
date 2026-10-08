@@ -70,7 +70,7 @@ test('화면은 판정 결과를 연결하고 가게 목록 상태를 별도 영
 
 test('뽑기권 화면의 도감 링크는 티켓 보유와 관계없이 표시한다', () => {
   const screen = readScreen('../screens/coin-shop/index.tsx');
-  assert.match(screen, /shop\.tickets\.filter\(\(ticket\) => ticket\.status === 'UNUSED'\)\.length === 0 \? <StateScene kind="empty"/);
+  assert.match(screen, /shop\.tickets\.filter\(\(ticket\) => ticket\.status === 'UNUSED' && Date\.parse\(ticket\.expiresAt\) > now\)\.length === 0 \? <StateScene kind="empty"/);
   assert.match(screen, /<Pressable accessibilityRole="button" onPress=\{\(\) => router\.push\('\/coin-collection'\)\} style=\{styles\.link\}>\s*<Text[^>]*>내 코인과 시리즈 보기 ›<\/Text>\s*<\/Pressable>\s*<\/SkyScrollView>/);
 });
 
@@ -78,5 +78,5 @@ test('상점 0P는 탐색을 안내하고 확률과 획득 정책은 펼쳐서 �
   const screen = readScreen('../screens/shop/index.tsx');
   assert.match(screen, /\(drawShop\?\.balance \?\? snapshot\.mileage\.balance\) === 0 \? <StateScene kind="empty"[^>]*action=\{\{ label: '가게 방문하고 마일리지 모으기', onPress: \(\) => router\.push\('\/search'\) \}\} framed=\{false\} \/>/);
   assert.match(screen, /<Fold title="마일리지 획득 안내"[^>]*>[\s\S]*?earnRulesText\(snapshot\.mileage\.rules\)/);
-  assert.match(screen, /<Fold title="뽑기 확률 보기"[^>]*>[\s\S]*?grade\.probabilityPerItem/);
+  assert.match(screen, /<Fold title="뽑기 확률 보기"[^>]*>[\s\S]*?entry\.probability/);
 });

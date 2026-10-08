@@ -77,7 +77,8 @@ export function respondWithError(response: ServerResponse, error: unknown): void
   if (error instanceof CoinEconomyError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400
       : error.code === 'COIN_TICKET_NOT_FOUND' || error.code === 'COIN_REROLL_TICKET_NOT_FOUND'
-        || error.code === 'COIN_REROLL_SOURCE_NOT_FOUND' ? 404 : 409, { code: error.code }); return;
+        || error.code === 'COIN_REROLL_SOURCE_NOT_FOUND' || error.code === 'COIN_OWNED_DETAIL_NOT_FOUND'
+        ? 404 : 409, { code: error.code }); return;
   }
   if (error instanceof GradeDrawError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'INVALID_REQUEST' ? 400

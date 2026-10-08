@@ -896,6 +896,12 @@ export class PostgresAdminService {
       if (!['DRAFT', 'PAUSED', 'ACTIVE'].includes(current.status) || facts.goals < 1 || !facts.open) {
         throw new AdminError('ADMIN_CAMPAIGN_NOT_PUBLISHABLE');
       }
+      const purposeBenefit = await client.query(
+        `SELECT 1 FROM campaign_purposes WHERE campaign_id = $1
+         AND NOT EXISTS (SELECT 1 FROM campaign_benefits WHERE campaign_id = $1 AND status = 'ACTIVE')`,
+        [campaignId],
+      );
+      if (purposeBenefit.rowCount) throw new AdminError('ADMIN_CAMPAIGN_NOT_PUBLISHABLE');
       const other = await client.query(
         `SELECT 1 FROM campaigns WHERE merchant_id = $1 AND status = 'ACTIVE' AND is_public AND id <> $2`,
         [current.merchant_id, campaignId],

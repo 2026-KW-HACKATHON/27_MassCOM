@@ -11,6 +11,7 @@ import { useMotionEnabled } from '@/motion/use-motion';
 import { playUiSound, useDrawMusic } from '@/sound/ui-sounds';
 import { CharacterArt } from '@/illustration/character-art';
 import { CosmeticArt, PackArt } from '@/illustration/artwork';
+import { FurnitureArt } from '@/studio/furniture-layer';
 import type { GradeDrawPool, GradeDrawResult, GradeReward } from '@/shop/grade-draw-api';
 import { BurstRays, Control, Machine, gradeStyle, styles } from './gacha-machine';
 
@@ -19,7 +20,9 @@ type Props = { pool: GradeDrawPool; balance: number; result?: GradeDrawResult; b
   onDraw: () => Promise<boolean>; onRecover?: () => void; onRecheckConsent?: () => void; onEquip?: () => void; onOpenCollection: () => void;
   onClose: () => void; onRefresh: () => void };
 
-const kindName: Record<GradeReward['kind'], string> = { COIN: '가게 코인', THEME: '테마 꾸미기', CHARACTER: '캐릭터' };
+const kindName: Record<GradeReward['kind'], string> = { COIN: '가게 코인', THEME: '테마 꾸미기', CHARACTER: '캐릭터',
+  REROLL_TICKET: '리롤권', MILEAGE: '마일리지', FURNITURE: '가구' };
+const rarityName = { BRONZE: '브론즈', SILVER: '실버', GOLD: '골드', PLATINUM: '프리즘' } as const;
 
 export function GradeDrawMachine({ pool, balance, result, busy, error, refreshing, equipmentBusy, equipmentError,
   avatarId, equippedThemeId, onDraw, onRecover, onRecheckConsent, onEquip, onOpenCollection, onClose, onRefresh }: Props) {
@@ -84,11 +87,10 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
         {phase === 'detail' ? <>
           <Text accessibilityRole="header" style={styles.heading}>{tone.name} 전체 랜덤</Text>
           <PackArt grade={pool.grade} size={170} />
-          <Text style={styles.description}>같은 등급의 코인·테마 꾸미기·캐릭터 중 정확히 하나를 받아요.</Text>
-          <Text style={styles.description}>코인 {pool.counts.COIN}종 · 꾸미기 {pool.counts.THEME}종 · 캐릭터 {pool.counts.CHARACTER}종</Text>
-          <Text style={styles.description}>전체 {pool.total}종, 품목마다 1/{pool.total} (약 {(pool.probabilityPerItem * 100).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}%) · 이미 가진 것도 다시 나올 수 있어요.</Text>
-          <View style={styles.catalog}>{pool.rewards.map((entry) => <View key={`${entry.kind}:${entry.id}`} style={styles.catalogItem}>
-            <RewardArt reward={entry} size={62} /><Text style={styles.catalogName}>{kindName[entry.kind]} · {entry.name}</Text>
+          <Text style={styles.description}>마일리지·가구·꾸미기·리롤권 중 하나를 받아요. 높은 등급과 리롤권은 드물게 나와요.</Text>
+          <Text style={styles.description}>전체 {pool.total}종 · 각 보상 확률은 아래와 같아요. 이미 가진 것도 다시 나올 수 있어요.</Text>
+          <View style={styles.catalog}>{pool.rewards.map((entry) => <View key={`${entry.rarity}:${entry.reward.kind}:${entry.reward.id}`} style={styles.catalogItem}>
+            <RewardArt reward={entry.reward} size={62} /><Text style={styles.catalogName}>{rarityName[entry.rarity]} · {kindName[entry.reward.kind]} · {entry.reward.name} · {(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%</Text>
           </View>)}</View>
           {balance < pool.price ? <Text style={styles.error}>마일리지 {(pool.price - balance).toLocaleString('ko-KR')}P 부족</Text> : null}
           <Control label={`${pool.price.toLocaleString('ko-KR')} 마일리지로 뽑기`} purchase disabled={busy || refreshing || !pool.total || balance < pool.price} onPress={() => { void start(); }} />
@@ -102,11 +104,12 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
           <Text accessibilityRole="header" style={styles.heading}>이번 뽑기 결과</Text>
           {motionAllowed && !result.replayed ? <BurstRays color={tone.color} /> : null}
           {motionAllowed && !result.replayed ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={140} originY={130} width={280} height={250} count={pool.grade === 'GOLD' ? 32 : 18} /> : null}
-          <View accessible accessibilityLabel={`${tone.name} ${kindName[reward.kind]} ${reward.name}${result.duplicate ? ' 중복' : ''}`} style={[styles.resultCard, { borderColor: tone.color }]}>
-            <Text style={[styles.gradePill, { backgroundColor: tone.color }]}>{tone.name} · {kindName[reward.kind]}</Text>
+          <View accessible accessibilityLabel={`${rarityName[result.rarity ?? result.grade]} ${kindName[reward.kind]} ${reward.name}${result.duplicate ? ' 중복' : ''}`} style={[styles.resultCard, { borderColor: tone.color }]}>
+            <Text style={[styles.gradePill, { backgroundColor: tone.color }]}>{rarityName[result.rarity ?? result.grade]} · {kindName[reward.kind]}</Text>
             <RewardArt reward={reward} size={170} />
             <Text style={styles.characterName}>{reward.name}</Text>
             {reward.kind === 'COIN' ? <Text style={styles.description}>{reward.merchantName} · 보유 {result.quantity}개</Text> : null}
+            {reward.kind === 'MILEAGE' ? <Text style={styles.description}>마일리지 {reward.amount.toLocaleString('ko-KR')}P를 받았어요.</Text> : null}
             <Text style={styles.description}>{result.duplicate ? '이미 가진 보상이 다시 나왔어요.' : '새 보상을 받았어요.'}</Text>
             <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>
           </View>
@@ -130,6 +133,8 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
 function RewardArt({ reward, size }: { reward: GradeReward; size: number }) {
   if (reward.kind === 'CHARACTER') return <CharacterArt avatar={reward.id} frame="cheer" size={size} />;
   if (reward.kind === 'THEME') return <CosmeticArt id={reward.id} size={size} />;
+  if (reward.kind === 'FURNITURE') return <FurnitureArt assetId={reward.assetId} name={reward.name} size={size} />;
+  if (reward.kind === 'REROLL_TICKET' || reward.kind === 'MILEAGE') return <Text style={{ fontSize: Math.min(size * 0.6, 72) }} accessibilityLabel={reward.name}>{reward.kind === 'REROLL_TICKET' ? '🎟️' : '🟡'}</Text>;
   return reward.artwork ? <Image source={{ uri: reward.artwork.thumbnailDataUrl }} style={{ width: size, height: size }} accessibilityLabel={reward.name} />
     : <Text style={{ fontSize: Math.min(size * 0.6, 72) }} accessibilityLabel={reward.name}>🪙</Text>;
 }

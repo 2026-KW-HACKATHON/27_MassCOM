@@ -1,12 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { CoinApiError, coinErrorMessage, coinProbabilityText, createCoinApiClient, finalRerollFailure, parseCoinCollection, parseCoinShop } from './coin-api';
-
-test('coin probability never rounds the smallest supported chance to zero and retains the exact ratio', () => {
-  assert.equal(coinProbabilityText(1, 1_000_000), '0.0001% · 1/1000000');
-  assert.equal(coinProbabilityText(1, 3), '33.3333% · 1/3');
-});
+import { CoinApiError, coinErrorMessage, createCoinApiClient, finalRerollFailure, parseCoinCollection, parseCoinShop } from './coin-api';
 
 const ticket = { id: 'ticket-1', poolId: 'pool-1', merchantId: 'merchant-1', eventName: '여름 축제',
   grade: 'SILVER', acquiredAt: '2026-07-01T00:00:00Z', expiresAt: '2026-07-31T00:00:00Z', status: 'UNUSED' };
@@ -22,6 +17,18 @@ test('shop and collection show server pool odds, ticket rights and duplicate qua
   assert.equal(parseCoinCollection({ coins: [coin], series: [] }).coins[0]!.quantity, 2);
   assert.throws(() => parseCoinShop({ mileage: { earned: 500, spent: 0, balance: 500 }, pools: [{ ...pool, entries: [{ ...pool.entries[0], probability: 2 }] }], tickets: [] }), /INVALID_COIN_RESPONSE/);
   assert.throws(() => parseCoinCollection({ coins: [{ ...coin, quantity: 1 }], series: [] }), /INVALID_COIN_RESPONSE/);
+});
+
+test('shop accepts hidden odds and live shared stock without inventing probabilities', () => {
+  const hidden = parseCoinShop({ mileage: { earned: 500, spent: 0, balance: 500 },
+    pools: [{ ...pool, cycle: 3, remaining: 49, entries: [] }], tickets: [] });
+  assert.equal(hidden.pools[0]?.entries.length, 0);
+  assert.equal(hidden.pools[0]?.remaining, 49);
+  const visible = parseCoinShop({ mileage: { earned: 500, spent: 0, balance: 500 },
+    pools: [{ ...pool, cycle: 3, remaining: 49, entries: [{ ...pool.entries[0], remaining: 20, probability: 20 / 49 }] }], tickets: [ticket] });
+  assert.equal(visible.pools[0]?.entries[0]?.remaining, 20);
+  assert.throws(() => parseCoinShop({ mileage: { earned: 500, spent: 0, balance: 500 },
+    pools: [{ ...pool, remaining: -1 }], tickets: [] }), /INVALID_COIN_RESPONSE/);
 });
 
 test('same purchase request yields ticket only; use yields one coin and a stable replay', async () => {
@@ -62,6 +69,27 @@ test('collection keeps unowned album grades and locks pending NFT coin sources',
   assert.equal(value.catalog[0]!.types[0]!.grades[1]!.quantity, 0);
   assert.equal(value.reroll.sources[0]!.rerollEligible, false);
   assert.equal(value.reroll.sources[0]!.nftStatus, 'PENDING');
+});
+
+test('collection accepts all reroll tiers and hidden candidate odds', () => {
+  const parsed = parseCoinCollection({ coins: [coin], series: [], reroll: {
+    tickets: ['NORMAL', 'BRONZE', 'SILVER', 'GOLD'].map((grade) => ({ id: grade, grade, status: 'UNUSED', acquiredAt: '2026-10-09T00:00:00Z' })),
+    sources: [], options: [{ poolId: 'pool-1', merchantId: 'merchant-1', merchantName: '참여 가게', eventName: '축제', grade: 'GOLD', entries: [] }],
+  } });
+  assert.equal(parsed.reroll.tickets.length, 4);
+  assert.deepEqual(parsed.reroll.options[0]?.entries, []);
+});
+
+test('owned coin detail uses the collection permission endpoint and parses full artwork', async () => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aS1sAAAAASUVORK5CYII=';
+  let requested = '';
+  const detail = { publicationId: 'pub/one', projectId: 'project', gradeId: 'silver', gradeName: '실버', name: '한 잔',
+    shape: 'circle', theme: { name: '카페' }, thumbnailDataUrl: png, imageDataUrl: png, thickness: 8, angle: 0,
+    animation: 'rotate', greeting: '', audio: null, story: { type: 'none', frames: [], cartoon: 0, strength: 0 }, backImageDataUrl: png };
+  const client = createCoinApiClient({ apiUrl: 'https://api.example.test', credential: { kind: 'bearer', sessionToken: 'token' },
+    fetcher: async (input) => { requested = String(input); return Response.json(detail); } });
+  assert.equal((await client.getOwnedDetail('pub/one', 'silver')).backImageDataUrl, png);
+  assert.equal(requested, 'https://api.example.test/me/coins/pub%2Fone/grades/silver/detail');
 });
 
 test('reroll sends the disclosed pool and stable request key without using the normal ticket endpoint', async () => {

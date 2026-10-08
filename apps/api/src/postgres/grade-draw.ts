@@ -2,10 +2,10 @@ import { createHash, randomInt as cryptoRandomInt, randomUUID } from 'node:crypt
 import type { Pool, PoolClient } from 'pg';
 
 import type { CollectibleArtwork } from '../collectible-project.js';
-import { catalogRewards, chooseGradeReward } from '../grade-draw-rules.js';
+import { catalogRewards, categoryWeightsByRarity, chooseGradeReward, gradeWeights, rewardEntries } from '../grade-draw-rules.js';
 import { GradeDrawError, type GradeDrawHistory, type GradeDrawPool, type GradeDrawResult,
-  type GradeDrawService, type GradeDrawShop, type GradeReward } from '../grade-draw.js';
-import { MILEAGE_GRADE_PRICES, isMileageGrade, type MileageGrade } from '../mileage-rules.js';
+  type GradeDrawService, type GradeDrawShop, type GradeReward, type DrawRarity } from '../grade-draw.js';
+import { MILEAGE_CATALOG, MILEAGE_GRADE_PRICES, isMileageGrade, type MileageGrade } from '../mileage-rules.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { earnedAndSpent } from './mileage-shop.js';
 
@@ -13,27 +13,13 @@ type CoinRow = { publication_id: string; grade_id: string; merchant_id: string; 
   summary: CollectibleArtwork };
 type DrawRow = { id: string; grade: MileageGrade; price: number; pool_version: string;
   reward_kind: GradeReward['kind']; item_id: string | null; publication_id: string | null;
-  grade_id: string | null; duplicate: boolean; quantity: number; created_at: Date };
+  grade_id: string | null; rarity: DrawRarity | null; reward_amount: number | null;
+  duplicate: boolean; quantity: number; created_at: Date };
 type Queryable = Pool | PoolClient;
 
 const grades = ['BRONZE', 'SILVER', 'GOLD'] as const;
-const gradeGoal: Record<MileageGrade, string> = { BRONZE: '1', SILVER: '3', GOLD: '5' };
 const requestPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,99}$/;
 const versionPattern = /^[0-9a-f]{64}$/;
-
-const liveCoinSql = `SELECT publication.id AS publication_id, grade.grade_id,
-  merchant.id AS merchant_id, merchant.name AS merchant_name, grade.summary
-  FROM campaign_collectible_publications link
-  JOIN campaigns campaign ON campaign.id = link.campaign_id
-  JOIN merchants merchant ON merchant.id = campaign.merchant_id
-  JOIN collectible_publications publication ON publication.id = link.publication_id
-  JOIN collectible_publication_grades grade ON grade.publication_id = publication.id
-    AND grade.grade_id = publication.reward_grades ->> $1
-  WHERE merchant.status = 'ACTIVE' AND campaign.status = 'ACTIVE' AND campaign.is_public
-    AND campaign.starts_at <= $2 AND campaign.ends_at > $2 AND publication.media_removed_at IS NULL
-    AND NOT EXISTS (SELECT 1 FROM showcase_guest_trials trial
-      WHERE trial.merchant_id = merchant.id AND trial.account_id <> $3)
-  ORDER BY publication.id, grade.grade_id`;
 
 function rewardFromCoin(row: CoinRow): GradeReward {
   return { kind: 'COIN', id: `${row.publication_id}:${row.grade_id}`,
@@ -41,8 +27,12 @@ function rewardFromCoin(row: CoinRow): GradeReward {
     merchantId: row.merchant_id, merchantName: row.merchant_name, artwork: row.summary };
 }
 
-function versionFor(rewards: readonly GradeReward[]): string {
-  return createHash('sha256').update(rewards.map(({ kind, id }) => `${kind}:${id}`).sort().join('\n')).digest('hex');
+function versionFor(pool: Pick<GradeDrawPool, 'rewards' | 'gradeWeights' | 'categoryWeightsByRarity'>): string {
+  return createHash('sha256').update(JSON.stringify(pool)).digest('hex');
+}
+
+function kstBusinessDate(now: Date): string {
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
 export class PostgresGradeDrawService implements GradeDrawService {
@@ -68,23 +58,41 @@ export class PostgresGradeDrawService implements GradeDrawService {
     return earned + this.showcaseBonusMileage - spent;
   }
 
-  private async poolFor(db: Queryable, grade: MileageGrade, now: Date, lock: boolean,
-    accountId: string): Promise<GradeDrawPool> {
-    const rows = await db.query<CoinRow>(`${liveCoinSql}${lock ? ' FOR SHARE OF link, campaign, merchant, publication' : ''}`,
-      [gradeGoal[grade], now, accountId]);
-    const rewards = [...catalogRewards(grade), ...rows.rows.map(rewardFromCoin)];
-    const counts = { COIN: rows.rows.length,
-      THEME: rewards.filter((reward) => reward.kind === 'THEME').length,
-      CHARACTER: rewards.filter((reward) => reward.kind === 'CHARACTER').length };
-    return { grade, price: MILEAGE_GRADE_PRICES[grade], version: versionFor(rewards),
-      total: rewards.length, probabilityPerItem: 1 / rewards.length, rewards, counts };
+  private async poolFor(db: Queryable, grade: MileageGrade, lock: boolean): Promise<GradeDrawPool> {
+    const furniture = (await db.query<{ id: string; name: string; assetId: string | null }>(
+      `SELECT id,name,asset_id AS "assetId" FROM furniture_catalog ORDER BY id${lock ? ' FOR SHARE' : ''}`)).rows;
+    if (!furniture.length) throw new Error('general box furniture catalog is empty');
+    const rewards = rewardEntries(grade, furniture);
+    const policy = { rewards, gradeWeights: gradeWeights[grade], categoryWeightsByRarity };
+    return { grade, price: MILEAGE_GRADE_PRICES[grade], version: versionFor(policy),
+      total: rewards.length, ...policy };
   }
 
   private async storedReward(db: Queryable, row: DrawRow): Promise<GradeReward> {
-    if (row.reward_kind !== 'COIN') {
-      const reward = catalogRewards(row.grade).find((candidate) => candidate.kind === row.reward_kind && candidate.id === row.item_id);
-      if (!reward) throw new Error(`unknown persisted grade draw item: ${row.item_id}`);
+    if (row.reward_kind === 'CHARACTER') {
+      const item = MILEAGE_CATALOG.find((candidate) => candidate.id === row.item_id);
+      if (!item) throw new Error(`unknown persisted grade draw character: ${row.item_id}`);
+      return { kind: 'CHARACTER', id: item.id, name: item.name };
+    }
+    if (row.reward_kind === 'THEME') {
+      const reward = catalogRewards(row.rarity ?? row.grade).find((candidate) => candidate.kind === 'THEME' && candidate.id === row.item_id);
+      if (!reward) throw new Error(`unknown persisted grade draw theme: ${row.item_id}`);
       return reward;
+    }
+    if (row.reward_kind === 'MILEAGE') {
+      if (!row.item_id || !row.reward_amount) throw new Error(`invalid persisted mileage reward: ${row.id}`);
+      return { kind: 'MILEAGE', id: row.item_id, name: `${row.reward_amount}P`, amount: row.reward_amount };
+    }
+    if (row.reward_kind === 'REROLL_TICKET') {
+      const grade = row.rarity === 'PLATINUM' ? 'GOLD' : row.rarity;
+      if (!grade || !row.item_id) throw new Error(`invalid persisted reroll ticket: ${row.id}`);
+      return { kind: 'REROLL_TICKET', id: row.item_id, name: `${grade} 재뽑기권`, grade };
+    }
+    if (row.reward_kind === 'FURNITURE') {
+      const item = (await db.query<{ id: string; name: string; assetId: string | null }>(
+        'SELECT id,name,asset_id AS "assetId" FROM furniture_catalog WHERE id=$1', [row.item_id])).rows[0];
+      if (!item) throw new Error(`unknown persisted furniture: ${row.item_id}`);
+      return { kind: 'FURNITURE', id: item.id, name: item.name, assetId: item.assetId };
     }
     const coin = (await db.query<CoinRow & { removed: boolean }>(`SELECT publication.id AS publication_id,
       grade.grade_id, merchant.id AS merchant_id, merchant.name AS merchant_name,
@@ -101,15 +109,15 @@ export class PostgresGradeDrawService implements GradeDrawService {
   }
 
   async getShop(accountId: string): Promise<GradeDrawShop> {
-    const now = this.now();
     const [balance, pools, rows] = await Promise.all([
       this.balance(this.pool, accountId),
-      Promise.all(grades.map((grade) => this.poolFor(this.pool, grade, now, false, accountId))),
+      Promise.all(grades.map((grade) => this.poolFor(this.pool, grade, false))),
       this.pool.query<DrawRow>(`SELECT * FROM grade_draws WHERE account_id = $1
         ORDER BY created_at DESC, id DESC LIMIT 20`, [accountId]),
     ]);
     const history: GradeDrawHistory[] = await Promise.all(rows.rows.map(async (row) => ({
-      drawId: row.id, grade: row.grade, price: row.price, reward: await this.storedReward(this.pool, row),
+      drawId: row.id, grade: row.grade, price: row.price, rarity: row.rarity,
+      reward: await this.storedReward(this.pool, row),
       createdAt: row.created_at.toISOString(),
     })));
     return { balance, pools, history };
@@ -130,7 +138,7 @@ export class PostgresGradeDrawService implements GradeDrawService {
           throw new GradeDrawError('DRAW_REQUEST_CONFLICT');
         }
         const result = { drawId: prior.id, grade: prior.grade, price: prior.price,
-          reward: await this.storedReward(client, prior), duplicate: prior.duplicate,
+          reward: await this.storedReward(client, prior), rarity: prior.rarity, duplicate: prior.duplicate,
           quantity: prior.quantity, balance: await this.balance(client, input.accountId), replayed: true };
         await client.query('COMMIT'); return result;
       }
@@ -140,27 +148,36 @@ export class PostgresGradeDrawService implements GradeDrawService {
         + (SELECT count(*) FROM mileage_spends WHERE account_id = $1 AND created_at > $2)
       )::integer AS n`, [input.accountId, new Date(now.getTime() - 60 * 60 * 1000)]);
       if (recent.rows[0]!.n >= 30) throw new GradeDrawError('DRAW_RATE_LIMITED');
-      const pool = await this.poolFor(client, input.grade, now, true, input.accountId);
+      const pool = await this.poolFor(client, input.grade, true);
       if (pool.version !== input.expectedPoolVersion) throw new GradeDrawError('DRAW_STATE_CHANGED');
       const balance = await this.balance(client, input.accountId);
       if (balance < pool.price) throw new GradeDrawError('DRAW_INSUFFICIENT_MILEAGE');
-      const reward = chooseGradeReward(pool.rewards, this.randomInt);
+      const { reward, rarity } = chooseGradeReward(pool.rewards, this.randomInt);
       const quantity = await this.ownedQuantity(client, input.accountId, reward);
-      if (reward.kind === 'CHARACTER') {
-        await client.query(`INSERT INTO account_characters (account_id,item_id,acquired_at,source)
-          VALUES ($1,$2,$3,'GRADE_DRAW') ON CONFLICT (account_id,item_id) DO NOTHING`,
-        [input.accountId, reward.id, now]);
-      }
       const id = this.nextId();
       await client.query(`INSERT INTO grade_draws (id,account_id,request_id,grade,price,pool_version,
-          reward_kind,item_id,publication_id,grade_id,duplicate,quantity,created_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          reward_kind,item_id,publication_id,grade_id,duplicate,quantity,created_at,rarity,reward_amount)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NULL,NULL,$9,$10,$11,$12,$13)`,
       [id, input.accountId, input.requestId, input.grade, pool.price, pool.version, reward.kind,
-        reward.kind === 'COIN' ? null : reward.id, reward.kind === 'COIN' ? reward.publicationId : null,
-        reward.kind === 'COIN' ? reward.gradeId : null, quantity > 0, quantity + 1, now]);
+        reward.id, quantity > 0, quantity + 1, now, rarity, reward.kind === 'MILEAGE' ? reward.amount : null]);
+      if (reward.kind === 'REROLL_TICKET') {
+        await client.query(`INSERT INTO coin_reroll_tickets
+          (id,account_id,grade,request_id,source,granted_by_account_id,acquired_at)
+          VALUES ($1,$2,$3,$4,'GRADE_DRAW',NULL,$5)`,
+        [this.nextId(), input.accountId, reward.grade, `grade-draw:${id}`, now]);
+      } else if (reward.kind === 'MILEAGE') {
+        await client.query(`INSERT INTO mileage_credits
+          (id,account_id,amount,reason,source_id,business_date,created_at)
+          VALUES ($1,$2,$3,'DRAW_BONUS',$4,$5,$6)`,
+        [this.nextId(), input.accountId, reward.amount, `grade-draw:${id}`, kstBusinessDate(now), now]);
+      } else if (reward.kind === 'FURNITURE') {
+        await client.query(`INSERT INTO furniture_inventory(id,account_id,item_id,acquired_at)
+          VALUES($1,$2,$3,$4)`, [this.nextId(), input.accountId, reward.id, now]);
+      }
       await client.query('COMMIT');
-      return { drawId: id, grade: input.grade, price: pool.price, reward,
-        duplicate: quantity > 0, quantity: quantity + 1, balance: balance - pool.price, replayed: false };
+      return { drawId: id, grade: input.grade, price: pool.price, reward, rarity,
+        duplicate: quantity > 0, quantity: quantity + 1,
+        balance: balance - pool.price + (reward.kind === 'MILEAGE' ? reward.amount : 0), replayed: false };
     } catch (error) {
       await client.query('ROLLBACK');
       if (error instanceof AccountLifecycleError) throw new GradeDrawError('ACCOUNT_DELETED');
@@ -169,6 +186,16 @@ export class PostgresGradeDrawService implements GradeDrawService {
   }
 
   private async ownedQuantity(db: PoolClient, accountId: string, reward: GradeReward): Promise<number> {
+    if (reward.kind === 'MILEAGE' || reward.kind === 'REROLL_TICKET') {
+      const result = await db.query<{ n: number }>(`SELECT count(*)::integer AS n FROM grade_draws
+        WHERE account_id=$1 AND reward_kind=$2 AND item_id=$3`, [accountId, reward.kind, reward.id]);
+      return result.rows[0]!.n;
+    }
+    if (reward.kind === 'FURNITURE') {
+      const result = await db.query<{ n: number }>(`SELECT count(*)::integer AS n FROM furniture_inventory
+        WHERE account_id=$1 AND item_id=$2`, [accountId, reward.id]);
+      return result.rows[0]!.n;
+    }
     if (reward.kind === 'CHARACTER') {
       const result = await db.query<{ n: number }>(`SELECT (
         (SELECT count(*) FROM account_characters WHERE account_id=$1 AND item_id=$2 AND source='REROLL')

@@ -32,7 +32,9 @@ async function request(server: Server, method: string, url: string, accountId?: 
 function fixture(configure?: (args: Parameters<typeof createApiServer>) => void) {
   const calls: unknown[] = [];
   const capture = async (input: unknown) => { calls.push(input); return { replayed: true }; };
-  const coins = { getShop: capture, getCollection: capture, purchase: capture, useTicket: capture,
+  const coins = { getShop: capture, getCollection: capture, getOwnedCoinDetail: async (...args: unknown[]) => {
+    calls.push(args); return { imageDataUrl: 'data:image/png;base64,owned' };
+  }, purchase: capture, useTicket: capture,
     claimSeries: capture, publishPool: capture, publishSeries: capture,
     grantRerollTicket: capture, useRerollTicket: capture } as unknown as CoinEconomyService;
   const rooms = { getSettings: capture, setVisibility: capture, randomRoom: capture, getRoom: capture,
@@ -58,6 +60,7 @@ const routes = [
   ['GET', '/shop/draw-pools', undefined], ['POST', '/shop/draws', { grade: 'BRONZE', requestId: 'one', expectedPoolVersion: 'a'.repeat(64) }],
   ['GET', '/coin-shop', undefined], ['POST', '/coin-shop/purchases', { poolId: id, requestId: 'purchase-1' }],
   ['POST', `/coin-tickets/${id}/use`, {}], ['GET', '/me/coins', undefined], ['POST', `/coin-series/${id}/claim`, {}],
+  ['GET', `/me/coins/${id}/grades/bronze/detail`, undefined],
   ['POST', `/coin-reroll-tickets/${id}/use`, { poolId: id, sourceKind: 'VISIT', sourceId: id, requestId: 'reroll-1' }],
   ['GET', '/me/room-publication', undefined], ['PUT', '/me/room-publication', { visible: true }],
   ['PUT', '/me/room-publication', { visibility: 'FRIENDS' }],
@@ -92,6 +95,15 @@ test('purchase and draw use authenticated account and stable replay keys', async
     sourceKind: 'VISIT', sourceId: id, requestId: 'reroll-after-timeout' });
 });
 
+test('owned coin detail resolves only the authenticated account and read method', async () => {
+  const f = fixture();
+  const path = `/me/coins/${id}/grades/bronze/detail`;
+  assert.deepEqual((await request(f.server, 'GET', path, 'customer')).body,
+    { imageDataUrl: 'data:image/png;base64,owned' });
+  assert.deepEqual(f.calls.at(-1), ['customer', id, 'bronze']);
+  assert.equal((await request(f.server, 'POST', path, 'customer', {})).status, 405);
+});
+
 test('extra account, weights, reward amounts and public text are rejected at HTTP boundary', async () => {
   const f = fixture();
   const invalid = [
@@ -110,7 +122,8 @@ test('public sharing can be withdrawn before accepting updated consent and read 
   const f = fixture();
   assert.equal((await request(f.server, 'PUT', '/me/room-publication', 'old', { visible: false })).status, 200);
   assert.deepEqual(f.calls.at(-1), { accountId: 'old', visible: false });
-  for (const path of ['/coin-shop', '/me/coins']) assert.equal((await request(f.server, 'POST', path, 'customer', {})).status, 405);
+  for (const path of ['/coin-shop', '/me/coins', `/me/coins/${id}/grades/bronze/detail`])
+    assert.equal((await request(f.server, 'POST', path, 'customer', {})).status, 405);
 });
 
 test('community route preserves opaque room and stamp identifiers and returns empty random honestly', async () => {

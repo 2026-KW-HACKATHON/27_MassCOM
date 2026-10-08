@@ -48,7 +48,8 @@ export async function handleCoinsRooms(ctx: RouteContext): Promise<boolean> {
       expectedPoolVersion: requireString(body, 'expectedPoolVersion') });
     sendJson(response, result.replayed ? 200 : 201, result); return true;
   }
-  if (path === '/coin-shop' || path === '/coin-shop/purchases' || path === '/me/coins' ||
+  const ownedCoinDetail = path.match(/^\/me\/coins\/([^/]+)\/grades\/([^/]+)\/detail$/);
+  if (path === '/coin-shop' || path === '/coin-shop/purchases' || path === '/me/coins' || ownedCoinDetail ||
       /^\/(coin-tickets\/[^/]+\/use|coin-series\/[^/]+\/claim|coin-reroll-tickets\/[^/]+\/use)$/.test(path)) {
     if (!coinEconomy) throw new RequestError(503, 'COIN_ECONOMY_NOT_CONFIGURED');
     const accountId = await resolveAccountId(request);
@@ -59,7 +60,11 @@ export async function handleCoinsRooms(ctx: RouteContext): Promise<boolean> {
     if (request.method === 'GET' && path === '/me/coins') {
       sendJson(response, 200, await coinEconomy.getCollection(accountId)); return true;
     }
-    if (request.method !== 'POST' || path === '/coin-shop' || path === '/me/coins') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+    if (request.method === 'GET' && ownedCoinDetail) {
+      sendJson(response, 200, await coinEconomy.getOwnedCoinDetail(accountId,
+        decodePathParameter(ownedCoinDetail[1]!), decodePathParameter(ownedCoinDetail[2]!))); return true;
+    }
+    if (request.method !== 'POST' || path === '/coin-shop' || path === '/me/coins' || ownedCoinDetail) throw new RequestError(405, 'METHOD_NOT_ALLOWED');
     const decision = coinWriteLimiter.consume(accountId);
     if (!decision.allowed) {
       response.setHeader('Retry-After', String(decision.retryAfterSeconds));
