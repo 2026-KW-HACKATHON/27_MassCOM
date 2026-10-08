@@ -23,6 +23,61 @@
 
 **이하 이전 작업 이력 — 아래 숫자·환경·제한은 각 실행 당시 기록이다.**
 
+## 2026-10-09 배경음 수정 브랜치에 PR #433 반영 main 병합 문서 충돌 해결 (파일 수정만·미배포)
+
+환경: macOS 제한 sandbox, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `6af6ab47450930ec8bafb405469fd7cdd64be206`, MERGE_HEAD `c7632b35b189744dcd0213d6497fad2bac87266a`. 사용자 지정 병합 대상 main은 T9(D-101)·PR #429(D-102)을 포함하며, 이번 작업은 앱 전역 BGM(D-103) 기록과 함께 문서 충돌만 해결했다. BGM 이력은 T9보다 위에 보존했고 아래 수치는 각각 이전 작업의 실측이다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 운영 제출 준비 | `PASS` | `bash tests/bootstrap/operations_submission_readiness_test.sh`, A01·A02·A03 운영 문서 회귀·exit 0. |
+| CI 연결 | `PASS` | `bash tests/ci/ci_wiring_test.sh`, 시험 파일 103개 모두 연결·exit 0. 원격 CI 실행 결과와 구분한다. |
+| 문서 구조·내용 | `PASS` | README·PROJECT_STATE에 현재 합계 줄 각각 1개·동일 문장·지정 `__API__/__API__`와 `__MOB__/__MOB__` 및 main의 뒤 문장 보존. HANDOFF 1~14절, DECISIONS D-001~D-103 각각 한 번·번호순, BGM→T9 이력 순서와 추적 파일의 충돌 표식 없음 확인. |
+| 변경 범위·Git 상태 | `PASS` | `git diff --check`·exit 0. 시작 시점 파일 해시와 비교해 README·HANDOFF·PROJECT_STATE·TEST_STATUS만 변경했으며 DECISIONS는 그대로다. `git ls-files --stage -z`·HEAD·MERGE_HEAD는 시작 값과 동일하다. |
+| 전체 시험·빌드·실기·배포 | `NOT_RUN` | API·모바일 전체, PostgreSQL 통합, typecheck·lint·build, 실제 브라우저/각 Android variant 청음, 배포·설치·원격 PR/CI 확인은 이번 문서 작업에서 실행하지 않았다. 현재 전체 합계는 오케스트레이터가 채운다. |
+
+Git add·commit·stash·merge·rebase·push는 실행하지 않았다. 파일의 충돌 표식은 제거했지만 Git index는 의도대로 미병합 상태로 남는다.
+
+## 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (직접 요청, 미커밋·미배포)
+
+환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `570b5e58d4c163c06c1f4b14733160275c0aa125` 위 미커밋 수정. 아래 앱 시작 배경음 구현은 HEAD에 커밋된 상태이며 이번 리뷰 수정은 staging·commit·stash·merge·rebase·push 없이 수행했다.
+
+첫 입력은 자산 로드를 시작하되 웹 BGM 재생 확인 전까지 입력 리스너를 유지한다. 로드 완료 콜백은 cold web 재생을 시도하지 않고, 이후 신뢰된 `pointerdown`·`keydown`·`touchstart` 처리기 안에서 로드된 플레이어의 `play()`를 동기 호출한다(비동기 seek를 앞세우지 않음). promise 성공 또는 `playing: true` 상태에서 리스너를 거두고 거절·예외·`playing: false`에서는 유지/재등록한다. 설치된 expo-audio source/build와 버전 고정 패치는 거절을 `playbackStatusUpdate`의 `playing: false`로 전달하며 sampling 정리를 유지한다. BGM 끄기·로그아웃·unmount에서 음악 입력 리스너를 정리하고, 설정 초기화·후속 입력·세션 전환은 이전 promise를 무효화한다. 초기화의 기본 BGM 켜짐 값은 아직 재생하지 못한 웹에서 새 입력을 요구한다. 효과음은 별도 첫 입력 로더를 유지해 BGM 꺼짐/로그아웃 상태에서도 기존 동작을 보존한다. 네이티브 시작과 뽑기 intro→loop 시험은 유지했다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 모바일 npm 진입점 | `BLOCKED` | `cd apps/mobile && npm test`: tsx Unix IPC `listen EPERM`, 시험 실행 전 exit 1. `/tmp/bgm-review-npm-test.log`. |
+| 모바일 전체 단위 대체 실행 | **2162/2162 `PASS`** | `cd apps/mobile && node --import tsx --test 'src/**/*.test.ts'`, fail 0·skip 0·exit 0. 기존 2156건에서 6건 추가, `/tmp/bgm-review-mobile-tests.log`. |
+| BGM·소리 통합 대상 | **43/43 `PASS`** | `node --import tsx --test src/sound/ui-sound-controller.test.ts src/sound-integration.test.ts`, exit 0. 지연 로드→후속 입력 동기 재생·promise 거절→재시도·상태 성공/거절에 따른 제거/재등록·꺼짐/로그아웃/unmount 정리·초기화/후속 입력의 오래된 promise 무효화·BGM 꺼짐/로그아웃 효과음 로더. 기존 assertion 삭제/skip 없이 새 웹 입력 계약의 무음 단언과 후속 재생 단언을 보강했다. `/tmp/bgm-review-targeted.log`. |
+| 모바일 타입·린트 | `PASS` | `npm run typecheck`, `npm run lint`, exit 0. 기존 `collectible-aura.test.ts:4` 미사용 import 경고 1개·오류 0개. `/tmp/bgm-review-{typecheck,lint}.log`. |
+| CI 연결 | `PASS` | `bash tests/ci/ci_wiring_test.sh`, 시험 파일 103개 연결·exit 0. `/tmp/bgm-review-ci-wiring.log`. |
+| 운영 문서 | `PASS` | `bash tests/bootstrap/verify_operations_docs_test.sh`, exit 0. README·PROJECT_STATE 현재 합계 문장 일치. `/tmp/bgm-review-operations-docs.log`. |
+| 패치·독립 읽기 전용 리뷰 | `PASS` | source/build 패치 reverse dry-run 통과. 최초 리뷰의 BGM 꺼짐 시 효과음 로더 누락은 별도 로더와 회귀 시험으로 수정하고 후속 리뷰에서 남은 actionable 지적 0. |
+| API·브라우저/기기 청음·빌드·배포 | `NOT_RUN` | API 672/672는 이전 측정값. Safari/WebKit·Chrome 실제 autoplay·각 Android variant 설치/청음·web export·배포는 실행하지 않았다. 자동 시험은 동기 호출·상태 전달·리스너 수명만 증명한다. |
+
+재현: BGM을 켠 웹 cold start에서 로드 전 첫 입력 → 자산 준비만으로는 재생 없음/리스너 유지 → 두 번째 입력 안에서 재생. 재생 거절 뒤에도 리스너가 남고 다음 입력에서 재시도하며 실제 성공 뒤에만 제거한다. 검증은 HEAD 위 작업 파일 대상이며 커밋·외부 배포 상태를 뜻하지 않는다.
+
+## 2026-10-09 앱 시작 배경음 복구 (소유자 직접 요청, D-103, 미커밋·미배포)
+
+환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 기준 main/HEAD `8aa8b724` 위 미커밋 변경. 소유자 보고 "음악이 처음엔 안 나오고 뽑기 한 후부터 재생됨"을 확인했다. `musicActivated`가 뽑기 화면 초점에서만 켜져 hydrate 뒤 `applyMusicIntent`가 배경음을 멈추던 원인이다. 공통 모바일 코드가 운영·시연 Android와 Expo 웹에 적용된다.
+
+네이티브는 루트 첫 렌더 뒤 타이머에서 음악을 활성화하고, 웹은 기존 UI 소리의 첫 `pointerdown`·`keydown`·`touchstart` 경로를 재사용한다. 준비된 설정·전경·BGM 켜짐 조건에서만 플레이어를 지연 생성하고 일반 loop를 시작한다. 뽑기 초점의 intro→loop·이탈 loop, 음량·초기화·전경 복귀·정리 규칙은 보존했다. MP3 자산 경로·Metro 설정은 그대로다. 설치된 `expo-audio` 웹 플레이어가 버리던 `HTMLMediaElement.play()` promise는 기존 patch-package 경로의 버전 고정 패치로 거절을 처리하고 재생 상태·sampling을 정리한다.
+
+기존 "뽑기 화면 초점 전에는 BGM 플레이어가 없다" 시험은 **소유자 보고에 따른 제품 동작 변경**으로 "첫 렌더 경로에서는 생성하지 않고, hydrate와 지연 활성화 뒤 뽑기 초점 없이 loop를 재생한다"로 바꿨다. 뽑기 시험은 시작 loop를 기대값에 추가하고 intro→loop의 정확한 순서 assertion을 유지·보강했다. 새 회귀는 hydrate/자산 준비 대기·전경/정리 취소·꺼짐/초기화·웹 초점의 입력 게이트 우회 차단·첫 입력/백엔드 경쟁·재시작 게이트·선택적 재생 오류·세 입력 리스너 정리·설치된 웹 플레이어의 거절/성공을 검사한다. 수정 전 대상 28건 중 20 PASS / 8 FAIL로 원인 재현, 수정 뒤 대상 37/37 PASS다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 모바일 npm 진입점 | `BLOCKED` | `cd apps/mobile && npm test`: tsx Unix IPC `listen EPERM`, exit 1. 시험 실행 전 환경 제한이며 `/tmp/bgm-npm-test.log`에 기록. |
+| 모바일 전체 단위 대체 실행 | **2156/2156 `PASS`** | 같은 폴더에서 `node --import tsx --test 'src/**/*.test.ts'`: fail 0·skip 0·exit 0, `/tmp/bgm-mobile-tests.log`. |
+| BGM·소리 통합 대상 | **37/37 `PASS`** | `node --import tsx --test src/sound/ui-sound-controller.test.ts src/sound-integration.test.ts`, `/tmp/bgm-targeted.log`. |
+| 모바일 타입·린트 | `PASS` | `npm run typecheck`, `npm run lint`, exit 0. 기존 `collectible-aura.test.ts:4`의 미사용 import 경고 1개·오류 0개. 최종 타입 수정 후 재실행, `/tmp/bgm-{typecheck,lint}.log`. |
+| 접근성 | `PASS` | `bash tests/mobile/check_accessibility_semantics_test.sh`, exit 0, `/tmp/bgm-accessibility.log`. |
+| 릴리스 지갑 표면 | `PASS` | `bash tests/release/check_release_wallet_surface_test.sh`, exit 0, `/tmp/bgm-wallet.log`. |
+| CI 연결 | `PASS` | `bash tests/ci/ci_wiring_test.sh`, 시험 파일 103개 연결·exit 0, `/tmp/bgm-ci-wiring.log`. |
+| 운영 문서 | `PASS` | `bash tests/bootstrap/verify_operations_docs_test.sh`, exit 0, `/tmp/bgm-operations-docs.log`. README·PROJECT_STATE의 현재 합계 문장을 동일하게 맞춤. |
+| 독립 읽기 전용 리뷰·패치 적용 | `PASS` | 최종 대상 37/37·설치본 source/build 패치 reverse dry-run 통과, 남은 actionable 지적 0. |
+| API·빌드·실제 청음·배포 | `NOT_RUN` | API 672/672는 이전 측정값을 유지하고 이번 API 재실행으로 쓰지 않는다. 웹 export/첫 화면 성능·실제 브라우저 autoplay·운영/시연 Android 각각의 설치·청음·무음 모드·로그아웃 실기·배포는 수행하지 않았다. |
+
+재현: BGM을 켠 채 뽑기 화면을 방문하지 않고 앱을 시작한다. 네이티브는 hydrate/지연 준비 뒤 loop, 웹은 첫 입력과 자산 준비 뒤 loop를 기대한다. 뽑기 진입은 intro→loop, 이탈은 loop, BGM 끄기·백그라운드는 무음을 기대한다. 자동 시험은 컨트롤러의 재생 의도를 증명하며 실제 브라우저 정책에 따른 청음은 별도다. Git add·commit·stash·merge·rebase·push는 실행하지 않았다.
 
 ## 2026-10-09 T9 시연 가상 점포 은퇴·공공자료 30곳 전환 (미커밋·미배포)
 

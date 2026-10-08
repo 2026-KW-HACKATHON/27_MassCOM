@@ -18,7 +18,7 @@ import { publicApiConfig } from '@/config/public-api-runtime';
 import { shouldAskConsent } from '@/privacy/consent-flow';
 import { ConsentRecheckProvider } from '@/privacy/consent-recheck';
 import { hasPendingFriendLink } from '@/friends/pending-friend-link';
-import { initializeUiSounds } from '@/sound/ui-sounds';
+import { initializeUiSounds, setUiSoundSessionActive } from '@/sound/ui-sounds';
 import { consumeInternalAuthReturn, reconcileShowcaseAccount, showcaseEntryDestination, showShowcaseRoleEntry, type ShowcaseRoleState } from '@/navigation/showcase-entry';
 import { ShowcaseRoleReturnContext } from '@/navigation/showcase-role-context';
 import { FoundationScreen } from '@/screens/foundation';
@@ -140,6 +140,9 @@ export default function RootLayout() {
 
 function AccountAppearance() {
   const auth = useAuthSession();
+  useEffect(() => {
+    setUiSoundSessionActive(Boolean(auth.accountId));
+  }, [auth.accountId]);
   // Above the stack and the showcase merchant screen: every BackHeader/AppHeader profile strip, inside or outside (tabs), reads the
   // same discovery answers. It asks nothing until a strip gains focus, so the consent screen makes no request.
   return <TabAppearanceProvider accountId={auth.accountId}>

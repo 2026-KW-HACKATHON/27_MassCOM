@@ -13,20 +13,40 @@
 
 **이하 이전 작업 이력 — 아래의 ‘현재’, SHA, 미병합 상태와 시험 합계는 각 기록 당시 기준이다.**
 
-기준 시각: 2026-10-09 KST. T9에 PR #429 반영 main `8aa8b724`를 병합 중인 작업 트리의 현재 상태를 기록한다. 날짜별 이전 기록은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
+기준 시각: 2026-10-09 KST. 배경음 수정 브랜치 `fix/bgm-start`에 PR #433 반영 main `c7632b35`를 병합 중인 작업 트리의 현재 상태를 기록한다. 날짜별 이전 기록은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
 ## 1. 기준 커밋과 작업 위치
 
-- 병합 대상 main SHA: `8aa8b724`(PR #429 반영). 현재 worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/t9-real`, 브랜치 `feat/showcase-real-only`, HEAD `65699443`, MERGE_HEAD `8aa8b724`다. 이전 T9 통합 기준은 main `a8ed0dd1`(PR #418·#424·#426 반영), 초기 구현 기준은 `c0449f1b`, 후속 리뷰 기준은 `04f9ea2a`였다.
+- 병합 대상 main SHA: `c7632b35`(사용자 지정 PR #433 반영). 현재 worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `6af6ab47`, MERGE_HEAD `c7632b35`다. 앱 전역 BGM은 D-103, T9 가상 점포 은퇴는 D-101, PR #429 제작기 후속은 D-102를 따른다.
 - 사용자 요청으로 파일만 수정했다. Git add·commit·stash·merge·rebase·push를 실행하지 않았다. 커밋·통합은 오케스트레이터가 맡는다. 이전 T9 작업의 `gh pr list --head feat/showcase-real-only --state all` 조회 결과는 0건이었다. 이번 문서 충돌 해결에서는 원격 PR·CI를 조회하지 않았다. 파일에서 충돌을 제거해도 index는 미병합 상태로 남는다.
 
 ## 2. 현재 통합 상태
+
+- BGM은 네이티브 첫 렌더 뒤 지연 준비, 웹의 신뢰된 입력과 자산 준비 뒤 앱 전역 loop를 재생한다. 뽑기 intro→loop·꺼짐·전경·로그아웃·정리와 웹 재생 성공까지 입력 리스너 유지/재시도를 보존한다(D-103).
+
+**이전 BGM·T9 이력 — 아래 위치·SHA·검증 결과는 당시 기록이며 현재 병합 상태와 구분한다.**
+
+**앞선 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (당시 미커밋·미배포)**
+
+- 위치: `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 실제 HEAD `570b5e58`. 아래 앱 시작 배경음 복구는 이 HEAD에 커밋됐다. 이번 수정은 로드 전 입력을 소비하지 않고, 실제 재생 성공까지 신뢰된 입력 리스너를 유지/재등록한다. expo-audio 거절 상태 전달·동기 입력 재생·BGM 꺼짐/로그아웃/unmount 정리와 별도 효과음 로더를 유지한다.
+- 모바일2162/2162·대상43/43·typecheck·lint·CI 연결103개 파일·운영 문서 PASS. npm test는 sandbox tsx IPC EPERM으로 BLOCKED이며 같은 glob의 Node loader로 검증했다. 기존 lint 경고1개. 최신 근거는 [TEST_STATUS](TEST_STATUS.md) 최상단과 `/tmp/bgm-review-*.log`다. API·실제 Safari/Chrome autoplay·각 Android variant 청음·빌드·배포는 NOT_RUN이다.
+- 사용자 지시대로 Git add·commit·stash·merge·rebase·push를 실행하지 않았고 index는 비어 있다. 다음 로컬 검토 명령은 `git diff --check`, `git diff`. 아래 수치는 이전 작업의 이력이다.
+
+**앞선 2026-10-09 앱 시작 배경음 복구 (당시 미커밋·미배포)**
+
+- 위치: `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 기준 main/HEAD `8aa8b724`. 소유자 보고 "음악이 처음엔 안 나오고 뽑기 한 후부터 재생됨"을 공통 sound controller에서 수정했다. 네이티브 첫 렌더 뒤 지연 loop·웹 첫 입력 loop·뽑기 intro→loop를 유지하며 D-084의 초점 의존은 D-103으로 대체했다.
+- 모바일 전체 대체 실행 2156/2156·대상 37/37·타입·린트·접근성·릴리스 지갑 표면·CI 연결 103개 파일·운영 문서 PASS. `npm test`는 sandbox tsx IPC `EPERM`으로 BLOCKED다. API 672/672는 기존 측정값이며 이번 재실행은 없다. [TEST_STATUS](TEST_STATUS.md) 최상단과 `/tmp/bgm-*.log`를 따른다.
+- Git add·commit·stash·merge·rebase·push는 수행하지 않았고 staging은 비어 있다. PR을 생성/조회하지 않았다. 웹 첫 화면 실측·실제 autoplay/청음·운영/시연 Android 각각의 설치/실기·배포는 NOT_RUN이다. 다음 로컬 명령은 `git diff --check`, `git diff`이며 실제 청음 수용은 별도다. 아래 PR #429 작업은 직전 이력이다.
+
+**이전 T9 기준 커밋과 작업 위치**
+
+- 병합 대상 main SHA: `8aa8b724`(PR #429 반영). 현재 worktree `/Users/choi/Desktop/MassCOM/27_MassCOM/.worktrees/t9-real`, 브랜치 `feat/showcase-real-only`, HEAD `65699443`, MERGE_HEAD `8aa8b724`다. 이전 T9 통합 기준은 main `a8ed0dd1`(PR #418·#424·#426 반영), 초기 구현 기준은 `c0449f1b`, 후속 리뷰 기준은 `04f9ea2a`였다.
 
 - T3 목적형 혜택·T4 코스·T8 월계 공공자료 점포와 PR #418 점주 제작기를 보존한 T9(D-101)에 PR #429의 회전·움직임 분리·Flame 오라·옆면(D-102)을 함께 보존한다.
 - T9의 고객 공개 점포는 월계 공공자료 30곳뿐이다. 새 DB에는 비공개 체험 점주 가게를 포함해 점포/캠페인 31행·목표 93행이 생긴다. 기존 A/B/C는 삭제하지 않고 숨긴다.
 - 더까까주까월계역점 한 곳만 5회 프리즘이고 나머지 29곳은 골드다. 새 코스는 더까까주까월계역점 → 갱스터떡볶이인덕대점 → 하다식당이다. D-101과 TEST_STATUS T9가 정본이다.
 
-**이전 PR #429·통합 이력 — 아래 위치·SHA·검증 결과는 당시 기록이며 현재 T9 상태와 구분한다.**
+**이전 PR #429·통합 이력 — 아래 위치·SHA·검증 결과는 당시 기록이며 현재 BGM·T9 병합 상태와 구분한다.**
 
 **앞선 2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 기록 (당시 미커밋)**
 
@@ -46,10 +66,10 @@
 
 브랜치 `feat/collectible-reeded-edge`는 #418 병합 뒤 최신 main `a8ed0dd1` 기준의 별도 PR이다. main squash 트리와 앞서 통합한 `f2a29439`는 동일하다. 실버 테두리·기본 스티커 제거, 큰 편집 화면·붓 경도/확대, 흑백·회전/움직임 분리·단일 재생, 강도별 재질·Flame 오라, 고정 후면 실시간 조명과 얇은 옆면 홈을 담는다. [캡처·저장·성능](evidence/coin-edge-2026-10-09/README.md), [시험](TEST_STATUS.md)을 확인한다. 로컬 합성 게시·재읽기와 독립 리뷰를 수행했다. 최악 조건 새 각도50ms 초과는 남아 있어 추가 성능 검수가 필요하다. 운영 배포·Android 실기는 실행하지 않았다. 기존API/웹 동시 배포·1/3/5 보상 조건을 유지한다.
 
-**이전 PR #429 작업 위치**
+**이전 BGM 리뷰 작업 위치**
 
-- 기준 main 커밋 SHA: `a1a3eef3`(PR #430 반영, 현재 병합 대상). 작업 위치는 `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`이다. T3 혜택·T4 코스·T8 시연 점포와 PR #429 코인 제작기 변경을 보존하며 병합 충돌을 작업 트리 파일에서 해결한다. Git index는 아직 미병합 상태다. 앞선 별도 `integ/t3b-t4-t8`의 HEAD `ac285339`과 main `a8ed0dd1` 병합 검증은 [TEST_STATUS](TEST_STATUS.md)의 이력이다.
-- 이 세션은 파일 수정만 수행한다. add·commit·stash·rebase·push·merge는 실행하지 않고 Git index의 미병합 상태를 유지한다. 제출 기준선은 마감 시점의 실제 최신 main과 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)·`SUBMISSION_EVIDENCE.json`에서 별도 확정한다.
+- 기준 main 커밋 SHA: `8aa8b724`(PR #429 병합 반영). 작업 위치는 `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `570b5e58`다. 앱 시작 BGM 복구는 HEAD에 커밋됐고 이번 웹 입력 리뷰 수정은 미커밋이며 Git index는 비어 있고 미병합 파일은 없다. 앞선 `feat/collectible-reeded-edge`·`integ/t3b-t4-t8` 검증은 [TEST_STATUS](TEST_STATUS.md)의 이력이다.
+- 이 세션은 파일 수정만 수행한다. add·commit·stash·rebase·push·merge는 실행하지 않는다. 제출 기준선은 마감 시점의 실제 최신 main과 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)·`SUBMISSION_EVIDENCE.json`에서 별도 확정한다.
 
 **이전 통합 상태와 병합 이력**
 
@@ -80,6 +100,7 @@
 
 ## 4. 이번 작업의 범위
 
+- 이번 실행은 README·HANDOFF·PROJECT_STATE·TEST_STATUS 문서 충돌만 해결한다. DECISIONS의 D-001~D-103은 중복 없이 번호순임을 확인하며 내용은 유지한다. 아래는 함께 보존한 T9와 앞선 구현 범위다.
 - A/B/C 의존성: API seed·campaign/goal·badge offer·수집품·QA seed·직원/승인자·guest clone·course, 모바일 map/art/owner/tour/copy, 정적 `/preview/`, 모바일 `/play/`, APK/uptime/local QA probe, 현재 문서와 시험을 매핑했다.
 - 기존 A/B/C merchant `PAUSED`·`published_at=NULL`, 캠페인 `ENDED`·비공개, 기존 멤버십 회수. 방문·보상·획득 코인·쿠폰·게시본은 그대로다. 새 seed는 실점포 30곳과 숨은 연습 가게만 생성한다.
 - 공개된 옛 코스 단계는 불변이라 옛 코스를 종료하고 새 UUID `f81f04e0-bca8-4e36-a4e6-a812de5a7b80`로 코스를 만든다. ENDED/PAUSED 코스는 취소되지 않은 unlock이 있는 계정의 지난 코스 목록·상세·획득 장면에서 계속 읽으며 추천·신규 unlock에서는 제외한다(D-093/D-101).
@@ -128,7 +149,8 @@
 
 ## 9. 자동 검증 상태
 
-- 이번 T9와 main `8aa8b724` 병합 문서 충돌 해결: `bash tests/bootstrap/operations_submission_readiness_test.sh`(A01·A02·A03)·`bash tests/ci/ci_wiring_test.sh`(103개 파일)·`git diff --check` PASS. 합계 줄 일치·D-101/D-102 번호순/중복 없음·14절·충돌 표식 없음과 Git index·HEAD·MERGE_HEAD 불변을 확인했다. 전체 API·모바일·PostgreSQL·빌드·실기·배포는 이번 실행에서 NOT_RUN이며 현재 합계 자리표시자는 오케스트레이터가 채운다. 아래는 각각 앞선 작업의 검증 이력이다.
+- 이번 BGM과 main `c7632b35` 병합 문서 검사: `bash tests/bootstrap/operations_submission_readiness_test.sh`(A01·A02·A03)·`bash tests/ci/ci_wiring_test.sh`(103개 파일)·`git diff --check` PASS. 합계 줄 일치·D-001~D-103 번호순/중복 없음·14절·BGM→T9 이력 순서·충돌 표식 없음과 Git index·HEAD·MERGE_HEAD 불변을 확인했다. 상세는 [TEST_STATUS](TEST_STATUS.md) 최상단에 기록한다. 전체 API·모바일·PostgreSQL·빌드·실기·배포·원격 PR/CI 확인은 이번 실행에서 NOT_RUN이며 현재 합계 자리표시자는 오케스트레이터가 채운다.
+- 앞선 T9와 main `8aa8b724` 병합 문서 충돌 해결: `bash tests/bootstrap/operations_submission_readiness_test.sh`(A01·A02·A03)·`bash tests/ci/ci_wiring_test.sh`(103개 파일)·`git diff --check` PASS. 합계 줄 일치·D-101/D-102 번호순/중복 없음·14절·충돌 표식 없음과 Git index·HEAD·MERGE_HEAD 불변을 확인했다. 전체 API·모바일·PostgreSQL·빌드·실기·배포는 이번 실행에서 NOT_RUN이며 현재 합계 자리표시자는 오케스트레이터가 채운다. 아래는 각각 앞선 작업의 검증 이력이다.
 - HEAD `04f9ea2a` 후속 리뷰 실측: API 단위 672/672·모바일 2138/2138·API/모바일 typecheck·모바일 lint·API build PASS. 전체 PostgreSQL 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP, 별도 hosted 3/3 PASS다. CI 연결·운영 문서·gate·diff PASS. 명령·환경·단언 추가와 첫 실행 실패 수정은 TEST_STATUS T9 후속 절에 있다.
 - 초기 T9 사이트 측정은 645건 중 644 PASS·Chrome 1 환경 BLOCKED이며 접근성/지갑 검사도 당시 PASS다. 사이트·브라우저·실기는 이번 후속 작업에서 재측정하지 않았다.
 - `bash tests/release/verify_showcase_apk_test.sh`·`bash tests/ops/uptime_probe_test.sh` PASS. 릴리스 준비 검사에는 30개 정확 ID·중복·은퇴/운영 점포 혼입 거절 회귀를 더했다. APK를 빌드하지 않았다.
@@ -169,14 +191,14 @@
 
 ## 11. 남은 이슈와 PR 확인
 
-- 현재 Git diff만 있으며 staging/commit/PR은 오케스트레이터가 맡는다. 신규 PR은 만들지 않았다. 기존 Issue #412/T3/T4/T8/T9와 PR #418·#429 변경은 보존했다.
+- 현재 Git diff만 있으며 staging/commit/PR은 오케스트레이터가 맡는다. 신규 PR은 만들지 않았다. D-103 BGM과 기존 Issue #412/T3/T4/T8/T9, PR #418·#429·#433 변경은 보존했다.
 - 최종 검토는 `git diff --check`, `git diff --stat`, `git diff`, `gh pr list --state all`로 실제 상태를 확인한다. 전용 namespace 이외 운영 권한/가게가 변하지 않았는지 확인한다.
 - 모든 기존 단언 변경의 이유·새 대상은 TEST_STATUS T9 표에 기록한다. 기존 staff 전환의 공식 재부여와 시연 캠페인 공개/가게 비공개 구분은 인수인계의 운영 주의점이다.
 
 ## 12. 다음 실행 명령
 
 
-1. `git status -sb`와 `git log -1 --oneline`으로 T9 `feat/showcase-real-only` 브랜치·HEAD `65699443`·병합 대상 main `8aa8b724`·미병합 파일을 확인한다. add·commit·stash·rebase·push·merge는 이번 작업에서 금지된다.
+1. `git status -sb`와 `git log -1 --oneline`으로 BGM `fix/bgm-start` 브랜치·HEAD `6af6ab47`·병합 대상 main `c7632b35`·미병합 index를 확인한다. add·commit·stash·rebase·push·merge는 이번 작업에서 금지된다.
 2. `cd apps/api && npm run typecheck && npm test`; `cd apps/mobile && npm run typecheck && npm run lint` 뒤 모바일 단위 시험을 실행한다. `npm test`가 막히면 `node --import tsx --test 'src/**/*.test.ts'`를 쓴다.
 3. 저장소 루트에서 `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/ci/ci_wiring_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`를 실행한다. README·PROJECT_STATE의 합계 자리표시자는 이번 작업에서 유지한다. 숫자만 바꾸는 운영 문서 변이 검사는 이 상태에서 실패할 수 있음을 별도로 기록한다.
 4. migration 파일 순서와 0072 감사 CHECK의 전체 action을 확인하고 `git diff --check` 및 텍스트 충돌 표시 검사를 한다. PostgreSQL 통합과 실제 기기·브라우저·배포의 실행 여부는 [TEST_STATUS](TEST_STATUS.md)에 구분해서 기록한다.
@@ -195,7 +217,7 @@ PR_BODY='변경 내용과 실제 검증 결과를 설명하는 한국어 본문'
 bash scripts/check-pr-korean.sh "$PR_TITLE" "$PR_BODY"
 ```
 
-`bash tests/bootstrap/check_pr_korean_test.sh`는 checker 자체 회귀 시험이며 실제 제목·본문 검사를 대신하지 않는다. 이번 세션에서는 Git write 명령을 실행하지 않는다. 재검증 명령·환경·제한은 TEST_STATUS의 T9 항목에 있다.
+`bash tests/bootstrap/check_pr_korean_test.sh`는 checker 자체 회귀 시험이며 실제 제목·본문 검사를 대신하지 않는다. 이번 세션에서는 Git write 명령을 실행하지 않는다. 재검증 명령·환경·제한은 TEST_STATUS 최상단의 현재 병합 항목과 아래 BGM·T9 이력에 있다.
 
 ## 13. 승인·보안 경계
 

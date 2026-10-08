@@ -10,11 +10,23 @@
 
 **이하 이전 작업 이력 — 각 ‘현재’·합계·브랜치 상태는 당시 기준이며 Issue #436의 최신 판정을 뜻하지 않는다.**
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 T9 브랜치 `feat/showcase-real-only`에 PR #429 반영 main `8aa8b724`를 병합한 기준): API 단위 674/674 · 모바일 2154/2154. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, 배경음 수정 브랜치 `fix/bgm-start`에 PR #433 반영 main `c7632b35`를 병합한 기준): API 단위 674/674 · 모바일 2168/2168. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
-## 2026-10-09 T9 공공자료 점포 30곳만 사용하는 시연 (미커밋·미배포)
+## 2026-10-09 배경음 수정 브랜치에 T9 반영 main 병합 문서 충돌 해결 (파일 수정만·미배포)
 
-현재 HEAD `65699443`에서 PR #429 반영 main `8aa8b724`를 병합 중이다. 이번 문서 충돌 해결은 T9(D-101)와 코인 제작기 후속(D-102)을 함께 보존했으며 운영 제출 준비·CI 연결 103개 파일·문서 구조·충돌 표식·diff 검사는 PASS다. Git index는 미병합 상태를 유지한다. 전체 API·모바일 합계는 위 자리표시자를 오케스트레이터가 채우며, 아래 수치는 이전 작업의 기록이다([TEST_STATUS](TEST_STATUS.md)).
+현재 `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `6af6ab47`, MERGE_HEAD `c7632b35`다. 앱 전역 BGM(D-103), T9 가상 점포 은퇴(D-101), PR #429 제작기 후속(D-102)을 함께 보존한다. 병합 대상은 사용자 지정 PR #433 반영 main이며 원격 PR·CI는 조회하지 않았다. 파일만 수정하므로 Git index는 미병합 상태로 남는다. 현재 전체 합계는 위 자리표시자를 오케스트레이터가 채운다. 이번 지정 검사 결과는 [TEST_STATUS](TEST_STATUS.md) 최상단에 기록하며 아래 BGM·T9 수치는 각각 이전 작업의 검증 이력이다.
+
+## 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (직접 요청, 미커밋·미배포)
+
+브랜치 `fix/bgm-start`, HEAD `570b5e58` 위에서 웹 BGM 입력 리스너를 실제 재생 성공까지 유지하고, 로드된 플레이어는 신뢰된 입력 처리기 안에서 동기 재생한다. expo-audio source/build 패치는 거절을 `playing: false` 상태로 전달한다. 실패 후 재시도·BGM 끄기/로그아웃/unmount 정리·초기화와 오래된 promise 무효화·별도 효과음 입력 로더를 검증했다. 모바일2162/2162·대상43/43·typecheck·lint·CI 연결·운영 문서 PASS, npm 진입점은 sandbox IPC BLOCKED다. 기존 lint 경고1개를 유지했다. 실제 Safari/Chrome autoplay·Android 청음·빌드·배포는 NOT_RUN이며 Git 쓰기 작업은 수행하지 않았다([TEST_STATUS](TEST_STATUS.md)).
+
+## 2026-10-09 앱 시작 배경음 복구 (소유자 직접 요청, D-103, 미커밋·미배포)
+
+`fix/bgm-start`는 main `8aa8b724`에서 시작했다. 공통 sound controller의 뽑기 첫 초점 의존을 없애 네이티브는 첫 렌더 뒤 지연 준비, 웹은 첫 입력과 자산 준비 뒤 app-wide loop를 재생한다. 기존 뽑기 intro→loop·음량·꺼짐·전경·설정 초기화·정리는 보존한다. expo-audio 웹 promise 거절은 버전 고정 패치로 처리한다. 모바일 전체 2156/2156·대상 37/37·타입·린트·접근성·지갑 표면·CI 연결·운영 문서 PASS, `npm test`는 sandbox IPC BLOCKED다. API 재실행·실제 브라우저/각 Android variant 청음·첫 화면 성능·배포는 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). Git 쓰기 작업은 실행하지 않았다.
+
+## 앞선 2026-10-09 T9 공공자료 점포 30곳만 사용하는 시연 (미커밋·미배포)
+
+앞선 T9 worktree의 HEAD `65699443`에서 PR #429 반영 main `8aa8b724`를 병합하던 당시 기록이다. 당시 문서 충돌 해결은 T9(D-101)와 코인 제작기 후속(D-102)을 함께 보존했으며 운영 제출 준비·CI 연결 103개 파일·문서 구조·충돌 표식·diff 검사는 PASS다. Git index는 미병합 상태를 유지한다. 당시 합계 확정은 오케스트레이터가 맡았으며, 아래 수치는 이전 작업의 기록이다([TEST_STATUS](TEST_STATUS.md)).
 
 `feat/showcase-real-only`, worktree `.worktrees/t9-real`, 기준 HEAD `c0449f1b`에서 소유자의 D-101 요청을 구현했다. 고객 점포는 월계 공공자료 30곳만 공개하고 기존 A/B/C는 `PAUSED`·비게시, 연결 캠페인은 `ENDED`·비공개로 전환한다. 삭제 없이 방문·코인·발급 쿠폰·코스 이력을 보존한다. 새 DB에는 은퇴 점포를 만들지 않는다. 재시드 가드와 충돌 검사는 유지한다.
 
@@ -24,7 +36,7 @@
 
 HEAD `04f9ea2a` 후속 리뷰 수정 6건은 파일로 반영했다. ENDED/PAUSED 코스는 미회수 unlock 소유자의 지난 코스 목록·상세·획득 장면에 남고 신규 unlock·추천은 거절한다. 배지 혜택/쿠폰은 `시연 혜택`으로 표시하며 내부 연습 점포 연결은 유지한다. 연습 점포의 추첨 풀·코인 카탈로그 노출과 공공자료 점포의 취소 이력 권한 틈을 막고 practice 상수를 재사용했다. 후속 실측은 API 672/672·모바일 2138/2138·타입·모바일 lint·API build PASS, PostgreSQL 593건 중 590 PASS·0 FAIL·기존 hosted 3 SKIP와 별도 hosted 3/3 PASS다. CI 연결·운영 문서·gate·diff 검사 PASS이며 사이트/실기/배포는 새로 측정하지 않았다. [TEST_STATUS](TEST_STATUS.md) T9 후속 절에 명령·제한이 있다.
 
-## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
+## 앞선 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 이력 (당시 미커밋·미배포)
 
 앞선 `feat/collectible-reeded-edge`의 HEAD `9a433fee`에서 main `a1a3eef3`를 병합한 당시 기록이다. PR #429의 회전·움직임 분리·Flame 오라·reeded edge와 main의 T3 혜택·T4 코스·T8 공공자료 시연 점포를 보존한다. 공공자료 점포명이 보이는 상세 화면의 고지와 접근성 이름을 함께 유지한다. Git index는 의도대로 미병합 상태다. 모바일 typecheck·lint·동일 glob 대체 단위 2148/2148, 대상 32/32, 운영 제출 준비·CI 연결 103개 파일·접근성은 PASS다. `npm test`는 tsx IPC `EPERM`으로 BLOCKED이고 운영·시연 배포 및 실제 설치본 수용은 NOT_RUN이다([TEST_STATUS](TEST_STATUS.md)). 당시 전체 합계 자리표시자는 유지했다. 현재 T9와 main `8aa8b724` 병합의 전체 합계는 오케스트레이터가 확정한다.
 
