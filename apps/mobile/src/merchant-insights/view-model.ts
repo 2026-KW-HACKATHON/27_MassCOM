@@ -11,8 +11,9 @@ export function overviewCards(overview: MerchantOverview): OverviewCard[] {
     { label: '재방문 고객', value: String(overview.repeatVisitors) },
   ];
   if (overview.weekVisitors) cards.push(
-    { label: '이번 주 첫 방문', value: String(overview.weekVisitors.first) },
-    { label: '이번 주 재방문', value: String(overview.weekVisitors.repeat) },
+    // MassCOM에서 이 가게 방문이 처음 확인된 건수다. 앱 기록만으로는 평생 처음 온 손님인지 알 수 없다(D-092).
+    { label: '이번 주 처음 확인된 방문', value: String(overview.weekVisitors.first) },
+    { label: '이번 주 다시 확인된 방문', value: String(overview.weekVisitors.repeat) },
   );
   if (overview.weekCollectibles) {
     if (overview.weekCollectibles.length === 0) cards.push({ label: '이번 주 받은 수집품', value: '0' });

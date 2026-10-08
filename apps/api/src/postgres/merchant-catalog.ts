@@ -3,10 +3,12 @@ import type { Pool } from 'pg';
 import { artUrlFor } from '../ai-art-rules.js';
 import type {
   MerchantCatalog,
+  PublicCampaign,
   PublicMerchant,
   PublicRewardGoal,
 } from '../merchant-catalog.js';
 import { publicVisitorTags } from '../visitor-feedback-rules.js';
+import { parsePurposeSummary, purposeSummarySql } from './campaign-purpose.js';
 
 type MerchantCatalogRow = {
   merchant_id: string;
@@ -26,6 +28,7 @@ type MerchantCatalogRow = {
   ends_at: Date;
   enrollment_open: boolean;
   reward_goals: unknown;
+  purpose: unknown;
 };
 
 // 공개 목록과 상세 미리보기·열람 집계가 같은 점포만 다루도록 조건을 공유한다.
@@ -78,7 +81,8 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
              'targetVisitCount', g.target_visit_count,
              'displayName', g.display_name
            ) ORDER BY g.target_visit_count
-         ) AS reward_goals
+         ) AS reward_goals,
+         ${purposeSummarySql('c.id')} AS purpose
        FROM merchants m
        JOIN campaigns c ON c.merchant_id = m.id
        JOIN campaign_goals g ON g.campaign_id = c.id
@@ -105,12 +109,18 @@ export class PostgresMerchantCatalog implements MerchantCatalog {
         endsAt: row.ends_at.toISOString(),
         enrollmentStatus: row.enrollment_open ? 'OPEN' : 'FULL',
         rewardGoals: parseRewardGoals(row.reward_goals),
+        ...purposeField(row.purpose),
       },
       demo: row.is_demo,
       artUrl: artUrlFor(row.art_sha256),
       visitorTags: publicVisitorTags(parseVisitorTagCounts(row.visitor_tag_counts), row.is_demo),
     }));
   }
+}
+
+function purposeField(value: unknown): Pick<PublicCampaign, 'purpose'> {
+  const purpose = parsePurposeSummary(value);
+  return purpose ? { purpose } : {};
 }
 
 function parseVisitorTagCounts(value: unknown): { code: string; count: number }[] {
