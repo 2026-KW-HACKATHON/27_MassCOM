@@ -101,8 +101,9 @@ test('each home section names its own loading or failure instead of waiting for 
   // 보유 뽑기권 has no empty heading or "none yet" card any more: it appears only with a ticket, and a failed read is still named below.
   assert.doesNotMatch(overview, /뽑기권을 불러오지 못했어요|뽑기권 확인 중|아직 뽑기권이 없어요/);
   assert.match(overview, /\{ticketGroups\.size \? <View[^>]*>\s*<Text accessibilityRole="header" style=\{heading\}>보유 뽑기권<\/Text>/);
-  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 without a ticket.
-  assert.match(overview, /const errorText = homeErrorText\(data\?\.errors \?\? \[\], \[\.\.\.\(showRoom \? \[\] : \['studio' as const\]\), \.\.\.\(ticketGroups\.size \? \[\] : \['coins' as const\]\)\]\);/);
+  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 once the coin shop answered with no ticket.
+  // A coin-shop read that failed has no answer, so its failure stays named (the section is missing and nothing else says why).
+  assert.match(overview, /const errorText = homeErrorText\(data\?\.errors \?\? \[\], \[\.\.\.\(showRoom \? \[\] : \['studio' as const\]\), \.\.\.\(data\?\.coinShop && !ticketGroups\.size \? \['coins' as const\] : \[\]\)\]\);/);
   assert.match(overview, /\{errorText \? <Pressable[\s\S]*?\{errorText\}<\/Text>/);
   assert.match(overview, /failed\('collection'\) \|\| failed\('merchants'\) \? '방문 목표를 불러오지 못했어요'/);
 });

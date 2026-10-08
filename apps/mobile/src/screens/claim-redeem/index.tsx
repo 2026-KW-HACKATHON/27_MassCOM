@@ -125,9 +125,9 @@ export function ClaimRedeemScreen({
   // 코드를 확인할 때의 적립 합계. badgesBeforeClaim과 같은 방식으로 방문 수령 직전까지 쥐고 있다가 방문 뒤 값과 비교한다.
   const mileageBeforeClaim = useRef<Promise<number | undefined> | undefined>(undefined);
   const [pendingRedeemToken, setPendingRedeemToken] = useState<string>();
-  // 보관된 수령 복구를 읽는 중인지(reading), 없는지(none), 있는지(found). 시연 넘김은 이 읽기가 끝난 뒤에만 입력칸을 바꾼다:
-  // changeToken이 복구 요청을 무효화하기 때문이다.
-  const [restore, setRestore] = useState<'reading' | 'none' | 'found'>(securePending ? 'reading' : 'none');
+  // 보관된 수령 복구를 읽는 중인지(reading), 없는지(none), 확인 중인지(found), 확인이 끝났는지(settled). 시연 넘김은 읽기와 확인이 끝난 뒤에만
+  // 입력칸을 바꾼다: changeToken이 복구 요청을 무효화하기 때문이다. 복구할 것이 있어도 넘김을 버리지 않고 끝날 때까지 쥐고 있는다.
+  const [restore, setRestore] = useState<'reading' | 'none' | 'found' | 'settled'>(securePending ? 'reading' : 'none');
   const [recoveryAction, setRecoveryAction] = useState<ClaimRecoveryAction>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -192,6 +192,8 @@ export function ClaimRedeemScreen({
     }).catch(() => {
       if (current) setRestore('none');
       if (isCurrent()) setMessage('이전 방문 확인 정보를 읽지 못했습니다. 같은 코드를 다시 확인해 주세요.');
+    }).finally(() => {
+      if (current) setRestore((phase) => (phase === 'found' ? 'settled' : phase));
     });
     return () => { current = false; redeemGate.cancel(); };
   }, [accountId, selectedMerchantId, api, pendingStore, securePending, redeemGate]);
@@ -205,15 +207,15 @@ export function ClaimRedeemScreen({
   }, [router]));
 
   // 시연 1인 2역(#412): 점주 화면이 넘긴 방문 코드를 한 번만 받아 입력칸에 채우고 상태까지만 확인한다. "방문 수령 확정"은 직접 누른다.
-  // 보관된 수령 복구를 다 읽은 뒤에 받고, 복구할 것이 있으면 넘어온 값은 버린다. 값은 넘긴 계정만 받는다.
+  // 보관된 수령 복구를 읽고 확인하는 일이 끝난 뒤에 받는다. 이 기기에 남은 이전 기록이 있어도 넘어온 값을 버리지 않는다. 값은 넘긴 계정만 받는다.
   const demoHandoff = canUseDemoHandoff(getAppPackageId());
   useEffect(() => {
-    if (!demoHandoff || restore === 'reading') return;
+    if (!demoHandoff || restore === 'reading' || restore === 'found') return;
     const handedOver = takeDemoHandoff('claim', accountId);
-    if (!handedOver || restore === 'found') return;
+    if (!handedOver) return;
     changeToken(handedOver);
     void inspect(handedOver);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 복구 읽기가 끝나는 때 한 번만 받는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 복구 확인이 끝나는 때 한 번만 받는다.
   }, [restore]);
 
   // 축하 화면이 열린 방문을 기억해 둔다. 열리기 전(배지 조회 중)에는 아직 공개 전이므로 마일리지 줄을 보이지 않는다.
@@ -652,9 +654,12 @@ export function ClaimRedeemScreen({
           {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void revokeIdentity()} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
             <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이 QR 폐기</Text>
           </Pressable> : null}
-          {demoHandoff && identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <Pressable accessibilityRole="button" disabled={identityBusy} onPress={handoffToMerchant} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
-            <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>시연: 점주 화면에서 이 QR 확인해 보기</Text>
-          </Pressable> : null}
+          {demoHandoff && identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <>
+            <Text style={styles.securityNote}>점주 체험 권한이 있는 계정이면 점주 화면이 열리고, 없으면 권한 요청 화면이 나와요.</Text>
+            <Pressable accessibilityRole="button" disabled={identityBusy} onPress={handoffToMerchant} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
+              <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>시연: 점주 화면에서 이 QR 확인해 보기</Text>
+            </Pressable>
+          </> : null}
         </FloatingCard>
         </Stagger>
 

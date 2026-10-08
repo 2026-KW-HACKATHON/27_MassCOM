@@ -131,7 +131,7 @@ test('#412 시연 1인 2역: 점주 화면이 넘긴 방문 코드는 열릴 때
   assert.match(screen, /const demoHandoff = canUseDemoHandoff\(getAppPackageId\(\)\);/);
   const consume = between('const demoHandoff = canUseDemoHandoff', '// 축하 화면이 열린 방문을 기억해');
   // 값은 넘긴 계정만 받고, 보관된 수령 복구를 다 읽은 뒤에만 입력칸을 바꾼다. 복구할 것이 있으면 넘어온 값은 버린다.
-  assert.match(consume, /if \(!demoHandoff \|\| restore === 'reading'\) return;\s*const handedOver = takeDemoHandoff\('claim', accountId\);\s*if \(!handedOver \|\| restore === 'found'\) return;\s*changeToken\(handedOver\);\s*void inspect\(handedOver\);/);
+  assert.match(consume, /if \(!demoHandoff \|\| restore === 'reading' \|\| restore === 'found'\) return;\s*const handedOver = takeDemoHandoff\('claim', accountId\);\s*if \(!handedOver\) return;\s*changeToken\(handedOver\);\s*void inspect\(handedOver\);/);
   assert.match(consume, /\}, \[restore\]\);/);
   // 확정은 사용자가 "방문 수령 확정"을 눌러야 한다: 넘김 경로가 redeem을 부르지 않는다.
   assert.doesNotMatch(consume, /redeem\(|redeemClaim/);
@@ -141,14 +141,16 @@ test('#412 시연 1인 2역: 식별 QR 카드의 역방향 시작은 살아 있�
   const handoff = between('function handoffToMerchant', 'function changeToken');
   assert.match(handoff, /if \(!demoHandoff \|\| !identity \|\| isCustomerIdentityExpired\(identity\.expiresAt\)\) return;/);
   assert.match(handoff, /setDemoHandoff\(\{ kind: 'identity', accountId, token: identity\.token, expiresAt: identity\.expiresAt \}\);\s*queueMerchantNotificationRole\(accountId\);/);
-  assert.match(screen, /\{demoHandoff && identity && !isCustomerIdentityExpired\(identity\.expiresAt, now\) \? <Pressable[\s\S]*?시연: 점주 화면에서 이 QR 확인해 보기/);
+  assert.match(screen, /\{demoHandoff && identity && !isCustomerIdentityExpired\(identity\.expiresAt, now\) \? <>\s*<Text style=\{styles\.securityNote\}>[^<]*권한이 있는 계정이면 점주 화면이 열리고, 없으면 권한 요청 화면이 나와요\.<\/Text>\s*<Pressable[\s\S]*?시연: 점주 화면에서 이 QR 확인해 보기/);
 });
 
 test('#412 the demo handoff never cancels the secure pending restore: it waits for the read and yields to a pending item', () => {
-  assert.match(screen, /const \[restore, setRestore\] = useState<'reading' \| 'none' \| 'found'>\(securePending \? 'reading' : 'none'\);/);
+  assert.match(screen, /const \[restore, setRestore\] = useState<'reading' \| 'none' \| 'found' \| 'settled'>\(securePending \? 'reading' : 'none'\);/);
   const restore = between("void pendingStore.loadState(accountId, selectedMerchantId)", '}, [accountId, selectedMerchantId, api, pendingStore, securePending, redeemGate]);');
   assert.match(restore, /if \(current\) setRestore\(saved\.state === 'none' \? 'none' : 'found'\);\s*if \(!isCurrent\(\) \|\| saved\.state === 'none'\) return;/);
   assert.match(restore, /\.catch\(\(\) => \{\s*if \(current\) setRestore\('none'\);/);
+  // 확인이 끝나면(성공·종료 오류·재시도 가능 오류 모두) 'settled'가 되어 넘김을 받는다. 남은 기록이 넘김을 버리게 하지 않는다.
+  assert.match(restore, /\}\)\.finally\(\(\) => \{\s*if \(current\) setRestore\(\(phase\) => \(phase === 'found' \? 'settled' : phase\)\);\s*\}\);/);
   // changeToken (which the handoff calls) is what cancels the restore's request generation.
   assert.match(between('function changeToken', 'async function startScan'), /redeemGate\.cancel\(\);/);
 });

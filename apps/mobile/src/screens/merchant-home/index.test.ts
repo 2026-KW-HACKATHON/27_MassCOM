@@ -115,11 +115,11 @@ test('#412 시연 1인 2역: 단추는 시연·개발 빌드(웹 포함)에서�
   assert.match(staff, /\{demoHandoff \? <Button styles=\{styles\} label=\{busy \? '만드는 중…' : '시연: 내 손님 QR로 해 보기'\}/);
   const handoff = staff.slice(staff.indexOf('function handoffToCustomer'), staff.indexOf('return <View style={{ flex: 1 }}>'));
   assert.match(handoff, /if \(!demoHandoff \|\| !ownIdentity \|\| !onBrowseAsCustomer \|\| !issued/);
-  assert.match(handoff, /setDemoHandoff\(\{ kind: 'claim', accountId, token: issued\.token, expiresAt: issued\.expiresAt \}\);\s*rememberInternalAuthReturn\('\/claim', merchantId\);\s*onBrowseAsCustomer\(\);/);
+  assert.match(handoff, /setDemoHandoff\(\{ kind: 'claim', accountId, token: issued\.token, expiresAt: issued\.expiresAt \}\);\s*(?:\/\/[^\n]*\n\s*)?if \(securePending && token\) void pendingStore\.clearIfMatches\(accountId, \{ merchantId, token \}\)\.catch\(\(\) => undefined\);\s*rememberInternalAuthReturn\('\/claim', merchantId\);\s*onBrowseAsCustomer\(\);/);
   const modal = staff.slice(staff.indexOf('<Modal'), staff.indexOf('</Modal>'));
   assert.match(modal, /demoHandoff && ownIdentity && onBrowseAsCustomer && !issuedUncertain && seconds > 0 \? <Button styles=\{styles\} label="손님 화면에서 받기"/);
   // 내 계정이 직접 만든 식별 QR일 때만 켜진다: 시연 손님 QR을 만들 때와 손님 화면이 넘긴 QR을 받을 때. 새 촬영·취소·완료에서는 꺼진다.
-  assert.match(staff, /if \(!handedOver \|\| restore === 'found'\) return;\s*scanned\(handedOver, true\);/);
+  assert.match(staff, /if \(!handedOver\) return;\s*cancel\(\);\s*issuedVisitController\.current\?\.clear\(\);\s*scanned\(handedOver, true\);/);
   // 카메라로 찍은 QR은 내 것이 아니다: scanned는 기본값 false로 플래그를 다시 쓴다.
   assert.match(staff, /function scanned\(raw: string, own = false\) \{[\s\S]*?setOwnIdentity\(own\);/);
   assert.match(staff, /onBarcodeScanned=\{\(\{ data \}\) => scanned\(data\)\}/);
@@ -128,10 +128,23 @@ test('#412 시연 1인 2역: 단추는 시연·개발 빌드(웹 포함)에서�
   assert.match(home, /onBrowseAsCustomer=\{props\.onBrowseAsCustomer\}/);
   assert.match(showcase, /onBrowseAsCustomer=\{onBrowse\}/);
   // 점주 쪽은 열릴 때 손님 화면이 넘긴 식별 QR을 한 번만 받아 촬영 결과와 같은 길로 보낸다.
-  // 값은 넘긴 계정만 받고, 보관된 발급 복구를 다 읽은 뒤에만 받는다. 복구할 것이 있으면 넘어온 값은 버린다.
-  assert.match(staff, /if \(!demoHandoff \|\| restore === 'reading'\) return;\s*const handedOver = takeDemoHandoff\('identity', accountId\);/);
+  // 값은 넘긴 계정만 받고, 보관된 발급 복구를 읽고 확인하는 일이 끝난 뒤에만 받는다. 복구할 것이 있어도 넘어온 값은 버리지 않는다.
+  assert.match(staff, /if \(!demoHandoff \|\| restore === 'reading' \|\| restore === 'found'\) return;\s*const handedOver = takeDemoHandoff\('identity', accountId\);/);
   assert.match(staff, /\}, \[restore\]\);/);
-  assert.match(staff, /const \[restore, setRestore\] = useState<'reading' \| 'none' \| 'found'>\(securePending \? 'reading' : 'none'\);/);
+  assert.match(staff, /const \[restore, setRestore\] = useState<'reading' \| 'none' \| 'found' \| 'settled'>\(securePending \? 'reading' : 'none'\);/);
+});
+
+test('#412 점주 넘겨받기는 이 기기에 남은 이전 보관 기록(이미 쓴 발급의 재생)에 막히지 않고, 되살린 이전 발급 화면을 걷어 낸다', () => {
+  // 복구 읽기·확인(try/catch)이 끝난 뒤에만 'settled'로 넘어가 넘김을 받는다: 확인 중인 'found'에서는 쥐고 기다린다.
+  const restoreEffect = staff.slice(staff.indexOf('void pendingStore.loadState(accountId, merchantId)'), staff.indexOf('}, [accountId, merchantId, api, pendingStore, securePending, requestGate]);'));
+  assert.match(restoreEffect, /if \(current\) setRestore\(saved\.state === 'none' \? 'none' : 'found'\);/);
+  assert.match(restoreEffect, /\}\)\.finally\(\(\) => \{\s*if \(current\) setRestore\(\(phase\) => \(phase === 'found' \? 'settled' : phase\)\);\s*\}\);/);
+  // 'found'에서 넘김을 버리던 갈래는 없다.
+  const handoffEffect = staff.slice(staff.indexOf("if (!demoHandoff || restore === 'reading'"), staff.indexOf('}, [restore]);'));
+  assert.doesNotMatch(handoffEffect, /restore === 'found'\) return;\s*scanned|!handedOver \|\| restore/);
+  // 손님 화면이 코드를 쥐게 되면 점주 쪽 보관 기록도 지워, 다음에 열 때 소비된 발급이 복구돼 새 식별 QR을 가리지 않게 한다.
+  const handoff = staff.slice(staff.indexOf('function handoffToCustomer'), staff.indexOf('return <View style={{ flex: 1 }}>'));
+  assert.match(handoff, /pendingStore\.clearIfMatches\(accountId, \{ merchantId, token \}\)/);
 });
 
 test('#412 점주 탭 목록은 웹에서만 주요 메뉴 내비게이션 랜드마크 안에 있다', () => {

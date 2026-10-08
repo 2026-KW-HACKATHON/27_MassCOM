@@ -43,6 +43,15 @@ test('an expired or malformed handoff is dropped, and a newer one replaces the o
   assert.equal(takeDemoHandoff('claim', 'account-a'), 'second');
 });
 
+test('an expired value is dropped whichever kind asks, while a live value of the other kind stays', () => {
+  setDemoHandoff({ kind: 'identity', accountId: 'account-a', token: 'identity-token', expiresAt: later });
+  assert.equal(takeDemoHandoff('claim', 'account-a', Date.parse(later) + 1), undefined, 'the claim screen sees the stale identity and drops it');
+  assert.equal(takeDemoHandoff('identity', 'account-a'), undefined, 'so the identity screen finds nothing left');
+  setDemoHandoff({ kind: 'identity', accountId: 'account-a', token: 'identity-token', expiresAt: later });
+  assert.equal(takeDemoHandoff('claim', 'account-a'), undefined);
+  assert.equal(takeDemoHandoff('identity', 'account-a'), 'identity-token', 'a live value of the other kind is untouched');
+});
+
 test('a value taken after its expiry is refused and cleared', () => {
   setDemoHandoff({ kind: 'claim', accountId: 'account-a', token: 'soon-gone', expiresAt: later });
   assert.equal(takeDemoHandoff('claim', 'account-a', Date.parse(later) + 1), undefined);

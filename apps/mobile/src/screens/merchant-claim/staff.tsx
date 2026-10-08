@@ -83,9 +83,9 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponLoading, setCouponLoading] = useState(false);
   const [qrArea, setQrArea] = useState({ width: 0, height: 0 });
-  // 보관된 발급 복구를 읽는 중인지(reading), 없는지(none), 있는지(found). 시연 넘김은 이 읽기가 끝난 뒤에만 받는다: 받으면 scanned()가
-  // 같은 요청 세대를 써서 진행 중인 복구를 무효화하기 때문이다.
-  const [restore, setRestore] = useState<'reading' | 'none' | 'found'>(securePending ? 'reading' : 'none');
+  // 보관된 발급 복구를 읽는 중인지(reading), 없는지(none), 확인 중인지(found), 확인이 끝났는지(settled). 시연 넘김은 읽기와 확인이 끝난 뒤에만 받는다:
+  // 받으면 scanned()가 같은 요청 세대를 써서 진행 중인 복구를 무효화하기 때문이다. 복구할 것이 있어도 넘김을 버리지 않고 끝날 때까지 쥐고 있는다.
+  const [restore, setRestore] = useState<'reading' | 'none' | 'found' | 'settled'>(securePending ? 'reading' : 'none');
   // 시연 1인 2역: 이 식별 QR이 내 계정이 직접 만든 것일 때만 "손님 화면에서 받기"를 보인다. 다른 사람의 QR을 찍어 발급했다면 내 손님 화면이 받을 코드가 아니다.
   const [ownIdentity, setOwnIdentity] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -129,6 +129,8 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
     }).catch(() => {
       if (current) setRestore('none');
       if (isCurrent()) setMessage('발급 복구 정보를 읽지 못했습니다. 고객에게 새 QR을 요청해 주세요.');
+    }).finally(() => {
+      if (current) setRestore((phase) => (phase === 'found' ? 'settled' : phase));
     });
     return () => { current = false; requestGate.cancel(); };
   }, [accountId, merchantId, api, pendingStore, securePending, requestGate]);
@@ -178,13 +180,16 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
   useEffect(() => () => requestGate.cancel(), [api, merchantId, requestGate]);
   useEffect(() => () => undoGate.cancel(), [api, merchantId, undoGate]);
   // 손님 화면의 "점주 화면에서 확인해 보기"로 넘어온 식별 QR을 한 번만 받아 촬영 결과와 같은 길(scanned → resolve)로 보낸다.
-  // 보관된 발급 복구를 다 읽은 뒤에 받고, 복구할 것이 있으면 넘어온 값은 버린다. 값은 넘긴 계정만 받는다.
+  // 보관된 발급 복구를 읽고 확인하는 일이 끝난 뒤에 받는다. 이 기기에 남은 이전 기록(이미 쓴 발급의 재생 포함)이 있어도 넘어온 값을 버리지 않고,
+  // 복구로 되살린 이전 발급 화면을 걷어 낸 뒤 새 식별 QR로 시작한다. 값은 넘긴 계정만 받는다.
   useEffect(() => {
-    if (!demoHandoff || restore === 'reading') return;
+    if (!demoHandoff || restore === 'reading' || restore === 'found') return;
     const handedOver = takeDemoHandoff('identity', accountId);
-    if (!handedOver || restore === 'found') return;
+    if (!handedOver) return;
+    cancel();
+    issuedVisitController.current?.clear();
     scanned(handedOver, true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 복구 읽기가 끝나는 때 한 번만 받는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 복구 확인이 끝나는 때 한 번만 받는다.
   }, [restore]);
 
   function done() {
@@ -503,6 +508,8 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
   function handoffToCustomer() {
     if (!demoHandoff || !ownIdentity || !onBrowseAsCustomer || !issued || issuedUncertain || claimSecondsRemaining(issued.expiresAt) <= 0) return;
     setDemoHandoff({ kind: 'claim', accountId, token: issued.token, expiresAt: issued.expiresAt });
+    // 이제 이 기기의 손님 화면이 코드를 쥔다. 점주 쪽 보관 기록을 두면 다시 열 때 이미 쓴 발급이 복구돼 새 식별 QR을 가린다.
+    if (securePending && token) void pendingStore.clearIfMatches(accountId, { merchantId, token }).catch(() => undefined);
     rememberInternalAuthReturn('/claim', merchantId);
     onBrowseAsCustomer();
   }

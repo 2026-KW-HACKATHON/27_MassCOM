@@ -24,16 +24,16 @@ export function setDemoHandoff(handoff: { kind: DemoHandoffKind; accountId: stri
 }
 
 /**
- * 같은 계정이고 종류가 맞고 아직 만료 전이면 값을 돌려주고 비운다. 만료된 값은 버린다. 다른 계정이 읽으면 값을 비우고 아무것도 주지 않는다.
- * 같은 계정의 다른 종류는 그 종류를 받을 화면을 위해 건드리지 않는다.
+ * 같은 계정이고 종류가 맞고 아직 만료 전이면 값을 돌려주고 비운다. 다른 계정이 읽으면 값을 비우고 아무것도 주지 않는다.
+ * 만료된 값은 어느 종류가 읽어도 버린다. 같은 계정의 다른 종류의 살아 있는 값은 그 종류를 받을 화면을 위해 건드리지 않는다.
  */
 export function takeDemoHandoff(kind: DemoHandoffKind, accountId: string, now = Date.now()): string | undefined {
   const value = pending;
   if (!value) return undefined;
-  if (value.accountId !== accountId) { pending = undefined; return undefined; }
+  if (value.accountId !== accountId || value.expiresAtMs <= now) { pending = undefined; return undefined; }
   if (value.kind !== kind) return undefined;
   pending = undefined;
-  return value.expiresAtMs > now ? value.token : undefined;
+  return value.token;
 }
 
 /** 로그아웃·계정 전환·세션 무효화에서 넘기던 값을 버린다. */

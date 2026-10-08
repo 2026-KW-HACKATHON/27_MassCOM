@@ -117,8 +117,9 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const quick = { flex: 1, minHeight: 66, borderRadius: 20, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4, backgroundColor: world.card };
   // Progressive disclosure (Issue #412): the room and exhibit open after the first coin, friends and neighbours only by opt-in.
   const showRoom = atLeast(stage, 'after-first');
-  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 without a ticket.
-  const errorText = homeErrorText(data?.errors ?? [], [...(showRoom ? [] : ['studio' as const]), ...(ticketGroups.size ? [] : ['coins' as const])]);
+  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 once the coin shop answered with no ticket.
+  // A coin-shop read that failed has no answer yet, so its failure stays visible (nothing else says why the section is missing).
+  const errorText = homeErrorText(data?.errors ?? [], [...(showRoom ? [] : ['studio' as const]), ...(data?.coinShop && !ticketGroups.size ? ['coins' as const] : [])]);
   const quickRow = <View style={{ flexDirection: 'row', gap: 12 }}>
     {optIn.social ? <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link> : null}
     <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>
