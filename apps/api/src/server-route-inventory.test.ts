@@ -9,7 +9,6 @@ import { createApiServer, developmentHeaderAccountResolver } from './server.js';
 // request.url 전체로 맞추는 경로(쿼리가 붙으면 404)와 path로 맞추는 경로(쿼리가 붙어도 통과)의 차이, 405와 404의 차이도 그대로 적는다.
 
 const account = { 'x-account-id': 'acct' };
-const json = { 'content-type': 'application/json' };
 const robots = 'noindex, nofollow';
 const sha = 'a'.repeat(64);
 

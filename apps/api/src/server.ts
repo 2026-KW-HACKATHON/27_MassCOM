@@ -1,7 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createHash } from 'node:crypto';
-import { isIP } from 'node:net';
-import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
 import { Pool, type PoolClient } from 'pg';
@@ -132,75 +130,23 @@ import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
+import { renderClaimQr } from './http/claim-qr.js';
+import { FixedWindowAuthLoginLimiter, type AuthLoginLimiter } from './http/login-limiter.js';
+import {
+  MAX_BODY_BYTES, decodePathParameter, readConsentBody, readJson, requireEmptyBody, requireHeader,
+  requireIdentityTokenBody, requireNumber, requireOnlyKeys, requirePositiveInteger, requireString,
+} from './http/request-body.js';
+import {
+  authLoginClientKey, optionalWebCookie, requireAccountId, requireAuthSessions, requireBearerToken, requireWebCookie,
+} from './http/request-auth.js';
+import { RequestError } from './http/request-error.js';
+import { sendBinary, sendJson, setCommonHeaders } from './http/response.js';
 
-const MAX_BODY_BYTES = 64 * 1024;
 // 토큰 메타데이터·가게 그림은 하루만 캐시한다: 운영자가 거부 목록으로 내리면 늦어도 하루 안에 사라진다(Issue #254).
 // 판이 붙은 기본 도장만 바이트가 영원히 같아 immutable이다.
 const nftMetadataCacheControl = 'public, max-age=86400';
-const qrCode = createRequire(import.meta.url)('qrcode') as {
-  toString(value: string, options: { type: 'svg'; margin: number }): Promise<string>;
-};
-
-export async function renderClaimQr(token: string, render = qrCode.toString): Promise<
-  { qrSvgDataUrl: string } | { qrRenderFailed: true }
-> {
-  try {
-    const svg = await render(token, { type: 'svg', margin: 2 });
-    return { qrSvgDataUrl: `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}` };
-  } catch { return { qrRenderFailed: true }; }
-}
-
-export type AuthLoginLimiter = {
-  consume(key: string): { allowed: boolean; retryAfterSeconds: number };
-};
-
-type LoginLimiterOptions = {
-  maxAttempts: number;
-  windowMs: number;
-  maxEntries?: number;
-  now?: () => Date;
-};
-
-export class FixedWindowAuthLoginLimiter implements AuthLoginLimiter {
-  private readonly buckets = new Map<string, { count: number; startedAt: number }>();
-  private readonly maxEntries: number;
-  private readonly now: () => Date;
-
-  constructor(private readonly options: LoginLimiterOptions) {
-    if (!Number.isSafeInteger(options.maxAttempts) || options.maxAttempts <= 0) {
-      throw new Error('auth login max attempts must be a positive safe integer');
-    }
-    if (!Number.isSafeInteger(options.windowMs) || options.windowMs <= 0) {
-      throw new Error('auth login window must be a positive safe integer');
-    }
-    this.maxEntries = options.maxEntries ?? 10_000;
-    this.now = options.now ?? (() => new Date());
-  }
-
-  consume(key: string): { allowed: boolean; retryAfterSeconds: number } {
-    const now = this.now().getTime();
-    const existing = this.buckets.get(key);
-    if (!existing || now - existing.startedAt >= this.options.windowMs) {
-      if (!existing && this.buckets.size >= this.maxEntries) {
-        const oldest = this.buckets.keys().next().value as string | undefined;
-        if (oldest) this.buckets.delete(oldest);
-      }
-      this.buckets.set(key, { count: 1, startedAt: now });
-      return { allowed: true, retryAfterSeconds: 0 };
-    }
-    if (existing.count >= this.options.maxAttempts) {
-      return {
-        allowed: false,
-        retryAfterSeconds: Math.max(
-          1,
-          Math.ceil((existing.startedAt + this.options.windowMs - now) / 1000),
-        ),
-      };
-    }
-    existing.count += 1;
-    return { allowed: true, retryAfterSeconds: 0 };
-  }
-}
+export { renderClaimQr, FixedWindowAuthLoginLimiter };
+export type { AuthLoginLimiter };
 
 export type AccountResolver = (request: IncomingMessage) => string | Promise<string>;
 export type ReauthenticationGuard = (
@@ -2430,106 +2376,6 @@ export function createApiServer(
   });
 }
 
-function optionalWebCookie(request: IncomingMessage, name: string): string | undefined {
-  const header = request.headers.cookie;
-  if (!header) return undefined;
-  const matches = header.split(';').map((part) => part.trim()).filter((part) => part.startsWith(`${name}=`));
-  if (matches.length !== 1) return undefined;
-  const value = matches[0]!.slice(name.length + 1);
-  return /^[A-Za-z0-9_-]{1,128}$/.test(value) ? value : undefined;
-}
-
-function requireWebCookie(request: IncomingMessage, name: string): string {
-  const cookie = optionalWebCookie(request, name);
-  if (!cookie) throw new WebSessionError('WEB_SESSION_INVALID');
-  return cookie;
-}
-
-function authLoginClientKey(request: IncomingMessage, trustProxyClientIp: boolean): string {
-  const forwardedFor = request.headers['x-forwarded-for'];
-  if (trustProxyClientIp && typeof forwardedFor === 'string' && isIP(forwardedFor)) {
-    return forwardedFor;
-  }
-  return request.socket.remoteAddress ?? 'unknown';
-}
-
-// Malformed percent-encoding is the caller's mistake, not a server fault.
-function decodePathParameter(value: string): string {
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(value);
-  } catch {
-    throw new RequestError(400, 'INVALID_PATH_PARAMETER');
-  }
-  // `%00`은 NUL 문자로 풀리는데 PostgreSQL 텍스트 값은 NUL을 받지 않아 질의가 500으로 끝난다. 경로 값이 DB에 닿기 전에 거절한다.
-  if (decoded.includes('\0')) throw new RequestError(400, 'INVALID_PATH_PARAMETER');
-  return decoded;
-}
-
-class RequestError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-  ) {
-    super(code);
-    this.name = 'RequestError';
-  }
-}
-
-function requireAccountId(request: IncomingMessage): string {
-  const value = request.headers['x-account-id'];
-  const accountId = Array.isArray(value) ? value[0] : value;
-  if (!accountId?.trim()) {
-    throw new WalletChallengeError('ACCOUNT_REQUIRED');
-  }
-  return accountId;
-}
-
-async function readJson(request: IncomingMessage, allowEmpty = false, maxBytes = MAX_BODY_BYTES): Promise<Record<string, unknown>> {
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-
-  for await (const chunk of request) {
-    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    totalBytes += buffer.byteLength;
-    if (totalBytes > maxBytes) {
-      throw new RequestError(413, 'BODY_TOO_LARGE');
-    }
-    chunks.push(buffer);
-  }
-
-  if (allowEmpty && totalBytes === 0) return {};
-
-  try {
-    const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new RequestError(400, 'INVALID_JSON_BODY');
-    }
-    return parsed as Record<string, unknown>;
-  } catch (error) {
-    if (error instanceof RequestError) {
-      throw error;
-    }
-    throw new RequestError(400, 'INVALID_JSON_BODY');
-  }
-}
-
-function requireString(body: Record<string, unknown>, field: string, allowEmpty = false): string {
-  const value = body[field];
-  if (typeof value !== 'string' || (!allowEmpty && !value.trim())) {
-    throw new RequestError(400, 'INVALID_REQUEST');
-  }
-  return value;
-}
-
-function requireNumber(body: Record<string, unknown>, field: string): number {
-  const value = body[field];
-  if (typeof value !== 'number' || !Number.isInteger(value)) {
-    throw new RequestError(400, 'INVALID_REQUEST');
-  }
-  return value;
-}
-
 function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
   if (Object.keys(body).some(key => !['name', 'story', 'roadAddress', 'minimumSpendWon', 'menuItems', 'businessHours',
     'neighborhood', 'category', 'expectedVersion'].includes(key))) {
@@ -2544,35 +2390,6 @@ function adminMerchantInput(body: Record<string, unknown>): MerchantInput {
     ...(body.neighborhood === undefined ? {} : { neighborhood: body.neighborhood as string | null }),
     ...(body.category === undefined ? {} : { category: body.category as string | null }),
   };
-}
-
-// 쿠폰 조회·사용은 식별 토큰 하나만 받는다. 계정 ID 같은 알 수 없는 키는 거절한다.
-function requireIdentityTokenBody(body: Record<string, unknown>): string {
-  if (Object.keys(body).some(key => key !== 'customerIdentityToken')) {
-    throw new RequestError(400, 'INVALID_REQUEST');
-  }
-  return requireString(body, 'customerIdentityToken');
-}
-
-function requirePositiveInteger(body: Record<string, unknown>, field: string): number {
-  const value = requireNumber(body, field);
-  if (value <= 0) {
-    throw new RequestError(400, 'INVALID_REQUEST');
-  }
-  return value;
-}
-
-function requireAuthSessions(sessions: AuthSessionService | undefined): AuthSessionService {
-  if (!sessions) throw new RequestError(503, 'ACCOUNT_AUTH_NOT_CONFIGURED');
-  return sessions;
-}
-
-function requireBearerToken(request: IncomingMessage): string {
-  const value = request.headers.authorization;
-  const header = Array.isArray(value) ? value[0] : value;
-  const bearer = header?.match(/^Bearer (\S+)$/)?.[1];
-  if (!bearer) throw new AuthSessionError('SESSION_REQUIRED');
-  return bearer;
 }
 
 function statusForAuthSession(code: string): number {
@@ -2591,13 +2408,6 @@ function statusForDeletionIntake(code: string): number {
   if (code === 'DELETION_SELF_PROCESSING_REFUSED') return 403;
   if (code === 'DELETION_REJECT_REASON_INVALID') return 400;
   return 409;
-}
-
-function requireHeader(request: IncomingMessage, name: string): string {
-  const value = request.headers[name];
-  const selected = Array.isArray(value) ? value[0] : value;
-  if (!selected?.trim()) throw new RequestError(400, 'IDEMPOTENCY_KEY_REQUIRED');
-  return selected;
 }
 
 function statusFor(code: string): number {
@@ -2769,33 +2579,6 @@ function matchMerchantArtRoute(method: string | undefined, tail: string): Mercha
   return method === 'POST' ? { kind: round[2] as 'choose' | 'apply', roundId } : undefined;
 }
 
-const consentBodyKeys = ['termsVersion', 'privacyVersion', 'ageConfirmed', 'termsAccepted', 'privacyAccepted'] as const;
-
-/** 정확히 다섯 키만 받는다: 알 수 없는 키·빠진 키·잘못된 자료형은 400. 값이 true인지·버전이 현재인지는 서비스가 판단한다. */
-function readConsentBody(body: Record<string, unknown>): {
-  termsVersion: string; privacyVersion: string; ageConfirmed: boolean; termsAccepted: boolean; privacyAccepted: boolean;
-} {
-  const keys = Object.keys(body);
-  if (keys.length !== consentBodyKeys.length || consentBodyKeys.some((key) => !Object.hasOwn(body, key))) {
-    throw new RequestError(400, 'INVALID_REQUEST');
-  }
-  const { termsVersion, privacyVersion, ageConfirmed, termsAccepted, privacyAccepted } = body;
-  if (typeof termsVersion !== 'string' || typeof privacyVersion !== 'string' || termsVersion.length > 64 ||
-      privacyVersion.length > 64 || typeof ageConfirmed !== 'boolean' || typeof termsAccepted !== 'boolean' ||
-      typeof privacyAccepted !== 'boolean') {
-    throw new RequestError(400, 'INVALID_REQUEST');
-  }
-  return { termsVersion, privacyVersion, ageConfirmed, termsAccepted, privacyAccepted };
-}
-
-function requireEmptyBody(body: Record<string, unknown>): void {
-  if (Object.keys(body).length > 0) throw new RequestError(400, 'INVALID_REQUEST');
-}
-
-function requireOnlyKeys(body: Record<string, unknown>, allowed: readonly string[]): void {
-  if (Object.keys(body).some(key => !allowed.includes(key))) throw new RequestError(400, 'INVALID_REQUEST');
-}
-
 function statusForAdmin(code: AdminError['code']): number {
   switch (code) {
     case 'ADMIN_FORBIDDEN':
@@ -2842,27 +2625,6 @@ function statusForCampaignEnrollment(code: string): number {
   if (code === 'ACCOUNT_DELETED') return 410;
   if (code === 'CAMPAIGN_FULL' || code === 'CAMPAIGN_NOT_AVAILABLE') return 409;
   return 409;
-}
-
-function setCommonHeaders(response: ServerResponse): void {
-  response.setHeader('cache-control', 'no-store');
-  response.setHeader('content-type', 'application/json; charset=utf-8');
-  response.setHeader('x-content-type-options', 'nosniff');
-}
-
-function sendJson(response: ServerResponse, status: number, body: object | null): void {
-  response.writeHead(status);
-  response.end(JSON.stringify(body));
-}
-
-// 모든 응답이 JSON이라는 규칙의 유일한 예외다(공개 가게 그림). nosniff는 공통 헤더에서 이미 붙어 있다.
-function sendBinary(response: ServerResponse, body: Buffer, contentType: string, cacheControl: string): void {
-  response.setHeader('content-type', contentType);
-  response.setHeader('cache-control', cacheControl);
-  // HEAD에도 GET과 같은 길이를 알린다.
-  response.setHeader('content-length', String(body.length));
-  response.writeHead(200);
-  response.end(body);
 }
 
 const maxSessionTtlMs = 365 * 24 * 60 * 60 * 1000;
