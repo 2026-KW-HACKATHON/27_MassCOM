@@ -41,7 +41,6 @@ import {
 } from './wallet-challenge-service.js';
 import { MerchantAccessError } from './merchant-access.js';
 import { MerchantProfileError } from './merchant-profile.js';
-import { isDetailViewSource } from './merchant-discovery.js';
 import { mintConsentVersionFromEnv, refuseMintRequestsWhilePreparing } from './mint-request-service.js';
 import type { PublishCoinPoolInput, PublishCoinSeriesInput } from './coin-economy.js';
 import { RecommendationService } from './recommendation-service.js';
@@ -100,7 +99,6 @@ import {
 import {
   authLoginClientKey,
   optionalWebCookie,
-  requireAuthSessions,
   requireBearerToken,
   requireWebCookie,
 } from './http/request-auth.js';
@@ -109,8 +107,10 @@ import { respondWithError } from './http/error-response.js';
 import { sendJson, setCommonHeaders } from './http/response.js';
 import type { RouteContext } from './routes/context.js';
 import { handleAccount } from './routes/account.js';
+import { handleAuth } from './routes/auth.js';
 import { handleCoinsRooms } from './routes/coins-rooms.js';
 import { handleCustomer } from './routes/customer.js';
+import { handleDiscovery } from './routes/discovery.js';
 import { handleExperience } from './routes/experience.js';
 import { handleMerchantApp } from './routes/merchant-app.js';
 import { handlePlay } from './routes/play.js';
@@ -157,11 +157,11 @@ export function realWorldAdminCheck(accountLifecycle: PostgresAccountLifecycle):
 
 export function createApiServer(deps: ApiDeps) {
   const {
-    merchantCatalog, merchantAccess, claimSlots, collection,
-    authSessions, authLoginLimiter,
+    merchantAccess, claimSlots, collection,
+    authLoginLimiter,
     webAuth, customerIdentities, admin, deletionIntake, staffRegistration, badges,
     showcaseDeletionIntake, deletionProcessing, reversals, consent, collectibleProjects,
-    guestTrials, merchantOverview, visitorFeedback, collectiblePreview, merchantDetailViews,
+    merchantOverview, visitorFeedback,
     adminFunnel, play, merchantProfile, social,
   } = deps;
   const trustProxyClientIp = deps.trustProxyClientIp ?? false;
@@ -170,10 +170,10 @@ export function createApiServer(deps: ApiDeps) {
   const { merchantOperations, realWorld, tmap, mapProvider, coinEconomy, roomCommunity } = experienceServices;
   const runtime = createApiRuntime(deps);
   const {
-    resolveAccountId, requireCustomerScan, requireCurrentPlayConsent, consumeDeletionStatus, guestTrialLimiter,
+    resolveAccountId, requireCustomerScan, requireCurrentPlayConsent, consumeDeletionStatus,
     merchantProfileWriteLimiter, merchantOperationLimiter,
     socialWriteLimiter, coinWriteLimiter, roomWriteLimiter, discoveryEventLimiter,
-    discoveryMapLimiter, merchantDetailViewLimiter, collectibleWriteLimiter,
+    discoveryMapLimiter, collectibleWriteLimiter,
   } = runtime;
   return createServer(async (request, response) => {
     setCommonHeaders(response);
@@ -983,94 +983,9 @@ export function createApiServer(deps: ApiDeps) {
         return;
       }
 
-      if (request.method === 'POST' && request.url === '/auth/google') {
-        if (authLoginLimiter) {
-          const decision = authLoginLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
-          if (!decision.allowed) {
-            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-            sendJson(response, 429, { code: 'LOGIN_RATE_LIMITED' });
-            return;
-          }
-        }
-        const sessions = requireAuthSessions(authSessions);
-        const body = await readJson(request);
-        sendJson(response, 200, await sessions.signInWithGoogle(requireString(body, 'idToken')));
-        return;
-      }
+      if (await handleAuth(routeContext)) return;
 
-      // 로그인 없는 시연 웹 체험(#309). guestTrials는 시연 배치에서만 있다: 운영에서는 이 블록을 건너뛰어 맨 아래의 알 수 없는 경로와
-      // 같은 404가 된다.
-      if (guestTrials && request.method === 'POST' && request.url === '/auth/guest-trial') {
-        const clientKey = authLoginClientKey(request, trustProxyClientIp);
-        const decision = guestTrialLimiter.consume(clientKey);
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          sendJson(response, 429, { code: 'GUEST_TRIAL_RATE_LIMITED' });
-          return;
-        }
-        requireEmptyBody(await readJson(request, true));
-        sendJson(response, 200, await guestTrials.start({ clientKey }));
-        return;
-      }
-
-      if (request.method === 'POST' && request.url === '/auth/logout') {
-        const sessions = requireAuthSessions(authSessions);
-        await sessions.logout(requireBearerToken(request));
-        sendJson(response, 200, { status: 'LOGGED_OUT' });
-        return;
-      }
-
-      if (request.method === 'POST' && request.url === '/auth/reauthenticate') {
-        const sessions = requireAuthSessions(authSessions);
-        const sessionToken = requireBearerToken(request);
-        const body = await readJson(request);
-        await sessions.reauthenticate(sessionToken, requireString(body, 'idToken'));
-        sendJson(response, 200, { status: 'REAUTHENTICATED' });
-        return;
-      }
-
-      const collectiblePreviewMatch = path.match(/^\/merchants\/([^/]+)\/collectible-preview$/);
-      if (request.method === 'GET' && collectiblePreviewMatch) {
-        if (!collectiblePreview) throw new RequestError(503, 'COLLECTIBLE_PREVIEW_NOT_CONFIGURED');
-        const merchantId = decodePathParameter(collectiblePreviewMatch[1]!);
-        const preview = await collectiblePreview.preview(merchantId);
-        response.setHeader('cache-control', 'public, max-age=300');
-        sendJson(response, 200, preview);
-        return;
-      }
-      const merchantDetailViewMatch = path.match(/^\/merchants\/([^/]+)\/views$/);
-      if (request.method === 'POST' && merchantDetailViewMatch) {
-        if (!merchantDetailViews) throw new RequestError(503, 'MERCHANT_DETAIL_VIEWS_NOT_CONFIGURED');
-        const merchantId = decodePathParameter(merchantDetailViewMatch[1]!);
-        const body = await readJson(request);
-        if (!isDetailViewSource(body.source)) throw new RequestError(400, 'VIEW_SOURCE_INVALID');
-        if (Object.keys(body).some(key => key !== 'source')) throw new RequestError(400, 'INVALID_REQUEST');
-        const decision = merchantDetailViewLimiter.consume(authLoginClientKey(request, trustProxyClientIp));
-        if (!decision.allowed) {
-          response.setHeader('Retry-After', String(decision.retryAfterSeconds));
-          sendJson(response, 429, { code: 'VIEW_RATE_LIMITED' });
-          return;
-        }
-        await merchantDetailViews.record(merchantId, body.source);
-        response.writeHead(204).end();
-        return;
-      }
-      if (request.method === 'GET' && request.url === '/merchants') {
-        if (!merchantCatalog) {
-          throw new RequestError(503, 'MERCHANT_CATALOG_NOT_CONFIGURED');
-        }
-        sendJson(response, 200, { merchants: await merchantCatalog.listPublicMerchants() });
-        return;
-      }
-
-      if (request.method === 'GET' && request.url === '/collection') {
-        if (!collection) {
-          throw new RequestError(503, 'COLLECTION_NOT_CONFIGURED');
-        }
-        const accountId = await resolveAccountId(request);
-        sendJson(response, 200, await collection.getCollection(accountId));
-        return;
-      }
+      if (await handleDiscovery(routeContext)) return;
 
       if (await handleExperience(routeContext)) return;
       if (await handlePlay(routeContext)) return;
