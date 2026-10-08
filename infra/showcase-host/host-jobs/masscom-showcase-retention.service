@@ -10,13 +10,13 @@ ExecStart=/usr/local/sbin/masscom-showcase-retention
 TimeoutStartSec=15min
 Nice=10
 # 정리 작업이 root로 도는 만큼 권한을 좁힌다(Issue #253). docker 소켓 연결은 읽기 전용 마운트에서도 되므로 ProtectSystem=strict와 함께 동작하고,
-# 쓸 수 있는 곳은 이 스택의 백업 폴더 하나뿐이다. 백업 폴더는 install.sh가 만들어 두므로 없어서 유닛이 시작하지 못하는 일은 없다.
+# 쓸 수 있는 곳은 이 스택의 백업 폴더와 백업 작업과 나누는 잠금 파일 폴더(/run/lock, Issue #412)뿐이다. 백업 폴더는 install.sh가 만들어 두므로 없어서 유닛이 시작하지 못하는 일은 없다.
 UMask=0077
 NoNewPrivileges=yes
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectSystem=strict
-ReadWritePaths=/opt/masscom-showcase/backups
+ReadWritePaths=/opt/masscom-showcase/backups /run/lock
 ProtectHome=read-only
 ProtectKernelTunables=yes
 ProtectKernelModules=yes

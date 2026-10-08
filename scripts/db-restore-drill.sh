@@ -6,8 +6,11 @@
 # as mode 0600 to a temporary file in the same directory and renamed into place only when pg_dump succeeded,
 # so a failed dump never truncates an earlier backup at that path.
 #
-# Usage: DRILL_DATABASE_URL=postgresql://user@host:5432/masscom scripts/db-restore-drill.sh [backup-file]
+# Usage: DRILL_DATABASE_URL=postgresql://user@host:5432/masscom scripts/db-restore-drill.sh [--overwrite] [backup-file]
 #        DRILL_DATABASE_URL=...                                  scripts/db-restore-drill.sh --restore-only <backup-file>
+#   Options go first and are matched exactly (`--restore-only=FILE`, an unknown `-x`, or anything after the single file argument is refused).
+#   A dump never replaces an existing path, and never lands in a /opt/masscom*/backups folder as *.dump, unless --overwrite is given: a forgotten
+#   --restore-only must not overwrite a real backup with a fresh dump.
 #   --restore-only  restores an existing backup (e.g. a daily-*.dump from masscom-backup) into a scratch database, without dumping the source or
 #                   writing anything to the file: pg_restore must exit 0, schema_migrations must not be empty, and the set of tables must equal the live
 #                   database's. It prints the elapsed seconds (the restore time to expect in a real recovery). Row counts are not compared, since a
@@ -26,7 +29,19 @@ umask 077
 
 url="${DRILL_DATABASE_URL:?DRILL_DATABASE_URL is required}"
 restore_only=""
-if [[ "${1:-}" == --restore-only ]]; then restore_only=1; shift; fi
+overwrite=""
+usage_error() { echo "$1" >&2; echo "usage: db-restore-drill.sh [--overwrite] [backup-file] | --restore-only <backup-file>" >&2; exit 2; }
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --restore-only) restore_only=1 ;;
+    --overwrite) overwrite=1 ;;
+    -*) usage_error "unknown option: $1" ;;
+    *) break ;;
+  esac
+  shift
+done
+[[ $# -le 1 ]] || usage_error "too many arguments: options go first, then at most one backup file"
+[[ -z "$restore_only$overwrite" || "$restore_only" != "$overwrite" ]] || usage_error "--restore-only never writes the file, so it cannot be combined with --overwrite"
 own_backup=""
 if [[ -n "$restore_only" ]]; then
   # The file is only read: it must exist before any database is touched, and nothing below may remove or replace it.
@@ -47,8 +62,11 @@ drop_scratch() {
   if [[ -n "$backup_part" ]]; then rm -f "$backup_part"; fi
   if [[ -n "$own_backup" ]]; then rm -f "$backup"; fi
   [[ -n "$created_scratch" ]] || return 0
-  # Variables used below are set before created_scratch, so this only runs once they exist.
+  # Variables used below are set before created_scratch, so this only runs once they exist. Only this drill's own scratch database is touched:
+  # its leftover connections are ended first (same psql run, so one admin connection), then it is dropped. A database that already existed under
+  # that name was never created here, created_scratch stays empty and neither statement is sent.
   pg psql "$admin_url" --no-psqlrc --quiet --set ON_ERROR_STOP=1 \
+    --command "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$scratch_db' AND pid <> pg_backend_pid()" \
     --command "DROP DATABASE IF EXISTS \"$scratch_db\"" >/dev/null
 }
 # A scratch database that cannot be dropped still holds a copy of the data, so that is a failure
@@ -101,6 +119,17 @@ snapshot() {
     --command "$counts_sql" --command 'SELECT filename FROM schema_migrations ORDER BY filename'
 }
 
+if [[ -z "$restore_only" && -z "$own_backup" && -z "$overwrite" ]]; then
+  # Before any database is touched: a path that already exists, or a *.dump inside a production backup folder, is only written with --overwrite.
+  [[ ! -e "$backup" ]] || { echo "refusing to overwrite existing path: $backup (did you forget --restore-only? pass --overwrite to replace it)" >&2; exit 1; }
+  backup_dir_real="$(cd "$(dirname "$backup")" 2>/dev/null && pwd -P || true)"
+  for backup_candidate in "$backup" "${backup_dir_real:+$backup_dir_real/${backup##*/}}"; do
+    case "$backup_candidate" in
+      /opt/masscom*/backups/*.dump|/opt/masscom*/backups/*.dump.*)
+        echo "refusing to write a dump into a backup folder: $backup_candidate (pass --overwrite if this is intended)" >&2; exit 1 ;;
+    esac
+  done
+fi
 if [[ -z "$restore_only" ]]; then
   # Dump beside the target (same filesystem, so the rename is atomic) and move it into place only on success.
   backup_part="$(mktemp "$backup.part.XXXXXX")"

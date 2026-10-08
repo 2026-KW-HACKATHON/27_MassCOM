@@ -38,6 +38,13 @@ case "$1" in
 esac
 DOCKER
 chmod +x "$scratch/bin/docker"
+# 가짜 flock(Issue #412): 백업 작업과 나누는 잠금. 호출 인자를 남기고 FAKE_FLOCK_FAIL=1이면 시간 초과처럼 실패한다.
+cat > "$scratch/bin/flock" <<'FLOCK'
+#!/usr/bin/env bash
+echo "$*" >> "${FAKE_FLOCK_LOG:-/dev/null}"
+[[ "${FAKE_FLOCK_FAIL:-}" != 1 ]]
+FLOCK
+chmod +x "$scratch/bin/flock"
 
 # 파일의 수정 시각을 "지금부터 N분 전"으로 맞춘다(BSD·GNU 어디서나 되도록 python으로).
 age() {
@@ -84,8 +91,8 @@ kept_after_run=(
 run_job() {
   local script="$1"; shift
   # 재정의(가짜 docker·임시 백업 폴더·기간)는 MASSCOM_RETENTION_TEST=1을 명시할 때만 받아들여진다.
-  PATH="$scratch/bin:$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" MASSCOM_DOCKER="$scratch/bin/docker" \
-    MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_RETENTION_TEST=1 "$@" bash "$script"
+  PATH="$scratch/bin:$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" MASSCOM_DOCKER="$scratch/bin/docker" FAKE_FLOCK_LOG="$scratch/flock.log" \
+    MASSCOM_LOCK_FILE="$scratch/maintenance.lock" MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_RETENTION_TEST=1 "$@" bash "$script"
 }
 
 for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retention|/opt/masscom/backups' \
@@ -152,6 +159,39 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
     done
   fi
 
+  # 일일 백업 보관 하한(Issue #412): 나이와 상관없이 가장 최근 daily-*.dump 3개와 sha256은 남기고, 더 오래된 일일 백업·.part·다른 오래된 덤프는 지운다.
+  rm -rf "$scratch/backups"; mkdir -p "$scratch/backups"; : > "$scratch/docker.log"; : > "$scratch/flock.log"
+  for ts in 20260701 20260702 20260703 20260704 20260705; do
+    : > "$scratch/backups/daily-${ts}T185000Z.dump";        age "$scratch/backups/daily-${ts}T185000Z.dump" $((90 * day))
+    : > "$scratch/backups/daily-${ts}T185000Z.dump.sha256"; age "$scratch/backups/daily-${ts}T185000Z.dump.sha256" $((90 * day))
+  done
+  : > "$scratch/backups/daily-20260601T185000Z.dump.part"; age "$scratch/backups/daily-20260601T185000Z.dump.part" $((90 * day))
+  : > "$scratch/backups/database-before-bbbbbbbbbbbb.dump.XyZ"; age "$scratch/backups/database-before-bbbbbbbbbbbb.dump.XyZ" $((90 * day))
+  : > "$scratch/backups/runtime-before-bbbbbbbbbbbb.env.QqQ"; age "$scratch/backups/runtime-before-bbbbbbbbbbbb.env.QqQ" $((90 * day))
+  out="$(run_job "$script" env)" || fail "$label: floor run failed"
+  grep -q $'^BACKUPS_DELETED\t6$' <<<"$out" || fail "$label: expected 2 old dumps, 2 sidecars, the part file and the old pre-deploy dump deleted, got: $out"
+  expect_files "$scratch/backups" "$label daily floor" daily-20260703T185000Z.dump daily-20260703T185000Z.dump.sha256 \
+    daily-20260704T185000Z.dump daily-20260704T185000Z.dump.sha256 daily-20260705T185000Z.dump daily-20260705T185000Z.dump.sha256 runtime-before-bbbbbbbbbbbb.env.QqQ
+  out="$(run_job "$script" env)" || fail "$label: second floor run failed"
+  grep -q $'^BACKUPS_DELETED\t0$' <<<"$out" || fail "$label: the newest three daily backups were not kept on a second run"
+  # 일일 백업이 3개보다 적으면 전부 남는다.
+  rm -rf "$scratch/backups"; mkdir -p "$scratch/backups"
+  for ts in 20260704 20260705; do : > "$scratch/backups/daily-${ts}T185000Z.dump"; age "$scratch/backups/daily-${ts}T185000Z.dump" $((200 * day)); done
+  out="$(run_job "$script" env)" || fail "$label: short floor run failed"
+  grep -q $'^BACKUPS_DELETED\t0$' <<<"$out" || fail "$label: fewer than three daily backups must all be kept"
+  # 파일 이름의 시각 순서가 기준이다(수정 시각이 아니다): 이름이 가장 최근인 파일이 가장 오래 전에 수정됐어도 남는다.
+  rm -rf "$scratch/backups"; mkdir -p "$scratch/backups"
+  for ts in 20260701 20260702 20260703 20260704; do : > "$scratch/backups/daily-${ts}T185000Z.dump"; age "$scratch/backups/daily-${ts}T185000Z.dump" $(((ts - 20260700) * day + 40 * day)); done
+  out="$(run_job "$script" env)" || fail "$label: name-order floor run failed"
+  expect_files "$scratch/backups" "$label floor by name" daily-20260702T185000Z.dump daily-20260703T185000Z.dump daily-20260704T185000Z.dump
+  # 파일을 지우는 단계는 백업 작업과 나누는 잠금을 잡는다. 잠금을 못 잡으면 아무것도 지우지 않고 실패로 알리지만 DB 정리는 한다.
+  grep -qx -- '-w 600 9' "$scratch/flock.log" || fail "$label: the file step did not take the shared maintenance lock"
+  make_backups "$scratch/backups"; : > "$scratch/docker.log"
+  if run_job "$script" env FAKE_FLOCK_FAIL=1 >"$scratch/out" 2>"$scratch/err"; then fail "$label: a lock timeout must fail the job"; fi
+  grep -q RETENTION_LOCK_TIMEOUT "$scratch/err" || fail "$label: lock timeout is not named"
+  grep -q '^exec container-abc ' "$scratch/docker.log" || fail "$label: the DB step must still run when the lock is not available"
+  expect_files "$scratch/backups" "$label lock timeout" database-before-aaaaaaaaaaaa.dump.AbC123 pre-old-20260801.dump pre-edge-over.dump "${kept_after_run[@]}"
+
   # 컨테이너가 없거나 둘이면 어느 DB인지 모르므로 실행하지 않는다(그래도 백업은 정리한다).
   for ps_output in '' 'one\ntwo'; do
     make_backups "$scratch/backups"; : > "$scratch/docker.log"
@@ -193,6 +233,7 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   grep -q "^backup_dir='$default_backup'\$" "$script" || fail "$label: wrong default backup folder"
   grep -q '^retention_days=30$' "$script" || fail "$label: wrong default retention days"
   grep -q 'MASSCOM_RETENTION_TEST:-}" == 1' "$script" || fail "$label: overrides are not gated behind the test flag"
+  grep -q "^lock_file='/run/lock/masscom-db-maintenance.lock'\$" "$script" || fail "$label: wrong shared lock file"
   # 지우는 일은 find 한 명령이다: 골라 둔 이름을 나중에 rm에 넘기지 않는다.
   grep -q -- '-mmin "+\$((retention_days \* 1440))" -delete' "$script" || fail "$label: backups are not deleted by find itself"
   if grep -Eq '(^|[^a-z])rm( |$)|xargs' "$script"; then fail "$label: the job deletes through a separate rm/xargs step"; fi
@@ -212,7 +253,7 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   for directive in UMask=0077 NoNewPrivileges=yes PrivateTmp=yes PrivateDevices=yes ProtectSystem=strict ProtectHome=read-only \
       ProtectKernelTunables=yes ProtectKernelModules=yes ProtectControlGroups=yes RestrictSUIDSGID=yes LockPersonality=yes \
       RestrictAddressFamilies=AF_UNIX ProtectClock=yes ProtectHostname=yes ProtectKernelLogs=yes RestrictNamespaces=yes \
-      SystemCallArchitectures=native "ReadWritePaths=$default_backup"; do
+      SystemCallArchitectures=native "ReadWritePaths=$default_backup /run/lock"; do
     grep -qx "$directive" "$service_file" || fail "$label: service is missing $directive"
   done
   [[ "$(grep -c '^ReadWritePaths=' "$service_file")" == 1 ]] || fail "$label: service may write to more than one place"

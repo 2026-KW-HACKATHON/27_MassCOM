@@ -40,7 +40,7 @@
 
 - [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 신규 사용자의 첫 코인 흐름과 첫 화면 즉시 반응이다(소유자 2026-10-08 방향, PR #415로 병합). 앱 코드만 바뀌었고 API·DB는 그대로다. (1) 웹 대기 안내 `apps/mobile/public/index.html`과 웹 번들의 지갑 SDK 제외(진입 번들 6,375,429B → 4,119,372B), 지연 소리 생성. (2) 동의 화면의 늘 보이는 정확한 요약·접힌 전체 안내·"전체 동의". (3) 홈의 요청별 표시와 "처음이라면 이 가게부터", 가게 카드·상세의 사실 표시 원칙, 첫 코인 "내 공간에 놓기" 제안. (4) 웹 마스코트·랜드마크 접근성. 배포·게시는 하지 않았다(소유자 결정 A).
 
-- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 기능 수준 감시와 운영 품질 작업이다. 브랜치 `chore/ops-quality-t5`(main `e06c97cd`, PR #415 병합 위로 리베이스, 커밋은 `git log -1 chore/ops-quality-t5`로 확인)에 15분 가동 점검(`.github/workflows/uptime.yml`, 실패는 `uptime` 라벨 이슈, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(`masscom-backup`, 호스트에 설치하지 않음), `scripts/db-restore-drill.sh --restore-only`, 큰 파일 가드(`scripts/check-large-files.sh`와 예외 목록), 현재 배포 상태의 단일 원본 `docs/CURRENT_RELEASE.json`과 생성·검사 스크립트, CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용)을 더했다. 설치본 용량은 [분석 문서](APK_SIZE_ANALYSIS.md)에 측정값과 가설만 적었다. 배포하지 않았고(소유자 결정 A) 공개 상태는 3절 그대로다. 절차는 [운영 절차](OPERATIONS_RUNBOOK.md)의 Issue #412 절에 있다.
+- [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)는 기능 수준 감시와 운영 품질 작업이다. 브랜치 `chore/ops-quality-t5`(main `e06c97cd`, PR #415 병합 위로 리베이스, 커밋은 `git log -1 chore/ops-quality-t5`로 확인)에 15분 가동 점검(`.github/workflows/uptime.yml`, 실패는 `uptime` 라벨 이슈, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(`masscom-backup`, 호스트에 설치하지 않음), `scripts/db-restore-drill.sh --restore-only`, 큰 파일 가드(`scripts/check-large-files.sh`와 예외 목록), 현재 배포 상태를 손으로 고치는 기준 파일 `docs/CURRENT_RELEASE.json`과 생성·검사 스크립트(검사 범위는 `open.html` 블록 밖·README "바로 체험"·DEMO_RUNBOOK·SUBMISSION_CHECKLIST이고, 날짜별 이력 표인 `docs/ANDROID_DOWNLOADS.md`는 밖이다), CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용)을 더했다. 설치본 용량은 [분석 문서](APK_SIZE_ANALYSIS.md)에 측정값과 가설만 적었다. 배포하지 않았고(소유자 결정 A) 공개 상태는 3절 그대로다. 절차는 [운영 절차](OPERATIONS_RUNBOOK.md)의 Issue #412 절에 있다.
 
 ## 5. 시연 배포 순서
 
@@ -76,7 +76,7 @@
 - Caddy `/api/web/v1/*` 수정(`fix/caddy-web-v1-routes`, PR #413): `verify_web_session_proxy_test.mjs` 2/2(옛 Caddyfile은 2건 FAIL), `verify_lightsail_deployment_test.sh`·`run_aws_web_smoke.sh`·`deploy_lightsail_web_test.sh`·`ci_wiring_test.sh`·gate PASS, 관련 `node --test` 31/31. 라이브 재측정은 NOT_RUN이다. 자세한 결과는 [TEST_STATUS](TEST_STATUS.md)에 둔다.
 - Issue #412 첫 사용 경험(PR #415, 브랜치 `feat/first-use-v2`): 모바일 `npm test` 1992/1992(PR #414 위로 리베이스한 뒤의 합계, 리베이스 전 이 브랜치 단독 1974), typecheck·lint PASS, 접근성 의미 검사·지갑 표면 검사·CI 연결 PASS, 시연 웹 export PASS(번들에 지갑 SDK 문자열 0건, `class="boot"` 대기 안내 포함). 사이트 시험 `verify_production_web_test.mjs`·`legal-pages.test.mjs` 147/147. API 시험은 567/567 그대로이고 API 코드는 바뀌지 않았다. 코드 교차 리뷰(Claude Sonnet·Claude Opus) 두 차례 뒤 지적 반영. 명령별 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 - 기본 재현: `bash tools/gate.sh`, `bash tests/bootstrap/verify_operations_docs_test.sh`, `bash tests/site/verify_evidence_consistency_test.sh`, `bash tests/ops/showcase_host_readiness_test.sh`.
-- Issue #412 브랜치(이 세션에서 직접 실행): 가동 점검·매일 백업·정리 작업·복원 드릴(가짜 도구와 일회용 로컬 Postgres 16.10)·큰 파일 가드 시험, `current_release_test.mjs` 포함 사이트 시험 23/23, `render-current-release.mjs --check`, `ci_wiring_test.sh`(시험 파일 90개 모두 연결), API 단위 567/567(커버리지 포함), `bash tools/gate.sh` PASS. GitHub Actions 전체 CI와 독립 리뷰는 `NOT_RUN`이다. 결과표는 [TEST_STATUS](TEST_STATUS.md) 맨 위 절.
+- Issue #412 브랜치(이 세션에서 직접 실행): 가동 점검·매일 백업·정리 작업·복원 드릴(가짜 도구와 일회용 로컬 Postgres 16.10)·큰 파일 가드 시험, `current_release_test.mjs` 포함 사이트 시험 26/26, `render-current-release.mjs --check`, `ci_wiring_test.sh`(시험 파일 90개 모두 연결), API 단위 567/567(커버리지 포함), `bash tools/gate.sh` PASS. 독립 리뷰 2건의 변경 요청(🔴 없음)은 후속 커밋에서 반영했고 반영분의 재검토와 GitHub Actions 전체 CI는 `NOT_RUN`이다. 결과표는 [TEST_STATUS](TEST_STATUS.md) 맨 위 절.
 
 ## 10. 수동 수용과 미실행 항목
 
@@ -106,7 +106,7 @@
 5. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 확인하고, 필요하면 위 남은 🟡 중 (3)(4)(6)의 처리 여부를 정한다.
 6. 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설은 소유자 판단·수동 항목이다.
 7. 대회 최종 제출과 Google Play는 소유자 승인이 필요한 별도 경계다. 승인 전에는 제출 버전을 고정하지 않는다.
-8. Issue #412 브랜치(`chore/ops-quality-t5`)는 아직 push하지 않았다. push·PR·CI·독립 리뷰는 PR 절차를 따른다. 설치본·`/open`을 바꾸는 다음 배포부터는 `docs/CURRENT_RELEASE.json`을 고치고 `node scripts/render-current-release.mjs` → `--check` 순서로 한다.
+8. Issue #412 브랜치(`chore/ops-quality-t5`)는 아직 push하지 않았다. push·PR·CI·독립 리뷰는 PR 절차를 따른다. 설치본·`/open`을 바꾸는 다음 배포부터는 `docs/CURRENT_RELEASE.json`을 고치고 `node scripts/render-current-release.mjs` → `--check` 순서로 한 뒤, `scripts/verify-project-site.sh`·`tests/site/public-entry.test.mjs`·`tests/site/verify_project_site_test.sh`에 박힌 태그 문자열을 직접 새 태그로 고친다(절차는 [운영 절차](OPERATIONS_RUNBOOK.md)).
 
 PR 제목·본문 검사:
 

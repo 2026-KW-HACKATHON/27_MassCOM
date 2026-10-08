@@ -22,16 +22,29 @@ if [[ "${MASSCOM_RETENTION_TEST:-}" == 1 ]]; then
   unit_dir="${MASSCOM_UNIT_DIR:-$unit_dir}"
   systemctl_bin="${MASSCOM_SYSTEMCTL:-$systemctl_bin}"
 fi
-# 첫 인자로 일일 백업 작업(Issue #412)을 고를 수 있다. 인자가 없으면 정리 작업이다: 배포 스크립트가 인자 없이 부르므로 이 동작은 그대로여야 한다.
-# 스크립트 원본은 폴더의 masscom-<종류>.sh(retention|backup)다.
-[[ "${1:-}" != "$backup_name" ]] || { name="$1"; shift; }
+# 인자: 작업 이름(일일 백업 작업을 고를 때만)과 동작(install|--uninstall|--verify)을 순서와 상관없이 받는다. 이름이 없으면 정리 작업이다:
+# 운영 배포 스크립트가 인자 없이 부르므로 이 동작은 그대로여야 한다. 모르는 인자나 같은 종류의 중복은 아무것도 하지 않고 usage(2)로 멈춘다
+# (`--uninstall masscom-backup`이 정리 작업을 지우는 일이 없도록). 스크립트 원본은 폴더의 masscom-<종류>.sh(retention|backup)다.
+usage() { echo "usage: install.sh [$backup_name] [install|--uninstall|--verify]" >&2; exit 2; }
+default_name="$name"
+requested_name=''
+action=''
+for arg in "$@"; do
+  case "$arg" in
+    "$default_name"|"$backup_name") [[ -z "$requested_name" ]] || usage; requested_name="$arg" ;;
+    install|--uninstall|--verify) [[ -z "$action" ]] || usage; action="$arg" ;;
+    *) usage ;;
+  esac
+done
+name="${requested_name:-$default_name}"
+action="${action:-install}"
 kind="${name##*-}"
 job_src="$here/masscom-$kind.sh"
-[[ "$(id -u)" == 0 || ( "$test_mode" == true && "${1:-}" == --verify ) ]] || { echo 'run as root: sudo bash install.sh' >&2; exit 1; }
+[[ "$(id -u)" == 0 || ( "$test_mode" == true && "$action" == --verify ) ]] || { echo 'run as root: sudo bash install.sh' >&2; exit 1; }
 sbin="$sbin_dir/$name"
 backup_dir='/opt/masscom/backups'
 
-case "${1:-install}" in
+case "$action" in
   install)
     command -v "$systemctl_bin" >/dev/null || { echo 'systemd is required' >&2; exit 1; }
     # 백업 폴더가 없으면 유닛의 ReadWritePaths가 시작을 막으므로 먼저 만든다(이미 있으면 그대로 둔다).
@@ -64,9 +77,5 @@ case "${1:-install}" in
     [[ "$result" == success ]] || { echo "$name.service last run did not succeed: $result" >&2; exit 1; }
     [[ -n "$started" ]] || { echo "$name.service has not run yet: run 'systemctl start $name.service' once, then verify again" >&2; exit 1; }
     echo "verified: $name.timer is enabled and matches this release"
-    ;;
-  *)
-    echo 'usage: install.sh [masscom-backup] [--uninstall|--verify]' >&2
-    exit 2
     ;;
 esac

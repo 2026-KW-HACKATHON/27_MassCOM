@@ -83,7 +83,7 @@ arm64 기기 한 대가 받는 크기를 **근사**하면 dex 18,594,368 + asset
 
 ## 4. 측정 C: 지도 SDK 이후 비공개 arm64 APK (공개 아님)
 
-형제 worktree의 비공개 검증 APK입니다. arm64 한 ABI만 들어 있고 디버그 인증서로 서명돼 있어 공개 설치본과 **같은 설정이 아닙니다**. 10-06 두 개의 크기는 [`docs/evidence/real-world-2026-10-06/native-builds.json`](evidence/real-world-2026-10-06/native-builds.json)과 일치합니다.
+형제 worktree의 비공개 검증 APK입니다. arm64 한 ABI만 들어 있고 디버그 인증서로 서명돼 있어 공개 설치본과 **같은 설정이 아닙니다**. 표의 10-06 운영 arm64(108,977,445바이트)는 [`docs/evidence/real-world-2026-10-06/native-builds.json`](evidence/real-world-2026-10-06/native-builds.json)의 `production` 항목과 크기가 같습니다(같은 JSON의 `showcase` 항목 114,729,601바이트는 표에 넣지 않았습니다). 10-07 개발 후보(134,461,519바이트)는 그 JSON에 없는 파일이라 이 PC에서 직접 잰 값이고 증거 기록이 없습니다.
 
 | 항목 | 9-28 운영(4 ABI) | 10-06 운영 arm64 | 10-07 개발 후보 arm64 |
 | --- | ---: | ---: | ---: |

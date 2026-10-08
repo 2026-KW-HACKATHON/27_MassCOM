@@ -35,10 +35,13 @@ grep -q 'restore drill FAILED' <<<"$tampered_out" || { echo "tampered drill fail
 rm -f "$tampered"
 
 # Issue #412: --restore-only restores an existing backup into a scratch database without dumping the source or touching the file.
-kept="$(mktemp -t drill-kept.XXXXXX)"
+kept_dir="$(mktemp -d -t drill-kept.XXXXXX)"
+kept="$kept_dir/kept.dump"
 extra_table_dropped() { pg psql "$url" --no-psqlrc -qc 'DROP TABLE IF EXISTS drill_restore_only_extra' >/dev/null 2>&1 || true; }
-trap 'extra_table_dropped; rm -f "$kept" "$kept.nodata" "$kept.garbage"' EXIT
+trap 'extra_table_dropped; rm -rf "$kept_dir"' EXIT
 bash "$drill" "$kept" >/dev/null
+# A second dump to the same path is refused without --overwrite (a forgotten --restore-only must not replace a real backup).
+if bash "$drill" "$kept" >/dev/null 2>&1; then echo "the drill overwrote an existing backup without --overwrite" >&2; exit 1; fi
 kept_sum="$(shasum -a 256 "$kept")"
 no_scratch() { [[ "$(pg psql "${base%/*}/postgres$query" --no-psqlrc -tAc "SELECT count(*) FROM pg_database WHERE datname LIKE '%\_restore\_test'")" == 0 ]] || { echo "scratch database was left behind ($1)" >&2; exit 1; }; }
 

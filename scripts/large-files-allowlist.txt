@@ -1,5 +1,6 @@
-# 큰 파일 가드(scripts/check-large-files.sh)의 예외 목록. 한 줄에 `경로<TAB>이유`. 경로는 정확히 일치해야 하고 이유는 비울 수 없다.
+# 큰 파일 가드(scripts/check-large-files.sh)의 예외 목록. 한 줄에 `경로<TAB>이유<TAB>최대 바이트`. 경로는 정확히 일치해야 하고 이유는 비울 수 없다.
+# 세 번째 칸(최대 바이트, 양의 정수)은 선택이다. 있으면 예외 파일도 그 크기까지만 허용해, 허용된 큰 파일이 조용히 더 커지지 않는다. 새 항목은 지금 크기 + 10%를 적는다.
 # 새 항목은 "정말 저장소에 있어야 하는 이유"를 적는다. 증거 영상·원본 이미지는 GitHub Release(evidence-YYYY-MM-DD-<주제>)에 올리는 것이 기본이다.
 # 아래 두 파일은 가드 도입 전부터 있던 것이다: 이력은 다시 쓰지 않고, 이 파일을 고치거나 옮길 때만 걸리지 않게 둔다. 새로 만들 때는 Release로 옮긴다.
-docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm	가드 도입 전 제출 재확인 증거 영상(약 10 MB): 이력 유지, 새 영상은 GitHub Release 사용
-apps/mobile/assets/sounds/draw-loop.mp3	가드 도입 전부터 앱에 들어 있는 뽑기 효과음(약 4 MB): APK 용량 분석 결과에 따라 줄이는 것은 별도 작업
+docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm	가드 도입 전 제출 재확인 증거 영상(10,053,739바이트): 이력 유지, 새 영상은 GitHub Release 사용	11059113
+apps/mobile/assets/sounds/draw-loop.mp3	가드 도입 전부터 앱에 들어 있는 뽑기 효과음(4,112,413바이트): APK 용량 분석 결과에 따라 줄이는 것은 별도 작업	4523655

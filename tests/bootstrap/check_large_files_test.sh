@@ -123,6 +123,30 @@ printf 'assets/*\t글롭은 허용하지 않는다\n' >scripts/large-files-allow
 commit_all allowlist-glob
 run 1 allowlist-glob main
 
+# 7b. 예외 목록의 세 번째 칸(최대 바이트): 그 크기까지만 허용하고, 넘으면 예외여도 실패하며, 양의 정수가 아니면 검사 자체가 오류(2)다.
+reset_branch
+mkdir -p scripts
+binary assets/capped.bin $((4 * mib))
+printf 'assets/capped.bin\t상한이 있는 예외\t%s\n' $((4 * mib)) >scripts/large-files-allowlist.txt
+commit_all allowlist-cap-equal
+run 0 allowlist-cap-equal main
+binary assets/capped.bin $((4 * mib + 1))
+commit_all allowlist-cap-grown
+run 1 allowlist-cap-grown main
+grep -q "assets/capped.bin ($((4 * mib + 1)) 바이트, 예외 목록의 허용 크기 $((4 * mib)) 바이트 초과)" "$scratch/err" || fail "allowlist-cap-grown: cap not named: $(cat "$scratch/err")"
+printf 'assets/capped.bin\t상한을 올린 예외\t%s\n' $((4 * mib + 1)) >scripts/large-files-allowlist.txt
+commit_all allowlist-cap-raised
+run 0 allowlist-cap-raised main
+printf 'assets/capped.bin\t없는 칸은 제한 없음\n' >scripts/large-files-allowlist.txt
+commit_all allowlist-cap-absent
+run 0 allowlist-cap-absent main
+for bad_cap in 0 -5 12abc '' ' 7' '1\t2'; do
+  printf 'assets/capped.bin\t이유\t%b\n' "$bad_cap" >scripts/large-files-allowlist.txt
+  commit_all "allowlist-bad-cap-$bad_cap"
+  run 2 "allowlist-bad-cap-$bad_cap" main
+  grep -q 'large-files-allowlist.txt:1.*세 번째 칸' "$scratch/err" || fail "allowlist-bad-cap '$bad_cap': line not named: $(cat "$scratch/err")"
+done
+
 # 8. 기준 참조가 없거나 인자가 틀리면 오류(2)다. 빈 트리를 기준으로 하면 모든 파일이 새 파일이다(CI의 첫 push 대비).
 run 2 missing-base no-such-ref
 run 2 no-args
@@ -136,7 +160,14 @@ run 1 empty-tree-base "$empty_tree"
 
 # 10. 운영 저장소의 예외 목록 형식과 연결: 목록은 파싱되고, tools/gate.sh와 CI가 이 검사를 부른다.
 cd "$repo_root"
-awk -F'\t' '!/^#/ && NF > 0 && ($2 == "" || NF != 2) { bad = 1 } END { exit bad }' scripts/large-files-allowlist.txt || fail 'scripts/large-files-allowlist.txt has a line without path<TAB>reason'
+awk -F'\t' '!/^#/ && NF > 0 && ($2 == "" || NF < 2 || NF > 3 || (NF == 3 && $3 !~ /^[1-9][0-9]*$/)) { bad = 1 } END { exit bad }' scripts/large-files-allowlist.txt || fail 'scripts/large-files-allowlist.txt has a line that is not path<TAB>reason[<TAB>max bytes]'
+# 저장소 예외마다 최대 바이트가 있고 지금 크기 이상이며 +10%를 넘지 않는다(조용히 커지는 것을 막는 상한이 의미 있게 남도록).
+while IFS=$'\t' read -r allow_path allow_reason allow_cap; do
+  [[ -n "$allow_path" && "$allow_path" != '#'* ]] || continue
+  [[ -n "$allow_cap" ]] || fail "$allow_path has no max bytes column"
+  allow_size="$(wc -c <"$allow_path" | tr -d ' ')"
+  (( allow_cap >= allow_size && allow_cap * 100 <= allow_size * 111 )) || fail "$allow_path: max bytes $allow_cap is not within 0-10% above the current size $allow_size"
+done <scripts/large-files-allowlist.txt
 grep -q 'bash scripts/check-large-files.sh origin/main' tools/gate.sh || fail 'tools/gate.sh does not run the large-file guard against origin/main'
 grep -q 'scripts/check-large-files.sh' .github/workflows/ci.yml || fail 'ci.yml does not run the large-file guard'
 

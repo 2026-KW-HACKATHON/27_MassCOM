@@ -27,6 +27,9 @@ FAKE
 cat >"$fakebin/psql" <<'FAKE'
 #!/usr/bin/env bash
 if [[ -n "${FAKE_PG_URL_LOG:-}" ]]; then printf '%s\n' "$1" >>"$FAKE_PG_URL_LOG"; fi
+if [[ -n "${FAKE_PG_SQL_LOG:-}" ]]; then printf '%s\n' "$*" >>"$FAKE_PG_SQL_LOG"; fi
+# The scratch name is taken (Issue #412 review): CREATE DATABASE fails, so nothing of this drill exists to clean up.
+if [[ "${FAKE_CREATE_EXISTS:-}" == 1 && "$*" == *'CREATE DATABASE'* ]]; then echo 'ERROR:  database already exists' >&2; exit 1; fi
 if [[ "$*" == *'SELECT filename FROM schema_migrations ORDER BY filename'* ]]; then
   side=source
   if [[ "${1%%\?*}" == *_restore_test ]]; then side=scratch; fi
@@ -101,7 +104,7 @@ out="$(run_drill bare.dump 2>&1)" || status=$?
 printf 'PREVIOUS' >"$work/keep.dump"
 chmod 644 "$work/keep.dump"
 status=0
-out="$(FAKE_PG_DUMP_FAIL=1 run_drill "$work/keep.dump" 2>&1)" || status=$?
+out="$(FAKE_PG_DUMP_FAIL=1 run_drill --overwrite "$work/keep.dump" 2>&1)" || status=$?
 [[ "$status" != 0 ]] || { echo "drill passed although pg_dump failed: $out" >&2; exit 1; }
 grep -q 'connection to server failed' <<<"$out" || { echo "failure was not caused by the fake pg_dump: $out" >&2; exit 1; }
 [[ "$(<"$work/keep.dump")" == PREVIOUS ]] || { echo 'failed dump replaced or truncated the existing backup' >&2; exit 1; }
@@ -117,7 +120,7 @@ out="$(FAKE_PG_DUMP_FAIL=1 run_drill "$work/missing.dump" 2>&1)" || status=$?
 
 # 5. A later successful drill replaces the earlier backup and the result is 0600.
 status=0
-out="$(run_drill "$work/keep.dump" 2>&1)" || status=$?
+out="$(run_drill --overwrite "$work/keep.dump" 2>&1)" || status=$?
 [[ "$status" == 0 ]] || { echo "replacing drill failed ($status): $out" >&2; exit 1; }
 [[ "$(<"$work/keep.dump")" == NEWDUMP ]] || { echo 'successful drill did not replace the existing backup' >&2; exit 1; }
 [[ "$(mode_of "$work/keep.dump")" == 600 ]] || { echo 'replaced backup is not 0600' >&2; exit 1; }
@@ -191,7 +194,7 @@ for snapshot_mode in fail empty whitespace; do
   for snapshot_side in source scratch both; do
     : >"$url_log"
     status=0
-    out="$(FAKE_PG_URL_LOG="$url_log" FAKE_PG_SNAPSHOT_MODE="$snapshot_mode" FAKE_PG_SNAPSHOT_SIDE="$snapshot_side" run_drill "$work/snapshot.dump" 2>&1)" || status=$?
+    out="$(FAKE_PG_URL_LOG="$url_log" FAKE_PG_SNAPSHOT_MODE="$snapshot_mode" FAKE_PG_SNAPSHOT_SIDE="$snapshot_side" run_drill --overwrite "$work/snapshot.dump" 2>&1)" || status=$?
     [[ "$status" != 0 ]] || { echo "drill accepted $snapshot_mode snapshot ($snapshot_side): $out" >&2; exit 1; }
     grep -q 'restore drill FAILED' <<<"$out" || { echo "snapshot failure was not reported: $out" >&2; exit 1; }
     if grep -q 'restore drill passed' <<<"$out"; then echo "snapshot failure printed success: $out" >&2; exit 1; fi
@@ -280,6 +283,69 @@ out="$(FAKE_PG_URL_LOG="$url_log" DRILL_DATABASE_URL='postgresql://drill@127.0.0
 [[ "$status" != 0 ]] && grep -q 'database-selecting query key is not allowed' <<<"$out" && [[ ! -s "$url_log" ]] || { echo 'restore-only accepted a database-selecting query key' >&2; exit 1; }
 ro_intact query-key
 echo "restore-only tests passed ($ro_cases failure cases rejected; the backup file and the source were left alone)"
+
+
+# Issue #412 리뷰: 인자 안전장치. 옵션은 앞에서 정확히 일치해야 하고, 덤프는 --overwrite 없이 기존 경로나 운영 백업 폴더의 *.dump를 덮지 않는다.
+printf 'REAL BACKUP' >"$work/guard.dump"
+chmod 644 "$work/guard.dump"
+guard_before="$(cksum <"$work/guard.dump")"
+guard_intact() {
+  [[ "$(<"$work/guard.dump")" == 'REAL BACKUP' && "$(cksum <"$work/guard.dump")" == "$guard_before" && "$(mode_of "$work/guard.dump")" == 644 && "$(leftovers)" == 0 ]] \
+    || { echo "an argument mistake changed the existing backup ($1)" >&2; exit 1; }
+}
+guard_cases=0
+# 라벨|기대 종료 코드|기대 문구|인자... (인자는 공백 없는 낱말)
+for guard_case in \
+    "wrong-order|2|too many arguments|$work/guard.dump --restore-only" \
+    "equals-form|2|unknown option: --restore-only=$work/guard.dump|--restore-only=$work/guard.dump" \
+    "extra-after-file|2|too many arguments|--restore-only $work/guard.dump extra" \
+    "unknown-option|2|unknown option: --restore-onl|--restore-onl $work/guard.dump" \
+    "unknown-short|2|unknown option: -f|-f $work/guard.dump" \
+    "restore-only-overwrite|2|cannot be combined with --overwrite|--restore-only --overwrite $work/guard.dump" \
+    "forgot-flag|1|refusing to overwrite existing path|$work/guard.dump" \
+    "backup-folder|1|refusing to write a dump into a backup folder|/opt/masscom-t5/backups/daily-20261008T000000Z.dump" \
+    "backup-folder-part|1|refusing to write a dump into a backup folder|/opt/masscom-t5/backups/x.dump.sha256"; do
+  IFS='|' read -r guard_label guard_code guard_message guard_args <<<"$guard_case"
+  : >"$url_log"
+  status=0
+  # shellcheck disable=SC2086 # guard_args is a list of words without spaces
+  out="$(FAKE_PG_URL_LOG="$url_log" run_drill $guard_args 2>&1)" || status=$?
+  [[ "$status" == "$guard_code" ]] || { echo "$guard_label: exit $status, wanted $guard_code: $out" >&2; exit 1; }
+  grep -qF -- "$guard_message" <<<"$out" || { echo "$guard_label: message '$guard_message' missing: $out" >&2; exit 1; }
+  [[ ! -s "$url_log" ]] || { echo "$guard_label: the database was touched before the refusal" >&2; exit 1; }
+  guard_intact "$guard_label"
+  guard_cases=$((guard_cases + 1))
+done
+# --overwrite 로 명시하면 운영 백업 폴더 규칙은 통과한다(폴더가 없으므로 다른 이유로 멈춘다).
+status=0
+out="$(run_drill --overwrite /opt/masscom-t5/backups/daily-20261008T000000Z.dump 2>&1)" || status=$?
+[[ "$status" != 0 ]] && ! grep -q 'refusing to write a dump into a backup folder' <<<"$out" || { echo '--overwrite did not lift the backup-folder rule' >&2; exit 1; }
+# scratch DB 이름이 이미 쓰이고 있으면(CREATE DATABASE 실패) 아무것도 지우지 않는다: DROP 0번, 연결 종료 0번, 종료 코드 0이 아님, 파일 그대로.
+sql_log="$scratch/sql.log"
+: >"$sql_log"
+status=0
+out="$(FAKE_PG_SQL_LOG="$sql_log" FAKE_CREATE_EXISTS=1 run_drill --restore-only "$work/ro.dump" 2>&1)" || status=$?
+[[ "$status" != 0 ]] || { echo "restore-only passed although the scratch database already existed: $out" >&2; exit 1; }
+[[ "$(grep -c 'DROP DATABASE' "$sql_log" || true)" == 0 ]] || { echo 'a DROP DATABASE was sent although CREATE DATABASE failed' >&2; exit 1; }
+[[ "$(grep -c 'pg_terminate_backend' "$sql_log" || true)" == 0 ]] || { echo 'connections were terminated although CREATE DATABASE failed' >&2; exit 1; }
+ro_intact create-exists
+: >"$sql_log"
+status=0
+out="$(FAKE_PG_SQL_LOG="$sql_log" FAKE_CREATE_EXISTS=1 run_drill --overwrite "$work/create-exists.dump" 2>&1)" || status=$?
+[[ "$status" != 0 && "$(grep -c 'DROP DATABASE' "$sql_log" || true)" == 0 ]] || { echo 'dump mode sent DROP although CREATE DATABASE failed' >&2; exit 1; }
+
+# 정상 종료 때는 이 드릴의 scratch DB 하나만, 연결을 끊은 같은 psql 실행에서 지운다.
+: >"$sql_log"
+status=0
+out="$(FAKE_PG_SQL_LOG="$sql_log" run_drill --restore-only "$work/ro.dump" 2>&1)" || status=$?
+[[ "$status" == 0 ]] || { echo "restore-only failed while checking the drop statements: $out" >&2; exit 1; }
+drop_line="$(grep 'DROP DATABASE' "$sql_log")"
+[[ "$(printf '%s\n' "$drop_line" | wc -l | tr -d ' ')" == 1 ]] || { echo 'expected exactly one DROP DATABASE' >&2; exit 1; }
+[[ "$drop_line" =~ pg_terminate_backend\(pid\)\ FROM\ pg_stat_activity\ WHERE\ datname\ =\ \'masscom_[0-9]+_restore_test\'\ AND\ pid\ \<\>\ pg_backend_pid\(\) ]] \
+  || { echo "the connection-ending statement is not limited to the scratch database: $drop_line" >&2; exit 1; }
+[[ "$drop_line" == *'DROP DATABASE IF EXISTS "masscom_'*'_restore_test"'* && "$drop_line" == *pg_terminate_backend*DROP\ DATABASE* ]] || { echo "connections must be ended before the drop: $drop_line" >&2; exit 1; }
+if grep -q "datname = 'masscom_test'\|datname = 'postgres'" <<<"$drop_line"; then echo 'the statement mentions a database other than the scratch one' >&2; exit 1; fi
+echo "argument-safety tests passed ($guard_cases refused argument forms; no DROP when CREATE fails; scratch-only connection ending)"
 
 
 echo "restore drill backup-file tests passed ($rejected_queries unsafe queries refused; TLS query preserved; $snapshot_cases invalid snapshot cases rejected)"
