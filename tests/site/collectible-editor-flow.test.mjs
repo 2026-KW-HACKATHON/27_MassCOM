@@ -81,12 +81,14 @@ test('방문 보상 제작은 메뉴 등록 없이 인증된 점포의 캠페인
   await doc.getElementById('merchant-creator-open').onclick();
   await settle();
 
-  const select = doc.getElementById('merchant-creator-editor').querySelector('[data-control="campaign"]');
-  assert.deepEqual(select.options.map(item => item.value), ['', 'campaign-a', 'campaign-b']);
-  assert.equal(select.options[1].textContent, '가상 방문 캠페인');
-  assert.equal(doc.getElementById('merchant-creator-editor').querySelector('[data-action="starter"][data-id="0"]'), null);
-  assert.ok(doc.getElementById('merchant-creator-editor').querySelector('[data-action="starter"][data-id="store"]'));
-  assert.doesNotMatch(doc.getElementById('merchant-creator-editor').textContent, /다른 점포 메뉴/);
+  const editor = doc.getElementById('merchant-creator-editor');
+  assert.equal(editor.querySelector('[data-control="campaign"]'), null, '캠페인 선택기는 없다');
+  assert.equal(editor.querySelector('[data-reward-count]'), null, '방문 횟수별 보상 선택기도 없다');
+  assert.match(editor.querySelector('[data-view="campaign-status"]').textContent, /방문 보상은 자동으로 연결돼요/);
+  assert.match(editor.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
+  assert.equal(editor.querySelector('[data-action="starter"][data-id="0"]'), null);
+  assert.ok(editor.querySelector('[data-action="starter"][data-id="store"]'));
+  assert.doesNotMatch(editor.textContent, /다른 점포 메뉴/);
   assert.equal(requested.includes('/merchants'), false);
   assert.ok(requested.includes('/api/web/merchant/merchants/m1/collectible-campaigns'));
   assert.deepEqual((await loadCreatorCampaigns(fetcher, 'm1')).map(item => item.id), ['campaign-a', 'campaign-b']);
@@ -106,12 +108,20 @@ test('인증된 점포에 메뉴가 없으면 같은 이름의 공개 점포가 
   assert.equal(requested.includes('/merchants'), false);
 });
 
-test('캠페인 목록을 읽지 못하면 이유를 알리고 게시는 막되 편집은 계속한다', async () => {
+test('방문 보상을 확인하지 못하면 게시는 막되 편집과 초안 저장은 계속한다', async () => {
   const api = createFakeApi();
   api.failNext('GET', /collectible-campaigns$/, { status: 403, code: 'MERCHANT_ACCESS_DENIED' });
   const ui = await mount(api);
-  assert.match(ui.notice, /캠페인 목록을 불러오지 못했어요.*점주 권한/);
-  assert.deepEqual(ui.control('campaign').options.map(item => item.value), ['']);
+  assert.match(ui.notice, /방문 보상을 확인하지 못했어요.*점주 권한/);
+  assert.equal(ui.control('campaign'), null);
+  assert.equal(ui.container.querySelector('[data-reward-count]'), null);
+  await ui.upload(photoFile);
+  api.failNext('GET', /collectible-campaigns$/, { status: 403, code: 'MERCHANT_ACCESS_DENIED' });
+  await ui.click('publish');
+  assert.match(ui.notice, /방문 보상을 확인하지 못했어요/);
+  assert.equal(posts(api).length, 0, '게시 본문은 보내지 않는다');
+  await ui.click('draft');
+  assert.deepEqual(posts(api), ['/collectible-projects'], '초안 저장은 가능하다');
 });
 
 const photoFile = { type: 'image/png', size: 1000, name: 'shop.png', dataUrl: 'data:image/png;base64,AAAA' };
@@ -121,9 +131,6 @@ const posts = api => api.calls.filter(call => call.method === 'POST').map(call =
 /** 사진·캠페인·보상 연결까지 마친 게시 직전 상태로 만든다. */
 async function readyToPublish(ui, { scenes = false } = {}) {
   await ui.upload(photoFile);
-  await ui.change('campaign', 'campaign-a');
-  const reward = ui.container.querySelector('[data-reward-count="1"]');
-  reward.value = 'bronze'; reward.dispatchEvent({ type: 'change' }); await settle();
   if (scenes) {
     await ui.change('story-type', 'wide');
     const files = ui.control('story-files'); files.files = [sceneFile]; files.dispatchEvent({ type: 'change' }); await settle();
@@ -310,22 +317,33 @@ test('serializeDerived는 보상에 연결된 등급과 지금 보는 등급만 
   const api = createFakeApi();
   const ui = await mount(api);
   await ui.upload(photoFile);
-  await ui.change('campaign', 'campaign-a');
-  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
-  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
-  // 지금 미리보기 등급(기본 bronze)은 어느 보상에도 연결하지 않았다.
   await ui.click('publish');
   const project = created(api);
-  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], 'bronze(미리보기 등급)·silver·gold만 굽고 prism은 빠진다');
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '고정 보상 세 등급만 굽고 prism은 빠진다');
+});
+
+test('프리즘을 미리 보는 중 게시해도 저장 payload는 필수 방문 보상 세 등급만 굽고 프리즘 메타데이터는 유지한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').dispatchEvent({ type: 'click' }); await settle();
+  const prismName = ui.container.querySelector('[data-grade-name="prism"]');
+  prismName.value = '프리즘 편집'; prismName.dispatchEvent({ type: 'change' }); await settle();
+  assert.equal(ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').getAttribute('aria-pressed'), 'true');
+
+  await ui.click('publish');
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '미리보기 등급인 prism 파생 이미지는 본문에 싣지 않는다');
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+  assert.equal(project.grades.find(grade => grade.id === 'prism').name, '프리즘 편집', '프리즘 등급 메타데이터는 저장한다');
+  assert.equal(project.grades.find(grade => grade.id === 'prism').enabled, true, '프리즘 등급은 계속 편집 가능한 상태로 남는다');
+  assert.equal(ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').getAttribute('aria-pressed'), 'true', '게시 뒤에도 보던 프리즘 탭은 유지한다');
 });
 
 test('연결된 세 등급 모두 홀로그램 효과가 있어도 base·mask를 되살린 게시 본문은 8 MB 한도보다 충분히 작다(PR #293 P2 회귀)', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await ui.upload(photoFile);
-  await ui.change('campaign', 'campaign-a');
-  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
-  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
   ui.control('effect-type').value = 'hologram';
   await ui.click('effect-add');
   for (const gradeId of ['bronze', 'silver', 'gold']) {
@@ -682,32 +700,33 @@ test('인사말 규칙 추가·삭제와 미리보기는 resolveGreeting 우선�
   assert.ok(overrideId);
 });
 
-test('등급을 끄면(삭제에 준함) 그 등급의 스티커 전용 배치·동작·인사말 규칙 참조를 지운다', async () => {
+test('선택형 등급을 끄면(삭제에 준함) 그 등급의 스티커 전용 배치·동작·인사말 규칙 참조를 지운다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
+  ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').dispatchEvent({ type: 'click' }); await settle();
   ui.control('sticker-new').value = '글자';
   await ui.click('sticker-add');
   const xInput = ui.container.querySelector('[data-sticker="x"]');
   xInput.value = '0.1'; xInput.dispatchEvent({ type: 'input' }); await settle();
   ui.control('sticker-grade-only').checked = true; ui.control('sticker-grade-only').dispatchEvent({ type: 'change' }); await settle();
 
-  const motionBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="bronze"]');
+  const motionBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="prism"]');
   motionBox.checked = true; motionBox.dispatchEvent({ type: 'change' }); await settle();
 
-  ui.control('greeting-override-text').value = '브론즈 인사말';
+  ui.control('greeting-override-text').value = '프리즘 인사말';
   await ui.click('greeting-override-add');
-  const overrideGradeBox = ui.container.querySelector('input[data-override-grade][data-grade="bronze"]');
+  const overrideGradeBox = ui.container.querySelector('input[data-override-grade][data-grade="prism"]');
   overrideGradeBox.checked = true; overrideGradeBox.dispatchEvent({ type: 'change' }); await settle();
 
-  // 지금 보는 등급을 다른 곳으로 옮긴 뒤(한 개 이상 남겨야 끌 수 있다) bronze를 끈다.
+  // 지금 보는 등급을 다른 곳으로 옮긴 뒤(한 개 이상 남겨야 끌 수 있다) prism을 끈다.
   ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
-  const bronzeEnabled = ui.container.querySelector('[data-grade-enabled="bronze"]');
-  bronzeEnabled.checked = false; bronzeEnabled.dispatchEvent({ type: 'change' }); await settle();
+  const prismEnabled = ui.container.querySelector('[data-grade-enabled="prism"]');
+  prismEnabled.checked = false; prismEnabled.dispatchEvent({ type: 'change' }); await settle();
 
   await ui.click('draft');
   const saved = created(api);
-  assert.equal(saved.stickers[0].layouts.bronze, undefined, '끈 등급의 전용 배치는 지운다');
-  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), false, '끈 등급의 동작 참조를 지운다');
+  assert.equal(saved.stickers[0].layouts.prism, undefined, '끈 등급의 전용 배치는 지운다');
+  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('prism'), false, '끈 등급의 동작 참조를 지운다');
   assert.equal(saved.greetingOverrides.length, 0, '등급 참조가 모두 사라지고 테마 조건도 없는 규칙은 함께 지운다');
 });
 
@@ -755,7 +774,7 @@ test('게시가 캠페인 문제로 거절돼도 저장된 초안은 남고 다�
   await readyToPublish(ui);
   api.failNext('POST', /publish$/, { status: 409, code: 'COLLECTIBLE_CAMPAIGN_UNAVAILABLE' });
   await ui.click('publish');
-  assert.match(ui.notice, /선택한 캠페인에는 지금 게시할 수 없어요/);
+  assert.match(ui.notice, /방문 보상을 지금 게시할 수 없어요/);
   assert.equal(api.store.get('project-1').status, 'DRAFT');
   assert.equal(ui.dirty, true, '게시하지 못했으니 편집 상태를 지킨다');
   await ui.click('publish');
@@ -767,27 +786,37 @@ test('게시가 캠페인 문제로 거절돼도 저장된 초안은 남고 다�
   assert.equal(api.store.get('project-1').status, 'PUBLISHED');
 });
 
-test('게시 직전에 캠페인 목록을 다시 읽어 끝난 캠페인은 보내기 전에 막는다', async () => {
+test('게시 직전에 캠페인 목록을 다시 읽어 1·3·5회가 아닌 캠페인은 보내기 전에 막는다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await readyToPublish(ui);
-  api.campaigns.splice(0, 1);
+  api.campaigns.splice(0, 1, { ...api.campaigns[0], goals: [1, 3] });
   await ui.click('publish');
-  assert.match(ui.notice, /선택한 캠페인은 지금 게시할 수 없어요/);
+  assert.match(ui.notice, /방문 보상이 아직 준비되지 않았어요/);
   assert.equal(posts(api).length, 0);
-  assert.deepEqual(ui.control('campaign').options.map(item => item.value), ['', 'campaign-b']);
+  assert.equal(ui.control('campaign'), null);
 });
 
-test('캠페인을 바꾸면 그 캠페인에 없는 방문 목표의 수집품 연결은 풀고 보여 주지 않는다', async () => {
+test('방문 보상 횟수와 등급은 점주 화면에서 조작할 수 없다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
-  await ui.change('campaign', 'campaign-a');
-  assert.equal(ui.container.querySelectorAll('[data-reward-count]').length, 3);
-  const five = ui.container.querySelector('[data-reward-count="5"]');
-  five.value = 'gold'; five.dispatchEvent({ type: 'change' }); await settle();
-  await ui.change('campaign', 'campaign-b');
-  assert.deepEqual(ui.container.querySelectorAll('[data-reward-count]').map(node => node.dataset.rewardCount), ['1', '3']);
-  assert.match(ui.notice, /캠페인에 없는 방문 목표\(5회\)의 수집품 연결은 풀었어요/);
+  assert.equal(ui.control('campaign'), null);
+  assert.equal(ui.container.querySelector('[data-reward-count]'), null);
+  assert.match(ui.container.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
+});
+
+
+test('필수 방문 보상 등급은 조작된 체크 해제도 저장 전에 고정값으로 되돌린다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  const bronze = ui.container.querySelector('[data-grade-enabled="bronze"]');
+  assert.equal(bronze.disabled, true, '브론즈는 필수 등급이라 UI에서 끌 수 없다');
+  bronze.checked = false; bronze.dispatchEvent({ type: 'change' }); await settle();
+  await ui.click('draft');
+  const saved = created(api);
+  assert.equal(bronze.checked, true, '조작된 체크 해제는 즉시 되돌린다');
+  assert.equal(saved.grades.find(grade => grade.id === 'bronze').enabled, true);
+  assert.deepEqual(saved.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
 });
 
 test('게시한 프로젝트를 고쳐 저장하면 먼저 새 초안으로 복사하고 그 초안에 이어 저장한다', async () => {
@@ -813,7 +842,7 @@ test('게시한 프로젝트를 고쳐 저장하면 먼저 새 초안으로 복�
   assert.equal(api.store.size, 2);
 });
 
-test('시즌 복사는 서버에 새 초안을 만들고 캠페인·보상 연결을 비운 채 그 초안으로 이어 간다', async () => {
+test('시즌 복사는 서버에 새 초안을 만들고 현재 자동 방문 보상 연결을 이어 간다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await readyToPublish(ui);
@@ -822,14 +851,16 @@ test('시즌 복사는 서버에 새 초안을 만들고 캠페인·보상 연�
   const copy = api.calls.find(call => call.path.endsWith('/copy'));
   assert.deepEqual(copy.body, { expectedVersion: 1 });
   assert.equal(ui.control('name').value, '월계 식당 방문 수집품 · 시즌 복사');
-  assert.equal(ui.control('campaign').value, '');
-  assert.equal(ui.container.querySelector('[data-reward-count="1"]').value, '');
+  assert.equal(ui.control('campaign'), null);
+  assert.match(ui.container.querySelector('[data-view="campaign-status"]').textContent, /방문 보상은 자동으로 연결돼요/);
+  assert.match(ui.container.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
   assert.equal(ui.dirty, true, '복사본의 이름·연결을 바꿨으니 저장해야 한다');
   await ui.click('draft');
   const put = api.calls.filter(call => call.method === 'PUT').at(-1);
   assert.notEqual(put.path, '/collectible-projects/project-1', '원래 초안이 아니라 복사본에 저장한다');
   assert.equal(put.body.expectedVersion, 1);
-  assert.equal(put.body.project.campaignId, '');
+  assert.equal(put.body.project.campaignId, 'campaign-a');
+  assert.deepEqual(put.body.project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
   assert.equal(api.store.get('project-1').project.name, '월계 식당 방문 수집품', '원래 초안은 그대로');
 });
 

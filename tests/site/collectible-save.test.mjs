@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { editableDraft, normalizeMp3DataUrl } from '../../apps/production-web/assets/collectible-editor.mjs';
+import { editableDraft, normalizeMp3DataUrl, validatePublish } from '../../apps/production-web/assets/collectible-editor.mjs';
+import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 
 test('게시 후 다시 저장은 불변 게시 프로젝트를 쓰지 않고 새 초안에 버전을 이어 간다', async () => {
   const published = { id: 'immutable/source', status: 'PUBLISHED', version: 7, project: { name: '획득 당시 이름' } };
@@ -34,4 +35,18 @@ test('MP3의 파일 MIME 별칭과 빈 타입을 동일한 서버 재생 계약�
     const result = normalizeMp3DataUrl(`data:${mime};base64,//tQAAA=`);
     assert.equal(result, 'data:audio/mpeg;base64,//tQAAA=');
   }
+});
+
+
+test('게시 검증은 자동 방문 보상 매핑과 정확한 1·3·5회 활성 캠페인을 요구한다', () => {
+  const validCampaign = { id: 'campaign-a', status: 'ACTIVE', goals: [1, 3, 5] };
+  const project = createProject({ name: '월계 식당 방문 수집품', campaignId: 'campaign-a' });
+  project.photo.originalDataUrl = 'data:image/png;base64,AAAA';
+  project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
+  assert.equal(validatePublish(project, [validCampaign]), '');
+
+  assert.match(validatePublish({ ...project, campaignId: '' }, [validCampaign]), /방문 보상이 아직 준비되지 않았어요/);
+  assert.match(validatePublish(project, [{ ...validCampaign, goals: [1, 3] }]), /방문 보상을 지금 게시할 수 없어요/);
+  assert.match(validatePublish({ ...project, rewardGrades: { 1: 'silver', 3: 'gold', 5: 'bronze' } }, [validCampaign]), /1회 브론즈·3회 실버·5회 골드/);
+  assert.match(validatePublish({ ...project, grades: project.grades.map(grade => grade.id === 'bronze' ? { ...grade, enabled: false } : grade) }, [validCampaign]), /1회 브론즈·3회 실버·5회 골드/);
 });

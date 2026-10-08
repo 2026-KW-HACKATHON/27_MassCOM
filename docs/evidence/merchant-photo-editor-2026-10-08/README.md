@@ -35,3 +35,6 @@
 저장소 루트 PowerShell에서 `$env:COLLECTIBLE_QA_PORT='4190'; $env:COLLECTIBLE_QA_AI='1'; node tests/fixtures/collectible-qa-server.mjs`를 실행하고 위 URL을 연다. fixture 저장은 프로세스 내 메모리이므로 서버를 다시 시작하면 새로 제작한다. 첨부 이미지는 PR에 원본 파일로 복사하지 않았으며 캡처와 내보낸 코인만 포함했다.
 
 자동 회귀: `node --test tests/site/*.test.mjs` → 401/401 PASS, skip 0. 웹 editor·renderer·studio·merchant의 `node --check`, staged diff, `bash tools/gate.sh`와 최종 PR 한국어 검사를 통과했다. [실행 결과](validation.txt). 원형·우표·톱니의 기존 확정 음각 뒷면 12종은 바꾸지 않았다.
+# 후속 변경 안내
+
+이 폴더는 최초 사진 편집 QA 당시의 기록이다. `09-visit-rewards-published.jpg`의 캠페인·지급 등급 선택은 이후 사용자 결정으로 제거됐다. 현재 고정 1·3·5회 보상과 회전 음각·양각 검수는 [최신 증거](../fixed-visit-relief-2026-10-08/README.md)를 따른다.

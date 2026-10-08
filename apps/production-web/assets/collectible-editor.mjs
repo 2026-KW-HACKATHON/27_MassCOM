@@ -1,4 +1,4 @@
-import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel } from './collectible-model.mjs';
+import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel, STANDARD_VISIT_REWARD_LABELS, applyStandardVisitRewards, isStandardVisitCampaign } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { fixedCollectibleBack } from './collectible-back-assets.mjs';
@@ -109,13 +109,11 @@ export function publishSizeProblem(revision) {
 export function validatePublish(project, campaigns) {
   if (!project.name.trim()) return '수집품 이름을 입력해 주세요.';
   if (!project.photo.originalDataUrl) return '대표 사진 한 장을 올려 주세요.';
-  if (!project.campaignId) return '수집품을 연결할 캠페인을 선택해 주세요.';
-  if (!Object.values(project.rewardGrades).some(value => project.grades.some(grade => grade.id === value && grade.enabled))) return '기존 방문 목표 중 한 개 이상에 수집품 등급을 연결해 주세요.';
+  if (!project.campaignId) return '방문 보상이 아직 준비되지 않았어요. 코인은 초안으로 저장할 수 있어요.';
+  if (Object.keys(project.rewardGrades).length !== 3 || STANDARD_VISIT_REWARD_LABELS.some(({ count, gradeId }) => project.rewardGrades[count] !== gradeId || !project.grades.some(grade => grade.id === gradeId && grade.enabled))) return '방문 보상은 1회 브론즈·3회 실버·5회 골드로 자동 지급돼요. 보상 정보를 다시 확인해 주세요.';
   if (Array.isArray(campaigns)) {
     const campaign = campaigns.find(item => item.id === project.campaignId);
-    if (!campaign) return '선택한 캠페인은 지금 게시할 수 없어요. 저장 목록을 새로 보고 진행 중인 캠페인을 다시 골라 주세요.';
-    const missing = Object.keys(project.rewardGrades).filter(goal => Array.isArray(campaign.goals) && !campaign.goals.includes(Number(goal)));
-    if (missing.length) return `선택한 캠페인에 없는 방문 목표(${missing.join('·')}회)가 연결돼 있어요. 연결을 풀거나 다른 캠페인을 골라 주세요.`;
+    if (!campaign || !isStandardVisitCampaign(campaign)) return '방문 보상을 지금 게시할 수 없어요. 코인을 초안으로 저장하고 나중에 다시 시도해 주세요.';
   }
   return validateStory(project.story);
 }
@@ -142,7 +140,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const signal = controller.signal;
   const artUrl = /^\/merchant-art\/[0-9a-f]{64}\.webp$/.test(merchantArtUrl) ? merchantArtUrl : '';
   const menuNames = Array.isArray(merchantMenuItems) ? [...new Set(merchantMenuItems.map(item => typeof item?.name === 'string' ? item.name.trim() : '').filter(Boolean))].slice(0, 3) : [];
-  let campaignSelectionTouched = false;
   let project = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId });
   let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate';
   // 자르기 캔버스의 붓이 지금 어디에 칠하는지: 'photo'(사진 보정, 기존), 'parallax'(패럴랙스 전경/배경),
@@ -269,8 +266,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       </div></details>
       <details><summary>시즌과 기존 방문 보상 연결</summary><div class="ce-detail">
         <label class="ce-field">시즌 테마<input data-control="theme" maxlength="80" placeholder="여름축제 또는 겨울방학"></label>
-        <p class="ce-help">테마를 바꿔도 등급이나 보상 조건이 자동으로 바뀌지 않아요.</p>
-        <label class="ce-field">연결할 캠페인<select data-control="campaign"><option value="">게시할 캠페인을 골라 주세요</option></select></label>
+        <p class="ce-help">테마를 바꿔도 1회·3회·5회 방문 보상은 바뀌지 않아요.</p>
+        <p class="ce-help" data-view="campaign-status"></p>
         <div data-view="reward-grades"></div>
         <button type="button" data-action="copy">현재 프로젝트를 시즌 초안으로 복사</button>
       </div></details>
@@ -362,7 +359,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function syncValues() {
     renderCampaignOptions();
-    const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, campaign: project.campaignId, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
+    const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
     for (const [name, value] of Object.entries(values)) control(name).value = value;
     for (const input of container.querySelectorAll('[data-edit]')) input.value = project.photoEdits[input.dataset.edit];
     output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`;
@@ -388,21 +385,21 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const row = element('div', undefined, { className: 'ce-grade-row' });
       const name = element('input', undefined, { value: grade.name, maxlength: 40, 'aria-label': `${grade.name} 표시 이름`, 'data-grade-name': grade.id });
       const enabled = element('input', undefined, { type: 'checkbox', 'data-grade-enabled': grade.id }); enabled.checked = grade.enabled;
+      enabled.disabled = ['bronze', 'silver', 'gold'].includes(grade.id);
       const label = element('label', undefined, { className: 'ce-check' }); label.append(enabled, document.createTextNode(' 사용')); row.append(name, label); view('grade-manager').append(row);
     }
     renderRewardGrades();
   }
-  // 선택한 캠페인에 실제로 있는 방문 목표만 보여 준다(없는 목표를 연결하면 게시가 409로 거절된다). 캠페인을 아직 모르면 기존 1·3·5를 모두 보인다.
-  const goalsFor = campaignId => campaigns.find(item => item.id === campaignId)?.goals ?? [1, 3, 5];
-  function campaignLabel(campaign) {
-    const other = campaign.publication && campaign.publication.projectId !== wrapper?.id;
-    return `${campaign.title || campaign.id}${other ? ' · 지금 다른 수집품이 나가는 중 (게시하면 교체돼요)' : ''}`;
-  }
+  // 운영자가 준비한 표준 방문 보상에만 자동 연결한다. 점주는 지급 조건과 등급을 편집하지 않는다.
   function renderCampaignOptions() {
-    const select = control('campaign');
-    select.replaceChildren(element('option', '게시할 캠페인을 골라 주세요', { value: '' }));
-    for (const campaign of campaigns) if (campaign?.id && (!campaign.status || campaign.status === 'ACTIVE')) option(select, campaignLabel(campaign), campaign.id);
-    select.value = project.campaignId;
+    project.campaignId = createMerchantStarterProject({ campaigns, preferredCampaignId: project.campaignId || preferredCampaignId }).campaignId;
+    applyStandardVisitRewards(project);
+    for (const id of Object.values(project.rewardGrades)) {
+      let grade = project.grades.find(item => item.id === id);
+      if (!grade) { grade = createProject().grades.find(item => item.id === id); project.grades.push(grade); }
+      grade.enabled = true;
+    }
+    view('campaign-status').textContent = project.campaignId ? '방문 보상은 자동으로 연결돼요.' : '방문 보상 준비 중 · 코인은 초안으로 저장할 수 있어요.';
   }
   async function refreshCampaigns({ quiet = false } = {}) {
     if (!loadCampaigns) return true;
@@ -411,26 +408,18 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const loaded = await loadCampaigns();
       if (!active || sequence !== campaignSequence) return true;
       campaigns = loaded;
-      if (!wrapper && !campaignSelectionTouched && !project.campaignId) {
-        project.campaignId = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId }).campaignId;
-      }
       renderCampaignOptions(); renderRewardGrades(); renderProjectList();
       return true;
     } catch (error) {
+      if (active && sequence === campaignSequence) { campaigns = []; project.campaignId = ''; renderCampaignOptions(); renderRewardGrades(); renderProjectList(); }
       if (active && error?.status === 403 && onAccessDenied) onAccessDenied(error);
-      else if (active && !quiet && sequence === campaignSequence) notice(`게시할 캠페인 목록을 불러오지 못했어요. ${collectibleErrorMessage(error, '편집은 계속할 수 있어요. 저장 목록 새로 보기를 눌러 다시 시도해 주세요.')}`, true);
+      else if (active && !quiet && sequence === campaignSequence) notice(`방문 보상을 확인하지 못했어요. ${collectibleErrorMessage(error, '편집은 계속할 수 있어요. 저장 목록 새로 보기를 눌러 다시 시도해 주세요.')}`, true);
       return false;
     }
   }
   function renderRewardGrades() {
     const host = view('reward-grades'); host.replaceChildren();
-    for (const count of goalsFor(project.campaignId)) {
-      const label = element('label', `${count}회 방문 목표의 수집품 외형`, { className: 'ce-field' });
-      const select = element('select', undefined, { 'data-reward-count': count }); option(select, '연결하지 않음', '');
-      for (const grade of project.grades.filter(item => item.enabled)) option(select, grade.name, grade.id);
-      select.value = project.rewardGrades[String(count)] || ''; label.append(select); host.append(label);
-    }
-    host.append(element('p', '방문 조건·쿠폰·NFT 규칙은 현재 캠페인을 따르고, 여기서는 기존 목표에 보이는 사진 수집품만 연결해요.', { className: 'ce-help' }));
+    host.append(element('p', '1회 브론즈 · 3회 실버 · 5회 골드', { className: 'ce-fixed-rewards' }));
   }
   // 스티커는 앞면만 편집한다. 옛 back 데이터는 저장·복원 호환을 위해 그대로 둔다.
   function activeStickers() { return project.stickers; }
@@ -786,6 +775,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
       navigateStep(4); studio.selectExtraPanel('living'); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
     }
+    applyStandardVisitRewards(project);
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
@@ -799,7 +789,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (publish) {
         revision.story.frames = await serializeStoryFrames(revision.story);
         for (const rung of SPRITE_SIZE_LADDER) {
-          revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName, angleSide: rung.side, spriteQuality: rung.quality });
+          revision.derived = await serializeDerived(revision, { merchantName, angleSide: rung.side, spriteQuality: rung.quality });
           if (!publishSizeProblem(revision)) break;
         }
       }
@@ -1000,7 +990,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   function resetToNewDraft(menuName = '', suggested = false) {
     stopAi(); studio.hideAi();
     stopHiddenMedia(); project = createMerchantStarterProject({ merchantName, menuName, suggested, campaigns, preferredCampaignId }); project.theme.name = studio.newTheme;
-    campaignSelectionTouched = false;
     wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
   }
   // 게시 중지: 새 손님에게 나가는 것만 멈춘다. 게시 버전과 이미 받은 손님의 수집품은 그대로다.
@@ -1263,11 +1252,11 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'copy') {
       if (wrapper) {
         if (busy) return; setBusy(true);
-        try { const saved = await request(`${base}/${encodeURIComponent(wrapper.id)}/copy`, { method: 'POST', body: { expectedVersion: wrapper.version } }); wrapper = saved.project?.id ? saved.project : saved; const current = cloneProject(project); project = { ...current, name: `${current.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: '', rewardGrades: {} }; await refreshList(); }
+        try { const saved = await request(`${base}/${encodeURIComponent(wrapper.id)}/copy`, { method: 'POST', body: { expectedVersion: wrapper.version } }); wrapper = saved.project?.id ? saved.project : saved; const current = cloneProject(project); project = applyStandardVisitRewards({ ...current, name: `${current.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: current.campaignId || createMerchantStarterProject({ campaigns, preferredCampaignId }).campaignId }); await refreshList(); }
         catch (error) { notice(collectibleErrorMessage(error, '시즌 초안을 복사하지 못했어요. 현재 입력을 유지했어요. 다시 시도해 주세요.'), true); return; }
         finally { setBusy(false); }
-      } else { project = { ...cloneProject(project), name: `${project.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: '', rewardGrades: {} }; }
-      undo = []; redo = []; changed(); syncValues(); schedulePreview(); notice('현재 편집 내용을 별도 시즌 초안으로 복사했어요. 테마와 캠페인을 고른 뒤 초안을 저장해 주세요.');
+      } else { const current = cloneProject(project); project = applyStandardVisitRewards({ ...current, name: `${current.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: current.campaignId || createMerchantStarterProject({ campaigns, preferredCampaignId }).campaignId }); }
+      undo = []; redo = []; changed(); syncValues(); schedulePreview(); notice('현재 편집 내용을 별도 시즌 초안으로 복사했어요. 방문 보상은 자동으로 이어져요.');
     }
   }
   listen(container, 'click', event => { const target = event.target.closest('[data-action]'); if (target && container.contains(target)) act(target.dataset.action, target.dataset.id, target).catch(error => notice(collectibleErrorMessage(error, error.status ? undefined : error.message || '처리하지 못했어요. 다시 시도해 주세요.'), true)); });
@@ -1420,23 +1409,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         mutate(() => { item.gradeIds = target.checked ? [...new Set([...item.gradeIds, grade])] : item.gradeIds.filter(id => id !== grade); });
         renderLivingItems(); return;
       }
-      if (field === 'campaign') {
-        campaignSelectionTouched = true;
-        const dropped = [];
-        mutate(() => {
-          project.campaignId = target.value; const goals = goalsFor(target.value);
-          for (const goal of Object.keys(project.rewardGrades)) if (!goals.includes(Number(goal))) { dropped.push(goal); delete project.rewardGrades[goal]; }
-        });
-        renderRewardGrades();
-        if (dropped.length) notice(`선택한 캠페인에 없는 방문 목표(${dropped.join('·')}회)의 수집품 연결은 풀었어요. 게시 전에 연결을 확인해 주세요.`);
-        return;
-      }
       if (field === 'story-type') { mutate(() => { project.story.type = target.value; }); renderStoryFrames(); return; }
       if (field === 'reduce-motion') { if (target.checked) { playing = false; storyPlaying = false; } schedulePreview(); return; }
-      if (target.dataset.rewardCount) { mutate(() => { if (target.value) project.rewardGrades[target.dataset.rewardCount] = target.value; else delete project.rewardGrades[target.dataset.rewardCount]; }); return; }
       if (target.dataset.gradeName) { mutate(() => { project.grades.find(item => item.id === target.dataset.gradeName).name = target.value.trim() || '새 등급'; }); renderGrades(); renderEffects(); return; }
       if (target.dataset.gradeEnabled) {
         const grade = project.grades.find(item => item.id === target.dataset.gradeEnabled);
+        if (['bronze', 'silver', 'gold'].includes(grade.id)) { target.checked = true; return; }
         if (!target.checked && project.grades.filter(item => item.enabled).length === 1) { target.checked = true; notice('미리 볼 등급을 한 개 이상 남겨 주세요.', true); return; }
         let removed = false;
         mutate(() => {
@@ -1452,7 +1430,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
             project.greetingOverrides = project.greetingOverrides.filter(item => item.gradeIds.length > 0 || item.themeName !== '');
           }
         });
-        if (removed) notice('끄신 등급의 방문 목표 연결도 해제했어요. 게시할 때 다른 등급을 선택해 주세요.');
+        if (removed) { applyStandardVisitRewards(project); notice('방문 보상 등급은 1회 브론즈·3회 실버·5회 골드로 다시 고정했어요.'); }
         if (!grade.enabled && selectedGrade === grade.id) selectedGrade = project.grades.find(item => item.enabled).id;
         renderGrades(); renderEffects(); renderMotionGrades(); renderStickers(); renderGreetingOverrides(); renderLivingItems(); return;
       }

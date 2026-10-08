@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-08",
+  "scope": "browser screenshots; final relief renderer",
+  "captures": [
+    {
+      "file": "01-fixed-visit-rewards.jpg",
+      "bytes": 77776,
+      "sha256": "9b6c719787e4a6b8f0baa3f438eb9c25d98edb3f14ad7a793c6f42504ea58135"
+    },
+    {
+      "file": "02-operations-fixed-policy.jpg",
+      "bytes": 64568,
+      "sha256": "35414b4dfba22d5f98d853320a6bc2225b7146a861c8b0138ca3549b959d2514"
+    },
+    {
+      "file": "03-raised-left.png",
+      "bytes": 68945,
+      "sha256": "015d91aa9558553298b3c936c80f4161e57c160e5afd055e9590b6506fb885d7"
+    },
+    {
+      "file": "04-raised-right.png",
+      "bytes": 69056,
+      "sha256": "b0fab6c5e3ed2a305787bfff63cddf1ff0b9a320c69bc521566ba78f326263e4"
+    },
+    {
+      "file": "05-incised-left.png",
+      "bytes": 68958,
+      "sha256": "fcba2642611b7fc98bf4f5a82f6050ed085216330a8ec45c07e150958b59b76f"
+    },
+    {
+      "file": "06-incised-right.png",
+      "bytes": 69106,
+      "sha256": "c75dab9d9335d16c9eb4fde760c6a157a1c743d74b1ba7f16b4cf5c721a86a33"
+    },
+    {
+      "file": "07-published-automatic-rotation.png",
+      "bytes": 60105,
+      "sha256": "7f9a9cea106298e3047a366d47c21c14c30590799cfb5c571fb4cc6626880907"
+    },
+    {
+      "file": "08-published-front.png",
+      "bytes": 62150,
+      "sha256": "8ea03255d01b3c88a0afaeb2b0cf2f10069facb44f889163c0ab93e43560dbfc"
+    },
+    {
+      "file": "09-published-left.png",
+      "bytes": 57213,
+      "sha256": "37b339a005423de32205a4c14b6d226ec2b79319b454e00154076a0fb9b0548e"
+    },
+    {
+      "file": "10-published-right.png",
+      "bytes": 57170,
+      "sha256": "5473f297246452ee4fcd48a84706125f8a9efb980e734a7b8e3f17fd543132f5"
+    },
+    {
+      "file": "11-published-edge.png",
+      "bytes": 42081,
+      "sha256": "a3072675bf2c749b7a0d3e5b973489e19ff9715b48f316dd5894ca2cd3c4138a"
+    },
+    {
+      "file": "12-published-back.png",
+      "bytes": 65165,
+      "sha256": "d965ae1047c1d7103725f57bf56c36948f65c4b86c1d2ce9d58016c23f196f80"
+    },
+    {
+      "file": "13-incised-front.png",
+      "bytes": 61955,
+      "sha256": "ee4cc06f499f9de93473bb5a7353a97b86847da3e89493daedebe5ab3fd5dcc1"
+    },
+    {
+      "file": "14-incised-left.png",
+      "bytes": 57235,
+      "sha256": "a183c2b9ce15d4a6f9a4839d2ad5fa47ab29c16db33ebcd767cbafe534f5c5d4"
+    }
+  ]
+}

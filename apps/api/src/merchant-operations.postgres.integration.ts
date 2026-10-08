@@ -17,7 +17,7 @@ const skip = safe ? false : 'requires a disposable _merchant_test database';
 const NOW = new Date('2026-10-07T03:00:00.000Z');
 const lifecycle = new PostgresAccountLifecycle({ hmacSecret: 'merchant-operation-test-secret-32-bytes' });
 
-test('owner renewal is scoped, consented, compare-and-swap, idempotent and audited', { skip }, async t => {
+test('owner cannot extend fixed visit reward campaigns from merchant operations', { skip }, async t => {
   const pool = new Pool({ connectionString: testUrl });
   t.after(() => pool.end());
   await runMigrations(pool);
@@ -33,18 +33,9 @@ test('owner renewal is scoped, consented, compare-and-swap, idempotent and audit
   const service = new PostgresMerchantOperations(pool, { accountLifecycle: lifecycle, now: () => NOW });
   const input = { accountId: 'owner-a', merchantId: 'ops-a', campaignId: 'ops-campaign', days: 30 as const,
     expectedEndsAt: '2026-10-31T00:00:00.000Z', consentAccepted: true, requestId: randomUUID() };
-  await assert.rejects(service.extendCampaign({ ...input, accountId: 'staff-a' }),
+  await assert.rejects(service.extendCampaign(input),
     (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_FORBIDDEN');
-  await assert.rejects(service.extendCampaign({ ...input, merchantId: 'ops-b', accountId: 'owner-b' }),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_NOT_FOUND');
-  await assert.rejects(service.extendCampaign({ ...input, consentAccepted: false }),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_INVALID');
-  const [first, second] = await Promise.all([service.extendCampaign(input), service.extendCampaign(input)]);
-  assert.equal([first.replayed, second.replayed].filter(Boolean).length, 1);
-  assert.equal(first.endsAt, second.endsAt);
-  assert.equal((await pool.query(`SELECT count(*)::integer AS count FROM merchant_campaign_extension_audit`)).rows[0].count, 1);
-  await assert.rejects(service.extendCampaign({ ...input, requestId: randomUUID() }),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_CONFLICT');
+  assert.equal((await pool.query(`SELECT count(*)::integer AS count FROM merchant_campaign_extension_audit`)).rows[0].count, 0);
 });
 
 test('owner approves a Google-bound request, narrows staff tasks and revokes old access', { skip }, async t => {
@@ -165,12 +156,6 @@ test('deletion lock wins over queued owner and target-staff writes without resto
     await assert.rejects(operation, (error: unknown) => error instanceof MerchantOperationError
       && error.code === 'MERCHANT_OPERATION_FORBIDDEN');
   }
-  await lock.query('BEGIN');
-  await lifecycle.lockForDeletion(lock, 'race-owner');
-  await deleteDuring('race-owner', service.extendCampaign({ accountId: 'race-owner', merchantId: 'race-shop',
-    campaignId: 'race-campaign', days: 30, expectedEndsAt: '2026-10-31T00:00:00.000Z',
-    consentAccepted: true, requestId: randomUUID() }));
-  assert.equal((await pool.query(`SELECT count(*)::integer AS count FROM merchant_campaign_extension_audit`)).rows[0].count, 0);
   await pool.query(`UPDATE merchant_members SET account_id = 'race-owner-2' WHERE merchant_id = 'race-shop' AND account_id = 'race-owner'`);
   await lock.query('BEGIN');
   await lifecycle.lockForDeletion(lock, 'race-staff');

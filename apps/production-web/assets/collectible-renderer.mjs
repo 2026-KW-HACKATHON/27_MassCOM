@@ -48,22 +48,61 @@ const clamp = (value, min = 0, max = 255) => Math.min(max, Math.max(min, value))
 const rgb = hex => /^#[0-9a-f]{6}$/i.test(hex || '') ? [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)) : [199, 151, 78];
 
 /** Pure deterministic pixel operation, shared by preview and final export. */
-export function processPhotoPixels(input, width, height, edits = {}, style = 'original', color = '#c7974e', photoColor = 100, relief = 45) {
+export function processPhotoPixels(input, width, height, edits = {}, style = 'original', color = '#c7974e', photoColor = 100, relief = 45, angle = 0) {
   const source = new Uint8ClampedArray(input);
   const result = new Uint8ClampedArray(input);
   const base = rgb(color);
+  const reliefAmount = Math.max(0, Math.min(100, relief || 0)) / 100;
   const brightness = (edits.brightness || 0) * 2.55;
   const contrast = 1 + (edits.contrast || 0) / 100;
   const quantize = 1 + Math.round((edits.merge || 0) / 100 * 55);
   const cartoon = (edits.cartoon || 0) / 100;
   const simplify = Math.round((edits.simplify || 0) / 100 * 3);
-  const sample = (x, y, channel) => source[(clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)) * 4 + channel];
+  const pixel = (x, y) => (clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)) * 4;
+  const sample = (x, y, channel) => source[pixel(x, y) + channel];
+  const hasRelief = style !== 'original' && reliefAmount > 0;
   const reliefSign = style === 'incised' ? -1 : 1;
+  const radians = angle * Math.PI / 180;
+  const turn = Math.sin(radians);
+  const lightX = turn, lightY = -.38, lightZ = .78;
+  const lightLength = Math.hypot(lightX, lightY, lightZ);
+  const heights = hasRelief ? new Float32Array(width * height) : null;
+  if (hasRelief) for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const index = (y * width + x) * 4;
+    heights[y * width + x] = (source[index] * .299 + source[index + 1] * .587 + source[index + 2] * .114) / 255 * (source[index + 3] / 255);
+  }
+  const heightAt = (x, y) => heights[clamp(y, 0, height - 1) * width + clamp(x, 0, width - 1)];
+  const signedDepthAt = (x, y) => heightAt(x, y) * reliefSign;
+  const band = Math.max(1, Math.round(Math.min(width, height) / 72));
+  const projectionPixels = Math.max(1, Math.min(10, Math.round(Math.min(width, height) / 110))) * 2;
+  const displacement = hasRelief ? turn * reliefAmount * projectionPixels : 0;
+  const projectedIndex = displacement ? new Int32Array(width * height) : null; if (projectedIndex) projectedIndex.fill(-1);
+  const projectionDepth = displacement ? new Float32Array(width * height) : null; if (projectionDepth) projectionDepth.fill(reliefSign > 0 ? -Infinity : Infinity);
+  if (displacement) {
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const sourceOffset = y * width + x, alpha = source[sourceOffset * 4 + 3] / 255;
+      if (!alpha) continue;
+      const signedDepth = heights[sourceOffset] * reliefSign;
+      const targetX = clamp(Math.round(x + displacement * signedDepth), 0, width - 1);
+      const targetOffset = y * width + targetX;
+      if (reliefSign > 0 ? signedDepth >= projectionDepth[targetOffset] : signedDepth <= projectionDepth[targetOffset]) {
+        projectionDepth[targetOffset] = signedDepth; projectedIndex[targetOffset] = sourceOffset;
+      }
+    }
+  }
   const reliefRgb = (x, y, values, grey = (values[0] * .299 + values[1] * .587 + values[2] * .114) / 255) => {
-    const ridge = ((sample(x - 1, y - 1, 0) + sample(x - 1, y - 1, 1) + sample(x - 1, y - 1, 2)) - (sample(x + 1, y + 1, 0) + sample(x + 1, y + 1, 1) + sample(x + 1, y + 1, 2))) / 3;
+    const signedDx = (signedDepthAt(x + band, y) - signedDepthAt(x - band, y)) / 2;
+    const signedDy = (signedDepthAt(x, y + band) - signedDepthAt(x, y - band)) / 2;
+    const normalScale = 3.2 * reliefAmount;
+    const normalX = -signedDx * normalScale, normalY = -signedDy * normalScale, normalZ = 1;
+    const normalLength = Math.hypot(normalX, normalY, normalZ);
+    const directional = reliefAmount ? ((normalX * lightX + normalY * lightY + normalZ * lightZ) / (normalLength * lightLength) - lightZ / lightLength) : 0;
+    const bevel = reliefAmount * (signedDx * lightX + signedDy * lightY) * 165;
+    const cavity = -reliefAmount * Math.hypot(signedDx, signedDy) * 110;
+    const depthBias = -reliefAmount * signedDepthAt(x, y) * (1 - photoColor / 100) * 28;
     return values.map((value, channel) => {
-      const metal = base[channel] * (.52 + grey * .58) + reliefSign * ridge * relief / 45;
-      return clamp(metal * (1 - photoColor / 100) + value * photoColor / 100 + reliefSign * ridge * relief / 85);
+      const metal = base[channel] * (.52 + grey * .58);
+      return clamp(metal * (1 - photoColor / 100) + value * photoColor / 100 + directional * 100 + bevel + cavity + depthBias);
     });
   };
   for (let y = 0; y < height; y++) {
@@ -79,8 +118,20 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
         if (cartoon) value = value * (1 - cartoon) + Math.round(value / 48) * 48 * cartoon - edge * 95 * cartoon;
         values[channel] = value;
       }
-      const rendered = style === 'original' ? values.map(value => clamp(value)) : reliefRgb(x, y, values, grey);
+      const rendered = hasRelief ? reliefRgb(x, y, values, grey) : values.map(value => clamp(value));
       for (let channel = 0; channel < 3; channel++) result[index + channel] = rendered[channel];
+    }
+  }
+  if (style !== 'original' && displacement) {
+    const lit = new Uint8ClampedArray(result);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const target = y * width + x, targetIndex = target * 4, projected = projectedIndex[target];
+      if (projected >= 0) {
+        const sourceIndex = projected * 4;
+        for (let channel = 0; channel < 3; channel++) result[targetIndex + channel] = lit[sourceIndex + channel];
+      } else if (source[targetIndex + 3]) {
+        for (let channel = 0; channel < 3; channel++) result[targetIndex + channel] = clamp(result[targetIndex + channel] - reliefAmount * Math.abs(turn) * 42);
+      }
     }
   }
   const restoredPixels = style === 'original' ? source : new Uint8ClampedArray(result);
@@ -104,7 +155,7 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
             if (stroke.tool === 'erase') result[index + 3] = 0;
             else if (stroke.tool === 'restore') for (let channel = 0; channel < 4; channel++) result[index + channel] = restoredPixels[index + channel];
             else if (stroke.tool === 'color') {
-              const values = style === 'original' ? paint : reliefRgb(x, y, paint);
+              const values = hasRelief ? reliefRgb(x, y, paint) : paint;
               for (let channel = 0; channel < 3; channel++) result[index + channel] = values[channel];
             } else if (stroke.tool === 'clean') for (let channel = 0; channel < 3; channel++) result[index + channel] = result[index + channel] * .2 + restoredPixels[neighbor + channel] * .8;
           }
@@ -120,13 +171,14 @@ export function collectibleReliefTint(project, gradeId = project?.gradeId || '')
   return collectibleMetalColors(gradeId || project?.gradeId || '', gradeName)[1];
 }
 
-async function photoFor(project, max = 960, style = project.style, gradeId) {
+async function photoFor(project, max = 960, style = project.style, gradeId, angle = 0) {
   const source = project.photo?.originalDataUrl;
   if (!source) return null;
   const edits = structuredClone(project.photoEdits), color = style === 'original' ? project.baseColor : collectibleReliefTint(project, gradeId), photoColor = project.photoColor, relief = project.relief;
+  const reliefAngle = style === 'original' || !relief ? 0 : Math.round(angle / 15) * 15;
   if (source !== currentPhotoSource) { currentPhotoSource = source; photoCache.clear(); photoGeneration++; }
   // Avoid serializing megabytes of unchanged original image bytes on every frame.
-  const key = JSON.stringify([photoGeneration, edits, style, color, photoColor, relief, max]);
+  const key = JSON.stringify([photoGeneration, edits, style, color, photoColor, relief, reliefAngle, max]);
   if (photoCache.has(key)) return photoCache.get(key);
   // Decode one bounded editing buffer per original rather than retaining a full
   // multi-megapixel texture for every undo state. Original file bytes stay private.
@@ -154,7 +206,7 @@ async function photoFor(project, max = 960, style = project.style, gradeId) {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   context.drawImage(resized, 0, 0, canvas.width, canvas.height);
   const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-  pixels.data.set(processPhotoPixels(pixels.data, canvas.width, canvas.height, edits, style, color, photoColor, relief));
+  pixels.data.set(processPhotoPixels(pixels.data, canvas.width, canvas.height, edits, style, color, photoColor, relief, reliefAngle));
   context.putImageData(pixels, 0, 0);
   return boundedSet(photoCache, key, canvas, 3);
 }
@@ -322,12 +374,12 @@ async function paintLivingItem(context, project, item, gradeId, size, phase, pho
 }
 
 /** 이 등급의 living 항목을 전부 phase 시점으로 합성한 size×size 투명 오버레이. 항목이 없으면 null. */
-export async function livingOverlayFor(project, gradeId, size, phase) {
+export async function livingOverlayFor(project, gradeId, size, phase, angle = 0) {
   const items = (project.living?.items ?? []).filter((item) => item.gradeIds?.includes(gradeId));
   if (!items.length) return null;
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
   traceShape(context, project.shape, size, size); context.clip();
-  const photo = await photoFor(project, 960, project.style, gradeId);
+  const photo = await photoFor(project, 960, project.style, gradeId, angle);
   for (const item of items) await paintLivingItem(context, project, item, gradeId, size, phase, photo);
   return canvas;
 }
@@ -337,7 +389,7 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   const canvas = canvasOf(size, size), context = canvas.getContext('2d');
   traceShape(context, project.shape, size, size); context.clip();
   context.fillStyle = project.baseColor || '#c7974e'; context.fillRect(0, 0, size, size);
-  const photo = await photoFor(project, 960, project.style, gradeId);
+  const photo = await photoFor(project, 960, project.style, gradeId, angle);
   const parallaxStrength = Math.max(0, Math.min(100, project.parallax?.strength ?? 0));
   const parallaxStrokes = project.parallax?.strokes ?? [];
   const hasParallax = applyEffects && parallaxStrength > 0 && parallaxStrokes.length > 0;
@@ -424,7 +476,8 @@ function drawVolume(canvas, front, project, options = {}) {
   if (motion === 'pulse') scale = 1 + Math.sin(time / 900) * .025;
   const size = Math.min(width, height) * .78 * scale;
   const horizontal = Math.max(.025, Math.abs(Math.cos(radians)));
-  const depth = Math.abs(Math.sin(radians)) * (project.thickness || 8) * size / 512;
+  const signedDepth = Math.sin(radians) * (project.thickness || 8) * size / 512;
+  const depth = Math.abs(signedDepth), depthDirection = signedDepth < 0 ? -1 : 1;
   const gradeName = project.grades?.find(item => item.id === options.gradeId)?.name ?? project.gradeName ?? '';
   const metal = collectibleMetalColors(options.gradeId || project.gradeId || '', gradeName);
   const sideLight = context.createLinearGradient(-size / 2, -size / 2, size / 2, size / 2);
@@ -435,12 +488,12 @@ function drawVolume(canvas, front, project, options = {}) {
     // Cast one contact shadow; each edge slice must not darken it again.
     context.shadowBlur = offset === Math.ceil(depth) ? size * .045 : 0;
     context.shadowOffsetY = offset === Math.ceil(depth) ? size * .045 : 0;
-    context.save(); context.translate(offset - depth / 2, 0); context.scale(horizontal, 1);
+    context.save(); context.translate(depthDirection * offset - signedDepth / 2, 0); context.scale(horizontal, 1);
     traceShape(context, project.shape, size, size, -size / 2, -size / 2);
     context.fillStyle = offset % 3 ? sideLight : metal[1]; context.fill(); context.restore();
   }
   context.shadowBlur = 0; context.shadowOffsetY = 0;
-  context.translate(-depth / 2, 0); context.scale(horizontal, 1);
+  context.translate(-signedDepth / 2, 0); context.scale(horizontal, 1);
   if (Math.cos(radians) < 0) {
     traceShape(context, project.shape, size, size, -size / 2, -size / 2);
     context.save(); context.clip(); context.drawImage(options.back, -size / 2, -size / 2, size, size); context.restore();
@@ -478,14 +531,15 @@ export async function renderCollectible(canvas, project, gradeId, options = {}) 
   const playback = options.playback ?? motion?.playback ?? 'loop';
   const particle = options.particle ?? motion?.particle;
   const angle = options.angle ?? project.angle ?? 0;
+  const faceAngle = angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0);
   // PR #310 리뷰 2차 P2: living이 가져다 쓰는 스티커는 정지 포즈로 frontFor가 또 그리면, 아래서 합성하는
   // living 오버레이와 겹쳐 이중으로 보인다(발행 경로의 angleFramesFor·livingStickerTargets와 같은 규칙).
-  let front = await frontFor(project, gradeId, size, angle + (animation === 'rotate' ? (options.time || 0) / 75 : 0), options.time, true, livingStickerTargets(project, gradeId));
+  let front = await frontFor(project, gradeId, size, faceAngle, options.time, true, livingStickerTargets(project, gradeId));
   // 편집기 미리보기도 living 항목(sway/bob/steam/blink)을 시간에 맞춰 보여준다(PR #310 리뷰 P2: 전에는 게시된
   // 스프라이트를 뷰어만 그리고 편집 중에는 미리 볼 방법이 없었다). 카드 전체 동작(staticFrame, "지금 재생 중인가")과는
   // 독립적인 시계(livingTime)와 깃발(reducedMotion, "동작 줄이기인가")을 따로 받는다 — 재생 중이 아니어도 living은
   // 계속 움직이고, 동작 줄이기일 때만 정지 포즈(phase 0)로 고정한다.
-  const livingOverlay = await livingOverlayFor(project, gradeId, size, options.reducedMotion ? 0 : livingPhaseAt(options.livingTime ?? options.time ?? 0, project.living?.periodMs ?? 2400));
+  const livingOverlay = await livingOverlayFor(project, gradeId, size, options.reducedMotion ? 0 : livingPhaseAt(options.livingTime ?? options.time ?? 0, project.living?.periodMs ?? 2400), faceAngle);
   if (livingOverlay) { const composed = canvasOf(size, size), context = composed.getContext('2d'); context.drawImage(front, 0, 0); context.drawImage(livingOverlay, 0, 0); front = composed; }
   const back = await backFor(project, gradeId, size);
   drawVolume(canvas, front, project, { ...options, gradeId, animation, playback, particle, back });
@@ -522,7 +576,8 @@ async function livingOverlayCell(living, t) {
 export async function renderPublishedCollectible(canvas, snapshot, options = {}) {
   // 모바일 구 발행본의 gear 별칭도 동일한 톱니 윤곽으로 읽으며 원본 snapshot은 고치지 않는다.
   snapshot = { ...snapshot, shape: fixedCollectibleBackShape(snapshot.shape) };
-  const angle = (options.angle ?? snapshot.angle ?? 0) + (!options.staticFrame && snapshot.animation === 'rotate' ? (options.time || 0) / 75 : 0);
+  const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
+  const angle = (options.angle ?? snapshot.angle ?? 0) + (animation === 'rotate' ? (options.time || 0) / 75 : 0);
   let front = snapshot.angleFrames ? await angleFrameFront(snapshot.angleFrames, angle) : null;
   if (!front) front = await imageFor(snapshot.baseDataUrl || snapshot.imageDataUrl || snapshot.thumbnailDataUrl);
   if (!front) return;
@@ -559,7 +614,6 @@ export async function renderPublishedCollectible(canvas, snapshot, options = {})
   const back = snapshot.backImageDataUrl ? await imageFor(snapshot.backImageDataUrl)
     : await backFor(snapshot, snapshot.gradeId, Math.min(options.textureSize || 640, 1024));
   // 호출자가 특정 동작(예: once 모션 "다시 보기")을 명시하면 그 값을, 아니면 게시된 기본(loop 또는 still) 동작을 쓴다.
-  const animation = options.staticFrame ? 'still' : (options.animation ?? snapshot.animation ?? 'still');
   drawVolume(canvas, front, snapshot, { ...options, gradeId: snapshot.gradeId, animation, back });
 }
 // 게시용 이미지는 WebP(품질 0.9)로 저장해 크기를 줄인다(서버 완성본 1 MiB·썸네일 128 KiB·본문 8 MiB 상한 안에 넣기 위함).
@@ -575,7 +629,7 @@ async function maskFor(project, gradeId, target, size) {
   traceShape(context, project.shape, size, size); context.clip();
   if (target === 'surface') { context.fillStyle = '#fff'; context.fillRect(0, 0, size, size); }
   else if (target === 'photo') {
-    const photo = await photoFor(project, 960, project.style, gradeId); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
+    const photo = await photoFor(project, 960, project.style, gradeId, 0); if (photo) { const transform = cropTransform(project, size, size); context.drawImage(photo, transform.x, transform.y, transform.width, transform.height); }
   } else if (target === 'border') {
     traceShape(context, project.shape, size * .97, size * .97, size * .015, size * .015); context.strokeStyle = '#fff'; context.lineWidth = size * .055; context.stroke();
   } else {
@@ -598,7 +652,8 @@ const ANGLE_MATERIALS = Object.freeze(['metallic', 'hologram', 'pearl']);
 function gradeNeedsAngleFrames(project, gradeId) {
   const hasMaterial = (project.effects ?? []).some((effect) => effect.gradeIds.includes(gradeId) && ANGLE_MATERIALS.includes(effect.type));
   const hasParallax = (project.parallax?.strength ?? 0) > 0 && (project.parallax?.strokes?.length ?? 0) > 0;
-  return hasMaterial || hasParallax;
+  const hasRelief = project.style !== 'original' && (project.relief ?? 0) > 0;
+  return hasMaterial || hasParallax || hasRelief;
 }
 /** 이 등급에서 living이 가져다 쓰는 앞면 스티커 id(각도 프레임에서 뺀다, 설계 문서 "각도 프레임" 항목). */
 function livingStickerTargets(project, gradeId) {
@@ -622,7 +677,7 @@ async function livingSpriteFor(project, gradeId, side, quality) {
   const grid = livingSpriteGrid(count, cellWidth, cellHeight); if (!grid) return undefined;
   const sprite = canvasOf(grid.width, grid.height), context = sprite.getContext('2d');
   for (let index = 0; index < count; index++) {
-    const overlay = await livingOverlayFor(project, gradeId, side, index / count); if (!overlay) continue;
+    const overlay = await livingOverlayFor(project, gradeId, side, index / count, 0); if (!overlay) continue;
     const column = index % grid.columns, row = Math.floor(index / grid.columns);
     context.drawImage(overlay, box.x * side, box.y * side, box.w * side, box.h * side, column * cellWidth, row * cellHeight, cellWidth, cellHeight);
   }

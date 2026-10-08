@@ -11,8 +11,6 @@ type CampaignRow = { id: string; title: string; status: MerchantCampaignOption['
   starts_at: Date; ends_at: Date; is_public: boolean };
 type StaffRow = { account_id: string; granted_at: Date; staff_can_confirm_visit: boolean;
   staff_can_redeem_coupon: boolean };
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const iso = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/;
 const day = /^\d{4}-\d\d-\d\d$/;
 const validDay = (value: string): boolean => day.test(value)
   && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
@@ -88,51 +86,9 @@ export class PostgresMerchantOperations implements MerchantOperations {
   }
 
   async extendCampaign(input: { accountId: string; merchantId: string; campaignId: string; days: 30 | 90;
-    expectedEndsAt: string; consentAccepted: boolean; requestId: string }) {
-    if (!uuid.test(input.requestId) || ![30, 90].includes(input.days)
-      || !iso.test(input.expectedEndsAt) || !Number.isFinite(Date.parse(input.expectedEndsAt))
-      || new Date(input.expectedEndsAt).toISOString() !== input.expectedEndsAt || input.consentAccepted !== true) {
-      throw new MerchantOperationError('MERCHANT_OPERATION_INVALID');
-    }
-    return this.transaction(async client => {
-      await this.active(client, input.accountId);
-      await this.owner(client, input.accountId, input.merchantId, true);
-      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))',
-        [`merchant-extension-request:${input.requestId}`]);
-      const previous = await client.query<{ campaign_id: string; merchant_id: string; actor_account_id: string;
-        days: number; previous_ends_at: Date; new_ends_at: Date }>(
-        `SELECT campaign_id, merchant_id, actor_account_id, days, previous_ends_at, new_ends_at
-         FROM merchant_campaign_extension_audit WHERE request_id = $1`, [input.requestId]);
-      const current = await client.query<CampaignRow>(
-        `SELECT id, title, status, starts_at, ends_at, is_public FROM campaigns
-         WHERE id = $1 AND merchant_id = $2 FOR UPDATE`, [input.campaignId, input.merchantId]);
-      const row = current.rows[0];
-      if (!row) throw new MerchantOperationError('MERCHANT_OPERATION_NOT_FOUND');
-      const replay = previous.rows[0];
-      if (replay) {
-        if (replay.campaign_id !== input.campaignId || replay.merchant_id !== input.merchantId
-          || replay.actor_account_id !== input.accountId || replay.days !== input.days
-          || replay.previous_ends_at.toISOString() !== input.expectedEndsAt) {
-          throw new MerchantOperationError('MERCHANT_OPERATION_CONFLICT');
-        }
-        return { ...campaignView(row), replayed: true };
-      }
-      if (row.ends_at.toISOString() !== input.expectedEndsAt) throw new MerchantOperationError('MERCHANT_OPERATION_CONFLICT');
-      const now = this.now();
-      // Owner can renew an active campaign, including a recently expired one. Other status changes need operator review.
-      if (row.status !== 'ACTIVE' || row.ends_at.getTime() < now.getTime() - 30 * 86_400_000) {
-        throw new MerchantOperationError('MERCHANT_OPERATION_FORBIDDEN');
-      }
-      const next = new Date(Math.max(now.getTime(), row.ends_at.getTime()) + input.days * 86_400_000);
-      if (next.getTime() > now.getTime() + 365 * 86_400_000) throw new MerchantOperationError('MERCHANT_OPERATION_LIMIT');
-      await client.query(`UPDATE campaigns SET ends_at = $3, updated_at = now() WHERE id = $1 AND merchant_id = $2`,
-        [input.campaignId, input.merchantId, next]);
-      await client.query(`INSERT INTO merchant_campaign_extension_audit
-        (id, request_id, merchant_id, campaign_id, actor_account_id, previous_ends_at, new_ends_at, days, consent_accepted_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-      [randomUUID(), input.requestId, input.merchantId, input.campaignId, input.accountId, row.ends_at, next, input.days, now]);
-      return { ...campaignView({ ...row, ends_at: next }), replayed: false };
-    });
+    expectedEndsAt: string; consentAccepted: boolean; requestId: string }): Promise<MerchantCampaignOption & { replayed: boolean }> {
+    void input;
+    throw new MerchantOperationError('MERCHANT_OPERATION_FORBIDDEN');
   }
 
   async listStaff(accountId: string, merchantId: string): Promise<MerchantStaffMember[]> {

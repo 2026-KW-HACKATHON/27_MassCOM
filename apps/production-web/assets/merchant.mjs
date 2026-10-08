@@ -366,7 +366,7 @@ async function request(fetcher, path, method = 'GET', body) {
 
 const operationsBase = merchantId => `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}`;
 
-export function configureMerchantOperations(fetcher, doc, merchants, onCampaignChanged = () => {}) {
+export function configureMerchantOperations(fetcher, doc, merchants) {
   const panel = doc.getElementById('merchant-operations');
   const select = doc.getElementById('merchant-operations-merchant');
   if (!panel || !select) return;
@@ -386,37 +386,22 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
     if (owners.some(merchant => merchant.id === old)) select.value = old;
   };
   configure(merchants);
-  const campaignSelect = doc.getElementById('merchant-extension-campaign');
-  const campaignStatus = doc.getElementById('merchant-extension-status');
-  const current = doc.getElementById('merchant-extension-current');
   const staffList = doc.getElementById('merchant-staff-list');
   const staffStatus = doc.getElementById('merchant-staff-status');
   const exportStatus = doc.getElementById('merchant-export-status');
-  const state = { campaigns: [], generation: 0 };
+  const state = { generation: 0 };
   operationBindings.set(doc, state);
   const active = generation => operationBindings.get(doc) === state && state.generation === generation;
   const refresh = async () => {
     const generation = ++state.generation;
-    campaignSelect?.replaceChildren(); staffList?.replaceChildren();
-    if (current) current.textContent = '';
-    if (campaignStatus) campaignStatus.textContent = '';
+    staffList?.replaceChildren();
     if (staffStatus) staffStatus.textContent = '';
     if (!select.value) return;
     const merchantId = select.value;
     try {
-      const [campaigns, staff] = await Promise.all([
-        request(fetcher, `${operationsBase(merchantId)}/campaigns`),
-        request(fetcher, `${operationsBase(merchantId)}/staff`),
-      ]);
+      const staff = await request(fetcher, `${operationsBase(merchantId)}/staff`);
       if (!active(generation) || select.value !== merchantId) return;
-      state.campaigns = campaigns.campaigns;
-      if (!Array.isArray(state.campaigns) || !Array.isArray(staff.staff)) throw new Error('invalid operations data');
-      for (const campaign of state.campaigns) {
-        const option = doc.createElement('option'); option.value = campaign.id;
-        option.textContent = `${campaign.title} · ${new Date(campaign.endsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}`;
-        campaignSelect.append(option);
-      }
-      showCampaign();
+      if (!Array.isArray(staff.staff)) throw new Error('invalid operations data');
       for (const member of staff.staff) {
         const item = doc.createElement('li');
         const label = doc.createElement('span'); label.textContent = `직원 ${member.accountId}`;
@@ -449,46 +434,13 @@ export function configureMerchantOperations(fetcher, doc, merchants, onCampaignC
       }
     } catch {
       if (active(generation)) {
-        campaignStatus.textContent = '캠페인을 불러오지 못했습니다.';
         staffStatus.textContent = '직원 목록을 불러오지 못했습니다.';
       }
     }
   };
-  const showCampaign = () => {
-    const campaign = state.campaigns.find(item => item.id === campaignSelect?.value);
-    if (!current) return;
-    const days = Number(doc.getElementById('merchant-extension-form')?.elements?.days?.value ?? 30);
-    const old = campaign && new Date(campaign.endsAt);
-    const next = old && new Date(Math.max(Date.now(), old.getTime()) + days * 86_400_000);
-    current.textContent = campaign
-      ? `현재 종료: ${old.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. ${days}일 연장 후 예상 종료: ${next.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}. 확정 시각은 서버 기준입니다.`
-      : '연장할 캠페인이 없습니다.';
-  };
   state.configure = members => { configure(members); if (!panel.hidden) void refresh(); };
   if (!panel.hidden) void refresh();
   select.addEventListener('change', () => { void refresh(); });
-  campaignSelect?.addEventListener('change', showCampaign);
-  doc.getElementById('merchant-extension-form')?.elements?.days?.addEventListener?.('change', showCampaign);
-  doc.getElementById('merchant-extension-form')?.addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const campaign = state.campaigns.find(item => item.id === campaignSelect.value);
-    if (!campaign || !select.value) return;
-    const button = form.querySelector('button'); button.disabled = true;
-    const requestId = globalThis.crypto?.randomUUID?.();
-    try {
-      await request(fetcher, `${operationsBase(select.value)}/campaigns/${encodeURIComponent(campaign.id)}/extend`, 'POST', {
-        days: Number(form.elements.days.value), expectedEndsAt: campaign.endsAt,
-        consentAccepted: form.elements.consent.checked, requestId,
-      });
-      form.elements.consent.checked = false;
-      await refresh(); campaignStatus.textContent = '기간 연장을 완료했습니다.'; onCampaignChanged(select.value);
-    } catch (error) {
-      campaignStatus.textContent = error.status === 409 ? '종료일이 변경됐습니다. 최신 값을 확인해 주세요.'
-        : error.status === 403 ? '점주 권한 또는 연장 조건을 확인해 주세요.' : '연장 결과를 확인하지 못했습니다. 새로 고침해 확인해 주세요.';
-      await refresh();
-    } finally { button.disabled = false; }
-  });
   doc.getElementById('merchant-staff-approve')?.addEventListener('submit', async event => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -599,11 +551,7 @@ export async function loadMerchant(fetcher, doc) {
     if (!Array.isArray(mine.merchants) || !Array.isArray(eligible.merchants)) throw new Error('invalid merchant data');
     merchantMemberships.set(doc, mine.merchants);
     configureCreator(fetcher, doc, mine);
-    configureMerchantOperations(fetcher, doc, mine.merchants, merchantId => {
-      const overview = doc.getElementById('merchant-overview-merchant');
-      if (overview) overview.value = merchantId;
-      return overviewRefreshers.get(doc)?.();
-    });
+    configureMerchantOperations(fetcher, doc, mine.merchants);
     for (const merchant of mine.merchants) {
       const item = doc.createElement('p');
       item.textContent = `${merchant.name} · ${merchant.role === 'OWNER' ? '점주' : '직원'}`;

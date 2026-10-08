@@ -354,10 +354,13 @@ test('다른 초안을 열면 필터 선택을 그 초안 값으로 다시 정�
 
 test('4단계에는 필수 게시 정보가 열려 있고 선택형 결과 옵션은 토글한 것만 보인다', async () => {
   const ui = await mountStudio();
-  for (const selector of ['[data-control="name"]', '[data-control="campaign"]', '[data-view="reward-grades"]']) {
+  for (const selector of ['[data-control="name"]', '[data-view="campaign-status"]', '[data-view="reward-grades"]']) {
     assert.equal(ui.stepOf(ui.q(selector)), '4', selector);
   }
-  assert.equal(ui.q('[data-control="campaign"]').closest('details').open, true, '방문 보상 연결은 기본으로 열린다');
+  assert.equal(ui.q('[data-control="campaign"]'), null, '캠페인 선택은 점주가 조작하지 않는다');
+  assert.equal(ui.q('[data-reward-count]'), null, '방문 횟수별 등급 선택도 없다');
+  assert.match(ui.q('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
+  assert.equal(ui.q('[data-view="reward-grades"]').closest('details').open, true, '방문 보상 연결은 기본으로 열린다');
   const selectedExtras = () => ui.all('[data-extra-options]').filter(panel => !panel.hidden).map(panel => panel.dataset.extraOptions);
   assert.deepEqual(selectedExtras(), [], '선택형 결과 옵션은 처음엔 모두 숨겨져 있다');
   for (const id of ['motion', 'materials', 'voice', 'living', 'story']) {
@@ -581,7 +584,9 @@ test('미리보기는 등급·캔버스·재생/각도 줄만 펼치고 나머�
   const more = preview.querySelector('.ce-preview-more');
   assert.equal(more.open, false);
   for (const selector of ['[data-action="angle-reset"]', '[data-control="reduce-motion"]', '[data-view="preview-caption"]', '[data-view="greeting"]']) assert.ok(ui.q(selector).closest('.ce-preview-more'), selector);
-  assert.ok(ui.q('[data-view="distribution"]').closest('details').querySelector('[data-control="campaign"]'), '배포 상태는 게시 정보 안');
+  const distributionDetails = ui.q('[data-view="distribution"]').closest('details');
+  assert.ok(distributionDetails.querySelector('[data-view="campaign-status"]'), '배포 상태는 게시 정보 안');
+  assert.equal(distributionDetails.querySelector('[data-control="campaign"]'), null, '게시 정보 안에도 캠페인 선택은 없다');
 });
 
 test('칠한 점이 없는 살아 있는 그림이 있어 저장이 4단계로 돌려보내면 living 옵션이 열린다', async () => {

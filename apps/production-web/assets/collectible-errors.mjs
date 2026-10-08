@@ -17,7 +17,7 @@ export const COLLECTIBLE_ERROR_MESSAGES = {
   COLLECTIBLE_PROJECT_NOT_FOUND: '이 프로젝트를 찾을 수 없어요. 이미 삭제했거나 다른 점포의 것일 수 있어요. 저장 목록을 새로 불러와 주세요.',
   COLLECTIBLE_VERSION_CONFLICT: '다른 화면에서 초안이 변경됐어요. 현재 입력은 유지했어요. 목록에서 최신 초안을 다시 열거나 새 초안으로 저장해 주세요.',
   COLLECTIBLE_PUBLISHED_IMMUTABLE: '게시한 버전은 고칠 수 없어요. 새 초안으로 복사한 뒤 수정해 주세요. 현재 입력은 그대로 있어요.',
-  COLLECTIBLE_CAMPAIGN_UNAVAILABLE: '선택한 캠페인에는 지금 게시할 수 없어요. 진행 중인 공개 캠페인인지, 연결한 방문 목표가 그 캠페인에 있는지 확인해 주세요. 입력은 그대로 있어요.',
+  COLLECTIBLE_CAMPAIGN_UNAVAILABLE: '방문 보상을 지금 게시할 수 없어요. 표준 1·3·5회 방문 보상 캠페인이 준비됐는지 확인해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_NOT_READY: '게시에 필요한 자료가 덜 준비됐어요. 사진·보상 연결·이야기 장면 사진을 확인하고 다시 게시해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_PROJECT_LIMIT: '수집품 프로젝트는 점포마다 100개까지 만들 수 있어요. 쓰지 않는 초안을 삭제한 뒤 다시 저장해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_PUBLICATION_LIMIT: '이 점포는 게시를 100번까지 할 수 있어요. 게시한 수집품은 이미 받은 고객을 위해 보관돼 삭제해도 줄지 않아요. 더 게시해야 하면 운영자에게 문의해 주세요. 입력은 그대로 있어요.',

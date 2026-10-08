@@ -61,7 +61,7 @@ test('private project persistence, optimistic save race, copy and permission rec
   await assert.rejects(projects.get({ ...input,projectId:first.id }),MerchantAccessError);
 });
 
-test('claim inserts capture explicit current grade once, never backfill, leave rewards/NFT unchanged, and keep old publication snapshots immutable', async t => {
+test('claim inserts capture fixed standard grades once, never backfill, leave rewards/NFT unchanged, and keep old publication snapshots immutable', async t => {
   const { pool, projects, claims, input, claim, setDay } = await setup(t);
   const before = await claim('before-publish','before'); const beforeId = before.redeemed.grantedRewards[0]!.entitlementId;
   const raw = photoProject(); raw.rewardGrades = { '1': 'custom' };
@@ -74,7 +74,7 @@ test('claim inserts capture explicit current grade once, never backfill, leave r
   await assert.rejects(projects.save({ ...input,projectId:draft.id,expectedVersion:2,project:raw }), {code:'COLLECTIBLE_PUBLISHED_IMMUTABLE'});
   const fresh = await claim('customer-new','fresh'); const entitlementId = fresh.redeemed.grantedRewards[0]!.entitlementId;
   const acquired = await projects.getAcquired({accountId:'customer-new',entitlementId});
-  assert.equal(acquired.publicationId,published.publicationId); assert.equal(acquired.gradeId,'custom'); assert.equal(acquired.animation,'float');
+  assert.equal(acquired.publicationId,published.publicationId); assert.equal(acquired.gradeId,'bronze'); assert.equal(acquired.animation,'still');
   assert.equal('photo' in acquired,false); assert.equal('crop' in acquired,false); assert.equal('photoEdits' in acquired,false);
   await assert.rejects(projects.getAcquired({accountId:'other-customer',entitlementId}), {code:'COLLECTIBLE_NOT_FOUND'});
   const replay = await claims.redeem({accountId:'customer-new',token:fresh.issued.token}); assert.equal(replay.replayed,true);
@@ -94,7 +94,7 @@ test('claim inserts capture explicit current grade once, never backfill, leave r
   assert.deepEqual(preparingCollection.collectibles,collection.collectibles);
   setDay(1); await claim('customer-new','day-two'); setDay(2); const third = await claim('customer-new','day-three');
   assert.equal(third.redeemed.grantedRewards[0]!.targetVisitCount,3);
-  await assert.rejects(projects.getAcquired({accountId:'customer-new',entitlementId:third.redeemed.grantedRewards[0]!.entitlementId}),{code:'COLLECTIBLE_NOT_FOUND'});
+  assert.equal((await projects.getAcquired({accountId:'customer-new',entitlementId:third.redeemed.grantedRewards[0]!.entitlementId})).gradeId,'silver');
   await assert.rejects(pool.query(`UPDATE collectible_publications SET reward_grades='{}' WHERE id=$1`,[published.publicationId]), /immutable/);
   await assert.rejects(pool.query(`UPDATE collectible_publication_grades SET detail='{}' WHERE publication_id=$1`,[published.publicationId]), /immutable/);
   await assert.rejects(pool.query(`DELETE FROM collectible_publication_grades WHERE publication_id=$1`,[published.publicationId]), /immutable/);
@@ -201,7 +201,8 @@ test('copy concurrent with source author deletion cannot leave a newly inherited
 
 test('acquisitions store references only; the list reads the per-grade summary and detail reads the immutable publication grade', async t => {
   const { pool, projects, input, claim } = await setup(t);
-  const draft = await projects.create({ ...input, project: photoProject() });
+  const raw = photoProject(); raw.motion = raw.motion.map(item => ({ ...item, gradeIds: ['silver'] }));
+  const draft = await projects.create({ ...input, project: raw });
   const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
   const visit = await claim('customer-ref', 'ref'); const entitlementId = visit.redeemed.grantedRewards[0]!.entitlementId;
   const columns = await pool.query<{ column_name: string }>(
@@ -211,7 +212,7 @@ test('acquisitions store references only; the list reads the per-grade summary a
   assert.deepEqual(stored.rows[0], { publication_id: published.publicationId, grade_id: 'bronze' });
   const grades = await pool.query<{ grade_id: string; summary: Record<string, unknown>; detail: Record<string, unknown> }>(
     'SELECT grade_id, summary, detail FROM collectible_publication_grades WHERE publication_id = $1 ORDER BY grade_id', [published.publicationId]);
-  assert.deepEqual(grades.rows.map(row => row.grade_id), ['bronze', 'custom']);
+  assert.deepEqual(grades.rows.map(row => row.grade_id), ['bronze', 'gold', 'silver']);
   assert.deepEqual(Object.keys(grades.rows[0]!.summary).sort(), ['gradeId', 'gradeName', 'name', 'projectId', 'publicationId', 'shape', 'theme', 'thumbnailDataUrl']);
   assert.equal('imageDataUrl' in grades.rows[0]!.summary, false); assert.equal('thumbnailDataUrl' in grades.rows[0]!.detail, false);
   const artwork = (await new PostgresCollectionReader(pool).getCollection('customer-ref')).collectibles[0]!.artwork!;
@@ -258,7 +259,7 @@ test('capture locks a linked campaign with FOR KEY SHARE so enrollment count upd
 
 test('publish validates and strips media before the campaign lock, so a not-ready project fails without waiting for claims', async t => {
   const { pool, projects, input } = await setup(t);
-  const raw = photoProject(); raw.rewardGrades = {};
+  const raw = photoProject(); delete raw.derived.gold;
   const draft = await projects.create({ ...input, project: raw });
   const client = await pool.connect();
   try {
@@ -279,7 +280,7 @@ test('account deletion stops distributing publications the account authored, kee
   const kept = await claim('customer-before-delete', 'before-delete'); const keptId = kept.redeemed.grantedRewards[0]!.entitlementId;
   const before = await projects.getAcquired({ accountId: 'customer-before-delete', entitlementId: keptId });
   // Another store owner's own publication is not authored by the deleted account and keeps distributing.
-  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장')`);
+  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장'),('campaign-b',3,'세 번째 도장'),('campaign-b',5,'다섯 번째 도장')`);
   const otherRaw = photoProject('다른 점주 작품'); otherRaw.rewardGrades = { '1': 'bronze' };
   const otherInput = { merchantId: 'merchant-b', accountId: 'owner-b' };
   const other = await projects.create({ ...otherInput, project: otherRaw });
@@ -363,7 +364,7 @@ test('operator media removal blanks a publication only through the guarded funct
     await assert.rejects(client.query(`DELETE FROM collectible_publication_grades WHERE publication_id = $1`, [published.publicationId]), /immutable/);
   } finally { await client.query('ROLLBACK'); client.release(); }
   const removed = await pool.query('SELECT * FROM collectible_remove_publication_media($1)', [published.publicationId]);
-  assert.deepEqual(removed.rows, [{ removed_publication_id: published.publicationId, cleared_grades: 2 }]);
+  assert.deepEqual(removed.rows, [{ removed_publication_id: published.publicationId, cleared_grades: 3 }]);
   assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
   const grades = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = $1', [published.publicationId]);
   assert.equal(JSON.stringify(grades.rows).includes('data:'), false);
@@ -430,7 +431,7 @@ test('operator removal follows copies and the same stored photo: copied publicat
   assert.deepEqual(cleared.rows.map(row => row.id).sort(), [original.id, copy.id, copyOfCopy.id, leaf.id, reupload.id].sort());
   assert.ok((await projects.get({ ...input, projectId: other.id })).project);
   const media = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = ANY($1)', [[originalPublished.publicationId, copyPublished.publicationId]]);
-  assert.equal(media.rowCount, 4); assert.equal(JSON.stringify(media.rows).includes('data:'), false);
+  assert.equal(media.rowCount, 6); assert.equal(JSON.stringify(media.rows).includes('data:'), false);
   await assert.rejects(projects.getAcquired({ accountId: 'customer-copy', entitlementId }), { code: 'COLLECTIBLE_NOT_FOUND' });
   assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors WHERE project_id = ANY($1)', [[original.id, copy.id, copyOfCopy.id, leaf.id, reupload.id]])).rowCount, 0);
 });
@@ -444,7 +445,7 @@ test('a store can hold at most 100 publications with media, so publish/delete/co
   const draft = await projects.create({ ...input, project: photoProject() });
   await assert.rejects(projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' }), { code: 'COLLECTIBLE_PUBLICATION_LIMIT' });
   // Another store is not affected, and operator media removal frees a slot.
-  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장'),('campaign-b',3,'셋')`);
+  await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장'),('campaign-b',3,'셋'),('campaign-b',5,'다섯')`);
   const other = await projects.create({ merchantId: 'merchant-b', accountId: 'owner-b', project: photoProject() });
   await projects.publish({ merchantId: 'merchant-b', accountId: 'owner-b', projectId: other.id, expectedVersion: 1, campaignId: 'campaign-b' });
   const oldest = await pool.query<{ id: string }>(`SELECT id FROM collectible_publications WHERE merchant_id = 'merchant-a' LIMIT 1`);
@@ -535,14 +536,15 @@ test('a v1-shaped publication detail row (written before the v2 schema) is retur
 
 test('a v2 publish round-trips through getAcquired with motions, playback and the back image intact', async t => {
   const { projects, input, claim, setDay } = await setup(t);
-  const draft = await projects.create({ ...input, project: photoProject() });
+  const raw = photoProject(); raw.motion = raw.motion.map(item => ({ ...item, gradeIds: ['silver'] }));
+  const draft = await projects.create({ ...input, project: raw });
   const published = await projects.publish({ ...input, projectId: draft.id, expectedVersion: 1, campaignId: 'campaign-a' });
   await claim('customer-v2-round-trip', 'first');
   setDay(1); await claim('customer-v2-round-trip', 'second');
   setDay(2); const third = await claim('customer-v2-round-trip', 'third');
   const reward = third.redeemed.grantedRewards.find(r => r.targetVisitCount === 3)!;
   const detail = await projects.getAcquired({ accountId: 'customer-v2-round-trip', entitlementId: reward.entitlementId });
-  assert.equal(detail.publicationId, published.publicationId); assert.equal(detail.gradeId, 'custom');
+  assert.equal(detail.publicationId, published.publicationId); assert.equal(detail.gradeId, 'silver');
   assert.equal(detail.animation, 'float'); assert.deepEqual(detail.motions, [{ type: 'float', playback: 'loop' }]);
   assert.equal(detail.backImageDataUrl, tinyPng); assert.equal('parallax' in detail, false); assert.equal('strokes' in detail, false);
 });

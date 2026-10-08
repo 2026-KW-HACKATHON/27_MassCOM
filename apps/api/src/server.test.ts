@@ -5572,7 +5572,7 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   const body = JSON.stringify({ days: 30, expectedEndsAt: campaign.endsAt, consentAccepted: true, requestId: 'same-request' });
   assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST',
     headers: { ...headers, origin: 'https://untrusted.example' }, body })).status, 403);
-  assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 200);
+  assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 404);
   assert.equal((await webRequest(base, root + '/staff/staff', { method: 'PATCH', headers,
     body: '{"confirmVisit":true,"redeemCoupon":false,"role":"OWNER"}' })).status, 400);
   const csv = await webRequest(base, root + '/visits.csv?from=2026-10-01&to=2026-10-05', { headers });
@@ -5582,9 +5582,8 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   assert.equal(csv.headers.get('x-visit-count'), '1');
   assert.deepEqual(new Uint8Array(await csv.arrayBuffer()).slice(0,3), new Uint8Array([239,187,191]));
   assert.equal((await webRequest(base, root + '/visits.csv?from=x&from=y&to=z', { headers })).status, 400);
-  assert.equal(calls.length, 3);
-  assert.deepEqual(calls[1], { accountId: 'owner', merchantId: 'shop', campaignId: 'campaign', days: 30,
-    expectedEndsAt: campaign.endsAt, consentAccepted: true, requestId: 'same-request' });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1], { accountId: 'owner', merchantId: 'shop', fromDate: '2026-10-01', toDate: '2026-10-05' });
 });
 
 test('coupon-only staff can scan customer QR while visit issuance remains forbidden', async (t) => {

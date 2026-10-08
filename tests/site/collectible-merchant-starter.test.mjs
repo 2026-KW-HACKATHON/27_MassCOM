@@ -25,21 +25,27 @@ test('새 프로젝트는 가게 이름과 1·3·5 등급을 채우고 정확히
   const api = createFakeApi();
   const ui = await mount(api);
   assert.equal(ui.control('name').value, '월계 식당 방문 수집품');
-  assert.equal(ui.control('campaign').value, 'campaign-a');
-  for (const [count, grade] of [[1, 'bronze'], [3, 'silver'], [5, 'gold']]) {
-    assert.equal(ui.host.querySelector(`[data-reward-count="${count}"]`).value, grade);
-    assert.equal(ui.host.querySelector(`[data-grade-enabled="${grade}"]`).checked, true);
-  }
+  assert.equal(ui.host.querySelector('[data-control="campaign"]'), null, '캠페인 선택기는 없다');
+  assert.equal(ui.host.querySelector('[data-reward-count]'), null, '점주는 방문 횟수별 보상을 고르지 않는다');
+  assert.match(ui.host.querySelector('[data-view="campaign-status"]').textContent, /방문 보상은 자동으로 연결돼요/);
+  assert.match(ui.host.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
+  for (const grade of ['bronze', 'silver', 'gold']) assert.equal(ui.host.querySelector(`[data-grade-enabled="${grade}"]`).checked, true);
+  await ui.click('draft');
+  const project = api.calls.find(call => call.method === 'POST')?.body.project;
+  assert.equal(project.campaignId, 'campaign-a');
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
   await ui.click('new');
-  assert.equal(ui.control('campaign').value, 'campaign-a', '새 초안을 다시 시작해도 같은 기본값을 쓴다');
+  assert.match(ui.host.querySelector('[data-view="campaign-status"]').textContent, /방문 보상은 자동으로 연결돼요/, '새 초안을 다시 시작해도 같은 기본값을 쓴다');
 });
 
-test('대상 캠페인이 여러 개면 선택을 남기고, 명시된 캠페인은 자격을 확인해 선택한다', () => {
+test('대상 캠페인은 정확한 1·3·5회 활성 캠페인이 하나일 때만 자동 연결한다', () => {
   const campaigns = [...fakeCampaigns(), { ...fakeCampaigns()[0], id: 'campaign-c' }];
   assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns }).campaignId, '');
   assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns, preferredCampaignId: 'campaign-c' }).campaignId, 'campaign-c');
   assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns, preferredCampaignId: 'campaign-b' }).campaignId, '');
   assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns: [fakeCampaigns()[0]] }).campaignId, 'campaign-a');
+  assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns: [{ ...fakeCampaigns()[0], goals: [1, 3] }] }).campaignId, '');
+  assert.equal(createMerchantStarterProject({ merchantName: '월계 식당', campaigns: [{ ...fakeCampaigns()[0], status: 'ENDED' }] }).campaignId, '');
 });
 
 test('등록 메뉴 시작점 모델은 메뉴 이름과 방문 단계마다 다른 연출을 제안하지만 UI 카드는 만들지 않는다', async () => {
@@ -67,9 +73,8 @@ test('등록 메뉴 시작점 모델은 메뉴 이름과 방문 단계마다 다
   assert.match(storeStarter.textContent, /5회/);
   storeStarter.dispatchEvent({ type: 'click' }); await settle();
   assert.equal(ui.control('name').value, '월계 식당 방문 수집품');
-  assert.equal(ui.host.querySelector('[data-reward-count="1"]').value, 'bronze');
-  assert.equal(ui.host.querySelector('[data-reward-count="3"]').value, 'silver');
-  assert.equal(ui.host.querySelector('[data-reward-count="5"]').value, 'gold');
+  assert.equal(ui.host.querySelector('[data-reward-count]'), null);
+  assert.match(ui.host.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
 });
 
 test('가게 그림 버튼은 허용된 같은 출처 경로에서만 보이고 기존 사진 검사를 거쳐 편집에 반영한다', async () => {

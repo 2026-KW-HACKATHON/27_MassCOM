@@ -263,10 +263,10 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   motionDetail.querySelector('summary').textContent = '움직임';
   livingDetail.querySelector('summary').textContent = '더 보기 · 살아 있는 그림';
   story.querySelector('summary').textContent = '더 보기 · 가게 이야기';
-  rewards.querySelector('summary').textContent = '방문 보상 설정';
+  rewards.querySelector('summary').textContent = '이름·자동 방문 보상';
   const rewardsBody = rewards.querySelector('.ce-detail');
   rewardsBody.prepend(disclosure('시즌 설정', seasonTiles('theme'), field('theme'))); rewardsBody.prepend(field('name'));
-  const result = section('완성된 코인', '방문 보상 조건을 확인한 뒤 게시하면 앱에서 지급할 수 있어요.');
+  const result = section('완성된 코인', '코인을 저장하거나 방문 보상으로 게시하세요.');
   const resultSummary = node('p', 'ce-result-summary'); resultSummary.dataset.view = 'result-summary'; result.append(resultSummary, action('코인 이미지 저장', 'export-image', undefined, 'ce-export-button'));
   const extras = disclosure('추가 꾸미기 · 움직임·효과·목소리');
   const extraTabs = node('div', 'ce-extra-tabs'); extraTabs.setAttribute('role', 'group'); extraTabs.setAttribute('aria-label', '추가 꾸미기');

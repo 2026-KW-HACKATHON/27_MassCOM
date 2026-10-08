@@ -17,7 +17,7 @@ async function start(t: TestContext) {
   const projects: CollectibleProjectService={
     list:async input=>{calls.push({kind:'list',input});return [];},
     listCampaigns:async input=>{calls.push({kind:'campaigns',input});return [{id:'campaign-a',title:'가상 캠페인',status:'ACTIVE' as const,
-      startsAt:'2026-09-01T00:00:00.000Z',endsAt:'2026-12-01T00:00:00.000Z',goals:[1,3,5] as (1|3|5)[],publication:null}];},
+      startsAt:'2026-09-01T00:00:00.000Z',endsAt:'2026-12-01T00:00:00.000Z',goals:[1,3,5],publication:null}];},
     create:async input=>{calls.push({kind:'create',input});return project;},
     get:async input=>{calls.push({kind:'get',input});return project;},
     save:async input=>{calls.push({kind:'save',input});if(input.expectedVersion!==1)throw new CollectibleProjectError('COLLECTIBLE_VERSION_CONFLICT');return project;},

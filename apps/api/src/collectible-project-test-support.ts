@@ -8,7 +8,12 @@ export function photoProject(name = '월계 도장'): CollectibleProject {
     photoEdits: { brightness: 0, contrast: 0, merge: 0, simplify: 0, cartoon: 0, strokes: [] },
     style: 'original', baseColor: '#bf8149', photoColor: 100, relief: 45, stickers: [],
     back: { mode: 'default', color: '#bf8149', stickers: [] },
-    grades: [{ id: 'bronze', name: '브론즈', kind: 'basic', enabled: true }, { id: 'custom', name: '가게 특별판', kind: 'special', enabled: true }],
+    grades: [
+      { id: 'bronze', name: '브론즈', kind: 'basic', enabled: true },
+      { id: 'silver', name: '실버', kind: 'basic', enabled: true },
+      { id: 'gold', name: '골드', kind: 'basic', enabled: true },
+      { id: 'custom', name: '가게 특별판', kind: 'special', enabled: true },
+    ],
     effects: [{ id: 'effect-1', type: 'glow', target: 'surface', gradeIds: ['custom'], strength: 50, color: '#ffaa00', roughness: 20 }],
     motion: [{ id: 'motion-1', type: 'float', gradeIds: ['custom'], playback: 'loop' }], thickness: 8, angle: 0,
     greeting: '다시 찾아주셔서 고마워요.', greetingOverrides: [], audio: null,
@@ -16,8 +21,10 @@ export function photoProject(name = '월계 도장'): CollectibleProject {
     parallax: { strength: 0, strokes: [] }, living: { periodMs: 2400, items: [] },
     derived: {
       bronze: { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, backImageDataUrl: tinyPng },
+      silver: { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, backImageDataUrl: tinyPng },
+      gold: { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, backImageDataUrl: tinyPng },
       custom: { imageDataUrl: tinyPng, thumbnailDataUrl: tinyPng, backImageDataUrl: tinyPng },
     },
-    rewardGrades: { '1': 'bronze', '3': 'custom' },
+    rewardGrades: { '1': 'bronze', '3': 'silver', '5': 'gold' },
   };
 }

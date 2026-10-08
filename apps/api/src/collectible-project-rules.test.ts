@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import { CollectibleProjectError } from './collectible-project.js';
 import { collectibleSnapshot, inspectWebmOpus, normalizeMp3, normalizeOggOpus, stripImageMetadata, validateCollectibleMedia, validateCollectibleProject } from './collectible-project-rules.js';
 import { photoProject, tinyPng } from './collectible-project-test-support.js';
+import { isStandardVisitGoalSet, standardizeStandardVisitPublicationProject } from './postgres/collectible-project.js';
 
 test('empty draft and source photo round trip preserve original bytes; publish requires explicit mapped finals', () => {
   const project = photoProject(); const saved = validateCollectibleProject(project, true);
@@ -12,6 +13,29 @@ test('empty draft and source photo round trip preserve original bytes; publish r
   assert.throws(() => validateCollectibleProject(draft, true), { code: 'COLLECTIBLE_NOT_READY' });
   project.rewardGrades = {};
   assert.throws(() => validateCollectibleProject(project, true), { code: 'COLLECTIBLE_NOT_READY' });
+});
+
+
+test('standard visit publication ignores crafted reward mappings and requires ready bronze silver gold grades', () => {
+  const crafted = photoProject();
+  crafted.rewardGrades = { '5': 'custom', '3': 'bronze', '1': 'custom' };
+  const published = standardizeStandardVisitPublicationProject(crafted);
+  assert.deepEqual(published.rewardGrades, { '1': 'bronze', '3': 'silver', '5': 'gold' });
+
+  const disabled = photoProject();
+  disabled.grades.find(grade => grade.id === 'silver')!.enabled = false;
+  assert.throws(() => standardizeStandardVisitPublicationProject(disabled), { code: 'COLLECTIBLE_INVALID_PROJECT' });
+
+  const missingDerived = photoProject();
+  delete missingDerived.derived.gold;
+  assert.throws(() => standardizeStandardVisitPublicationProject(missingDerived), { code: 'COLLECTIBLE_NOT_READY' });
+});
+
+test('standard visit campaign goals must be exactly 1, 3 and 5', () => {
+  assert.equal(isStandardVisitGoalSet([5, 1, 3]), true);
+  assert.equal(isStandardVisitGoalSet([1, 3]), false);
+  assert.equal(isStandardVisitGoalSet([1, 3, 5, 7]), false);
+  assert.equal(isStandardVisitGoalSet([1, 1, 3, 5]), false);
 });
 
 test('dynamic grade names and all-off effects are accepted without invented reward mappings', () => {

@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-08",
+  "environment": "loopback synthetic merchant fixture; actual production renderer",
+  "raised": {
+    "synthetic": true,
+    "version": 3,
+    "style": "raised",
+    "relief": 80,
+    "requestBytes": 1957507,
+    "assets": [
+      {
+        "grade": "bronze",
+        "frameBytes": 272100,
+        "backBytes": 84946,
+        "side": 448,
+        "count": 12,
+        "columns": 4,
+        "stepDegrees": 15
+      },
+      {
+        "grade": "silver",
+        "frameBytes": 257272,
+        "backBytes": 65462,
+        "side": 448,
+        "count": 12,
+        "columns": 4,
+        "stepDegrees": 15
+      },
+      {
+        "grade": "gold",
+        "frameBytes": 282662,
+        "backBytes": 67668,
+        "side": 448,
+        "count": 12,
+        "columns": 4,
+        "stepDegrees": 15
+      }
+    ]
+  },
+  "incised": {
+    "synthetic": true,
+    "version": 3,
+    "style": "incised",
+    "relief": 80,
+    "requestBytes": 1992660,
+    "assets": [
+      {
+        "grade": "bronze",
+        "frameBytes": 283956,
+        "backBytes": 68844,
+        "side": 448,
+        "count": 12,
+        "columns": 4,
+        "stepDegrees": 15
+      },
+      {
+        "grade": "silver",
+        "frameBytes": 257646,
+        "backBytes": 65462,
+        "side": 448,
+        "count": 12,
+        "columns": 4,
+        "stepDegrees": 15
+      },
+      {
+        "grade": "gold",
+        "frameBytes": 304982,
+        "backBytes": 67668,
+        "side": 448,
+        "count": 12,
+        "columns": 4,
+        "stepDegrees": 15
+      }
+    ]
+  },
+  "observed": {
+    "raisedAutomaticRotation": "PASS · 저장본 재읽기 · 자동 회전 중 · 렌더 1307회",
+    "incisedAutomaticRotation": "PASS · 저장본 재읽기 · 자동 회전 중 · 렌더 3402회",
+    "comparisonAngles": [
+      0,
+      -45,
+      45,
+      90,
+      180
+    ],
+    "editorStyles": [
+      "raised",
+      "incised"
+    ],
+    "editorAngles": [
+      -35,
+      35
+    ],
+    "campaignControlsRemoved": true,
+    "merchantExtensionFormRemoved": true
+  },
+  "boundaries": [
+    "2.5D lighting and contour projection; no stored 3D mesh",
+    "0 degree publication frame interpolates -7.5 and +7.5",
+    "Frame render counts are not measured FPS",
+    "Android device replay and production publication not run"
+  ]
+}

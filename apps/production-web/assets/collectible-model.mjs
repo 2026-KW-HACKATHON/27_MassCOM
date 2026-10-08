@@ -28,6 +28,13 @@ export const MASCOT_POSES = Object.freeze(['cheer', 'explore-map', 'friends', 'g
 // 눈 감은 프레임(apps/production-web/assets/mascot/<pose>-blink.png)이 있는 포즈. 그림이 없으면 living의
 // blink 항목이 그 포즈를 쓸 수 없다. apps/api/src/collectible-project-rules.ts의 mascotBlink와 값을 맞춘다.
 export const MASCOT_BLINK = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'stamp', 'wave']);
+export const STANDARD_VISIT_GOALS = Object.freeze([1, 3, 5]);
+export const STANDARD_VISIT_REWARD_GRADES = Object.freeze({ 1: 'bronze', 3: 'silver', 5: 'gold' });
+export const STANDARD_VISIT_REWARD_LABELS = Object.freeze([
+  Object.freeze({ count: 1, gradeId: 'bronze', label: '1회', gradeName: '브론즈' }),
+  Object.freeze({ count: 3, gradeId: 'silver', label: '3회', gradeName: '실버' }),
+  Object.freeze({ count: 5, gradeId: 'gold', label: '5회', gradeName: '골드' }),
+]);
 
 export const DEFAULT_GRADES = Object.freeze([
   Object.freeze({ id: 'bronze', name: '브론즈', kind: 'basic', enabled: true }),
@@ -54,7 +61,7 @@ export function createGrade(name = '새 등급', { id = createId('grade'), kind 
 
 /**
  * 초안은 사진 없이도 저장할 수 있다. 게시에는 실제 사진과 파생 결과가 필요하다.
- * rewardGrades는 점주가 캠페인의 기존 1·3·5회 목표에 외형을 직접 연결하기 전까지 비어 있다.
+ * rewardGrades는 방문 보상 게시 때 표준 1·3·5회 보상 외형으로 고정된다.
  * 테마 변경·등급 추가는 보상 연결과 효과 적용을 자동 변경하지 않는다.
  */
 export function createProject({ name = '새 수집품', campaignId = '' } = {}) {
@@ -89,19 +96,32 @@ export function createProject({ name = '새 수집품', campaignId = '' } = {}) 
   };
 }
 
-/** 새 점포 수집품은 기존 방문 목표의 외형을 미리 연결한다. 저장한 프로젝트에는 적용하지 않는다. */
-export function createMerchantStarterProject({ merchantName = '', menuName = '', suggested = false, campaigns = [], preferredCampaignId = '' } = {}) {
-  const eligible = campaigns.filter(campaign => campaign?.id &&
+export function standardVisitRewardGrades() {
+  return { ...STANDARD_VISIT_REWARD_GRADES };
+}
+
+export function isStandardVisitCampaign(campaign) {
+  return Boolean(campaign?.id) &&
     (!campaign.status || campaign.status === 'ACTIVE') &&
     Array.isArray(campaign.goals) &&
-    campaign.goals.length === 3 &&
-    [...campaign.goals].sort((a, b) => a - b).every((goal, index) => goal === [1, 3, 5][index]));
+    campaign.goals.length === STANDARD_VISIT_GOALS.length &&
+    [...campaign.goals].sort((a, b) => a - b).every((goal, index) => goal === STANDARD_VISIT_GOALS[index]);
+}
+
+export function applyStandardVisitRewards(project) {
+  project.rewardGrades = standardVisitRewardGrades();
+  return project;
+}
+
+/** 새 점포 수집품은 기존 방문 목표의 외형을 미리 연결한다. 저장한 프로젝트에는 적용하지 않는다. */
+export function createMerchantStarterProject({ merchantName = '', menuName = '', suggested = false, campaigns = [], preferredCampaignId = '' } = {}) {
+  const eligible = campaigns.filter(isStandardVisitCampaign);
   const campaignId = eligible.find(campaign => campaign.id === preferredCampaignId)?.id ??
     (eligible.length === 1 ? eligible[0].id : '');
   const store = merchantName.trim() || '우리 가게';
   const menu = typeof menuName === 'string' ? menuName.trim().slice(0, 40) : '';
   const project = createProject({ name: `${menu || store} 방문 수집품`, campaignId });
-  project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
+  applyStandardVisitRewards(project);
   if (!suggested) return project;
   const motifs = [
     { text: '⌂', color: '#58331f', layouts: { bronze: [.3, .29, 110], silver: [.2, .18, 20], gold: [.2, .18, 20] } },

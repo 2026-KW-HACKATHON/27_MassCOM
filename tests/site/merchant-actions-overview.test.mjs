@@ -137,7 +137,10 @@ test('체크리스트 제작 버튼은 선택 점포와 유일한 1·3·5 캠페
     await settle(30);
     assert.equal(f.doc.getElementById('merchant-creator-store').value, 'm1');
     assert.equal(f.doc.querySelector('[data-control="name"]').value, '월계 식당 방문 수집품');
-    assert.equal(f.doc.querySelector('[data-control="campaign"]').value, 'c1');
+    assert.equal(f.doc.querySelector('[data-control="campaign"]'), null);
+    assert.match(f.doc.querySelector('[data-view="campaign-status"]').textContent, /자동으로 연결/);
+    assert.equal(f.doc.querySelector('[data-reward-count]'), null);
+    assert.match(f.doc.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
     assert.equal(f.doc.activeElement.id, 'merchant-creator-title');
   } finally { f.window.dispatch({ type: 'pagehide' }); f.restore(); }
 });

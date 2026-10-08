@@ -64,15 +64,16 @@ test('story types disclose their source requirements and a single-photo zoom rem
   assert.equal(validateStory({ type: 'event', frames: [{}, {}, {}] }), '');
 });
 
-test('publication asks only for photo, name, campaign and explicit existing reward mapping', () => {
+test('publication asks only for photo, name, and fixed standard visit reward mapping', () => {
   const project = createProject({ name: '우리 가게 간판' });
   assert.match(validatePublish(project), /대표 사진/);
   project.photo = { originalDataUrl: 'data:image/png;base64,source', width: 100, height: 100 };
-  assert.match(validatePublish(project), /캠페인/);
-  project.campaignId = 'campaign'; assert.match(validatePublish(project), /방문 목표/);
-  project.rewardGrades = { '1': 'bronze' }; assert.equal(validatePublish(project), '');
+  assert.match(validatePublish(project), /방문 보상/);
+  project.campaignId = 'campaign'; assert.match(validatePublish(project), /방문 보상/);
+  project.rewardGrades = { '1': 'custom' }; assert.match(validatePublish(project), /방문 보상/);
+  project.rewardGrades = { '1': 'bronze', '3': 'silver', '5': 'gold' }; assert.equal(validatePublish(project), '');
   assert.equal(project.effects.length, 0); assert.equal(project.audio, null);
-  project.grades[0].enabled = false; assert.match(validatePublish(project), /방문 목표/);
+  project.grades[0].enabled = false; assert.match(validatePublish(project), /방문 보상/);
 });
 
 

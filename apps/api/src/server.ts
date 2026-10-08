@@ -866,14 +866,7 @@ export function createApiServer(
           if (kind === 'campaigns' && !target && request.method === 'GET') {
             sendJson(response, 200, { campaigns: await merchantOperations.listCampaigns(accountId, merchantId) });
           } else if (kind === 'campaigns' && target && operationMatch[4] === 'extend' && request.method === 'POST') {
-            const body = await readJson(request);
-            if (Object.keys(body).some(key => !['days','expectedEndsAt','consentAccepted','requestId'].includes(key)) ||
-                (body.days !== 30 && body.days !== 90) || body.consentAccepted !== true) {
-              throw new RequestError(400, 'INVALID_REQUEST');
-            }
-            sendJson(response, 200, await merchantOperations.extendCampaign({ accountId, merchantId, campaignId: target,
-              days: body.days, expectedEndsAt: requireString(body, 'expectedEndsAt'), consentAccepted: true,
-              requestId: requireString(body, 'requestId') }));
+            throw new RequestError(404, 'NOT_FOUND');
           } else if (kind === 'staff' && !target && request.method === 'GET') {
             sendJson(response, 200, { staff: await merchantOperations.listStaff(accountId, merchantId) });
           } else if (kind === 'staff' && target === 'approve' && request.method === 'POST') {

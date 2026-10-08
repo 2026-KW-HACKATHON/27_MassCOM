@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFileSync } from 'node:fs';
 
 import { configureMerchantOperations } from '../../apps/production-web/assets/merchant.mjs';
+
+const merchantHtml = readFileSync(new URL('../../apps/production-web/merchant.html', import.meta.url), 'utf8');
 
 function node() {
   const listeners = new Map();
@@ -21,14 +24,12 @@ function node() {
 }
 
 test('merchant CSV control downloads a real Blob with the chosen KST date range', async () => {
-  const ids = ['merchant-operations', 'merchant-operations-merchant', 'merchant-extension-campaign',
-    'merchant-extension-status', 'merchant-extension-current', 'merchant-staff-list', 'merchant-staff-status',
-    'merchant-export-status', 'merchant-extension-form', 'merchant-staff-approve', 'merchant-export-form'];
+  const ids = ['merchant-operations', 'merchant-operations-merchant', 'merchant-staff-list', 'merchant-staff-status',
+    'merchant-export-status', 'merchant-staff-approve', 'merchant-export-form'];
   const nodes = Object.fromEntries(ids.map(id => [id, node()]));
   const form = nodes['merchant-export-form'];
   form.button = node();
   form.elements = { from: { value: '2026-10-01' }, to: { value: '2026-10-07' } };
-  nodes['merchant-extension-form'].button = node();
   nodes['merchant-staff-approve'].button = node();
   const links = [];
   const doc = {
@@ -39,7 +40,6 @@ test('merchant CSV control downloads a real Blob with the chosen KST date range'
   const calls = [];
   const fetcher = async (url, options) => {
     calls.push({ url, options });
-    if (url.endsWith('/campaigns')) return { ok: true, json: async () => ({ campaigns: [] }) };
     if (url.endsWith('/staff')) return { ok: true, json: async () => ({ staff: [] }) };
     if (url.includes('/visits.csv?')) return { ok: true, blob: async () => new Blob(['\uFEFF방문일\r\n']) };
     throw new Error(`unexpected URL ${url}`);
@@ -53,6 +53,7 @@ test('merchant CSV control downloads a real Blob with the chosen KST date range'
     configureMerchantOperations(fetcher, doc, [{ id: 'shop-a', name: '가게 A', role: 'OWNER' }]);
     await form.dispatch('submit');
     assert.equal(nodes['merchant-operations'].hidden, false);
+    assert.deepEqual(calls.map(call => call.url).filter(url => url.endsWith('/campaigns')), []);
     assert.equal(calls.at(-1).url,
       '/api/web/merchant/merchants/shop-a/visits.csv?from=2026-10-01&to=2026-10-07');
     assert.equal(calls.at(-1).options.credentials, 'same-origin');
@@ -65,4 +66,10 @@ test('merchant CSV control downloads a real Blob with the chosen KST date range'
     URL.createObjectURL = create;
     URL.revokeObjectURL = revoke;
   }
+});
+
+test('merchant operations do not expose campaign extension controls', () => {
+  assert.match(merchantHtml, /방문 보상은 플랫폼의 1·3·5회 기준으로 고정됩니다/);
+  assert.doesNotMatch(merchantHtml, /merchant-extension/);
+  assert.doesNotMatch(merchantHtml, /캠페인 연장|연장 기간|기간 연장 확정/);
 });
