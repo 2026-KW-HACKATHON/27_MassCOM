@@ -104,7 +104,7 @@ export function respondWithError(response: ServerResponse, error: unknown): void
   }
   if (error instanceof CollectibleProjectError) {
     const status = error.code === 'COLLECTIBLE_INVALID_PROJECT' ? 400
-      : error.code === 'COLLECTIBLE_MEDIA_TOO_LARGE' ? 413
+      : error.code === 'COLLECTIBLE_MEDIA_TOO_LARGE' || error.code === 'COLLECTIBLE_PUBLICATION_SIZE_LIMIT' ? 413
       : error.code === 'COLLECTIBLE_PROJECT_NOT_FOUND' || error.code === 'COLLECTIBLE_NOT_FOUND' ? 404
       : error.code === 'ACCOUNT_DELETED' ? 410 : 409;
     sendJson(response, status, { code: error.code });

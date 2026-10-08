@@ -1,0 +1,464 @@
+{
+  "generatedAt": "2026-10-08T04:55:47.492Z",
+  "git": "41792470 Let store owners choose AI drafts or prepared images before collectible editing",
+  "postgresState": "already-running",
+  "databaseName": "masscom_showcase_ci_202610082fea38_test",
+  "databaseUrl": "postgresql://masscom_qa@127.0.0.1:55437/masscom_showcase_ci_202610082fea38_test",
+  "apiBaseUrl": "http://127.0.0.1:3309",
+  "merchant": {
+    "id": "qa-wolgye-dalbit-bakery-20261008",
+    "campaignId": "qa-wolgye-dalbit-campaign-20261008",
+    "name": "QA 가상 월계 달빛빵집",
+    "category": "베이커리",
+    "neighborhood": "월계동",
+    "address": "서울 노원구 월계동 월계역 1번 출구 앞 상권 (QA 가상 위치 · 실제 매장 아님)",
+    "latitude": 37.63337,
+    "longitude": 127.05878
+  },
+  "database": {
+    "id": "qa-wolgye-dalbit-bakery-20261008",
+    "name": "QA 가상 월계 달빛빵집",
+    "road_address": "서울 노원구 월계동 월계역 1번 출구 앞 상권 (QA 가상 위치 · 실제 매장 아님)",
+    "neighborhood": "월계동",
+    "category": "베이커리",
+    "is_demo": true,
+    "published_at": "2026-10-08T04:55:44.084Z",
+    "latitude": 37.63337,
+    "longitude": 127.05878,
+    "campaign_id": "qa-wolgye-dalbit-campaign-20261008",
+    "goals": [
+      1,
+      3,
+      5
+    ],
+    "publication_id": "98be966f-f383-40a1-a2c9-f3a92e73d40d"
+  },
+  "qaSeed": {
+    "photos": [
+      {
+        "digest": "4df6338ee307e7a4e19a2a205b8b3fadda779854014370c95829ece90f73c4e8",
+        "width": 1024,
+        "height": 1536,
+        "kind": "STORE",
+        "caption": "첨부 최신 이미지: 월계 마스코트 사장님 제작 도구 4단계 시안",
+        "createdAt": "2026-10-08T04:55:44.084Z"
+      },
+      {
+        "digest": "e45f311a0fe33b27f8478b37913b18015c3007db216c3eca2c029a530113e0ce",
+        "width": 1536,
+        "height": 1024,
+        "kind": "SIGN",
+        "caption": "첨부 최신 이미지: 자유 제작과 시즌 확장 스튜디오 시안",
+        "createdAt": "2026-10-08T04:55:45.084Z"
+      }
+    ],
+    "collectible": {
+      "projectId": "e02e3174-e467-4f37-97af-d37539ad1f32",
+      "publicationId": "98be966f-f383-40a1-a2c9-f3a92e73d40d",
+      "campaignId": "qa-wolgye-dalbit-campaign-20261008",
+      "accountId": "qa-wolgye-dalbit-staff-20261008",
+      "role": "STAFF",
+      "service": "PostgresCollectibleProjectService.create/publish",
+      "rewardGrades": {
+        "1": "bronze",
+        "3": "custom",
+        "5": "gold"
+      }
+    }
+  },
+  "http": {
+    "legacyMerchant": {
+      "id": "qa-wolgye-dalbit-bakery-20261008",
+      "name": "QA 가상 월계 달빛빵집",
+      "story": "QA 검증용 가상 점포입니다. 실제 영업점이나 방문 혜택이 아니며 점주 웹/앱 연결 QA에만 사용합니다.",
+      "roadAddress": "서울 노원구 월계동 월계역 1번 출구 앞 상권 (QA 가상 위치 · 실제 매장 아님)",
+      "minimumSpendWon": 0,
+      "menuItems": [
+        {
+          "name": "월계 달빛 소금빵",
+          "priceWon": 3800
+        }
+      ],
+      "businessHours": "매일 08:00-22:00 (QA 가상 영업시간)",
+      "category": "베이커리",
+      "campaign": {
+        "id": "qa-wolgye-dalbit-campaign-20261008",
+        "title": "QA 1·3·5 코인 수집 캠페인",
+        "startsAt": "2026-10-01T04:55:44.084Z",
+        "endsAt": "2026-11-22T04:55:44.084Z",
+        "enrollmentStatus": "OPEN",
+        "rewardGoals": [
+          {
+            "targetVisitCount": 1,
+            "displayName": "첫 코인 · 브론즈 달빛빵"
+          },
+          {
+            "targetVisitCount": 3,
+            "displayName": "세 번째 코인 · 실버 달빛빵"
+          },
+          {
+            "targetVisitCount": 5,
+            "displayName": "다섯 번째 코인 · 골드 달빛빵"
+          }
+        ]
+      },
+      "demo": true,
+      "artUrl": null,
+      "visitorTags": []
+    },
+    "discoverySearchBody": {
+      "bounds": {
+        "west": 127.03,
+        "south": 37.61,
+        "east": 127.08,
+        "north": 37.65
+      },
+      "zoom": 16,
+      "query": "달빛빵집",
+      "campaignOnly": true,
+      "origin": {
+        "latitude": 37.633,
+        "longitude": 127.059,
+        "basis": "MAP_CENTER"
+      },
+      "limit": 10
+    },
+    "discoveryMerchant": {
+      "id": "qa-wolgye-dalbit-bakery-20261008",
+      "name": "QA 가상 월계 달빛빵집",
+      "roadAddress": "서울 노원구 월계동 월계역 1번 출구 앞 상권 (QA 가상 위치 · 실제 매장 아님)",
+      "category": "베이커리",
+      "demo": true,
+      "profileVersion": 1,
+      "position": {
+        "latitude": 37.63337,
+        "longitude": 127.05878
+      },
+      "positionBasis": "OWNED",
+      "positionExpiresAt": null,
+      "floor": "1층",
+      "entranceNote": "QA용 가상 위치입니다. 실제 매장 방문 장소가 아닙니다.",
+      "thumbnail": {
+        "id": "57c23098-1708-4d2c-b055-396ded48f5ed",
+        "url": "/v1/discovery/photos/e45f311a0fe33b27f8478b37913b18015c3007db216c3eca2c029a530113e0ce",
+        "width": 1536,
+        "height": 1024,
+        "kind": "SIGN",
+        "source": "OWNER_PHOTO",
+        "caption": "첨부 최신 이미지: 자유 제작과 시즌 확장 스튜디오 시안",
+        "updatedAt": "2026-10-08T04:55:45.084Z"
+      },
+      "business": {
+        "state": "OPEN",
+        "lastOrderAt": "2026-10-08T12:30:00.000Z",
+        "acceptingOrders": true,
+        "basis": "SCHEDULE",
+        "evaluatedAt": "2026-10-08T04:55:47.409Z",
+        "nextChangeAt": "2026-10-08T12:30:00.000Z",
+        "informationUpdatedAt": "2026-10-08T04:55:44.084Z"
+      },
+      "campaign": {
+        "id": "qa-wolgye-dalbit-campaign-20261008",
+        "title": "QA 1·3·5 코인 수집 캠페인",
+        "startsAt": "2026-10-01T04:55:44.084Z",
+        "endsAt": "2026-11-22T04:55:44.084Z",
+        "state": "ACTIVE",
+        "enrollment": "OPEN",
+        "rewardAvailability": "AVAILABLE",
+        "goals": [
+          {
+            "displayName": "첫 코인 · 브론즈 달빛빵",
+            "targetVisitCount": 1
+          },
+          {
+            "displayName": "세 번째 코인 · 실버 달빛빵",
+            "targetVisitCount": 3
+          },
+          {
+            "displayName": "다섯 번째 코인 · 골드 달빛빵",
+            "targetVisitCount": 5
+          }
+        ]
+      },
+      "distance": {
+        "meters": 45,
+        "kind": "STRAIGHT_LINE",
+        "origin": "MAP_CENTER"
+      }
+    },
+    "detail": {
+      "id": "qa-wolgye-dalbit-bakery-20261008",
+      "name": "QA 가상 월계 달빛빵집",
+      "roadAddress": "서울 노원구 월계동 월계역 1번 출구 앞 상권 (QA 가상 위치 · 실제 매장 아님)",
+      "category": "베이커리",
+      "demo": true,
+      "profileVersion": 1,
+      "position": {
+        "latitude": 37.63337,
+        "longitude": 127.05878
+      },
+      "positionBasis": "OWNED",
+      "positionExpiresAt": null,
+      "floor": "1층",
+      "entranceNote": "QA용 가상 위치입니다. 실제 매장 방문 장소가 아닙니다.",
+      "thumbnail": {
+        "id": "57c23098-1708-4d2c-b055-396ded48f5ed",
+        "url": "/v1/discovery/photos/e45f311a0fe33b27f8478b37913b18015c3007db216c3eca2c029a530113e0ce",
+        "width": 1536,
+        "height": 1024,
+        "kind": "SIGN",
+        "source": "OWNER_PHOTO",
+        "caption": "첨부 최신 이미지: 자유 제작과 시즌 확장 스튜디오 시안",
+        "updatedAt": "2026-10-08T04:55:45.084Z"
+      },
+      "business": {
+        "state": "OPEN",
+        "lastOrderAt": "2026-10-08T12:30:00.000Z",
+        "acceptingOrders": true,
+        "basis": "SCHEDULE",
+        "evaluatedAt": "2026-10-08T04:55:47.415Z",
+        "nextChangeAt": "2026-10-08T12:30:00.000Z",
+        "informationUpdatedAt": "2026-10-08T04:55:44.084Z"
+      },
+      "campaign": {
+        "id": "qa-wolgye-dalbit-campaign-20261008",
+        "title": "QA 1·3·5 코인 수집 캠페인",
+        "startsAt": "2026-10-01T04:55:44.084Z",
+        "endsAt": "2026-11-22T04:55:44.084Z",
+        "state": "ACTIVE",
+        "enrollment": "OPEN",
+        "rewardAvailability": "AVAILABLE",
+        "goals": [
+          {
+            "displayName": "첫 코인 · 브론즈 달빛빵",
+            "targetVisitCount": 1
+          },
+          {
+            "displayName": "세 번째 코인 · 실버 달빛빵",
+            "targetVisitCount": 3
+          },
+          {
+            "displayName": "다섯 번째 코인 · 골드 달빛빵",
+            "targetVisitCount": 5
+          }
+        ]
+      },
+      "distance": null,
+      "location": {
+        "building": {
+          "latitude": 37.63337,
+          "longitude": 127.05878
+        },
+        "entrance": {
+          "latitude": 37.63341,
+          "longitude": 127.05881
+        },
+        "floor": "1층",
+        "unit": null,
+        "entranceNote": "QA용 가상 위치입니다. 실제 매장 방문 장소가 아닙니다.",
+        "source": "OWNER_DECLARED",
+        "verifiedAt": "2026-10-08T04:55:44.084Z"
+      },
+      "schedule": {
+        "weekly": [
+          {
+            "periods": [
+              {
+                "endMinute": 1320,
+                "startMinute": 480,
+                "lastOrderMinute": 1290
+              }
+            ],
+            "weekday": 1
+          },
+          {
+            "periods": [
+              {
+                "endMinute": 1320,
+                "startMinute": 480,
+                "lastOrderMinute": 1290
+              }
+            ],
+            "weekday": 2
+          },
+          {
+            "periods": [
+              {
+                "endMinute": 1320,
+                "startMinute": 480,
+                "lastOrderMinute": 1290
+              }
+            ],
+            "weekday": 3
+          },
+          {
+            "periods": [
+              {
+                "endMinute": 1320,
+                "startMinute": 480,
+                "lastOrderMinute": 1290
+              }
+            ],
+            "weekday": 4
+          },
+          {
+            "periods": [
+              {
+                "endMinute": 1320,
+                "startMinute": 480,
+                "lastOrderMinute": 1290
+              }
+            ],
+            "weekday": 5
+          },
+          {
+            "periods": [
+              {
+                "endMinute": 1320,
+                "startMinute": 480,
+                "lastOrderMinute": 1290
+              }
+            ],
+            "weekday": 6
+          },
+          {
+            "periods": [
+              {
+                "endMinute": 1320,
+                "startMinute": 480,
+                "lastOrderMinute": 1290
+              }
+            ],
+            "weekday": 7
+          }
+        ],
+        "timezone": "Asia/Seoul",
+        "exceptions": [],
+        "verifiedAt": "2026-10-08T04:55:44.084Z"
+      },
+      "todayOverride": null,
+      "menuItems": [
+        {
+          "id": "moon-bread",
+          "name": "월계 달빛 소금빵",
+          "photoId": null,
+          "priceWon": 3800,
+          "priceNote": null
+        },
+        {
+          "id": "qa-coffee",
+          "name": "QA 아메리카노",
+          "photoId": null,
+          "priceWon": 2500,
+          "priceNote": "시연용 메뉴"
+        }
+      ],
+      "visitInstructions": "QA 가상 점포입니다. 앱 노출과 길찾기 데이터 연결만 확인하고 실제 방문을 안내하지 않습니다.",
+      "contact": {
+        "phone": null,
+        "website": "https://masscom.kr/preview/"
+      },
+      "story": "QA 검증용 가상 점포입니다. 실제 영업점이나 방문 혜택이 아니며 점주 웹/앱 연결 QA에만 사용합니다.",
+      "legacyBusinessHours": "매일 08:00-22:00 (QA 가상 영업시간)",
+      "minimumSpendWon": 0,
+      "photos": [
+        {
+          "id": "57c23098-1708-4d2c-b055-396ded48f5ed",
+          "url": "/v1/discovery/photos/e45f311a0fe33b27f8478b37913b18015c3007db216c3eca2c029a530113e0ce",
+          "width": 1536,
+          "height": 1024,
+          "kind": "SIGN",
+          "source": "OWNER_PHOTO",
+          "caption": "첨부 최신 이미지: 자유 제작과 시즌 확장 스튜디오 시안",
+          "updatedAt": "2026-10-08T04:55:45.084Z"
+        },
+        {
+          "id": "35d52659-e130-49b3-acfd-ee9f776e90ea",
+          "url": "/v1/discovery/photos/4df6338ee307e7a4e19a2a205b8b3fadda779854014370c95829ece90f73c4e8",
+          "width": 1024,
+          "height": 1536,
+          "kind": "STORE",
+          "source": "OWNER_PHOTO",
+          "caption": "첨부 최신 이미지: 월계 마스코트 사장님 제작 도구 4단계 시안",
+          "updatedAt": "2026-10-08T04:55:44.084Z"
+        }
+      ],
+      "updatedAt": "2026-10-08T04:55:44.084Z"
+    },
+    "gameContext": {
+      "merchantId": "qa-wolgye-dalbit-bakery-20261008",
+      "merchantName": "QA 가상 월계 달빛빵집",
+      "roadAddress": "서울 노원구 월계동 월계역 1번 출구 앞 상권 (QA 가상 위치 · 실제 매장 아님)",
+      "profileVersion": 1,
+      "menuItems": [
+        {
+          "id": "moon-bread",
+          "name": "월계 달빛 소금빵",
+          "photoId": null,
+          "priceWon": 3800,
+          "priceNote": null
+        },
+        {
+          "id": "qa-coffee",
+          "name": "QA 아메리카노",
+          "photoId": null,
+          "priceWon": 2500,
+          "priceNote": "시연용 메뉴"
+        }
+      ],
+      "photos": [
+        {
+          "id": "57c23098-1708-4d2c-b055-396ded48f5ed",
+          "url": "/v1/discovery/photos/e45f311a0fe33b27f8478b37913b18015c3007db216c3eca2c029a530113e0ce",
+          "width": 1536,
+          "height": 1024,
+          "kind": "SIGN",
+          "source": "OWNER_PHOTO",
+          "caption": "첨부 최신 이미지: 자유 제작과 시즌 확장 스튜디오 시안",
+          "updatedAt": "2026-10-08T04:55:45.084Z"
+        },
+        {
+          "id": "35d52659-e130-49b3-acfd-ee9f776e90ea",
+          "url": "/v1/discovery/photos/4df6338ee307e7a4e19a2a205b8b3fadda779854014370c95829ece90f73c4e8",
+          "width": 1024,
+          "height": 1536,
+          "kind": "STORE",
+          "source": "OWNER_PHOTO",
+          "caption": "첨부 최신 이미지: 월계 마스코트 사장님 제작 도구 4단계 시안",
+          "updatedAt": "2026-10-08T04:55:44.084Z"
+        }
+      ],
+      "campaign": {
+        "id": "qa-wolgye-dalbit-campaign-20261008",
+        "title": "QA 1·3·5 코인 수집 캠페인",
+        "startsAt": "2026-10-01T04:55:44.084Z",
+        "endsAt": "2026-11-22T04:55:44.084Z",
+        "state": "ACTIVE",
+        "enrollment": "OPEN",
+        "rewardAvailability": "AVAILABLE",
+        "goals": [
+          {
+            "displayName": "첫 코인 · 브론즈 달빛빵",
+            "targetVisitCount": 1
+          },
+          {
+            "displayName": "세 번째 코인 · 실버 달빛빵",
+            "targetVisitCount": 3
+          },
+          {
+            "displayName": "다섯 번째 코인 · 골드 달빛빵",
+            "targetVisitCount": 5
+          }
+        ]
+      }
+    },
+    "publicPhotoBytes": 241088
+  },
+  "appBridge": {
+    "apiUrl": "http://127.0.0.1:3309",
+    "auth": "local demo only: ALLOW_INSECURE_DEMO_ACCOUNT=true, use x-account-id for staff/customer test calls; public discovery endpoints need no login",
+    "customerAccount": "showcase-local-customer",
+    "staffAccount": "showcase-local-staff",
+    "qaMerchantId": "qa-wolgye-dalbit-bakery-20261008"
+  }
+}

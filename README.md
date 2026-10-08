@@ -104,10 +104,22 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #424·#426 반영 main `0801c1ce`를 병합한 기준): API 단위 662/662 · 모바일 2127/2127. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #418·#424·#426 반영 main `a8ed0dd1`를 병합한 기준): API 단위 670/670 · 모바일 2132/2132. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 Issue #412 T3 PR 2의 캠페인 혜택·발급 상한·추가 원가 패널·고객 쿠폰 수령은 로컬 구현/검증됐다([D-094](docs/DECISIONS.md), [실행 결과](docs/TEST_STATUS.md)). 운영·시연 배포와 설치본은 바꾸지 않았다(소유자 결정 A).
 코스(Issue #412 T4 A)는 서로 다른 가게 2–4곳에서 받은 코인을 모아 팀이 정한 장면을 여는 기능입니다. 방문 상황에 맞춘 코스를 팀이 구성하고 각 점주의 참여 동의 참조를 기록합니다. 완료는 서버가 보상권으로 확인하고, 리롤은 진행을 지우지 않으며 취소된 방문은 다시 미완료가 됩니다. 완성 재화·쿠폰은 없습니다. 현재 이용할 수 없는 가게는 단계 완료에서 제외하고, 중지·종료된 코스의 장면은 이미 연 사용자에게도 숨깁니다. 코드만 구현했고 배포하지 않았습니다([D-093](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
+
+PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이전 기준선·브랜치별 검증은 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
+점주 웹 두 진입 경로·다음/이전으로 넘기는 단계별 제작기·큰 사진 입력 제한·최근 등록 사진과 로컬 가상 가게의 고객 앱 노출은 [PR #418](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/418)에서 검증했다. [화면과 전달 조건](docs/evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)을 함께 확인한다. 공개 서비스에는 아직 배포하지 않았다.
+
+최신 후속은 프리즘까지 네 기본 등급과 활성 추가 등급을 모두 발행한다. 프리즘 앞뒤 색은 청록·분홍·보라로 강화했고 뒷면12종은 동일한512px WebP749.1KiB로 줄였다. 추가 등급 ID를 보존하며 총16등급과 전체8MiB 상한을 지킨다. [새 색감·용량 실측·저장 후 회전 비교](docs/evidence/prism-collectibles-2026-10-08/README.md)를 PR에 포함했다. 방문 지급은 1회 브론즈·3회 실버·5회 골드로 유지한다.
+
+앞선 구현에서 원형·우표형·톱니형 × 브론즈·실버·골드·프리즘의 고정 음각 뒷면 12종을 추가했다. 웹·앱은 같은 확정 이미지를 재사용하고 기존 발행본의 뒷면은 유지한다. 사이트 390/390, 모바일 1992/1992, Android export의 12종 번들 포함을 확인했다. [실제 렌더링·생성 프롬프트·배포 크기](docs/evidence/fixed-collectible-backs-2026-10-08/README.md)를 함께 확인한다.
+
+소유자의 추가 요청을 반영해 점주 화면은 방문 보상 만들기·방문 확인·운영 결과로 나눴다. 메뉴 등록 없이 **사진 배치 → 사진 편집 → 코인 만들기 → 결과·방문 보상** 순서로 진행한다. 도구 모음·화살표 실행 취소·RGB/HEX 바탕색과 등급별 금속 음각·양각을 적용했다. [첨부 그림을 마우스로 편집한 실제 화면과 저장 결과](docs/evidence/merchant-photo-editor-2026-10-08/README.md)를 PR에 포함한다. 이 변경도 운영 배포 전이다.
+
+PR #425 병합 전 검증 기록(2026-10-08 KST, Issue #412 T3 브랜치 `feat/purpose-campaigns`에 PR #420·#423 반영 main `8841efea`를 병합한 기준): API 단위 615/615 · 모바일 2093/2093. 두 수치 모두 병합 후 이 브랜치에서 측정했습니다(main 대비 API 18건·모바일 16건 증가, PostgreSQL 통합은 543건 중 540 pass / 0 fail / 3 skip). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
 

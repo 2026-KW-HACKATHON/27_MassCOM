@@ -61,10 +61,17 @@ test('secondary merchant rows render the disclosure from their IDs', () => {
     ['../screens/friends/passport.tsx', '{displayName}', { displayName: disclosed, ui: styles }],
     ['../screens/collection/envelope/envelope-card.tsx', '{merchantName} ·', { merchantName: disclosed, collectible: { gradeName: '금' } }],
     ['../screens/collection/envelope/envelope-reveal.tsx', '{merchantName} 시리즈', { merchantName: disclosed, series: { slots: [{ owned: true }] } }],
-    ['../screens/collection/collectible-default-back.tsx', '{merchantName}', { merchantName: disclosed, colors: styles, size: 120 }],
     ['../ui/passport-stamp-page.tsx', '{stamp.name}', { stamp: { name: disclosed } }],
   ];
   for (const [path, marker, bindings] of rows) assert.ok(renderedText(path, marker, bindings).includes(disclosed), path);
+});
+
+test('fixed v2 backs omit store text while the surrounding detail discloses the store', () => {
+  const back = readFileSync(new URL('../screens/collection/collectible-default-back.tsx', import.meta.url), 'utf8');
+  assert.match(back, /<FixedBackImage shape=\{shape\} source=\{source\} size=\{size\}/);
+  assert.doesNotMatch(back, /<Text\b|\{merchantName\}/);
+  assert.ok(renderedText('../screens/collection/collectible-detail.tsx', 'merchantId, merchantName',
+    { merchantId: id, merchantName: name, snapshot: { gradeName: '금', theme: { name: '방문' } } }).includes(disclosed));
 });
 
 test('studio share image visibly identifies a non-participating real store', () => {

@@ -1,0 +1,98 @@
+[
+  {
+    "file": "circle-bronze.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3749484,
+    "sha256": "c03e354a03854bf1e845c376eb4fd016298b5ced34489b8526f6b0970533e6ba",
+    "mobileIdentical": true
+  },
+  {
+    "file": "circle-gold.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3400657,
+    "sha256": "5d6acd8623632e79e1e2188a82a1b383cb5b335c6cded40e9c5da859e82d2ba5",
+    "mobileIdentical": true
+  },
+  {
+    "file": "circle-prism.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3417409,
+    "sha256": "24d004ba401d348cf9a5b011457b7a59d486a3358b00791269192d31777fdcd2",
+    "mobileIdentical": true
+  },
+  {
+    "file": "circle-silver.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3340063,
+    "sha256": "7f192828bb842fe5cb40265fe73d292a67416fc0f34e6513dddaa3423595d227",
+    "mobileIdentical": true
+  },
+  {
+    "file": "serrated-bronze.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3683132,
+    "sha256": "fa3ee80ed767d37b7ef1c90e5e3d6579795c0823281285f203682020654f8131",
+    "mobileIdentical": true
+  },
+  {
+    "file": "serrated-gold.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3398116,
+    "sha256": "792c8538b75d858ee3da2f704475a782c5fa70d8c1b798f094a1a1dd570b62ae",
+    "mobileIdentical": true
+  },
+  {
+    "file": "serrated-prism.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3760237,
+    "sha256": "e6bdb05457d2ca6591f59318f592379821beeba5a4a59a73c65b9451bb6f900b",
+    "mobileIdentical": true
+  },
+  {
+    "file": "serrated-silver.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3613983,
+    "sha256": "565cd1d92fd591f89c8d5dc318c03446846fa223c9762258a353e8ed3e81cda6",
+    "mobileIdentical": true
+  },
+  {
+    "file": "stamp-bronze.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3410237,
+    "sha256": "431962007ad1144559b2c94dbce404f680684f39dc2e3743ed8cb86b188b3d28",
+    "mobileIdentical": true
+  },
+  {
+    "file": "stamp-gold.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3179324,
+    "sha256": "33daf2284a49728d05db323bbe857ac9c8061ab83b274a5998681dfaa9916c8a",
+    "mobileIdentical": true
+  },
+  {
+    "file": "stamp-prism.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3457750,
+    "sha256": "c1e9019f6b32398865dd12db950a593cf6ba3b099a257090dc4367e7bfc132dc",
+    "mobileIdentical": true
+  },
+  {
+    "file": "stamp-silver.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 3498670,
+    "sha256": "d73283dbc3f64de75772a9295d906c194769b0989ca8a25944f22403435cf03a",
+    "mobileIdentical": true
+  }
+]

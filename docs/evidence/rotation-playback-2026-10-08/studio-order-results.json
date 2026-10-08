@@ -1,0 +1,61 @@
+{
+  "synthetic": true,
+  "origin": "http://127.0.0.1:4193",
+  "projectId": "206fcfac-b12c-40bb-9519-07dfdaf6186d",
+  "publicationId": "34355d4f-0448-45fe-b16e-f913344ff2a2",
+  "version": 3,
+  "rotationSpeed": 2,
+  "thickness": 48,
+  "acquiredSnapshotSpeed": 2,
+  "acquiredSnapshotThickness": 48,
+  "grades": [
+    "bronze",
+    "silver",
+    "gold",
+    "prism"
+  ],
+  "nameStep": 1,
+  "animationStep": 3,
+  "motionDefaultOpen": true,
+  "nameWeight": 700,
+  "titleWeight": 800,
+  "resultHasName": false,
+  "resultHasAnimation": false,
+  "captures": [
+    {
+      "file": "01-play-speed-2x.jpg",
+      "bytes": 66687,
+      "sha256": "c0e82cc2f0578ace95df4ba6162bd3cb94a67e01fe4aa678bd020052b296997b"
+    },
+    {
+      "file": "02-saved-speed-2x.jpg",
+      "bytes": 73040,
+      "sha256": "479096f577ff4561ad85f0522954b0a269d2c81c4fa8b3706a50377d343f20a5"
+    },
+    {
+      "file": "03-name-first-step.jpg",
+      "bytes": 58573,
+      "sha256": "4a98bed4d1e5d024402f6cec950b26c03058729de68f2c9ef0b0deb93c7d70df"
+    },
+    {
+      "file": "04-animation-open.jpg",
+      "bytes": 75921,
+      "sha256": "52550b253a51073e612c6fc681df733b14818eb6ce3c57126086d458974ea7a2"
+    },
+    {
+      "file": "05-materials-third-step.jpg",
+      "bytes": 75489,
+      "sha256": "d3f84993fb517340531415c2984e59eee9251e81b38b3abc478b7600af5c6552"
+    },
+    {
+      "file": "06-thickness-48.jpg",
+      "bytes": 71254,
+      "sha256": "376a0b15578855294e63ae8519ffb6d263ef2d84ffa27d7b16f8b58539b66876"
+    },
+    {
+      "file": "07-result-rewards-only.jpg",
+      "bytes": 74468,
+      "sha256": "b845435029f3ca592c07e97646cead6c55b68c0d5b51c12f35b02fbf1ffaf2f3"
+    }
+  ]
+}

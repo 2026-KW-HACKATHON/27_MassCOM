@@ -5,7 +5,7 @@ import {
   CollectibleProjectError, type CollectibleArtwork, type CollectibleDetail, type CollectibleProject, type CollectibleProjectService,
   type CollectibleCampaign, type CollectibleProjectSummary, type CollectibleProjectView, type CollectibleUnpublishResult,
 } from '../collectible-project.js';
-import { collectibleSnapshot, upgradeCollectibleProject, validateCollectibleProject } from '../collectible-project-rules.js';
+import { assertCollectiblePublicationGradeRowsSize, collectibleSnapshot, upgradeCollectibleProject, validateCollectibleProject } from '../collectible-project-rules.js';
 import { MerchantAccessError } from '../merchant-access.js';
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 
@@ -19,6 +19,34 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type MerchantInput = { merchantId: string; accountId: string };
 type ProjectInput = MerchantInput & { projectId: string };
 type VersionInput = ProjectInput & { expectedVersion: number };
+const standardVisitGoals = [1, 3, 5] as const;
+const standardVisitRewardGrades = { '1': 'bronze', '3': 'silver', '5': 'gold' } as const;
+const standardVisitPublicationGradeIds = ['bronze', 'silver', 'gold', 'prism'] as const;
+function publicationGradeIds(project: CollectibleProject): string[] {
+  return project.grades.filter(grade => grade.enabled).map(grade => grade.id);
+}
+
+export function isStandardVisitGoalSet(goals: readonly number[]): boolean {
+  const counts = [...goals].sort((a, b) => a - b);
+  return counts.length === standardVisitGoals.length && counts.every((goal, index) => goal === standardVisitGoals[index]);
+}
+
+export function standardizeStandardVisitPublicationProject(project: unknown): CollectibleProject {
+  const draft = upgradeCollectibleProject(project);
+  draft.rewardGrades = { ...standardVisitRewardGrades };
+  if (Array.isArray(draft.grades) && standardVisitPublicationGradeIds.some(gradeId =>
+    !draft.grades.some(grade => grade?.id === gradeId && grade.enabled))) {
+    throw new CollectibleProjectError('COLLECTIBLE_DEFAULT_GRADE_MISSING');
+  }
+  const result = validateCollectibleProject(draft, true);
+  for (const gradeId of publicationGradeIds(result)) {
+    if (!Object.hasOwn(result.derived, gradeId)) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+    if (result.living.items.some(item => item.gradeIds.includes(gradeId)) && !result.derived[gradeId]?.living) {
+      throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+    }
+  }
+  return result;
+}
 
 export class PostgresCollectibleProjectService implements CollectibleProjectService {
   constructor(private readonly pool: Pool, private readonly options: { staffMayManageArt?: boolean; accountLifecycle?: PostgresAccountLifecycle; now?: () => Date } = {}) {}
@@ -54,7 +82,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
          ORDER BY campaign.starts_at DESC, campaign.id`, [input.merchantId, this.now()]);
       return result.rows.map(row => ({
         id: row.id, title: row.title, status: 'ACTIVE' as const, startsAt: row.starts_at.toISOString(), endsAt: row.ends_at.toISOString(),
-        goals: row.goals.filter((goal): goal is 1 | 3 | 5 => goal === 1 || goal === 3 || goal === 5),
+        goals: row.goals,
         publication: row.publication_id && row.project_id ? { publicationId: row.publication_id, projectId: row.project_id } : null,
       }));
     });
@@ -93,19 +121,20 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
         'SELECT count(*)::int AS count FROM collectible_publications WHERE merchant_id = $1 AND media_removed_at IS NULL', [input.merchantId]);
       if (stored.rows[0]!.count >= collectiblePublicationLimit) throw new CollectibleProjectError('COLLECTIBLE_PUBLICATION_LIMIT');
       // Validate, decode and strip every grade before the campaign lock: claims on this campaign wait only for the insert below.
-      const project = validateCollectibleProject(row.project, true);
+      const project = standardizeStandardVisitPublicationProject(row.project);
       const goals = await client.query<{ target_visit_count: number }>(
         `SELECT goal.target_visit_count FROM campaign_goals goal JOIN campaigns campaign ON campaign.id = goal.campaign_id
          WHERE goal.campaign_id = $1 AND campaign.merchant_id = $2`, [input.campaignId, input.merchantId]);
-      if (Object.keys(project.rewardGrades).some(goal => !goals.rows.some(g => String(g.target_visit_count) === goal))) throw new CollectibleProjectError('COLLECTIBLE_CAMPAIGN_UNAVAILABLE');
+      if (!isStandardVisitGoalSet(goals.rows.map(goal => goal.target_visit_count))) throw new CollectibleProjectError('COLLECTIBLE_CAMPAIGN_UNAVAILABLE');
       const publicationId = randomUUID();
-      const grades: { gradeId: string; summary: CollectibleArtwork; detail: Omit<CollectibleDetail, keyof CollectibleArtwork> }[] = [];
-      for (const gradeId of new Set(Object.values(project.rewardGrades))) {
-        if (!gradeId) continue;
+      const grades: { gradeId: string; summary: string; detail: string }[] = [];
+      for (const gradeId of publicationGradeIds(project)) {
         const { projectId, publicationId: _publication, gradeId: _grade, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
           collectibleSnapshot(project, row.id, publicationId, gradeId);
-        grades.push({ gradeId, summary: { projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }, detail });
+        grades.push({ gradeId, summary: JSON.stringify({ projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }),
+          detail: JSON.stringify(detail) });
       }
+      assertCollectiblePublicationGradeRowsSize(grades);
       // Claim capture holds FOR KEY SHARE on a linked campaign; this FOR UPDATE serializes the link replacement with it.
       const campaign = await client.query<{ id: string }>(
         `SELECT id FROM campaigns WHERE id = $1 AND merchant_id = $2 AND status = 'ACTIVE' AND is_public
@@ -118,7 +147,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
       for (const grade of grades) {
         await client.query(
           `INSERT INTO collectible_publication_grades (publication_id, grade_id, summary, detail) VALUES ($1,$2,$3::jsonb,$4::jsonb)`,
-          [publicationId, grade.gradeId, JSON.stringify(grade.summary), JSON.stringify(grade.detail)]);
+          [publicationId, grade.gradeId, grade.summary, grade.detail]);
       }
       await client.query(
         `INSERT INTO campaign_collectible_publications (campaign_id, publication_id) VALUES ($1,$2)

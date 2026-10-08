@@ -3,13 +3,22 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  angleFrameIndex, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
-  particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, stickerLineOffsets, stickerLines, THICKNESS_PRESETS, thicknessPresetLabel, toggleEffectGrade, upgradeProject,
+  angleFrameIndex, applyStandardVisitRewards, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
+  particleAt, resolveGreeting, resolveSticker, rotationAngleAt, rotationSpeedValue, shapePath, shapePoints, stickerLineOffsets, stickerLines, THICKNESS_PRESETS, thicknessPresetLabel, toggleEffectGrade, upgradeProject,
 } from '../../apps/production-web/assets/collectible-model.mjs';
 
 // Issue #284 WP1: 공유 픽스처(tests/fixtures)는 apps/api의 같은 시험이 읽는 파일 그대로다. 서버(rules.ts)와
 // 브라우저(model.mjs)의 업그레이드·인사말·파티클·각도 계산이 같은 값을 내는지 이 파일들로 맞춘다.
 const fixture = (name) => JSON.parse(readFileSync(new URL(`../fixtures/${name}`, import.meta.url), 'utf8'));
+
+test('회전 속도는 0.25~3배이고 구 저장본은 기본 1배로 움직인다', () => {
+  assert.equal(createProject().rotationSpeed, 1);
+  for (const speed of [undefined, NaN, Infinity, '2']) assert.equal(rotationSpeedValue(speed), 1);
+  assert.equal(rotationSpeedValue(0), .25); assert.equal(rotationSpeedValue(5), 3);
+  assert.equal(rotationAngleAt(20, 7500), 120);
+  assert.equal(rotationAngleAt(20, 7500, .5), 70);
+  assert.equal(rotationAngleAt(20, 7500, 2), 220);
+});
 
 test('사진 제작 초안은 보상 규칙·등급 효과를 자동으로 설정하지 않는다', () => {
   const first = createProject({ campaignId: 'campaign-a' });
@@ -39,6 +48,43 @@ test('새 시즌·특수등급을 추가해도 기존 효과와 보상 연결은
   assert.deepEqual(effectsForGrade(project, special.id), []);
   assert.equal(effectsForGrade(project, 'bronze')[0].type, 'hologram');
   assert.deepEqual(effectsForGrade(project, 'prism'), []);
+});
+
+test('표준 방문 연결은 초안 등급을 보존하고 게시 준비에서만 빠진 기본 등급을 복구한다', () => {
+  const project = createProject();
+  project.grades = project.grades.filter(grade => grade.id !== 'prism');
+  project.grades[0].name = '우리 가게 브론즈';
+  project.grades[1].enabled = false;
+  project.grades.push(createGrade('겨울 기념', { id: 'winter-special' }));
+  project.effects.push({ id: 'holo', type: 'hologram', target: 'surface', gradeIds: ['winter-special'], strength: 50 });
+  project.rewardGrades = { 1: 'winter-special', 3: 'prism', 5: 'bronze', 7: 'gold' };
+  const effects = cloneProject(project).effects;
+
+  assert.equal(applyStandardVisitRewards(project), project);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+  assert.equal(project.grades.some(grade => grade.id === 'prism'), false, '일반 초안 편집은 기존 등급 집합을 보존한다');
+  applyStandardVisitRewards(project, { includeMissingDefaults: true });
+  for (const id of ['bronze', 'silver', 'gold', 'prism']) assert.equal(project.grades.find(grade => grade.id === id)?.enabled, true, id);
+  assert.equal(project.grades.find(grade => grade.id === 'bronze').name, '우리 가게 브론즈');
+  assert.equal(project.grades.find(grade => grade.id === 'winter-special').name, '겨울 기념');
+  assert.deepEqual(project.effects, effects);
+  const repaired = cloneProject(project);
+  applyStandardVisitRewards(project);
+  assert.deepEqual(project, repaired, '복구를 반복해도 등급이나 보상 연결이 늘지 않는다');
+});
+
+test('보상 연결 등급이 빠진 16등급 초안은 기존의 유효한 매핑을 보존한다', () => {
+  const project = createProject();
+  project.grades = [...project.grades.filter(grade => grade.id !== 'bronze'), ...Array.from({ length: 13 }, (_, i) => createGrade(`추가 ${i}`, { id: `extra-${i}` }))];
+  project.rewardGrades = { 1: 'extra-0', 3: 'silver', 5: 'gold' };
+  const original = cloneProject(project);
+  applyStandardVisitRewards(project);
+  assert.equal(project.grades.length, 16);
+  assert.deepEqual(project.rewardGrades, original.rewardGrades);
+  assert.deepEqual(project.grades, original.grades);
+  applyStandardVisitRewards(project, { includeMissingDefaults: true });
+  assert.deepEqual(project.grades, original.grades, '자리가 없으면 기본 등급 일부만 덧붙이지 않는다');
+  assert.deepEqual(project.rewardGrades, original.rewardGrades);
 });
 
 test('복수 등급 효과 토글과 미리보기 선택을 독립적으로 처리한다', () => {
@@ -182,11 +228,12 @@ test('angleFrameIndex vectors match the shared fixture the server also checks: f
   assert.deepEqual(angleFrameIndex(-360 - 82.5), angleFrameIndex(-82.5));
 });
 
-test('두께 3단계는 4·8·14이고 그 밖의 값은 이름이 없다', () => {
-  assert.deepEqual(THICKNESS_PRESETS.map(([value]) => value), [4, 8, 14]);
+test('두께 프리셋은 기존 4·8·14를 유지하고 32를 추가한다', () => {
+  assert.deepEqual(THICKNESS_PRESETS.map(([value]) => value), [4, 8, 14, 32]);
   assert.equal(thicknessPresetLabel(4), '얇게');
   assert.equal(thicknessPresetLabel(8), '보통');
   assert.equal(thicknessPresetLabel(14), '두껍게');
+  assert.equal(thicknessPresetLabel(32), '아주 두껍게');
   assert.equal(thicknessPresetLabel(11), null);
   assert.equal(thicknessPresetLabel(NaN), null);
 });

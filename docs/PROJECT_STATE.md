@@ -1,14 +1,12 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #424·#426 반영 main `0801c1ce`를 병합한 기준): API 단위 662/662 · 모바일 2127/2127. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거][current-test-status]). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY][current-handoff-history]에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, Issue #412 통합 브랜치 `integ/t3b-t4-t8`에 PR #418·#424·#426 반영 main `a8ed0dd1`를 병합한 기준): API 단위 670/670 · 모바일 2132/2132. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
-README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
-
-NFT 시리즈 발행 상한 해제는 [D-095](DECISIONS.md)·[PR #424](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/424)의 미배포 변경이다. 기존 Base Sepolia 상한 1 시리즈는 실증 전용이며 운영 발행에는 쓰지 않는다. 기존 계약에 운영용 새 시리즈를 만들 때는 `createSeries(bytes32,string,uint64)`의 세 번째 인자에 `18446744073709551615`를 넣고, 새 계약에서는 `createSeries(bytes32,string)`을 쓴다. DB migration 0075의 NULL 상한 행은 새 API가 모든 인스턴스에 배포된 뒤에만 넣는다.
+PR #418 병합 전 검증 기록(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. 사이트 609/609·타입·lint·Android export도 통과했으며 환경·실기 경계는 [TEST_STATUS](TEST_STATUS.md)에 기록한다.
 
 ## 2026-10-09 T3 혜택·T4 코스·T8 시연 점포 통합 (Issue #412, 배포하지 않음)
 
-`integ/t3b-t4-t8`의 HEAD `5962fe08`에서 PR #424·#426 반영 main `0801c1ce`와 T3 혜택·T4 코스를 병합한 상태로 `feat/showcase-wolgye-stores` T8을 병합 중이다. migration 적용 순서는 0068 → 0069 → 0072 → 0075이며, 0072 감사 CHECK는 T3 혜택 action을 유지해야 한다. 코드 충돌의 파일 수정은 끝났으며 이번 문서 중복 정리도 파일 수정만 수행한다. 위의 검증 합계 자리표시자는 그대로 두고 실제 통합 측정은 별도로 기록한다. 운영·시연 배포와 실제 설치본 수용은 이 통합으로 확인되지 않았다.
+`integ/t3b-t4-t8`의 HEAD `ac285339`에서 T3 혜택·T4 코스·T8 시연 점포를 보존하고, PR #418·#424·#426 반영 main `a8ed0dd1`을 병합 중이다. migration 적용 순서는 0068 → 0069 → 0072 → 0075이며, 0072 감사 CHECK는 T3 혜택 action을 유지해야 한다. 코드·문서 충돌은 작업 트리 파일에서 해결했고 Git index는 미병합 상태다. API typecheck, 모바일 typecheck·lint·대체 단위 2132/2132, 대상 26/26, 운영 제출 준비·CI 연결·접근성은 PASS다. 지정 사이트 선택 350건 중 344 PASS / 6 소켓 환경 BLOCKED이고, `npm test`는 tsx IPC `EPERM`으로 BLOCKED다([TEST_STATUS](TEST_STATUS.md)). 위의 전체 합계 자리표시자는 그대로 둔다. 운영·시연 배포와 실제 설치본 수용은 이 통합으로 확인되지 않았다.
 
 ## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8, D-100)
 
@@ -34,6 +32,26 @@ T8 월계동 공공 상가정보 시연 점포 측정 기록(2026-10-09 KST, `fe
 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 2–4개 점포 코스의 관리자 초안·점검 스냅샷·게시·중지, 보상권 기반 고객 진행·장면 열기, 추천 우선순위, 관리자 웹과 최소 모바일 목록·상세·장면을 구현했다. migration `0072_courses.sql`은 추가 전용이며 D-093을 따른다. 코스 완성은 재화·쿠폰을 지급하지 않는다. 시연 코스는 시연 DB seed에만 있고 운영 fixture는 없다. 수령·방문 보상·취소·0034 트리거를 바꾸지 않았다. 검증 결과는 [TEST_STATUS](TEST_STATUS.md)의 최상단 항목이다. Studio 배치·실제 브라우저/기기·배포는 `NOT_RUN`이다.
 
 2026-10-09 리뷰 수정: 검토 시작 HEAD `29644366`에서 관리자 4개 쓰기의 트랜잭션 안 권한 재검사, 삭제 큐레이터 ID의 제한된 복구, 고객 코스 최대 50개 배치 조회와 그림 없는 추천 힌트, 이용 불가 단계·중지/종료 장면 접근 규칙, DB 고유키·가드·감사 action, 앱 캐시 해제·구 API 호환·가게 상세 코스 칩을 보강했다. API 634/634, PG 553건 중 550 PASS·0 FAIL·기존 3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139다. 후속 커밋은 오케스트레이터가 담당한다.
+
+## 2026-10-08 점주 웹 제작기와 가상 가게 QA (PR #418, Issue #416·#417)
+
+기본 제작·발행 등급은 브론즈·실버·골드·프리즘 네 개다. 방문 지급은 1회 브론즈·3회 실버·5회 골드로 유지하며 프리즘 지급 조건을 임의로 추가하지 않는다. 게시할 때 네 기본 등급과 모든 활성 특수등급의 정면·뒷면·프레임을 저장한다. 추가 등급은 고유 ID와 이름을 보존하며 총16개(기본4+특수12) 상한을 유지한다. 프리즘은 기본 음각·양각에도 청록·분홍·보라의 각도별 색 이동과 같은 계열 테두리를 사용한다. 프리즘 후면3종은 음각 문양을 유지해 built-in 이미지 생성으로 색을 개선했다. 현재 웹·앱 뒷면12종은 동일한512px WebP767,082바이트(749.1KiB)로 원본41,909,062바이트보다98.17% 작다. v1PNG와 기존 게시본은 보존하고 모바일 번들은 v2만 사용한다. [최신 색감·용량·확장·검증](evidence/prism-collectibles-2026-10-08/README.md).
+
+최신 후속은 방문 보상을 **1회 브론즈 · 3회 실버 · 5회 골드**로 고정하고 캠페인 선택·지급 등급 선택·점주 기간 연장을 제거했다. API도 매핑을 고정하고 정확한 1/3/5 활성 캠페인만 게시를 받는다. 운영자 연장과 기존 획득본은 유지한다. 음각·양각은 밝기 높이와 반대 부호의 조명·윤곽 변위로 회전 깊이를 표현하며 웹 옆면도 회전 방향을 따른다. 게시본은 앞면 12칸 프레임·고정 뒷면·동작 JSON을 저장한다. [실제 회전·저장 후 비교와 재현](evidence/fixed-visit-relief-2026-10-08/README.md). 실제 3D 메시가 아닌 2.5D 표현이며 Android 실기 재생·운영 배포는 별도 검증이다.
+
+최신 소유자 요청으로 점주 첫 화면을 방문 보상 만들기·방문 확인·운영 결과로 나눴다. 제작기는 사진 배치·사진 편집·코인 만들기·결과/방문 보상 4단계로 재구성하고 메뉴 등록 없이 진행한다. 한 사진 도구만 펼치며 화살표 실행 취소, RGB/HEX 바탕색, 등급별 금속 음각·양각과 PNG 저장을 제공한다. 같은 등급 재질을 미리보기·썸네일·게시 이미지에 적용한다. [첨부 그림 마우스 QA와 전달 캡처](evidence/merchant-photo-editor-2026-10-08/README.md). 고정 뒷면·서버 권한·게시 버전 보존은 기존 계약을 유지한다.
+
+추가 요청으로 원형·우표형·톱니형 × 4등급 고정 음각 뒷면 12종을 생성·연결했다. 새 제작물은 같은 이미지를 재사용하고 기존 발행본 뒷면은 보존한다. 뒷면 편집 UI는 제거했다. 사이트 390/390, 모바일 LF 체크아웃 1992/1992·타입·lint, 실제 브라우저 12종 512px·256KiB 한도 확인이 통과했다. [고정 뒷면 전달 기록](evidence/fixed-collectible-backs-2026-10-08/README.md).
+
+원격 main `e06c97cd`에서 분기했다. 제작기 홈의 AI 초안·준비 이미지 두 경로, 최신 등록 사진 가져오기, 20MiB·48MP·12,000px 입력 제한과 3MiB·4,096px 저장 정규화, 웹 세션 AI art API, 최신 사진 대표 정렬을 구현했다. API 569/569·타입·빌드, 사이트 384/384, 별도 PostgreSQL 통합 1/1이 통과했다. Docker가 없는 Windows에서 Caddy 컨테이너 시험 두 개는 실행하지 못했다.
+
+합성 fixture에서 두 경로와 초안 저장을 브라우저로 확인했다. 별도 실제 PostgreSQL/API에 등록한 `QA 가상 월계 달빛빵집`이 최신 고객 앱의 탐색·상세에 표시되고 이름·주소·최신 이미지·1/3/5 코인 캠페인이 연결됨을 확인했다. [캡처와 재현 기록](evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)에 환경을 구분했다. 실제 AI 과금·공개 배포·APK 갱신은 하지 않았다. 운영 계정은 승인된 점포가 없고, 라이브 `/api/web/v1/*`는 PR #413 배포 전까지 404라 운영 종단 QA가 남는다.
+
+PR #425 병합 전 검증 기록(2026-10-08 KST, Issue #412 T3 브랜치 `feat/purpose-campaigns`에 PR #420·#423 반영 main `8841efea`를 병합한 기준): API 단위 615/615 · 모바일 2093/2093. 두 수치 모두 병합 후 이 브랜치에서 측정했습니다(main 대비 API 18건·모바일 16건 증가, PostgreSQL 통합은 543건 중 540 pass / 0 fail / 3 skip). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했습니다.
+
+README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
+
+NFT 시리즈 발행 상한 해제는 [D-095](DECISIONS.md)·[PR #424](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/424)의 미배포 변경이다. 기존 Base Sepolia 상한 1 시리즈는 실증 전용이며 운영 발행에는 쓰지 않는다. 기존 계약에 운영용 새 시리즈를 만들 때는 `createSeries(bytes32,string,uint64)`의 세 번째 인자에 `18446744073709551615`를 넣고, 새 계약에서는 `createSeries(bytes32,string)`을 쓴다. DB migration 0075의 NULL 상한 행은 새 API가 모든 인스턴스에 배포된 뒤에만 넣는다.
 
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
@@ -274,9 +292,6 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 
 코드·로컬 검증과 공개 반영은 별개다. 새 기능의 운영/시연 배포와 공개 APK는 아직 없다. migration0042와 `privacy-2026-10-04`에 맞는 API·웹·최신앱을 함께 준비해야 하며, 기존 앱은 업데이트 안내가 필요하다. [전체 구현·근거·제한](evidence/connected-play-2026-10-04/README.md), [검증 결과](TEST_STATUS.md)를 따른다.
 
-## 하늘 동네 테마에서 빠졌던 화면 통일 ([Issue #338](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/338), 2026-10-03)
-
-브랜치 `feat/sky-theme-unify-screens`(main `5a0465ed` 기준, 미커밋 작업 중이면 로컬 변경). #142(파란 UI 일관화)가 통일했지만 #224(하늘 동네 재설계) 화면 목록에서 빠져 구세대 단색 스타일로 남았던 화면을 월드 테마로 옮겼다. **옮긴 화면:** `wallet-link`·`wallet-link/configuration-required`(스택 머리글을 숨기고 `BackHeader`), `auth-required`(네이티브·웹), `consent`(`SkyBanner` 머리글), `demo-configuration-required`(카드). 카드는 `FloatingCard`로 바꿨고 새 공통 조각 `src/ui/sky-banner.tsx`를 더했다. **옮기지 않은 화면:** `merchant-claim`(개발용 점주 발급 화면 `merchant` 라우트). 같은 스타일 파일을 `merchant-home/status.tsx`·직원 방문 확인·되돌리기 화면이 공유하고 이 화면들은 머리글 없는 시연 점주 루트에서 열리므로, 시연 점주 앱 쪽 영향을 함께 확인하는 별도 변경으로 남긴다. 지갑 요청 정책(`personal_sign`만 허용)·SIWE 흐름·API·DB·권한은 바꾸지 않았다. 화면은 두 앱(운영·시연)이 공유하는 고객 코드다. 소유자가 수정본을 직접 실행해 바뀐 디자인을 눈으로 확인했다고 알렸으나(사용자 보고, 기기·빌드·화면 범위 미기록) 저장된 캡처·라이트/다크/글자 200%/TalkBack·두 설치본 각각의 확인은 `NOT_RUN`이다. 검증은 [TEST_STATUS](TEST_STATUS.md)를 따른다.
 ## 운영 test.9·시연 Preview 18 공개 (Issue #360, 2026-10-04)
 
 [Issue #360](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/360), 브랜치 `docs/release-cb8030a`, worktree `.worktrees/release-docs3`, 기준 main `cb8030ac3d082c3aac9461e2f6db23bf73f4cc46`(PR #359·Issue #358). 수집품 상세 Modal에 `GestureHandlerRootView`를 넣어 개발 빌드의 `GestureDetector must be used as a descendant of GestureHandlerRootView` 크래시와 release 빌드의 등급 재질·끌기 빛 누락을 고쳤고, 점주 빛 모션이 있는 상세의 재질 감쇠를 .55 → .9로 바꿨다. `apps/mobile/src/screens/merchant-claim/issued-visit.test.ts`는 KST 날짜가 2026-10-03을 지나면 끝나지 않던 시험에 고정 시계를 사용한다. CI job은 `timeout-minutes: 25`; PR #359의 처음 두 실행은 모바일 시험에서 34분·20분 뒤 취소됐고 수정 뒤 9m12s에 PASS했다.
@@ -286,6 +301,10 @@ Issue #365 브랜치의 로컬 시험 합계(2026-10-05 KST, 문서 수정 전 `
 공개 사전 릴리스 [운영 test.9](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.9)·[시연 Preview 18](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.18)은 `cb8030a` 대상이다. 서명·지갑 표면·녹음 권한 없음·익명 다운로드 재해시를 기록했다([운영 증거](evidence/operating-android-test9-2026-10-04.json), [시연 증거](evidence/showcase-preview18-release-2026-10-04.json)). Samsung SM-S928N 운영 test.8 위 test.9 설치·실행·logcat JS 오류/크래시 없음 PASS, 공개 점포 0곳에서 읽기 전용으로만 사용했고 운영 로그인은 NOT_RUN이다. 시연은 허용 계정·시연 서버에서 세션 유지·홈 다음 목표·가게 상세 미리보기/진행/가상 점포 길찾기 불가 사유·가상 점포 C 테스트 방문 5회와 bronze/silver/gold·상태별 주요 행동 하나·봉투 열기·시리즈 3/3·Preview 18 골드 상세 재질·가게 링크의 소장 ×3/목표 완료·상점 골드 뽑기(기계 → 캡슐 → 골드 카드·새 친구) PASS. Preview 17에서 발견한 골드 상세 재질 없음은 FAIL 이력이다. [골드 상세](evidence/device-qa-2026-10-04/samsung-preview18-gold-detail.png)·[상점 뽑기](evidence/device-qa-2026-10-04/samsung-gacha-gold-draw.png). 점주 앱은 확인 계정에 가상 점포 직원 권한이 없어 NOT_RUN이며 물리 기울기 체감·TalkBack·글자 200%·실제 QR 방문·지갑도 NOT_RUN이다. 첫 시험 빌드의 D8 `Java heap space`는 재사용 Gradle 데몬 종료로 해소했다.
 
 다음 단계: 가상 점포 권한이 있는 계정으로 점주 앱 실기 QA, 물리 기울기·TalkBack·글자 200% 확인, 시연 웹 체험 번들 재빌드(`NOT_RUN`), 2026-11-02 전 시연 재시드, D-070 `braces` 감사 예외 만료일 2026-10-31 확인. D-071에 따라 코드 롤백 때 `merchant_detail_view_counts` 표와 `schema_migrations`의 0041 기록을 유지하고 새 API가 조회하는 동안 표를 `DROP`하지 않는다.
+
+## 하늘 동네 테마에서 빠졌던 화면 통일 ([Issue #338](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/338), 2026-10-03)
+
+브랜치 `feat/sky-theme-unify-screens`(main `5a0465ed` 기준, 미커밋 작업 중이면 로컬 변경). #142(파란 UI 일관화)가 통일했지만 #224(하늘 동네 재설계) 화면 목록에서 빠져 구세대 단색 스타일로 남았던 화면을 월드 테마로 옮겼다. **옮긴 화면:** `wallet-link`·`wallet-link/configuration-required`(스택 머리글을 숨기고 `BackHeader`), `auth-required`(네이티브·웹), `consent`(`SkyBanner` 머리글), `demo-configuration-required`(카드). 카드는 `FloatingCard`로 바꿨고 새 공통 조각 `src/ui/sky-banner.tsx`를 더했다. **옮기지 않은 화면:** `merchant-claim`(개발용 점주 발급 화면 `merchant` 라우트). 같은 스타일 파일을 `merchant-home/status.tsx`·직원 방문 확인·되돌리기 화면이 공유하고 이 화면들은 머리글 없는 시연 점주 루트에서 열리므로, 시연 점주 앱 쪽 영향을 함께 확인하는 별도 변경으로 남긴다. 지갑 요청 정책(`personal_sign`만 허용)·SIWE 흐름·API·DB·권한은 바꾸지 않았다. 화면은 두 앱(운영·시연)이 공유하는 고객 코드다. 소유자가 수정본을 직접 실행해 바뀐 디자인을 눈으로 확인했다고 알렸으나(사용자 보고, 기기·빌드·화면 범위 미기록) 저장된 캡처·라이트/다크/글자 200%/TalkBack·두 설치본 각각의 확인은 `NOT_RUN`이다. 검증은 [TEST_STATUS](TEST_STATUS.md)를 따른다.
 
 ## 운영·시연 `0fcdfe8` 배포와 운영 test.8·시연 Preview 17 공개 (Issue #356, 2026-10-03)
 

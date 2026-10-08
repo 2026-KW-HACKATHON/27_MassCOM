@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>고정 음각 뒷면 12종 검수</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf4fc;color:#163453;font-family:system-ui,sans-serif}main{max-width:960px;margin:24px auto;padding:24px;border-radius:24px;background:white}h1{margin:0 0 8px;font-size:25px}p{margin:0 0 20px;color:#4d6681;font-size:14px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}article{text-align:center;background:#f4f8fd;border:1px solid #dae5f2;border-radius:16px;padding:10px}canvas{display:block;width:210px;height:210px;max-width:100%;margin:auto}h2{font-size:15px;margin:5px 0}small{font-size:12px;color:#506984}#status{margin-top:18px;font-size:13px}@media(max-width:650px){main{margin:8px;padding:12px}.grid{gap:6px}canvas{width:100%;height:auto}h2{font-size:12px}}
+</style>
+<main><h1>월계 · 고정 음각 뒷면 12종</h1><p>원형 · 우표형 · 톱니형 × 브론즈 · 실버 · 골드 · 프리즘</p><div class="grid"></div><div id="status" role="status">실제 제작기 렌더러로 확인 중…</div></main>
+<script type="module">
+import {backFor,encodeImage} from '/app/assets/collectible-renderer.mjs';
+import {fixedCollectibleBack,COLLECTIBLE_BACK_SHAPES,COLLECTIBLE_BACK_GRADES} from '/app/assets/collectible-back-assets.mjs';
+const grid=document.querySelector('.grid'), results=[];
+try {
+  for (const grade of COLLECTIBLE_BACK_GRADES) for (const shape of COLLECTIBLE_BACK_SHAPES) {
+    const asset=fixedCollectibleBack(shape,grade);
+    const project={shape,name:'가게와 이름이 바뀌어도 동일',merchantName:'QA',back:{mode:'custom',color:'#ff0000'},stickers:[]};
+    const canvas=await backFor(project,grade,512), image=encodeImage(canvas);
+    const bytes=atob(image.split(',')[1]).length;
+    const changed=await backFor({...project,name:'다른 가게',back:{mode:'default',color:'#0000ff'}},grade,512);
+    if(image!==encodeImage(changed))throw new Error(`${shape}-${grade}: 고정 뒷면이 입력에 따라 달라짐`);
+    if(bytes>256*1024)throw new Error(`${shape}-${grade}: 게시 뒷면 크기 초과`);
+    const corner=canvas.getContext('2d').getImageData(0,0,1,1).data[3];
+    if(corner!==0)throw new Error(`${shape}-${grade}: 윤곽 밖 픽셀 남음`);
+    const article=document.createElement('article'), heading=document.createElement('h2'), detail=document.createElement('small');
+    heading.textContent=`${asset.shapeLabel} · ${asset.gradeLabel}`;
+    detail.textContent=`512px · ${(bytes/1024).toFixed(1)} KiB`;
+    article.append(canvas,heading,detail);grid.append(article);
+    results.push({shape,grade,path:asset.path,width:512,height:512,bytes,reused:true,cornerTransparent:true,mime:image.split(';')[0].slice(5)});
+  }
+  document.querySelector('#status').textContent=`PASS · 12/12 생성 · 윤곽 밖 투명 · 동일 이미지 재사용 · 256 KiB 이내`;
+  const evidence=document.createElement('script');evidence.type='application/json';evidence.id='fixed-back-results';evidence.textContent=JSON.stringify(results);document.body.append(evidence);
+}catch(error){document.querySelector('#status').textContent=`FAIL · ${error.message}`;throw error}
+</script>
+</html>

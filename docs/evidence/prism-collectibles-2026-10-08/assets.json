@@ -1,0 +1,86 @@
+[
+  {
+    "file": "circle-bronze.webp",
+    "sha256": "3b15391998d8e3ec845fe484c37ce8549859af9c77f3bc4f3b268eb2baed83a0",
+    "bytes": 64200,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "circle-silver.webp",
+    "sha256": "8a64cf2a9dde14bcca52f6d1a630492e1583469ef3a792e72e4c68c638c74911",
+    "bytes": 46938,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "circle-gold.webp",
+    "sha256": "d0244454b88c3d2c8e818293c5cdbbf666717b45548a4b6d64856875c4eada37",
+    "bytes": 63046,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "circle-prism.webp",
+    "sha256": "3deedf5bd0d6f2fcfcaa86650e9384cdab44666f534bb8f2a1869dc07825b4fa",
+    "bytes": 77152,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "stamp-bronze.webp",
+    "sha256": "9dfafc81043e1ea676678038ec7a1ebf96cdd1ed85a21888f9fbe5201a73c8c4",
+    "bytes": 49882,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "stamp-silver.webp",
+    "sha256": "eb9559669151c9ac7833b16fc96a42b8e0c77385516650637bd1fe05a871bd58",
+    "bytes": 47484,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "stamp-gold.webp",
+    "sha256": "be1f88db0cdacca981fccf38a8ab15b27b9531e3d18e53c7e27c7b0c7bd34af3",
+    "bytes": 46346,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "stamp-prism.webp",
+    "sha256": "aaddb608ca82cdb6ea16d127f64f461e72e88a106fafd33918903ff1d5e76ffa",
+    "bytes": 77566,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "serrated-bronze.webp",
+    "sha256": "6a678eeebd4d75864e95e3a262d4815cf698187569eeef5962a16c6d6fc5b43a",
+    "bytes": 73796,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "serrated-silver.webp",
+    "sha256": "f37f7cea5656970b94f8b3f32893c0c5d9126ff123779217c340bcd5dea99563",
+    "bytes": 52000,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "serrated-gold.webp",
+    "sha256": "ebb98bec402f3ca44058e837bbf9dc9dc0aabd3c98c6ba0f9dc42ae40fcfd91f",
+    "bytes": 70100,
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "serrated-prism.webp",
+    "sha256": "b21d6a602f3d8fd5f3708b1b635c2906733d3d16dab9d56fe4994dda38e7ebfa",
+    "bytes": 98572,
+    "width": 512,
+    "height": 512
+  }
+]

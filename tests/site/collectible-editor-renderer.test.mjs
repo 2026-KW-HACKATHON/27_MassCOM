@@ -64,21 +64,22 @@ test('story types disclose their source requirements and a single-photo zoom rem
   assert.equal(validateStory({ type: 'event', frames: [{}, {}, {}] }), '');
 });
 
-test('publication asks only for photo, name, campaign and explicit existing reward mapping', () => {
+test('publication asks only for photo, name, and fixed standard visit reward mapping', () => {
   const project = createProject({ name: '우리 가게 간판' });
   assert.match(validatePublish(project), /대표 사진/);
   project.photo = { originalDataUrl: 'data:image/png;base64,source', width: 100, height: 100 };
-  assert.match(validatePublish(project), /캠페인/);
-  project.campaignId = 'campaign'; assert.match(validatePublish(project), /방문 목표/);
-  project.rewardGrades = { '1': 'bronze' }; assert.equal(validatePublish(project), '');
+  assert.equal(validatePublish(project), '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요');
+  project.campaignId = 'campaign'; assert.match(validatePublish(project), /방문 보상/);
+  project.rewardGrades = { '1': 'custom' }; assert.match(validatePublish(project), /방문 보상/);
+  project.rewardGrades = { '1': 'bronze', '3': 'silver', '5': 'gold' }; assert.equal(validatePublish(project), '');
   assert.equal(project.effects.length, 0); assert.equal(project.audio, null);
-  project.grades[0].enabled = false; assert.match(validatePublish(project), /방문 목표/);
+  project.grades[0].enabled = false; assert.match(validatePublish(project), /방문 보상/);
 });
 
 
 test('metal edge aliases and stops agree with mobile grades', () => {
   assert.deepEqual(collectibleMetalColors('', '금등급'), ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C']);
   assert.deepEqual(collectibleMetalColors('', '은색'), ['#D3E2EF', '#FFFFFF', '#8DACC8']);
-  assert.deepEqual(collectibleMetalColors('gold', '특별'), ['#67E8F9', '#E8C5FF', '#FFFFFF']);
+  assert.deepEqual(collectibleMetalColors('gold', '특별'), ['#00D5FF', '#8B5CF6', '#FF2DB8', '#FFFFFF']);
   assert.deepEqual(collectibleMetalColors('unknown'), ['#E3BB8B', '#FFF1DC', '#A9673F']);
 });

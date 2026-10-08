@@ -1,0 +1,137 @@
+{
+  "results": [
+    {
+      "bytes": 68844,
+      "cornerTransparent": true,
+      "grade": "bronze",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/circle-bronze.png",
+      "reused": true,
+      "shape": "circle",
+      "width": 512
+    },
+    {
+      "bytes": 65260,
+      "cornerTransparent": true,
+      "grade": "bronze",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/stamp-bronze.png",
+      "reused": true,
+      "shape": "stamp",
+      "width": 512
+    },
+    {
+      "bytes": 69320,
+      "cornerTransparent": true,
+      "grade": "bronze",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/serrated-bronze.png",
+      "reused": true,
+      "shape": "serrated",
+      "width": 512
+    },
+    {
+      "bytes": 50096,
+      "cornerTransparent": true,
+      "grade": "silver",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/circle-silver.png",
+      "reused": true,
+      "shape": "circle",
+      "width": 512
+    },
+    {
+      "bytes": 57850,
+      "cornerTransparent": true,
+      "grade": "silver",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/stamp-silver.png",
+      "reused": true,
+      "shape": "stamp",
+      "width": 512
+    },
+    {
+      "bytes": 50328,
+      "cornerTransparent": true,
+      "grade": "silver",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/serrated-silver.png",
+      "reused": true,
+      "shape": "serrated",
+      "width": 512
+    },
+    {
+      "bytes": 67668,
+      "cornerTransparent": true,
+      "grade": "gold",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/circle-gold.png",
+      "reused": true,
+      "shape": "circle",
+      "width": 512
+    },
+    {
+      "bytes": 61288,
+      "cornerTransparent": true,
+      "grade": "gold",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/stamp-gold.png",
+      "reused": true,
+      "shape": "stamp",
+      "width": 512
+    },
+    {
+      "bytes": 67974,
+      "cornerTransparent": true,
+      "grade": "gold",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/serrated-gold.png",
+      "reused": true,
+      "shape": "serrated",
+      "width": 512
+    },
+    {
+      "bytes": 55926,
+      "cornerTransparent": true,
+      "grade": "prism",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/circle-prism.png",
+      "reused": true,
+      "shape": "circle",
+      "width": 512
+    },
+    {
+      "bytes": 62918,
+      "cornerTransparent": true,
+      "grade": "prism",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/stamp-prism.png",
+      "reused": true,
+      "shape": "stamp",
+      "width": 512
+    },
+    {
+      "bytes": 64336,
+      "cornerTransparent": true,
+      "grade": "prism",
+      "height": 512,
+      "mime": "image/webp",
+      "path": "/app/assets/collectible-backs/v1/serrated-prism.png",
+      "reused": true,
+      "shape": "serrated",
+      "width": 512
+    }
+  ],
+  "status": "PASS · 12/12 생성 · 윤곽 밖 투명 · 동일 이미지 재사용 · 256 KiB 이내"
+}

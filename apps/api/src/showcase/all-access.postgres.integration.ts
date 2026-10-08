@@ -448,6 +448,14 @@ function previousThreeGradeProject(target: StoreCollectibleTarget): CollectibleP
   return project;
 }
 
+function modernMerchantPublishProject(target: StoreCollectibleTarget): CollectibleProject {
+  const project = storeCollectibleProject({ ...target, topGrade: 'gold' });
+  const prism = { id: 'prism', name: '프리즘', kind: 'special' as const, enabled: true };
+  project.grades = [...project.grades, prism];
+  project.derived.prism = { ...project.derived.gold! };
+  return project;
+}
+
 /** 다른 연결이 잠금을 기다리는 중이 될 때까지 기다린다(경합 시험에서 시드가 막혔음을 확인하는 데만 쓴다). */
 async function waitUntilSomeoneBlocks(pool: Pool): Promise<void> {
   for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -724,7 +732,7 @@ test('(R-333 round 3) full re-seed and real merchant publish finish without dead
       `INSERT INTO merchant_members (merchant_id, account_id, role, status)
        VALUES ($1, 'showcase-race-owner', 'OWNER', 'ACTIVE')`, [storeA.merchantId]);
     const draft = await projects.create({
-      merchantId: storeA.merchantId, accountId: 'showcase-race-owner', project: legacySingleGradeProject(storeA),
+      merchantId: storeA.merchantId, accountId: 'showcase-race-owner', project: modernMerchantPublishProject(storeA),
     });
     await pool.query('UPDATE merchants SET neighborhood = NULL, category = NULL WHERE id = ANY($1::text[])',
       [collectibleTargets.map((target) => target.merchantId)]);
@@ -770,6 +778,8 @@ test('(R-333 round 3) full re-seed and real merchant publish finish without dead
       assert.equal(publishResult.status, 'fulfilled', 'real publish completes without 40P01');
       if (publishResult.status !== 'fulfilled') return;
       assert.equal(await linkedPublication(pool, storeA.campaignId), publishResult.value.publicationId);
+      assert.deepEqual((await gradesOf(pool, publishResult.value.publicationId)).map((grade) => grade.grade_id),
+        ['bronze', 'gold', 'prism', 'silver']);
       const merchant = (await pool.query<{ neighborhood: string; category: string }>(
         'SELECT neighborhood, category FROM merchants WHERE id = $1', [storeA.merchantId])).rows[0]!;
       assert.ok(merchant.neighborhood && merchant.category, 'the legacy merchant metadata was filled');

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
-import { mountCollectibleEditor } from '../../apps/production-web/assets/collectible-editor.mjs';
+import { mediaLimits, mountCollectibleEditor, publishSizeProblem, SPRITE_SIZE_LADDER } from '../../apps/production-web/assets/collectible-editor.mjs';
 import { configureCreator, loadCreatorCampaigns, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import { createFakeApi } from '../fixtures/collectible-fake-api.mjs';
@@ -58,7 +58,7 @@ async function mountViaMerchant(api, { confirm = () => true, merchants = [{ id: 
   return Object.assign(ui, { asked, select, host, openEditor, panel: document.getElementById('merchant-creator') });
 }
 
-test('메뉴는 인증된 점포 항목만 쓰고 같은 이름의 공개 점포 메뉴를 섞지 않는다', async () => {
+test('방문 보상 제작은 메뉴 등록 없이 인증된 점포의 캠페인으로 시작한다', async () => {
   const api = createFakeApi();
   const requested = [];
   const fetcher = async (path, init) => {
@@ -81,11 +81,14 @@ test('메뉴는 인증된 점포 항목만 쓰고 같은 이름의 공개 점포
   await doc.getElementById('merchant-creator-open').onclick();
   await settle();
 
-  const select = doc.getElementById('merchant-creator-editor').querySelector('[data-control="campaign"]');
-  assert.deepEqual(select.options.map(item => item.value), ['', 'campaign-a', 'campaign-b']);
-  assert.equal(select.options[1].textContent, '가상 방문 캠페인');
-  assert.match(doc.getElementById('merchant-creator-editor').querySelector('[data-action="starter"][data-id="0"]').textContent, /국수/);
-  assert.doesNotMatch(doc.getElementById('merchant-creator-editor').textContent, /다른 점포 메뉴/);
+  const editor = doc.getElementById('merchant-creator-editor');
+  assert.equal(editor.querySelector('[data-control="campaign"]'), null, '캠페인 선택기는 없다');
+  assert.equal(editor.querySelector('[data-reward-count]'), null, '방문 횟수별 보상 선택기도 없다');
+  assert.match(editor.querySelector('[data-view="campaign-status"]').textContent, /방문 보상은 자동으로 연결돼요/);
+  assert.match(editor.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
+  assert.equal(editor.querySelector('[data-action="starter"][data-id="0"]'), null);
+  assert.ok(editor.querySelector('[data-action="starter"][data-id="store"]'));
+  assert.doesNotMatch(editor.textContent, /다른 점포 메뉴/);
   assert.equal(requested.includes('/merchants'), false);
   assert.ok(requested.includes('/api/web/merchant/merchants/m1/collectible-campaigns'));
   assert.deepEqual((await loadCreatorCampaigns(fetcher, 'm1')).map(item => item.id), ['campaign-a', 'campaign-b']);
@@ -105,24 +108,67 @@ test('인증된 점포에 메뉴가 없으면 같은 이름의 공개 점포가 
   assert.equal(requested.includes('/merchants'), false);
 });
 
-test('캠페인 목록을 읽지 못하면 이유를 알리고 게시는 막되 편집은 계속한다', async () => {
+test('방문 보상을 확인하지 못하면 게시는 막되 편집과 초안 저장은 계속한다', async () => {
   const api = createFakeApi();
   api.failNext('GET', /collectible-campaigns$/, { status: 403, code: 'MERCHANT_ACCESS_DENIED' });
   const ui = await mount(api);
-  assert.match(ui.notice, /캠페인 목록을 불러오지 못했어요.*점주 권한/);
-  assert.deepEqual(ui.control('campaign').options.map(item => item.value), ['']);
+  assert.match(ui.notice, /방문 보상을 확인하지 못했어요.*점주 권한/);
+  assert.equal(ui.control('campaign'), null);
+  assert.equal(ui.container.querySelector('[data-reward-count]'), null);
+  await ui.upload(photoFile);
+  api.failNext('GET', /collectible-campaigns$/, { status: 403, code: 'MERCHANT_ACCESS_DENIED' });
+  await ui.click('publish');
+  assert.match(ui.notice, /방문 보상을 확인하지 못했어요/);
+  assert.equal(posts(api).length, 0, '게시 본문은 보내지 않는다');
+  await ui.click('draft');
+  assert.deepEqual(posts(api), ['/collectible-projects'], '초안 저장은 가능하다');
 });
 
 const photoFile = { type: 'image/png', size: 1000, name: 'shop.png', dataUrl: 'data:image/png;base64,AAAA' };
+
+test('재생은 동작 없는 코인도 회전시키고 속도 변경·정지·재개·다시 보기와 저장을 지원한다', async () => {
+  const originalPerformance = Object.getOwnPropertyDescriptor(globalThis, 'performance');
+  let now = 0, sequence = 0;
+  const frames = new Map();
+  Object.defineProperty(globalThis, 'performance', { configurable: true, value: { now: () => now } });
+  globalThis.requestAnimationFrame = handler => { frames.set(++sequence, handler); return sequence; };
+  globalThis.cancelAnimationFrame = id => frames.delete(id);
+  const run = async time => {
+    now = time; const pending = [...frames.values()]; frames.clear();
+    assert.ok(pending.length, '미리보기 RAF가 예약된다');
+    for (const handler of pending) await handler(time);
+  };
+  try {
+    const api = createFakeApi(), ui = await mount(api);
+    await ui.click('new'); await ui.upload(photoFile);
+    ui.container.querySelector('[data-action="step"][data-id="4"]').dispatchEvent({ type: 'click' }); await settle();
+    const angle = () => ui.container.querySelector('[data-value="angle"]').textContent;
+    await run(0); await ui.click('play'); await run(7500);
+    assert.equal(angle(), '100°', 'motion이 없어도 재생하면 회전한다');
+    await ui.input('rotation-speed', '2'); await run(11250);
+    assert.equal(angle(), '-160°', '속도를 바꿔도 각도가 튀지 않고 이후 두 배로 움직인다');
+    assert.equal(ui.container.querySelector('[data-value="rotation-speed"]').textContent, '2×');
+    await ui.click('pause'); await run(19000); assert.equal(angle(), '-160°', '정지는 현재 각도를 유지한다');
+    ui.container.querySelector('[data-view="preview"]').dispatchEvent({ type: 'pointerdown', clientX: 256, clientY: 256, pointerId: 1 });
+    assert.match(ui.notice, /정면 보기와 정지/, '멈춘 뒷면에서도 앞면 스티커 드래그를 막는다');
+    await ui.click('play'); await run(22750); assert.equal(angle(), '-60°', '재개는 멈춘 각도부터 이어진다');
+    await ui.click('play'); await run(26500); assert.equal(angle(), '40°', '반복 재생 클릭은 시계를 초기화하지 않는다');
+    await ui.click('replay'); await run(34000); assert.equal(angle(), '-160°', '다시 보기는 처음부터 회전한다');
+    ui.control('reduce-motion').checked = true; await ui.change('reduce-motion', '');
+    await ui.click('play'); await run(41500); assert.equal(angle(), '-160°', '동작 줄이기에서는 회전하지 않는다');
+    assert.match(ui.notice, /움직임 줄이기/);
+    await ui.change('angle', '20'); await run(42000); assert.equal(angle(), '20°', '수동 각도는 회전을 멈추고 적용된다');
+    await ui.click('draft'); assert.equal(created(api).rotationSpeed, 2);
+    assert.deepEqual(created(api).motion, [], '재생과 속도 조절은 등급의 기존 동작 연결을 바꾸지 않는다');
+    await ui.change('project-list', [...api.store.keys()][0]); assert.equal(Number(ui.control('rotation-speed').value), 2);
+  } finally { Object.defineProperty(globalThis, 'performance', originalPerformance); }
+});
 const sceneFile = { type: 'image/png', size: 1000, name: 'scene.png', dataUrl: 'data:image/png;base64,BBBB' };
 const posts = api => api.calls.filter(call => call.method === 'POST').map(call => call.path);
 
 /** 사진·캠페인·보상 연결까지 마친 게시 직전 상태로 만든다. */
 async function readyToPublish(ui, { scenes = false } = {}) {
   await ui.upload(photoFile);
-  await ui.change('campaign', 'campaign-a');
-  const reward = ui.container.querySelector('[data-reward-count="1"]');
-  reward.value = 'bronze'; reward.dispatchEvent({ type: 'change' }); await settle();
   if (scenes) {
     await ui.change('story-type', 'wide');
     const files = ui.control('story-files'); files.files = [sceneFile]; files.dispatchEvent({ type: 'change' }); await settle();
@@ -160,8 +206,8 @@ test('게시한 뒤에도 장면 미리보기 같은 파생 필드 때문에 저
   const publish = api.calls.find(call => call.path.endsWith('/publish'));
   assert.deepEqual(publish.body, { expectedVersion: 1, campaignId: 'campaign-a' });
   const created = api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects');
-  // 새 점포 초안은 1·3·5회 목표가 기본 연결되므로 세 등급 모두 굽는다.
-  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold']);
+  // 제작·저장은 프리즘을 포함한 네 기본 등급, 방문 지급은 1·3·5회 세 등급이다.
+  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold', 'prism']);
   assert.ok(created.body.project.story.frames[0].previewDataUrl, '게시용 장면 미리보기를 함께 보낸다');
   assert.match(ui.notice, /게시했어요/);
   assert.equal(api.store.get('project-1').status, 'PUBLISHED');
@@ -303,44 +349,123 @@ test('게시용 완성·뒷면 이미지·썸네일·장면 미리보기는 WebP
   assert.match(ui.notice, /게시했어요/);
 });
 
-// Issue #284 WP2 설계 6번: 연결된 등급만 derived를 만든다(본문 용량 절약). 미리보기 중인 등급은 보상 연결이
-// 없어도 함께 만든다(편집기가 지금 보는 등급을 publish 직후에도 그대로 보여 줄 수 있어야 한다).
-test('serializeDerived는 보상에 연결된 등급과 지금 보는 등급만 굽고, 연결되지 않은 다른 등급은 비워 둔다', async () => {
+test('게시하면 미리보기와 보상 연결에 상관없이 프리즘을 포함한 네 기본 등급을 모두 저장한다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await ui.upload(photoFile);
-  await ui.change('campaign', 'campaign-a');
-  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
-  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
-  // 지금 미리보기 등급(기본 bronze)은 어느 보상에도 연결하지 않았다.
   await ui.click('publish');
   const project = created(api);
-  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], 'bronze(미리보기 등급)·silver·gold만 굽고 prism은 빠진다');
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' }, '프리즘 제작이 방문 지급 조건을 늘리지 않는다');
+  for (const [gradeId, asset] of Object.entries(project.derived)) {
+    for (const key of ['imageDataUrl', 'thumbnailDataUrl', 'backImageDataUrl', 'baseDataUrl']) assert.match(asset[key], /^data:image\//, `${gradeId}.${key}`);
+  }
 });
 
-test('연결된 세 등급 모두 홀로그램 효과가 있어도 base·mask를 되살린 게시 본문은 8 MB 한도보다 충분히 작다(PR #293 P2 회귀)', async () => {
+test('프리즘을 미리 보는 중 게시해도 네 기본 등급의 이미지와 프리즘 이름을 함께 보존한다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await ui.upload(photoFile);
-  await ui.change('campaign', 'campaign-a');
-  const reward1 = ui.container.querySelector('[data-reward-count="1"]'); reward1.value = 'silver'; reward1.dispatchEvent({ type: 'change' }); await settle();
-  const reward3 = ui.container.querySelector('[data-reward-count="3"]'); reward3.value = 'gold'; reward3.dispatchEvent({ type: 'change' }); await settle();
+  ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').dispatchEvent({ type: 'click' }); await settle();
+  const prismName = ui.container.querySelector('[data-grade-name="prism"]');
+  prismName.value = '프리즘 편집'; prismName.dispatchEvent({ type: 'change' }); await settle();
+  assert.equal(ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').getAttribute('aria-pressed'), 'true');
+
+  await ui.click('publish');
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+  assert.equal(project.grades.find(grade => grade.id === 'prism').name, '프리즘 편집', '프리즘 등급 메타데이터는 저장한다');
+  assert.equal(project.grades.find(grade => grade.id === 'prism').enabled, true, '프리즘 등급은 계속 편집 가능한 상태로 남는다');
+  assert.equal(ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').getAttribute('aria-pressed'), 'true', '게시 뒤에도 보던 프리즘 탭은 유지한다');
+});
+
+test('네 기본 등급 모두 홀로그램 효과가 있어도 base·mask·각도 프레임을 포함한 게시 본문은 8 MB 한도 안이다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
   ui.control('effect-type').value = 'hologram';
   await ui.click('effect-add');
-  for (const gradeId of ['bronze', 'silver', 'gold']) {
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) {
     const checkbox = ui.container.querySelector(`input[data-effect-grade][data-grade="${gradeId}"]`);
     checkbox.checked = true; checkbox.dispatchEvent({ type: 'change' }); await settle();
   }
   dom.document.encodedBytes = 80 * 1024; // 실제 사진 한 장 크기를 흉내 낸 값(개별 상한 안에서 여유 있게 큰 편)
   await ui.click('publish');
   const project = created(api);
-  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '지금 보는 등급·보상 연결 등급 세 개만 굽는다');
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
   for (const asset of Object.values(project.derived)) {
     assert.match(asset.baseDataUrl, /^data:image\//, '홀로그램 효과가 있는 등급은 base를 다시 만든다');
     assert.match(asset.effectMasks?.surface, /^data:image\//, '홀로그램 효과가 있는 등급은 surface mask를 다시 만든다');
+    assert.match(asset.angleFrames?.dataUrl, /^data:image\//, '네 등급 모두 각도별 재질 프레임을 보존한다');
   }
   const bodyBytes = new TextEncoder().encode(JSON.stringify({ project })).length;
-  assert.ok(bodyBytes < 8 * MiB, `세 등급에 base·mask를 되살려도 본문은 8 MB보다 충분히 작아야 한다(${bodyBytes} bytes)`);
+  assert.ok(bodyBytes < 8 * MiB, `네 등급의 base·mask·각도 프레임까지 본문은 8 MB 안이어야 한다(${bodyBytes} bytes)`);
+});
+
+test('전체 본문이 큰 네 등급은 모두 유지한 채 448→384→320→256 각도 프레임으로 줄여 게시한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  const original = `data:image/png;base64,${Buffer.alloc(1536 * 1024, 7).toString('base64')}`;
+  await ui.upload({ ...photoFile, size: 1536 * 1024, dataUrl: original });
+  ui.control('effect-type').value = 'hologram'; await ui.click('effect-add');
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) {
+    const checkbox = ui.container.querySelector(`input[data-effect-grade][data-grade="${gradeId}"]`);
+    checkbox.checked = true; checkbox.dispatchEvent({ type: 'change' }); await settle();
+  }
+  const prototype = Object.getPrototypeOf(document.createElement('canvas'));
+  const encode = prototype.toDataURL;
+  prototype.toDataURL = function (type, quality) {
+    // 코어 이미지와 mask는 개별 상한 안이다. 큰 각도 atlas만 전체 본문을 넘기도록 구성한다.
+    this.ownerDocument.encodedBytes = this.width === 160 ? 64 * 1024
+      : type === 'image/png' ? 128 * 1024
+      : this.width > 512 ? ({ 1792: 600, 1536: 512, 1280: 256, 1024: 128 }[this.width] * 1024)
+      : 256 * 1024;
+    return encode.call(this, type, quality);
+  };
+  try { await ui.click('publish'); } finally { prototype.toDataURL = encode; }
+
+  assert.match(ui.notice, /게시했어요/);
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+  assert.equal(project.photo.originalDataUrl, original, '원본 사진을 다시 압축하거나 삭제하지 않는다');
+  for (const rung of SPRITE_SIZE_LADDER) {
+    const atlasEncodes = dom.document.encodes.filter(item => item.type === 'image/webp' && item.width === rung.side * 4 && item.height === rung.side * 3);
+    assert.equal(atlasEncodes.length, 4, `${rung.side}px 단계에도 네 등급이 모두 남는다`);
+    assert.ok(atlasEncodes.every(item => item.quality === rung.quality));
+  }
+  for (const asset of Object.values(project.derived)) assert.equal(asset.angleFrames.side, 256);
+  assert.equal(publishSizeProblem(project), '', '본문과 모든 개별 asset 상한을 통과한다');
+  assert.ok(new TextEncoder().encode(JSON.stringify({ project })).length <= mediaLimits.body);
+});
+
+test('특수등급 추가·이름 변경·미리보기 전환·재열기로 기본 네 등급과 기존 특수등급을 잃지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.change('grade-name', '겨울 기념'); await ui.click('grade-add');
+  const specialId = ui.container.querySelector('[data-action="grade-preview"][aria-pressed="true"]').dataset.id;
+  const name = ui.container.querySelector(`[data-grade-name="${specialId}"]`);
+  name.value = '겨울 한정 기념'; name.dispatchEvent({ type: 'change' }); await settle();
+  for (const gradeId of ['bronze', 'prism', specialId]) {
+    ui.container.querySelector(`[data-action="grade-preview"][data-id="${gradeId}"]`).dispatchEvent({ type: 'click' }); await settle();
+  }
+  await ui.click('draft');
+  const draft = created(api);
+  assert.equal(draft.grades.length, 5);
+  assert.equal(draft.grades.find(grade => grade.id === specialId).name, '겨울 한정 기념');
+  assert.deepEqual(draft.derived, {}, '초안은 원본·설정으로 보존하고 게시 시 파생 이미지를 만든다');
+  assert.deepEqual(draft.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+
+  await ui.click('publish');
+  const published = api.store.get('project-1').project;
+  assert.deepEqual(Object.keys(published.derived).sort(), ['bronze', 'gold', 'prism', 'silver', specialId].sort());
+  assert.equal(published.grades.find(grade => grade.id === specialId).name, '겨울 한정 기념');
+  assert.deepEqual(published.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' }, '특수등급은 추가 방문 보상으로 자동 연결하지 않는다');
+  await ui.change('project-list', 'project-1');
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism', specialId]) assert.ok(ui.container.querySelector(`[data-action="grade-preview"][data-id="${gradeId}"]`), gradeId);
+  assert.equal(ui.container.querySelector(`[data-grade-name="${specialId}"]`).value, '겨울 한정 기념');
 });
 
 test('WebP 인코딩을 지원하지 않는 브라우저는 PNG로 게시한다', async () => {
@@ -518,34 +643,37 @@ test('기존 마스코트 스티커의 포즈 select도 추가 폼처럼 포즈 
   assert.equal(poseSelect.value, 'wave', '고른 포즈가 선택돼 있어야 한다');
 });
 
-test('뒷면 모드를 커스텀으로 바꾸면 뒷면 스티커를 추가할 수 있고, 기본 모드에서는 폼이 잠긴다', async () => {
+test('뒷면은 모양·등급별 고정 음각으로 안내하고 앞면 스티커만 편집한다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
-  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, true, '앞면을 꾸밀 때는 뒷면 모드가 보이지 않는다');
-
-  await ui.change('sticker-side', 'back');
-  assert.equal(ui.container.querySelector('[data-view="back-mode-row"]').hidden, false);
-  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드에서는 뒷면 스티커를 추가할 수 없다');
-
-  await ui.change('back-mode', 'custom');
-  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, false);
-  ui.control('sticker-new').value = '뒷면 글자';
+  for (const control of ['sticker-side', 'back-mode', 'back-color']) assert.equal(ui.control(control), null, control);
+  const note = ui.container.querySelector('[data-view="fixed-back"]');
+  assert.match(note.textContent, /원형 · 브론즈 고정 음각/);
+  assert.equal(note.closest('[data-step-panel]').dataset.stepPanel, '3');
+  await ui.change('shape', 'stamp');
+  ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
+  assert.match(note.textContent, /우표 · 실버 고정 음각/);
+  await ui.change('grade-name', '축제'); await ui.click('grade-add');
+  assert.match(note.textContent, /우표 · 브론즈 고정 음각/, '특수 등급의 뒷면은 정해진 브론즈를 쓴다');
+  ui.control('sticker-new').value = '앞면 글자';
   await ui.click('sticker-add');
   assert.equal(ui.control('sticker-list').options.length, 1);
-
   await ui.click('draft');
   const saved = created(api);
-  assert.equal(saved.back.mode, 'custom');
-  assert.equal(saved.back.stickers.length, 1);
-  assert.equal(saved.back.stickers[0].text, '뒷면 글자');
-  assert.equal(saved.stickers.length, 0, '뒷면 스티커는 앞면 목록에 섞이지 않는다');
+  assert.equal(saved.stickers[0].text, '앞면 글자');
+  assert.deepEqual(saved.back.stickers, [], '새 프로젝트에는 사용자 뒷면 스티커가 생기지 않는다');
+});
 
-  await ui.change('sticker-side', 'front');
-  await ui.change('back-mode', 'default');
-  // back-mode는 side==='back'일 때만 보이므로, 위 change는 뒷면으로 되돌아가 default를 거쳐야 한다.
-  await ui.change('sticker-side', 'back');
-  assert.equal(ui.control('back-mode').value, 'default');
-  assert.equal(ui.container.querySelector('[data-view="sticker-form"]').hidden, true, '기본 모드로 되돌리면 폼이 다시 잠긴다');
+test('기존 커스텀 뒷면 메타데이터는 앞면 스티커 편집과 저장에서 유지한다', async () => {
+  const api = createFakeApi(), project = seeded('옛 뒷면 보관');
+  project.back = { mode: 'custom', color: '#123456', stickers: [{ id: 'legacy-back', kind: 'text', text: '옛 뒷면', x: .5, y: .5, size: 30, rotation: 0, color: '#ffffff', order: 0, align: 'center' }] };
+  const saved = api.seed(project), ui = await mount(api);
+  await ui.change('project-list', saved.id);
+  assert.equal(ui.control('sticker-list').options.length, 0, '옛 뒷면 스티커를 앞면으로 옮기지 않는다');
+  ui.control('sticker-new').value = '새 앞면'; await ui.click('sticker-add'); await ui.click('draft');
+  const put = api.calls.find(call => call.method === 'PUT');
+  assert.deepEqual(put.body.project.back, project.back);
+  assert.equal(put.body.project.stickers[0].text, '새 앞면');
 });
 
 test('마스코트 스티커는 포즈를 고르고, 뒷면 스티커는 효과 대상 목록에 나오지 않는다', async () => {
@@ -678,32 +806,36 @@ test('인사말 규칙 추가·삭제와 미리보기는 resolveGreeting 우선�
   assert.ok(overrideId);
 });
 
-test('등급을 끄면(삭제에 준함) 그 등급의 스티커 전용 배치·동작·인사말 규칙 참조를 지운다', async () => {
+test('선택형 등급을 끄면(삭제에 준함) 그 등급의 스티커 전용 배치·동작·인사말 규칙 참조를 지운다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
+  await ui.change('grade-name', '기념 등급'); await ui.click('grade-add');
+  const specialId = ui.container.querySelector('[data-action="grade-preview"][aria-pressed="true"]').dataset.id;
   ui.control('sticker-new').value = '글자';
   await ui.click('sticker-add');
   const xInput = ui.container.querySelector('[data-sticker="x"]');
   xInput.value = '0.1'; xInput.dispatchEvent({ type: 'input' }); await settle();
   ui.control('sticker-grade-only').checked = true; ui.control('sticker-grade-only').dispatchEvent({ type: 'change' }); await settle();
 
-  const motionBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="bronze"]');
+  const motionBox = ui.container.querySelector(`[data-motion-grade="rotate"][data-grade="${specialId}"]`);
   motionBox.checked = true; motionBox.dispatchEvent({ type: 'change' }); await settle();
 
-  ui.control('greeting-override-text').value = '브론즈 인사말';
+  ui.control('greeting-override-text').value = '기념 등급 인사말';
   await ui.click('greeting-override-add');
-  const overrideGradeBox = ui.container.querySelector('input[data-override-grade][data-grade="bronze"]');
+  const overrideGradeBox = ui.container.querySelector(`input[data-override-grade][data-grade="${specialId}"]`);
   overrideGradeBox.checked = true; overrideGradeBox.dispatchEvent({ type: 'change' }); await settle();
 
-  // 지금 보는 등급을 다른 곳으로 옮긴 뒤(한 개 이상 남겨야 끌 수 있다) bronze를 끈다.
+  // 기본 네 등급은 유지하고 새로 만든 선택형 등급만 끈다.
   ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
-  const bronzeEnabled = ui.container.querySelector('[data-grade-enabled="bronze"]');
-  bronzeEnabled.checked = false; bronzeEnabled.dispatchEvent({ type: 'change' }); await settle();
+  const specialEnabled = ui.container.querySelector(`[data-grade-enabled="${specialId}"]`);
+  specialEnabled.checked = false; specialEnabled.dispatchEvent({ type: 'change' }); await settle();
 
   await ui.click('draft');
   const saved = created(api);
-  assert.equal(saved.stickers[0].layouts.bronze, undefined, '끈 등급의 전용 배치는 지운다');
-  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('bronze'), false, '끈 등급의 동작 참조를 지운다');
+  assert.equal(saved.grades.find(grade => grade.id === specialId).enabled, false, '선택형 등급의 식별자·이름은 보존하고 비활성 표시만 남긴다');
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) assert.equal(saved.grades.find(grade => grade.id === gradeId).enabled, true, gradeId);
+  assert.equal(saved.stickers[0].layouts[specialId], undefined, '끈 등급의 전용 배치는 지운다');
+  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes(specialId), false, '끈 등급의 동작 참조를 지운다');
   assert.equal(saved.greetingOverrides.length, 0, '등급 참조가 모두 사라지고 테마 조건도 없는 규칙은 함께 지운다');
 });
 
@@ -751,7 +883,7 @@ test('게시가 캠페인 문제로 거절돼도 저장된 초안은 남고 다�
   await readyToPublish(ui);
   api.failNext('POST', /publish$/, { status: 409, code: 'COLLECTIBLE_CAMPAIGN_UNAVAILABLE' });
   await ui.click('publish');
-  assert.match(ui.notice, /선택한 캠페인에는 지금 게시할 수 없어요/);
+  assert.match(ui.notice, /방문 보상을 지금 게시할 수 없어요/);
   assert.equal(api.store.get('project-1').status, 'DRAFT');
   assert.equal(ui.dirty, true, '게시하지 못했으니 편집 상태를 지킨다');
   await ui.click('publish');
@@ -763,27 +895,39 @@ test('게시가 캠페인 문제로 거절돼도 저장된 초안은 남고 다�
   assert.equal(api.store.get('project-1').status, 'PUBLISHED');
 });
 
-test('게시 직전에 캠페인 목록을 다시 읽어 끝난 캠페인은 보내기 전에 막는다', async () => {
+test('게시 직전에 캠페인 목록을 다시 읽어 1·3·5회가 아닌 캠페인은 보내기 전에 막는다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await readyToPublish(ui);
-  api.campaigns.splice(0, 1);
+  api.campaigns.splice(0, 1, { ...api.campaigns[0], goals: [1, 3] });
   await ui.click('publish');
-  assert.match(ui.notice, /선택한 캠페인은 지금 게시할 수 없어요/);
+  assert.equal(ui.notice, '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요');
   assert.equal(posts(api).length, 0);
-  assert.deepEqual(ui.control('campaign').options.map(item => item.value), ['', 'campaign-b']);
+  assert.equal(ui.control('campaign'), null);
 });
 
-test('캠페인을 바꾸면 그 캠페인에 없는 방문 목표의 수집품 연결은 풀고 보여 주지 않는다', async () => {
+test('방문 보상 횟수와 등급은 점주 화면에서 조작할 수 없다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
-  await ui.change('campaign', 'campaign-a');
-  assert.equal(ui.container.querySelectorAll('[data-reward-count]').length, 3);
-  const five = ui.container.querySelector('[data-reward-count="5"]');
-  five.value = 'gold'; five.dispatchEvent({ type: 'change' }); await settle();
-  await ui.change('campaign', 'campaign-b');
-  assert.deepEqual(ui.container.querySelectorAll('[data-reward-count]').map(node => node.dataset.rewardCount), ['1', '3']);
-  assert.match(ui.notice, /캠페인에 없는 방문 목표\(5회\)의 수집품 연결은 풀었어요/);
+  assert.equal(ui.control('campaign'), null);
+  assert.equal(ui.container.querySelector('[data-reward-count]'), null);
+  assert.match(ui.container.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
+});
+
+
+test('프리즘을 포함한 네 기본 등급은 조작된 체크 해제도 저장 전에 되돌리고 방문 지급은 세 연결로 유지한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) {
+    const checkbox = ui.container.querySelector(`[data-grade-enabled="${gradeId}"]`);
+    assert.equal(checkbox.disabled, true, `${gradeId}는 필수 등급이라 UI에서 끌 수 없다`);
+    checkbox.checked = false; checkbox.dispatchEvent({ type: 'change' }); await settle();
+    assert.equal(checkbox.checked, true, '조작된 체크 해제는 즉시 되돌린다');
+  }
+  await ui.click('draft');
+  const saved = created(api);
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) assert.equal(saved.grades.find(grade => grade.id === gradeId).enabled, true, gradeId);
+  assert.deepEqual(saved.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
 });
 
 test('게시한 프로젝트를 고쳐 저장하면 먼저 새 초안으로 복사하고 그 초안에 이어 저장한다', async () => {
@@ -809,7 +953,7 @@ test('게시한 프로젝트를 고쳐 저장하면 먼저 새 초안으로 복�
   assert.equal(api.store.size, 2);
 });
 
-test('시즌 복사는 서버에 새 초안을 만들고 캠페인·보상 연결을 비운 채 그 초안으로 이어 간다', async () => {
+test('시즌 복사는 서버에 새 초안을 만들고 현재 자동 방문 보상 연결을 이어 간다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await readyToPublish(ui);
@@ -818,14 +962,16 @@ test('시즌 복사는 서버에 새 초안을 만들고 캠페인·보상 연�
   const copy = api.calls.find(call => call.path.endsWith('/copy'));
   assert.deepEqual(copy.body, { expectedVersion: 1 });
   assert.equal(ui.control('name').value, '월계 식당 방문 수집품 · 시즌 복사');
-  assert.equal(ui.control('campaign').value, '');
-  assert.equal(ui.container.querySelector('[data-reward-count="1"]').value, '');
+  assert.equal(ui.control('campaign'), null);
+  assert.match(ui.container.querySelector('[data-view="campaign-status"]').textContent, /방문 보상은 자동으로 연결돼요/);
+  assert.match(ui.container.querySelector('[data-view="reward-grades"]').textContent, /1회 브론즈 · 3회 실버 · 5회 골드/);
   assert.equal(ui.dirty, true, '복사본의 이름·연결을 바꿨으니 저장해야 한다');
   await ui.click('draft');
   const put = api.calls.filter(call => call.method === 'PUT').at(-1);
   assert.notEqual(put.path, '/collectible-projects/project-1', '원래 초안이 아니라 복사본에 저장한다');
   assert.equal(put.body.expectedVersion, 1);
-  assert.equal(put.body.project.campaignId, '');
+  assert.equal(put.body.project.campaignId, 'campaign-a');
+  assert.deepEqual(put.body.project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
   assert.equal(api.store.get('project-1').project.name, '월계 식당 방문 수집품', '원래 초안은 그대로');
 });
 
@@ -927,6 +1073,26 @@ test('저장하지 않은 편집이 있으면 제작기를 다시 열기 전에 
   assert.match(declined.asked[0], /저장하지 않은 편집이 있어요\. 지금 제작기를 다시 열거나 다른 점포로 바꾸면 사라져요/);
   assert.equal(declined.control('name').value, '아직 저장 안 한 이름', '거절하면 편집이 남는다');
   assert.equal(api.calls.filter(call => call.path === '/collectible-projects' && call.method === 'GET').length, 1, '다시 열지 않았다');
+});
+
+test('사진 처리가 끝나기 전 제작기를 다시 열면 저장하지 않은 편집으로 확인한다', async () => {
+  const api = createFakeApi();
+  const previousReader = Object.getOwnPropertyDescriptor(globalThis, 'FileReader');
+  globalThis.FileReader = class { readAsDataURL() {} };
+  try {
+    const ui = await mountViaMerchant(api, { confirm: () => false });
+    const photo = ui.control('photo');
+    photo.files = [photoFile];
+    photo.dispatchEvent({ type: 'change' });
+    await settle(1);
+    await ui.openEditor();
+    assert.match(ui.asked[0], /저장하지 않은 편집이 있어요\. 지금 제작기를 다시 열거나 다른 점포로 바꾸면 사라져요/);
+    assert.ok(ui.host.children.length > 0, '거절하면 처리 중인 제작기를 닫지 않는다');
+    assert.equal(api.calls.filter(call => call.path === '/collectible-projects' && call.method === 'GET').length, 1, '처리 중이면 다시 열지 않는다');
+  } finally {
+    if (previousReader) Object.defineProperty(globalThis, 'FileReader', previousReader);
+    else delete globalThis.FileReader;
+  }
 });
 
 test('저장하지 않은 편집이 있어도 수락하면 새 제작기를 연다', async () => {
@@ -1146,9 +1312,11 @@ test('서버와 같은 버전의 기기 보관본이 있으면 다시 열 때 �
   assert.equal(put.body.project.name, '복원할 이름');
 });
 
-test('pre-v2 편집기가 남긴 schemaVersion:1 기기 보관본을 복원한 뒤 뒷면 편집을 더해 저장하면, 저장 본문은 항상 schemaVersion 2이고 뒷면 편집을 담는다(PR #293 P1 회귀)', async () => {
+test('pre-v2 기기 보관본 복원 뒤 앞면을 편집해도 schemaVersion 2와 기존 뒷면 메타데이터를 지킨다(PR #293 P1 회귀)', async () => {
   const api = createFakeApi();
-  const saved = api.seed(seeded('구버전 보관본 복원 시험'));
+  const project = seeded('구버전 보관본 복원 시험');
+  project.back = { mode: 'custom', color: '#123456', stickers: [{ id: 'legacy-back', kind: 'text', text: '기존 뒷면 글자', x: .5, y: .5, size: 30, rotation: 0, color: '#ffffff', order: 0, align: 'center' }] };
+  const saved = api.seed(project);
   assert.equal(saved.project.schemaVersion, 2, '서버 프로젝트는 이미 v2다');
 
   // pre-v2 편집기의 draftEditsOnly가 남겼을 모양: schemaVersion:1이고 back·layouts·greetingOverrides가 아예 없다.
@@ -1161,17 +1329,14 @@ test('pre-v2 편집기가 남긴 schemaVersion:1 기기 보관본을 복원한 �
   assert.match(restored.asked[0], /저장하지 않은 편집을 이어서 할까요\?/);
   assert.equal(restored.control('name').value, '복원된 이름');
 
-  // 복원 뒤 v2 전용(뒷면) 편집을 더한다.
-  await restored.change('sticker-side', 'back');
-  await restored.change('back-mode', 'custom');
-  restored.control('sticker-new').value = '뒷면 글자';
+  restored.control('sticker-new').value = '앞면 글자';
   await restored.click('sticker-add');
 
   await restored.click('draft');
   const put = api.calls.find(call => call.method === 'PUT');
   assert.equal(put.body.project.schemaVersion, 2, '옛 보관본을 복원해 저장해도 본문은 항상 schemaVersion 2여야 한다');
-  assert.equal(put.body.project.back.mode, 'custom', '복원 뒤 더한 뒷면 편집이 업그레이더에 지워지지 않고 그대로 저장돼야 한다');
-  assert.equal(put.body.project.back.stickers[0]?.text, '뒷면 글자');
+  assert.deepEqual(put.body.project.back, project.back, '옛 보관본 복원은 서버에 보관된 뒷면 메타데이터를 지우지 않는다');
+  assert.equal(put.body.project.stickers[0]?.text, '앞면 글자');
 });
 
 test('복원 응답을 기다리는 동안 새로 입력하면 늦게 온 복원이 그 입력을 덮지 않는다(PR #289 P1)', async () => {

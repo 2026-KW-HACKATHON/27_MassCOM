@@ -1,0 +1,26 @@
+2026-10-08 KST; Git LF checkout; merchant photo-editor follow-up
+
+node --test tests/site/*.test.mjs
+ℹ tests 401
+ℹ suites 0
+ℹ pass 401
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 113263.119
+
+bash tools/gate.sh
+conflict marker check tests passed
+bootstrap contract verified: required docs present, 36 test IDs and statuses synchronized
+bootstrap verification regression tests passed
+operations documentation verified
+operations docs regression tests passed
+evidence consistency verified: 31 PASS · 2 BLOCKED · 3 NOT_RUN
+evidence consistency regression tests passed
+로컬 빠른 검사 PASS. PR 제목·본문은 scripts/check-pr-korean.sh로, 나머지는 CI로 확인한다.
+
+node --check editor / renderer / studio / merchant: PASS
+git diff --cached --check: PASS
+check-pr-korean.sh final title and body: PASS
+Read-only review: no blocking findings

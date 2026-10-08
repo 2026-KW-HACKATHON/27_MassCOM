@@ -28,7 +28,12 @@
       <button id="merchant-logout" class="collection-action secondary" type="button" hidden>로그아웃</button>
     </div>
     <section id="merchant-content" hidden>
-      <section id="merchant-overview" class="panel overview" aria-labelledby="merchant-overview-title" hidden>
+      <nav id="merchant-owner-nav" class="merchant-view-nav" aria-label="점주 방문 보상 화면" hidden>
+        <button type="button" data-merchant-view-target="create" aria-current="page">방문 보상 만들기</button>
+        <button type="button" data-merchant-view-target="claim">방문 확인</button>
+        <button type="button" data-merchant-view-target="results">운영 결과</button>
+      </nav>
+      <section id="merchant-overview" class="panel overview" data-merchant-view="results" aria-labelledby="merchant-overview-title" hidden>
         <h2 id="merchant-overview-title">가게 현황</h2>
         <p>선택한 점포의 방문과 고객 앱 공개 준비 상태를 한눈에 봐요. 방문은 한국 시간 기준 하루 한 번만 세고, 취소한 방문·운영 점포 직원의 본인 적립·체험용 점포 방문은 빼고 센 값이에요.</p>
         <label id="merchant-overview-picker">점포 <select id="merchant-overview-merchant"></select></label>
@@ -42,24 +47,14 @@
           <ol id="merchant-readiness-list" class="readiness-list" aria-labelledby="merchant-readiness-title"></ol>
         </section>
       </section>
-      <section id="merchant-operations" class="panel" aria-labelledby="merchant-operations-title" hidden>
-        <h2 id="merchant-operations-title">캠페인·직원·방문 자료</h2>
-        <p>점주가 운영 중인 캠페인과 직원 권한을 관리하고, 현황과 같은 기준의 방문 자료를 받습니다.</p>
+      <section id="merchant-operations" class="panel merchant-workflow-secondary" aria-labelledby="merchant-operations-title" hidden>
+        <h2 id="merchant-operations-title">직원·방문 자료</h2>
+        <p>방문 보상은 플랫폼의 1·3·5회 기준으로 고정됩니다. 점주는 직원 권한을 관리하고, 현황과 같은 기준의 방문 자료를 받습니다.</p>
         <label>점포 <select id="merchant-operations-merchant"></select></label>
-        <section aria-labelledby="merchant-extension-title">
-          <h3 id="merchant-extension-title">캠페인 연장</h3>
-          <p id="merchant-extension-status" class="status" role="status" aria-live="polite"></p>
-          <label>캠페인 <select id="merchant-extension-campaign"></select></label>
-          <p id="merchant-extension-current"></p>
-          <form id="merchant-extension-form">
-            <label>연장 기간 <select name="days"><option value="30">30일</option><option value="90">90일</option></select></label>
-            <label><input name="consent" type="checkbox" required> 현재 종료일과 연장 후 조건을 확인하고 직접 연장에 동의합니다.</label>
-            <button type="submit">기간 연장 확정</button>
-          </form>
-        </section>
         <section aria-labelledby="merchant-benefit-heading">
           <h3 id="merchant-benefit-heading">캠페인 혜택 추가 원가</h3>
           <p>캠페인을 고르면 혜택 발급과 추가 원가를 확인할 수 있어요. 이 금액은 매출·이익이 아니에요.</p>
+          <label>캠페인 <select id="merchant-benefit-campaign"></select></label>
           <p id="merchant-benefit-status" class="status" role="status" aria-live="polite"></p>
         </section>
         <section aria-labelledby="merchant-staff-title">
@@ -79,7 +74,7 @@
           <p id="merchant-export-status" class="status" role="status" aria-live="polite"></p>
         </section>
       </section>
-      <section id="merchant-profile" class="panel" aria-labelledby="merchant-profile-title" hidden>
+      <section id="merchant-profile" class="panel merchant-workflow-secondary" aria-labelledby="merchant-profile-title" hidden>
         <h2 id="merchant-profile-title">가게 정보</h2>
         <p>이름·주소는 운영자에게 요청해 주세요.</p>
         <p id="merchant-profile-status" class="status" role="status" aria-live="polite"></p>
@@ -105,7 +100,7 @@
         </form>
         <button id="merchant-profile-print" class="collection-action secondary" type="button">매장 안내문 인쇄</button>
       </section>
-      <section id="real-world-merchant" class="panel" aria-labelledby="real-world-title" hidden>
+      <section id="real-world-merchant" class="panel merchant-workflow-secondary" aria-labelledby="real-world-title" hidden>
         <h2 id="real-world-title">고객에게 보이는 실제 정보</h2>
         <label>점포 <select id="real-world-store"></select></label>
         <p id="real-world-status" class="status" role="status" aria-live="polite"></p>
@@ -182,7 +177,7 @@
           <dl id="real-world-engagement"></dl>
         </section>
       </section>
-      <section id="merchant-feedback" class="panel" aria-labelledby="merchant-feedback-title" hidden>
+      <section id="merchant-feedback" class="panel" data-merchant-view="results" aria-labelledby="merchant-feedback-title" hidden>
         <h2 id="merchant-feedback-title">방문 고객 의견</h2>
         <p id="merchant-feedback-status" class="status" role="status" aria-live="polite"></p>
         <h3 id="merchant-feedback-tags-title">가게 특징</h3>
@@ -192,18 +187,18 @@
         <h3 id="merchant-feedback-notes-title">최근 의견</h3>
         <ul id="merchant-feedback-notes" aria-labelledby="merchant-feedback-notes-title"></ul>
       </section>
-      <section id="merchant-creator" class="panel" aria-labelledby="merchant-creator-title" hidden>
+      <section id="merchant-creator" class="panel" data-merchant-view="create" aria-labelledby="merchant-creator-title" hidden>
         <h2 id="merchant-creator-title">가게 수집품 만들기</h2>
         <p>사진 한 장으로 시작하고, 손님이 방문해 받은 수집품을 도감에 남겨요.</p>
         <label>제작할 점포 <select id="merchant-creator-store"></select></label>
         <button id="merchant-creator-open" type="button">제작기 열기</button>
         <div id="merchant-creator-editor"></div>
       </section>
-      <section class="panel" aria-labelledby="merchant-stores-title">
+      <section class="panel merchant-workflow-secondary" aria-labelledby="merchant-stores-title">
         <h2 id="merchant-stores-title">내 점포</h2>
         <div id="merchant-memberships"></div>
       </section>
-      <section class="panel" aria-labelledby="merchant-registration-title">
+      <section class="panel merchant-workflow-secondary" aria-labelledby="merchant-registration-title">
         <h2 id="merchant-registration-title">직원 등록 요청</h2>
         <p>실제 점포를 선택하면 현재 계정에 묶인 15분짜리 등록 코드가 나옵니다. 운영 관리자에게 확인된 연락 경로로 전달하세요.</p>
         <form id="merchant-registration">
@@ -212,7 +207,7 @@
         </form>
         <p id="merchant-code" class="status" role="status" aria-live="polite"></p>
       </section>
-      <section class="panel" aria-labelledby="merchant-claim-title">
+      <section class="panel" data-merchant-view="claim" aria-labelledby="merchant-claim-title">
         <h2 id="merchant-claim-title">고객 방문 확인</h2>
         <p>고객 앱의 QR을 확인하고 실제 이용을 확인한 뒤 방문 수령 QR을 발급하세요. 발급된 QR은 한 번만 표시됩니다. 발급 응답을 잃었다면 같은 요청을 다시 보내 슬롯을 확인한 뒤 새 코드로 재발급할 수 있습니다.</p>
         <form id="merchant-claim-form" hidden>
@@ -240,7 +235,7 @@
           <button id="merchant-claim-reissue-submit" type="button" disabled>방문 코드 재발급</button>
         </div>
       </section>
-      <section id="merchant-reversal" class="panel" aria-labelledby="merchant-reversal-title" hidden>
+      <section id="merchant-reversal" class="panel" data-merchant-view="results" aria-labelledby="merchant-reversal-title" hidden>
         <h2 id="merchant-reversal-title">최근 방문·쿠폰 사용</h2>
         <p>잘못 처리한 방문이나 쿠폰은 여기서 되돌려요. 방문 취소는 방문한 날(한국 시간)이 지나기 전까지, 쿠폰 사용 되돌리기는 사용 처리 후 10분까지 가능해요. 이미 NFT를 발행 중이거나 발행한 방문은 취소할 수 없어요.</p>
         <label>점포 <select id="merchant-reversal-merchant"></select></label>

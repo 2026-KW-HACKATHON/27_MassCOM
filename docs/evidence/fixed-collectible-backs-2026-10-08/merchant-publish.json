@@ -1,0 +1,15 @@
+{
+  "environment": "local synthetic merchant fixture",
+  "url": "http://127.0.0.1:4190/merchant/",
+  "grade": "prism",
+  "rotationDegrees": 180,
+  "steps": [
+    1,
+    2,
+    3,
+    4
+  ],
+  "publicationVersion": 2,
+  "status": "게시했어요. 이후 방문 보상부터 이 버전을 사용해요. 이미 얻은 수집품은 그대로 보존돼요.",
+  "productionPublished": false
+}

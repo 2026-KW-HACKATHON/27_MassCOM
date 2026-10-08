@@ -1,0 +1,37 @@
+[
+  {
+    "file": "01-prism-front-0.png",
+    "bytes": 54309,
+    "sha256": "12c788acf004e6f58f73329431a43c8842a9b11ff9aa542abfbebe2f2721b528"
+  },
+  {
+    "file": "02-prism-front-45-initial.png",
+    "bytes": 49784,
+    "sha256": "97494260449d685d2f5717dab1169502c44dcb9b4f3b20e15c9312f16e36e31e"
+  },
+  {
+    "file": "02-prism-front-45.png",
+    "bytes": 50686,
+    "sha256": "b3432c4627815ce5836e4111ed78535fdf9f76155c1cd8d09e86e11f35f42016"
+  },
+  {
+    "file": "03-prism-back-180.png",
+    "bytes": 60937,
+    "sha256": "255e24c3f368a36657ba464195a546376242362385e0b0d5d1e7c7da5b023fa6"
+  },
+  {
+    "file": "04-four-grade-backs.png",
+    "bytes": 205817,
+    "sha256": "656fddb94ab30385c203f3ac1b853c94c8afbae36d1ce5843df762f94e104b8f"
+  },
+  {
+    "file": "05-prism-front-minus45.png",
+    "bytes": 49900,
+    "sha256": "208eff5b9b3b3c98fffb6cf00303bf258870cb818b8b254fa357f566c12cc983"
+  },
+  {
+    "file": "06-prism-auto-rotate.png",
+    "bytes": 44897,
+    "sha256": "5dabb855c1a42c129694f38c83e1fee24c4cf536c3514d37eb4249fdf78dd9e4"
+  }
+]

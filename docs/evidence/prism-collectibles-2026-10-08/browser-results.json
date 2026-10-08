@@ -1,0 +1,58 @@
+{
+  "assets": [
+    {
+      "backBytes": 59554,
+      "columns": 4,
+      "count": 12,
+      "frameBytes": 283956,
+      "grade": "bronze",
+      "side": 448,
+      "stepDegrees": 15
+    },
+    {
+      "backBytes": 44720,
+      "columns": 4,
+      "count": 12,
+      "frameBytes": 257646,
+      "grade": "silver",
+      "side": 448,
+      "stepDegrees": 15
+    },
+    {
+      "backBytes": 59888,
+      "columns": 4,
+      "count": 12,
+      "frameBytes": 304982,
+      "grade": "gold",
+      "side": 448,
+      "stepDegrees": 15
+    },
+    {
+      "backBytes": 70754,
+      "columns": 4,
+      "count": 12,
+      "frameBytes": 307312,
+      "grade": "prism",
+      "side": 448,
+      "stepDegrees": 15
+    }
+  ],
+  "relief": 80,
+  "requestBytes": 2563589,
+  "style": "incised",
+  "synthetic": true,
+  "version": 3,
+  "grade": "prism",
+  "manualAngles": [
+    0,
+    45,
+    -45,
+    180
+  ],
+  "automatic": {
+    "initialStatus": "PASS · 저장본 재읽기 · 자동 회전 중 · 렌더 22회",
+    "laterStatus": "PASS · 저장본 재읽기 · 자동 회전 중 · 렌더 18968회",
+    "laterAngle": "103.3°"
+  },
+  "comparison": "Production editor and re-read saved frames, synthetic local fixture; not Android device proof."
+}

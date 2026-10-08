@@ -1,0 +1,93 @@
+{
+  "version": "v1",
+  "generatedOn": "2026-10-08",
+  "method": "built-in image_gen.imagegen",
+  "generatedSeparately": true,
+  "processing": "Generated PNG pixels preserved; runtime uses existing canvas/SVG contour clipping and WebP export.",
+  "assets": [
+    {
+      "id": "circle-bronze",
+      "prompt": "Use case: stylized-concept. Asset type: a production square 2D texture map for the reverse face of a collectible metal coin in a web/mobile app.\nCreate ONE beautiful fixed BRONZE CIRCULAR reverse face texture, high detail, orthographic perfectly straight-on, no perspective, no thickness. The whole square canvas is covered edge-to-edge by warm polished copper-bronze metal, with subtle physically convincing directional reflections and fine satin machining, NEVER brown cardboard or paper.\nWithin a circle centered at (50%,50%), diameter 84% of canvas, engrave a restrained premium double circular guilloche border. Its rim is recessed into the metal, NOT embossed. In the center engrave a friendly round penguin mascot with a tiny leaf sprout on its head, short flippers and a little beak: a simple charming silhouette and face, ALL carved into the SAME metal, not a colored illustration or sticker. A fine curved laurel engraving around the lower half and tiny moon motif create a collectible mint-seal design. All carving is visibly incised: dark recessed interiors, shallow engraved linework, razor-sharp bevel highlights. Plenty of clean metal around the central engraving, readable at small size, balanced symmetry.\nImportant composition: this is a full-bleed square FACE TEXTURE, NOT a photograph of a coin. Do not draw a coin's external silhouette, outside background, sidewalls, tabletop, environment, cast shadow, props, box, packaging or separate raised medallion. A deterministic circular mask will clip this texture in the app. Keep all decorative artwork within radius 42% and central mascot within radius 24%.\nNo lettering, no labels, no grade text, no numbers, no watermark, no store-specific imagery. Premium collectible metal quality, sophisticated engraver craft, adorable restrained mascot. Produce a single square image.",
+      "originalFile": "exec-faae4cb9-ea6f-46de-a3f0-d0062fb704e4.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/circle-bronze.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/circle-bronze.png"
+    },
+    {
+      "id": "circle-silver",
+      "prompt": "Use case: precise-object-edit. Asset type: a fixed production reverse-face texture reused in a web/mobile collectible app. Input image: the single bronze circular reverse texture is the EDIT TARGET and the engraving/mascot style reference. Keep the identical cute engraved round penguin with leaf sprout, expressive closed eyes, short flippers, laurel and moon motif. Every mark is incised INTO the metal: dark recessed cavities, crisp shallow beveled cuts, never raised, printed, painted, a sticker or a colored character. Retain orthographic straight-on full-bleed square metal surface, no external product silhouette, no thickness, no perspective, no backdrop/cast shadows/packaging/paper/cardboard. No lettering, numbers, labels, watermark or store-specific content. This is ONE asset, not a contact sheet. Change ONLY the entire material to premium cool platinum-white SILVER, neutral bright silver highlights and deeper graphite recessed details. Keep original circle composition and circular guilloche ornament. Elegant bright polished metal with fine satin reflections, no tan or copper colors.",
+      "originalFile": "exec-6cd7f3c9-f151-4f89-969c-101494838570.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/circle-silver.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/circle-silver.png"
+    },
+    {
+      "id": "circle-gold",
+      "prompt": "Use case: precise-object-edit. Asset type: a fixed production reverse-face texture reused in a web/mobile collectible app. Input image: the single bronze circular reverse texture is the EDIT TARGET and the engraving/mascot style reference. Keep the identical cute engraved round penguin with leaf sprout, expressive closed eyes, short flippers, laurel and moon motif. Every mark is incised INTO the metal: dark recessed cavities, crisp shallow beveled cuts, never raised, printed, painted, a sticker or a colored character. Retain orthographic straight-on full-bleed square metal surface, no external product silhouette, no thickness, no perspective, no backdrop/cast shadows/packaging/paper/cardboard. No lettering, numbers, labels, watermark or store-specific content. This is ONE asset, not a contact sheet. Change ONLY the entire material to luminous rich 24-karat GOLD, clearly bright yellow gold highlights with darker rich gold recesses. Keep original circle composition and circular guilloche ornament. Luxurious jewellery mint quality, distinct from copper bronze, not orange brown.",
+      "originalFile": "exec-c2c74ec2-09f8-4ef5-b615-88001943690e.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/circle-gold.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/circle-gold.png"
+    },
+    {
+      "id": "circle-prism",
+      "prompt": "Use case: precise-object-edit. Asset type: a fixed production reverse-face texture reused in a web/mobile collectible app. Input image: the single bronze circular reverse texture is the EDIT TARGET and the engraving/mascot style reference. Keep the identical cute engraved round penguin with leaf sprout, expressive closed eyes, short flippers, laurel and moon motif. Every mark is incised INTO the metal: dark recessed cavities, crisp shallow beveled cuts, never raised, printed, painted, a sticker or a colored character. Retain orthographic straight-on full-bleed square metal surface, no external product silhouette, no thickness, no perspective, no backdrop/cast shadows/packaging/paper/cardboard. No lettering, numbers, labels, watermark or store-specific content. This is ONE asset, not a contact sheet. Change ONLY the entire material to PRISM: a polished pearlescent silver alloy with luxurious subtle iridescent cyan, lilac, pink and champagne reflections, coherent physical metal lighting and deep muted graphite engraving. Keep the original circle composition and circular guilloche ornament. Multi-tone prismatic metal but clean and legible, no neon stripes or separate colored objects.",
+      "originalFile": "exec-13658d5c-8dc8-49fd-bf2e-3b9783a4a5c3.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/circle-prism.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/circle-prism.png"
+    },
+    {
+      "id": "stamp-bronze",
+      "prompt": "Use case: precise-object-edit. Asset type: fixed production reverse face texture for a reusable collectible metal STAMP / POSTCARD-shaped item. The reference is the EDIT TARGET for the mascot and engraved material style. Change the circular guilloche border into a premium upright RECTANGULAR engraved postal seal frame, width 72% and height 84% of the square canvas, four understated ornamental corners and a repeating fine scalloped/guilloche band, all incised into the metal. Keep exactly the same friendly rounded penguin mascot with leaf sprout, little moon above and balanced laurel branches, centered and smaller enough to fit comfortably inside the rectangular frame. This is not a postcard image: NO paper, address lines, postage numbers, writing, logo typography, words, photo, labels or watermark. Full-bleed square metal texture, every pixel outside the engraved rectangle is the same uninterrupted metal (the app masks the exterior), perfectly orthographic/front-on, no external silhouette, thickness, 3D tilt, tabletop, props, shadows, boxes. All artwork dark recessed engraving with fine bevel highlights, not raised, colored, printed or a sticker. One square production asset only. Material: premium warm polished COPPER BRONZE with fine satin machining and real metallic reflections; deep bronze cuts and bright copper edge highlights. Never cardboard, wooden or flat brown.",
+      "originalFile": "exec-8b452942-7220-4b50-8432-72c47dc662e2.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/stamp-bronze.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/stamp-bronze.png"
+    },
+    {
+      "id": "stamp-silver",
+      "prompt": "Use case: precise-object-edit. Asset type: fixed production reverse face texture for a reusable collectible metal STAMP / POSTCARD-shaped item. The reference is the EDIT TARGET for the mascot and engraved material style. Change the circular guilloche border into a premium upright RECTANGULAR engraved postal seal frame, width 72% and height 84% of the square canvas, four understated ornamental corners and a repeating fine scalloped/guilloche band, all incised into the metal. Keep exactly the same friendly rounded penguin mascot with leaf sprout, little moon above and balanced laurel branches, centered and smaller enough to fit comfortably inside the rectangular frame. This is not a postcard image: NO paper, address lines, postage numbers, writing, logo typography, words, photo, labels or watermark. Full-bleed square metal texture, every pixel outside the engraved rectangle is the same uninterrupted metal (the app masks the exterior), perfectly orthographic/front-on, no external silhouette, thickness, 3D tilt, tabletop, props, shadows, boxes. All artwork dark recessed engraving with fine bevel highlights, not raised, colored, printed or a sticker. One square production asset only. Material: bright cool polished SILVER with fine satin machining, platinum-white highlights and dark graphite engraved recesses. No copper or brown.",
+      "originalFile": "exec-0933f807-3173-4c38-8ec3-4044534b850e.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/stamp-silver.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/stamp-silver.png"
+    },
+    {
+      "id": "stamp-gold",
+      "prompt": "Edit the referenced engraved postage-stamp reverse texture. Preserve the identical rectangular recessed guilloche border, ornamental corners, centered friendly penguin with tiny leaf sprout, crescent moon and curved laurel branches. Preserve all composition and engraved linework. Change ONLY the metal material and its surface lighting as specified. Every figure is incised into the same metal, with visibly darker recessed grooves and fine inner bevels, not a colored sticker or raised badge. Full-bleed square flat orthographic face texture, same metal extends across every outer corner so the app clips its own contour. No lettering, numbers, people, store-specific text, perspective, sidewall, external background, frame drop-shadow, paper, cardboard, box or props. One production asset, matching the referenced texture family. Material: bright refined 24 karat yellow gold with gentle champagne highlights and deep warm gold recessed linework; visibly golden rather than copper or brown. Premium minted engraving.",
+      "originalFile": "exec-567fbb84-0e43-46dd-a84c-cb699c77749a.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/stamp-gold.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/stamp-gold.png"
+    },
+    {
+      "id": "stamp-prism",
+      "prompt": "Edit the referenced engraved postage-stamp reverse texture. Preserve the identical rectangular recessed guilloche border, ornamental corners, centered friendly penguin with tiny leaf sprout, crescent moon and curved laurel branches. Preserve all composition and engraved linework. Change ONLY the metal material and its surface lighting as specified. Every figure is incised into the same metal, with visibly darker recessed grooves and fine inner bevels, not a colored sticker or raised badge. Full-bleed square flat orthographic face texture, same metal extends across every outer corner so the app clips its own contour. No lettering, numbers, people, store-specific text, perspective, sidewall, external background, frame drop-shadow, paper, cardboard, box or props. One production asset, matching the referenced texture family. Material: luxurious iridescent pearl platinum alloy, dominant bright silver with pastel cyan, lilac, pink and champagne rainbow diffraction sweeping subtly through the metal. Keep fine graphite incised grooves and metallic definition; no emissive neon, plastic, painted rainbow stripes or glass.",
+      "originalFile": "exec-f1fbf4ac-2c71-4f26-ad1c-588060d28878.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/stamp-prism.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/stamp-prism.png"
+    },
+    {
+      "id": "serrated-bronze",
+      "prompt": "Edit the reference incised metal collectible reverse texture into the SERRATED/starburst variant. Preserve the centered friendly penguin with tiny leaf sprout, crescent moon and laurel branches, all as deep clean engraved grooves in the metal. Replace the circular border with an elegant radial starburst/rosette guilloche border with 24 angular directions, entirely inside radius 41% of the square. The central mascot fits safely within radius 24%. The decorative border follows repeated peaked geometry around the center; it is incised, not a cut-out product silhouette or raised gear. Full-bleed square flat metal face texture, same metal across all corners with no outside background because app clips exact 24-tooth contour. Frontal orthographic, no perspective, rim thickness, sidewall, cast shadow, external scene, cardboard, paper, box, writing, numbers or colored sticker. Readable at small game collectible size; refined deep recessed linework and tiny bevels, elegant premium minted reverse. Produce one asset in the same family. Material: polished warm copper bronze, brighter copper highlights and darker warm incised grooves, no kraft brown or rust.",
+      "originalFile": "exec-41604d7d-76f5-4308-a739-9729face865f.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/serrated-bronze.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/serrated-bronze.png"
+    },
+    {
+      "id": "serrated-silver",
+      "prompt": "Edit the reference incised metal collectible reverse texture into the SERRATED/starburst variant. Preserve the centered friendly penguin with tiny leaf sprout, crescent moon and laurel branches, all as deep clean engraved grooves in the metal. Replace the circular border with an elegant radial starburst/rosette guilloche border with 24 angular directions, entirely inside radius 41% of the square. The central mascot fits safely within radius 24%. The decorative border follows repeated peaked geometry around the center; it is incised, not a cut-out product silhouette or raised gear. Full-bleed square flat metal face texture, same metal across all corners with no outside background because app clips exact 24-tooth contour. Frontal orthographic, no perspective, rim thickness, sidewall, cast shadow, external scene, cardboard, paper, box, writing, numbers or colored sticker. Readable at small game collectible size; refined deep recessed linework and tiny bevels, elegant premium minted reverse. Produce one asset in the same family. Material: polished bright cool platinum silver with clean white-silver highlights and dark graphite recessed grooves, no gray paper or matte plastic.",
+      "originalFile": "exec-c31be761-e064-43df-a04e-54c2e6b244be.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/serrated-silver.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/serrated-silver.png"
+    },
+    {
+      "id": "serrated-gold",
+      "prompt": "Edit the reference serrated/starburst incised metal reverse texture. Keep identical centered penguin mascot with leaf sprout, crescent moon, laurel branches and radial guilloche starburst border. Keep identical composition, engraving and full-bleed square orthographic face. Change ONLY the metal material as specified. Dark recessed grooves and tiny inner bevels throughout, every motif incised into the same metal. No text, numbers, printed stickers, background scene, sidewall, perspective, cast shadow, props, cardboard or paper. The app applies its own serrated outline mask. One premium production texture asset. Material: luminous refined bright yellow 24-karat gold, champagne highlights, rich darker warm gold incised grooves, no copper cast or muddy brown.",
+      "originalFile": "exec-b8572c92-5dd1-41fe-b84e-c8fa516a48eb.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/serrated-gold.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/serrated-gold.png"
+    },
+    {
+      "id": "serrated-prism",
+      "prompt": "Edit the reference serrated/starburst incised metal reverse texture. Keep identical centered penguin mascot with leaf sprout, crescent moon, laurel branches and radial guilloche starburst border. Keep identical composition, engraving and full-bleed square orthographic face. Change ONLY the metal material as specified. Dark recessed grooves and tiny inner bevels throughout, every motif incised into the same metal. No text, numbers, printed stickers, background scene, sidewall, perspective, cast shadow, props, cardboard or paper. The app applies its own serrated outline mask. One premium production texture asset. Material: bright platinum pearl alloy with subtle cyan/lilac/pink/champagne iridescent rainbow diffraction across the metal, graphite incised grooves. Distinct from plain silver but restrained and luxurious. No neon glow, colorful plastic or painted rainbow bands.",
+      "originalFile": "exec-31b7149b-9eb7-4075-ac5a-f61a66c3771e.png",
+      "webPath": "apps/production-web/assets/collectible-backs/v1/serrated-prism.png",
+      "mobilePath": "apps/mobile/assets/images/collectibles/backs/v1/serrated-prism.png"
+    }
+  ]
+}

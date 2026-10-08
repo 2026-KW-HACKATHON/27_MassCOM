@@ -5,7 +5,7 @@ import { collectibleBodyLimit, type CollectibleProjectService } from '../collect
 import { renderClaimQr } from '../http/claim-qr.js';
 import { authLoginClientKey, requireWebCookie } from '../http/request-auth.js';
 import {
-  MAX_BODY_BYTES, decodePathParameter, readJson, requireIdentityTokenBody, requirePositiveInteger, requireString,
+  MAX_BODY_BYTES, decodePathParameter, readJson, requireEmptyBody, requireIdentityTokenBody, requireNumber, requirePositiveInteger, requireString,
 } from '../http/request-body.js';
 import { RequestError } from '../http/request-error.js';
 import { matchReversalRoute, runReversalRoute } from '../http/reversal-route.js';
@@ -19,7 +19,7 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
   const {
     merchantAccess, claimSlots, customerIdentities, badges, reversals, merchantOverview, visitorFeedback,
-    webAuth, staffRegistration, authLoginLimiter, collectibleProjects, merchantProfile, campaignBenefits,
+    webAuth, staffRegistration, authLoginLimiter, collectibleProjects, merchantProfile, campaignBenefits, merchantArt,
   } = deps;
   const { trustProxyClientIp } = deps;
   const { webWwwEnabled } = deps;
@@ -59,6 +59,9 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
     }
     const operationMatch = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/(campaigns|staff|visits\.csv)(?:\/([^/]+)(?:\/(extend))?)?$/);
     if (operationMatch) {
+      if (operationMatch[2] === 'campaigns' && operationMatch[3] && operationMatch[4] === 'extend' && request.method === 'POST') {
+        throw new RequestError(404, 'NOT_FOUND');
+      }
       if (!merchantOperations) throw new RequestError(503, 'MERCHANT_OPERATIONS_NOT_CONFIGURED');
       if (request.method !== 'GET' || operationMatch[2] === 'visits.csv') {
         const decision = merchantOperationLimiter.consume(accountId);
@@ -72,15 +75,6 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
       const target = operationMatch[3] && decodePathParameter(operationMatch[3]);
       if (kind === 'campaigns' && !target && request.method === 'GET') {
         sendJson(response, 200, { campaigns: await merchantOperations.listCampaigns(accountId, merchantId) });
-      } else if (kind === 'campaigns' && target && operationMatch[4] === 'extend' && request.method === 'POST') {
-        const body = await readJson(request);
-        if (Object.keys(body).some(key => !['days','expectedEndsAt','consentAccepted','requestId'].includes(key)) ||
-            (body.days !== 30 && body.days !== 90) || body.consentAccepted !== true) {
-          throw new RequestError(400, 'INVALID_REQUEST');
-        }
-        sendJson(response, 200, await merchantOperations.extendCampaign({ accountId, merchantId, campaignId: target,
-          days: body.days, expectedEndsAt: requireString(body, 'expectedEndsAt'), consentAccepted: true,
-          requestId: requireString(body, 'requestId') }));
       } else if (kind === 'staff' && !target && request.method === 'GET') {
         sendJson(response, 200, { staff: await merchantOperations.listStaff(accountId, merchantId) });
       } else if (kind === 'staff' && target === 'approve' && request.method === 'POST') {
@@ -144,6 +138,37 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
     if (path === '/api/web/merchant/me' && request.method === 'GET') {
       sendJson(response, 200, { merchants: await staffRegistration.mine(accountId),
         accountScope: createHash('sha256').update(`collectible-editor:${accountId}`).digest('hex') });
+      return true;
+    }
+    const webArtRoute = matchWebMerchantArtRoute(request.method, path);
+    if (webArtRoute) {
+      if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
+      const merchantId = decodePathParameter(webArtRoute.merchantId);
+      await merchantAccess.requirePermission({ accountId, merchantId, permission: 'MANAGE_ART' });
+      if (!(await staffRegistration.mine(accountId)).some(merchant => merchant.id === merchantId)) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+      if (!merchantArt) throw new RequestError(503, 'AI_ART_NOT_CONFIGURED');
+      const roundId = 'roundId' in webArtRoute ? decodePathParameter(webArtRoute.roundId) : '';
+      if (webArtRoute.kind === 'state') {
+        sendJson(response, 200, await merchantArt.getState(merchantId));
+      } else if (webArtRoute.kind === 'create') {
+        requireEmptyBody(await readJson(request, true));
+        sendJson(response, 202, await merchantArt.createRound({ merchantId, accountId }));
+      } else if (webArtRoute.kind === 'get') {
+        sendJson(response, 200, await merchantArt.getRound({ merchantId, roundId }));
+      } else if (webArtRoute.kind === 'choose') {
+        const body = await readJson(request);
+        if (Object.keys(body).some(key => key !== 'index')) throw new RequestError(400, 'INVALID_REQUEST');
+        const index = requireNumber(body, 'index');
+        if (index < 0 || index > 3) throw new RequestError(400, 'INVALID_REQUEST');
+        sendJson(response, 202, await merchantArt.chooseDraft({ merchantId, roundId, index, accountId }));
+      } else if (webArtRoute.kind === 'apply') {
+        requireEmptyBody(await readJson(request, true));
+        sendJson(response, 200, await merchantArt.apply({ merchantId, roundId, accountId }));
+      } else {
+        requireEmptyBody(await readJson(request, true));
+        await merchantArt.reset({ merchantId, accountId });
+        sendJson(response, 200, { status: 'RESET' });
+      }
       return true;
     }
     const collectibleCampaigns = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/collectible-campaigns$/);
@@ -301,6 +326,24 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
     throw new RequestError(404, 'NOT_FOUND');
   }
   return false;
+}
+
+type WebMerchantArtRoute =
+  | { merchantId: string; kind: 'state' | 'create' | 'reset' }
+  | { merchantId: string; kind: 'get' | 'choose' | 'apply'; roundId: string };
+
+function matchWebMerchantArtRoute(method: string | undefined, path: string): WebMerchantArtRoute | undefined {
+  const match = path.match(/^\/api\/web\/merchant\/merchants\/([^/]+)\/art(\/.*)?$/);
+  if (!match) return undefined;
+  const merchantId = match[1]!;
+  const tail = match[2] ?? '';
+  if (tail === '') return method === 'GET' ? { merchantId, kind: 'state' } : method === 'DELETE' ? { merchantId, kind: 'reset' } : undefined;
+  if (tail === '/rounds') return method === 'POST' ? { merchantId, kind: 'create' } : undefined;
+  const round = tail.match(/^\/rounds\/([^/]+)(?:\/(choose|apply))?$/);
+  if (!round) return undefined;
+  const roundId = round[1]!;
+  if (round[2] === undefined) return method === 'GET' ? { merchantId, kind: 'get', roundId } : undefined;
+  return method === 'POST' ? { merchantId, kind: round[2] as 'choose' | 'apply', roundId } : undefined;
 }
 
 type CollectibleProjectRoute = { merchantId: string; kind: 'list' | 'create' | 'get' | 'save' | 'publish' | 'copy' | 'unpublish' | 'delete'; projectId?: string };

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>코인 회전 · 저장 후 재현 검수</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#edf4fc;color:#163453;font-family:system-ui,sans-serif}main{max-width:1020px;margin:12px auto;padding:20px;background:white;border-radius:20px}h1{font-size:23px;margin:0 0 8px}p{font-size:14px;margin:8px 0}button,select,input{font:inherit}button,select{padding:10px;border:1px solid #bdcde0;border-radius:8px;background:#f4f8fd;color:inherit}.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.views{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}article{background:#f4f8fd;border:1px solid #dae5f2;border-radius:12px;padding:12px;text-align:center}h2{font-size:16px;margin:0 0 8px}canvas{display:block;width:min(100%,320px);margin:auto}output{font-variant-numeric:tabular-nums}#details{white-space:pre-wrap;font-size:13px}#status{font-weight:700}@media(max-width:650px){.views{grid-template-columns:1fr}main{padding:12px}canvas{width:min(100%,280px)}}
+</style>
+<main><h1>코인 회전 · 저장 후 재현 검수</h1><p>로컬 합성 게시본을 다시 읽어 편집 렌더러와 고객용 저장 프레임을 비교합니다.</p>
+<div class="controls"><label>등급 <select id="grade" aria-label="비교 등급"></select></label><button id="play">자동 회전 재생</button><label>각도 <input id="angle" type="range" min="-180" max="180" value="0" aria-label="비교 회전 각도"></label><output id="angle-value">0°</output></div>
+<div class="views"><article><h2>편집 원본으로 렌더링</h2><canvas id="editor" width="512" height="512" aria-label="편집 원본 회전"></canvas></article><article><h2>저장한 12칸 프레임으로 재생</h2><canvas id="published" width="512" height="512" aria-label="게시 프레임 회전"></canvas></article></div>
+<p id="status" role="status">게시본을 읽는 중…</p><p id="details"></p></main>
+<script type="module">
+import {renderCollectible,renderPublishedCollectible} from '/app/assets/collectible-renderer.mjs';
+import {rotationAngleAt,rotationSpeedValue} from '/app/assets/collectible-model.mjs';
+const status=document.querySelector('#status'),details=document.querySelector('#details'),grade=document.querySelector('#grade'),angle=document.querySelector('#angle'),play=document.querySelector('#play');
+let project,playing=false,started=0,frames=0,raf=0;
+try{
+  const list=await (await fetch('/api/web/merchant/merchants/qa-collectible-store/collectible-projects')).json();
+  const saved=list.projects.find(item=>item.status==='PUBLISHED'&&item.distributingCampaignId)||list.projects.find(item=>item.status==='PUBLISHED');
+  if(!saved)throw new Error('점주 화면에서 먼저 코인을 게시해 주세요.');
+  const wrapper=await (await fetch(`/api/web/merchant/merchants/qa-collectible-store/collectible-projects/${encodeURIComponent(saved.id)}`)).json();
+  project=wrapper.project;
+  for(const item of project.grades.filter(item=>item.enabled!==false&&project.derived[item.id])){
+    const option=document.createElement('option');option.value=item.id;option.textContent=item.name;grade.append(option);
+  }
+  grade.value=project.derived.prism?'prism':grade.options[0]?.value;
+  const byteLength=value=>value?atob(value.split(',')[1]).length:0;
+  const assets=Object.entries(project.derived).map(([id,value])=>({grade:id,frameBytes:byteLength(value.angleFrames?.dataUrl),backBytes:byteLength(value.backImageDataUrl),...Object.fromEntries(['side','count','columns','stepDegrees'].map(key=>[key,value.angleFrames?.[key]]))}));
+  const bytes=new TextEncoder().encode(JSON.stringify({project})).length;
+  if(bytes>8*1024*1024||assets.some(item=>item.frameBytes>1024*1024||item.backBytes>256*1024))throw new Error('게시 자료 크기 한도 초과');
+  details.textContent=`${project.name} · ${{raised:'양각',incised:'음각',original:'원본'}[project.style]} · 깊이 ${project.relief}\n저장 등급 ${Object.keys(project.derived).join(' / ')} · JSON ${(bytes/1024).toFixed(1)} KiB\n각 등급 ${assets.map(item=>`${item.grade} ${(item.frameBytes/1024).toFixed(1)} KiB`).join(' · ')} · 12칸 / 4열 / 15°`;
+  const record=document.createElement('script');record.type='application/json';record.id='relief-qa-results';record.textContent=JSON.stringify({synthetic:true,version:wrapper.version,style:project.style,relief:project.relief,rotationSpeed:rotationSpeedValue(project.rotationSpeed),requestBytes:bytes,assets});document.body.append(record);
+  const draw=async()=>{
+    const elapsed=playing?performance.now()-started:0,initial=Number(angle.value),id=grade.value;
+    const value=project.derived[id];if(!value)throw new Error('해당 등급의 게시 자료가 없습니다.');
+    const snapshot={...value,shape:project.shape,gradeId:id,gradeName:project.grades.find(item=>item.id===id)?.name,thickness:project.thickness,angle:initial,rotationSpeed:rotationSpeedValue(project.rotationSpeed),animation:playing?'rotate':'still',effects:project.effects.filter(item=>item.gradeIds.includes(id))};
+    await renderCollectible(document.querySelector('#editor'),project,id,{angle:initial,time:elapsed,animation:playing?'rotate':'still'});
+    await renderPublishedCollectible(document.querySelector('#published'),snapshot,{angle:initial,time:elapsed,staticFrame:!playing});
+    frames++;const shown=((rotationAngleAt(initial,elapsed,project.rotationSpeed)+180)%360+360)%360-180;document.querySelector('#angle-value').textContent=`${shown.toFixed(1)}°`;
+    status.textContent=`PASS · 저장본 재읽기 · ${playing?'자동 회전 중':'정지'} · 렌더 ${frames}회`;
+  };
+  const loop=async()=>{try{await draw();if(playing)raf=requestAnimationFrame(loop);}catch(error){playing=false;status.textContent=`FAIL · ${error.message}`;}};
+  const stop=()=>{playing=false;cancelAnimationFrame(raf);play.textContent='자동 회전 재생';};
+  angle.addEventListener('input',()=>{stop();void loop();});grade.addEventListener('change',()=>{stop();void loop();});
+  play.addEventListener('click',()=>{if(playing){stop();void loop();}else{playing=true;started=performance.now();play.textContent='자동 회전 정지';void loop();}});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();});
+  await draw();
+}catch(error){status.textContent=`FAIL · ${error.message}`;}
+</script>
+</html>

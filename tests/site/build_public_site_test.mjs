@@ -31,6 +31,7 @@ const expected = [
   'privacy.html',
   'terms.html',
 ].sort();
+const slashPath = path => path.replace(/\\/g, '/');
 const previewSources = new Map([
   ['preview/index.html', 'apps/showcase-web/index.html'],
   ['preview/assets/showcase.css', 'apps/showcase-web/assets/showcase.css'],
@@ -41,8 +42,8 @@ test('public bundle copies only the approved pages and matching bytes', async ()
   const scratch = await mkdtemp(join(tmpdir(), 'masscom-public-site-'));
   try {
     const target = join(scratch, 'public');
-    assert.deepEqual((await buildPublicSite(repoRoot, target)).sort(), expected);
-    assert.deepEqual((await collectFiles(target)).sort(), expected);
+    assert.deepEqual((await buildPublicSite(repoRoot, target)).map(slashPath).sort(), expected);
+    assert.deepEqual((await collectFiles(target)).map(slashPath).sort(), expected);
     for (const file of expected) {
       assert.deepEqual(
         await readFile(join(target, file)),
@@ -52,7 +53,7 @@ test('public bundle copies only the approved pages and matching bytes', async ()
     }
     for (const hidden of ['HANDOFF.md', 'TEST_STATUS.md', 'evidence/showcase-host-local-2026-09-24.json',
       'preview/.vercel/project.json', 'preview/.env.local']) {
-      assert.equal((await collectFiles(target)).includes(hidden), false, hidden);
+      assert.equal((await collectFiles(target)).map(slashPath).includes(hidden), false, hidden);
     }
   } finally {
     await rm(scratch, { recursive: true, force: true });
@@ -78,7 +79,7 @@ test('missing source and existing output never produce a partial or overwritten 
 async function collectFiles(root, prefix = '') {
   const files = [];
   for (const entry of await readdir(join(root, prefix), { withFileTypes: true })) {
-    const relative = join(prefix, entry.name);
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) files.push(...await collectFiles(root, relative));
     else files.push(relative);
   }

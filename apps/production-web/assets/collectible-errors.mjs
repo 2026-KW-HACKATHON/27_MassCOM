@@ -1,6 +1,15 @@
 // 수집품 제작·탐색·열람·집계 API가 돌려주는 오류 코드마다 한국어 안내를 붙인다(docs/COLLECTIBLE_CREATOR.md "서버 계약").
 // 새 코드가 생기면 여기에 문구를 추가해야 한다. tests/site/collectible-errors.test.mjs가 문서·서버의 코드 목록과 맞는지 검사한다.
 export const COLLECTIBLE_ERROR_MESSAGES = {
+  AI_ART_NOT_CONFIGURED: '현재 AI 그림 생성이 준비되지 않았어요. 미리 준비한 이미지로 스튜디오를 시작해 주세요.',
+  AI_ART_DAILY_LIMIT: '오늘 만들 수 있는 AI 초안을 모두 사용했어요. 기존 초안이나 준비한 이미지로 계속해 주세요.',
+  AI_ART_BUDGET_EXHAUSTED: 'AI 그림 생성 한도에 도달했어요. 기존 초안이나 준비한 이미지로 계속해 주세요.',
+  AI_ART_TRIAL_DISABLED: '이 체험 점포에서는 AI 생성이 꺼져 있어요. 준비한 이미지로 스튜디오를 시작해 주세요.',
+  AI_ART_ROUND_IN_PROGRESS: '이미 생성 중인 AI 초안이 있어요. 생성 상태를 다시 확인해 주세요.',
+  AI_ART_MODERATION_BLOCKED: 'AI가 이 그림을 만들지 못했어요. 다른 자료로 제작을 시작해 주세요.',
+  AI_ART_UPSTREAM_UNAVAILABLE: 'AI 서비스에 연결하지 못했어요. 잠시 뒤 상태를 확인하거나 준비한 이미지로 계속해 주세요.',
+  AI_ART_TIMEOUT: 'AI 그림 생성 시간이 길어졌어요. 상태를 다시 확인하거나 준비한 이미지로 계속해 주세요.',
+  AI_ART_INTERRUPTED: 'AI 그림 생성이 중단됐어요. 상태를 다시 확인하거나 준비한 이미지로 계속해 주세요.',
   INVALID_REQUEST: '요청 형식이 맞지 않아요. 화면을 새로 열어 다시 시도해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_INVALID_PROJECT: '수집품 내용이 저장 조건에 맞지 않아요. 이름·스티커·효과·사진 크기를 확인하고 다시 저장해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_MEDIA_TOO_LARGE: '사진이나 음성 파일이 너무 커요. 원본 사진은 3 MB, 음성은 1 MB·30초 이하로 줄여 다시 저장해 주세요. 입력은 그대로 있어요.',
@@ -8,7 +17,9 @@ export const COLLECTIBLE_ERROR_MESSAGES = {
   COLLECTIBLE_PROJECT_NOT_FOUND: '이 프로젝트를 찾을 수 없어요. 이미 삭제했거나 다른 점포의 것일 수 있어요. 저장 목록을 새로 불러와 주세요.',
   COLLECTIBLE_VERSION_CONFLICT: '다른 화면에서 초안이 변경됐어요. 현재 입력은 유지했어요. 목록에서 최신 초안을 다시 열거나 새 초안으로 저장해 주세요.',
   COLLECTIBLE_PUBLISHED_IMMUTABLE: '게시한 버전은 고칠 수 없어요. 새 초안으로 복사한 뒤 수정해 주세요. 현재 입력은 그대로 있어요.',
-  COLLECTIBLE_CAMPAIGN_UNAVAILABLE: '선택한 캠페인에는 지금 게시할 수 없어요. 진행 중인 공개 캠페인인지, 연결한 방문 목표가 그 캠페인에 있는지 확인해 주세요. 입력은 그대로 있어요.',
+  COLLECTIBLE_CAMPAIGN_UNAVAILABLE: '방문 보상을 지금 게시할 수 없어요. 표준 1·3·5회 방문 보상 캠페인이 준비됐는지 확인해 주세요. 입력은 그대로 있어요.',
+  COLLECTIBLE_DEFAULT_GRADE_MISSING: '편집기를 새로고침한 뒤 다시 게시해 주세요',
+  COLLECTIBLE_PUBLICATION_SIZE_LIMIT: '게시할 등급 자료가 너무 커요. 음성·이야기 장면·추가 등급을 줄인 뒤 다시 게시해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_NOT_READY: '게시에 필요한 자료가 덜 준비됐어요. 사진·보상 연결·이야기 장면 사진을 확인하고 다시 게시해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_PROJECT_LIMIT: '수집품 프로젝트는 점포마다 100개까지 만들 수 있어요. 쓰지 않는 초안을 삭제한 뒤 다시 저장해 주세요. 입력은 그대로 있어요.',
   COLLECTIBLE_PUBLICATION_LIMIT: '이 점포는 게시를 100번까지 할 수 있어요. 게시한 수집품은 이미 받은 고객을 위해 보관돼 삭제해도 줄지 않아요. 더 게시해야 하면 운영자에게 문의해 주세요. 입력은 그대로 있어요.',
@@ -36,6 +47,7 @@ export function collectibleErrorMessage(error, fallback = '저장하지 못했�
   const seconds = Number.isFinite(error?.retryAfterSeconds) && error.retryAfterSeconds > 0 ? error.retryAfterSeconds : 0;
   const wait = seconds ? ` ${seconds}초 뒤에 다시 시도해 주세요.` : ' 잠시 뒤에 다시 시도해 주세요.';
   const known = COLLECTIBLE_ERROR_MESSAGES[error?.code];
+  if (known && error?.code?.startsWith('AI_ART_')) return `${known}${seconds ? ` ${seconds}초 뒤에 다시 시도해 주세요.` : ''}`;
   if (error?.code === 'VIEW_RATE_LIMITED') return `${known}${wait}`;
   if (error?.code === 'COLLECTIBLE_RATE_LIMITED' || error?.status === 429) return `${COLLECTIBLE_ERROR_MESSAGES.COLLECTIBLE_RATE_LIMITED}${wait} 입력은 그대로 있어요.`;
   if (known) return known;
