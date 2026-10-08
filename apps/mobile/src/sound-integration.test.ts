@@ -3,55 +3,225 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import { transpileModule } from 'typescript';
+import { createUiSoundController, type SoundPlayer } from './sound/ui-sound-controller';
 
 function source(path: string): string {
   return readFileSync(new URL(path, import.meta.url), 'utf8');
 }
 
-test('web first-input loading uses pointer, keyboard and touch once and removes all listeners on cleanup', () => {
+function gestureHarness() {
   const sounds = source('./sound/ui-sounds.ts');
   const gestureSource = sounds.slice(sounds.indexOf('function onFirstGesture'), sounds.indexOf('/** Call once'));
-  const listeners = new Map<string, () => void>();
+  const listeners = new Map<string, (event: { isTrusted: boolean }) => void>();
   const onFirstGesture = runInNewContext(`${transpileModule(gestureSource, {}).outputText}; onFirstGesture`, {
     document: {
-      addEventListener(name: string, listener: () => void) { listeners.set(name, listener); },
+      addEventListener(name: string, listener: (event: { isTrusted: boolean }) => void) { listeners.set(name, listener); },
       removeEventListener(name: string) { listeners.delete(name); },
     },
-  }) as (onGesture: () => void) => () => void;
+  }) as (controller: Pick<ReturnType<typeof createUiSoundController>, 'loadUiPlayers' | 'needsMusicGesture' | 'subscribe'>) => () => void;
+  return { listeners, onFirstGesture };
+}
+
+test('web first-input loading uses trusted pointer, keyboard and touch and removes all listeners after success or cleanup', () => {
+  const { listeners, onFirstGesture } = gestureHarness();
   for (const event of ['pointerdown', 'keydown', 'touchstart']) {
     let inputs = 0;
-    const stop = onFirstGesture(() => { inputs += 1; });
+    const stop = onFirstGesture({ loadUiPlayers: () => { inputs += 1; }, needsMusicGesture: () => inputs === 0, subscribe: () => () => undefined });
     assert.deepEqual([...listeners.keys()], ['pointerdown', 'keydown', 'touchstart']);
-    listeners.get(event)!();
+    listeners.get(event)!({ isTrusted: false });
+    assert.equal(inputs, 0);
+    assert.equal(listeners.size, 3);
+    listeners.get(event)!({ isTrusted: true });
     assert.equal(inputs, 1);
     assert.equal(listeners.size, 0);
     stop();
     assert.equal(inputs, 1);
   }
-  const stop = onFirstGesture(() => assert.fail('unmounted input must not activate sound'));
+  const stop = onFirstGesture({ loadUiPlayers: () => assert.fail('unmounted input must not activate sound'), needsMusicGesture: () => true, subscribe: () => () => undefined });
   stop();
   assert.equal(listeners.size, 0);
-  assert.match(sounds, /onFirstGesture\(\(\) => controller\.loadUiPlayers\(\)\)/);
+  assert.match(source('./sound/ui-sounds.ts'), /onFirstGesture\(controller\)/);
 });
 
-test('installed web audio catches autoplay rejection and the version-pinned patch preserves that fix', async () => {
+async function webMusicFixture(loaded = true) {
+  const listeners = new Map<string, (status: { playing: boolean }) => void>();
+  let playResult = () => Promise.resolve();
+  let attempts = 0;
+  const controller = createUiSoundController({
+    deferUiPlayers: true,
+    storage: { getItem: async () => null, setItem: async () => undefined },
+    backend: {
+      prepare: async () => undefined,
+      createPlayer: () => { throw Error('unused effects'); },
+      createMusicPlayer: (name): SoundPlayer => ({
+        get isLoaded() { return loaded; },
+        seekTo: async () => assert.fail('gesture playback must not wait for seekTo'),
+        play: () => { attempts += 1; return playResult(); },
+        pause: () => undefined,
+        remove: () => undefined,
+        addListener: (_event, listener) => { listeners.set(name, listener); return { remove: () => { listeners.delete(name); } }; },
+      }),
+    },
+  });
+  const stop = controller.start(true);
+  const gestures = gestureHarness();
+  const stopGestures = gestures.onFirstGesture(controller);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  return { controller, ...gestures, attempts: () => attempts, load: () => { loaded = true; },
+    setPlay: (next: typeof playResult) => { playResult = next; },
+    status: (playing: boolean) => listeners.get('drawLoop')?.({ playing }),
+    unmount: stop,
+    stop: () => { stopGestures(); stop(); } };
+}
+
+test('cold web loading keeps gestures armed and the next gesture plays synchronously', async () => {
+  const fixture = await webMusicFixture(false);
+  fixture.listeners.get('pointerdown')!({ isTrusted: true });
+  assert.equal(fixture.attempts(), 0);
+  assert.equal(fixture.listeners.size, 3);
+  fixture.load();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(fixture.attempts(), 0, 'loading alone must not consume the gesture retry');
+  fixture.listeners.get('touchstart')!({ isTrusted: true });
+  assert.equal(fixture.attempts(), 1, 'play is called inside the gesture, before any microtasks');
+  assert.equal(fixture.listeners.size, 3, 'an attempt is not yet successful playback');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(fixture.listeners.size, 0);
+  fixture.stop();
+});
+
+test('web play promise rejection keeps gestures armed until a later gesture succeeds', async () => {
+  const fixture = await webMusicFixture();
+  fixture.setPlay(() => Promise.reject(Error('NotAllowedError')));
+  fixture.listeners.get('keydown')!({ isTrusted: true });
+  assert.equal(fixture.attempts(), 1);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(fixture.listeners.size, 3);
+  fixture.setPlay(() => Promise.resolve());
+  fixture.listeners.get('pointerdown')!({ isTrusted: true });
+  assert.equal(fixture.attempts(), 2);
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(fixture.listeners.size, 0);
+  fixture.stop();
+});
+
+test('web playing status removes gestures and rejection status rearms them', async () => {
+  const fixture = await webMusicFixture();
+  fixture.setPlay(() => new Promise<void>(() => undefined));
+  fixture.listeners.get('pointerdown')!({ isTrusted: true });
+  assert.equal(fixture.listeners.size, 3);
+  fixture.status(true);
+  assert.equal(fixture.listeners.size, 0);
+  fixture.status(false);
+  assert.equal(fixture.listeners.size, 3);
+  fixture.listeners.get('keydown')!({ isTrusted: true });
+  assert.equal(fixture.attempts(), 2);
+  fixture.status(true);
+  assert.equal(fixture.listeners.size, 0);
+  fixture.stop();
+});
+
+test('mute, logout and unmount remove music listeners and stale playback cannot restore them', async () => {
+  const fixture = await webMusicFixture();
+  let resolve!: () => void;
+  fixture.setPlay(() => new Promise<void>((done) => { resolve = done; }));
+  fixture.listeners.get('pointerdown')!({ isTrusted: true });
+  fixture.controller.setBgmEnabled(false);
+  assert.equal(fixture.listeners.size, 0);
+  fixture.controller.setBgmEnabled(true);
+  assert.equal(fixture.listeners.size, 3);
+  fixture.controller.setMusicSessionActive(false);
+  assert.equal(fixture.listeners.size, 0);
+  resolve();
+  await new Promise<void>((done) => setImmediate(done));
+  assert.equal(fixture.listeners.size, 0);
+  fixture.controller.setMusicSessionActive(true);
+  assert.equal(fixture.listeners.size, 3, 'a new session needs its own confirmed playback');
+  fixture.unmount();
+  assert.equal(fixture.listeners.size, 0);
+  fixture.stop();
+});
+
+test('reset and newer gestures invalidate stale playback promises without losing the retry', async () => {
+  for (const invalidate of ['reset', 'gesture'] as const) {
+    const fixture = await webMusicFixture();
+    let resolve!: () => void;
+    fixture.setPlay(() => new Promise<void>((done) => { resolve = done; }));
+    fixture.listeners.get('pointerdown')!({ isTrusted: true });
+    if (invalidate === 'reset') fixture.controller.reset();
+    else {
+      fixture.setPlay(() => Promise.reject(Error('NotAllowedError')));
+      fixture.listeners.get('keydown')!({ isTrusted: true });
+    }
+    resolve();
+    await new Promise<void>((done) => setImmediate(done));
+    assert.equal(fixture.listeners.size, 3, `${invalidate}: stale success must not remove the current retry`);
+    fixture.setPlay(() => Promise.resolve());
+    fixture.listeners.get('touchstart')!({ isTrusted: true });
+    await new Promise<void>((done) => setImmediate(done));
+    assert.equal(fixture.listeners.size, 0);
+    fixture.stop();
+  }
+});
+
+test('effects still load on trusted input with muted BGM or a logged-out session', async () => {
+  for (const inactive of ['muted', 'loggedOut'] as const) {
+    let effects = 0;
+    const controller = createUiSoundController({
+      deferUiPlayers: true,
+      storage: { getItem: async () => inactive === 'muted' ? JSON.stringify({ bgmEnabled: false }) : null, setItem: async () => undefined },
+      backend: { prepare: async () => undefined, createPlayer: () => {
+        effects += 1;
+        return { isLoaded: true, seekTo: async () => undefined, play: () => undefined, pause: () => undefined, remove: () => undefined };
+      }, createMusicPlayer: () => { assert.fail('muted or logged-out music must not be downloaded'); } },
+    });
+    const stop = controller.start(true);
+    if (inactive === 'loggedOut') controller.setMusicSessionActive(false);
+    const music = gestureHarness();
+    const stopMusic = music.onFirstGesture(controller);
+    const ui = gestureHarness();
+    const stopUi = ui.onFirstGesture({
+      loadUiPlayers: () => controller.loadUiPlayers(false), needsMusicGesture: controller.needsUiGesture, subscribe: controller.subscribe,
+    });
+    await new Promise<void>((done) => setImmediate(done));
+    assert.equal(music.listeners.size, 0);
+    assert.equal(ui.listeners.size, 3);
+    assert.equal(effects, 0);
+    ui.listeners.get('pointerdown')!({ isTrusted: false });
+    assert.equal(effects, 0);
+    ui.listeners.get('pointerdown')!({ isTrusted: true });
+    assert.equal(effects, 7);
+    assert.equal(ui.listeners.size, 0);
+    assert.equal(music.listeners.size, 0);
+    stopUi(); stopMusic(); stop();
+  }
+  assert.match(source('./sound/ui-sounds.ts'), /needsMusicGesture: controller\.needsUiGesture/);
+  assert.match(source('./app/_layout.tsx'), /setUiSoundSessionActive\(Boolean\(auth\.accountId\)\)/);
+});
+
+test('installed web audio emits autoplay rejection status and the version-pinned patch preserves that fix', async () => {
   const installed = source('../node_modules/expo-audio/build/AudioPlayer.web.js');
   const body = installed.match(/\n    play\(\) \{([\s\S]*?)\n    \}/)?.[1];
   assert.ok(body, 'exercise the installed player implementation');
-  const play = runInNewContext(`(function () {${body}})`, { isAudioActive: true }) as (this: unknown) => void;
+  const play = runInNewContext(`(function () {${body}})`, {
+    isAudioActive: true, PLAYBACK_STATUS_UPDATE: 'playbackStatusUpdate', getStatusFromMedia: () => ({ isLoaded: true }),
+  }) as (this: unknown) => void;
   let attempts = 0;
   let sampling = 0;
+  const statuses: { event: string; playing: boolean }[] = [];
   const player = {
     media: { play() { attempts += 1; return Promise.reject<void>(new Error('NotAllowedError')); } },
     isPlaying: false,
     startSampling() { sampling += 1; },
     stopSampling() { sampling -= 1; },
+    emit(event: string, status: { playing: boolean }) { statuses.push({ event, playing: status.playing }); },
   };
   assert.doesNotThrow(() => play.call(player));
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(attempts, 1);
   assert.equal(player.isPlaying, false, 'rejected playback is not reported as playing');
   assert.equal(sampling, 0);
+  assert.deepEqual(statuses, [{ event: 'playbackStatusUpdate', playing: false }], 'the controller can observe rejection and rearm');
   player.media.play = () => { attempts += 1; return Promise.resolve(); };
   play.call(player);
   await new Promise<void>((resolve) => setImmediate(resolve));
@@ -64,6 +234,7 @@ test('installed web audio catches autoplay rejection and the version-pinned patc
     assert.ok(patch.includes(`node_modules/expo-audio/${file}`));
   }
   assert.match(patch, /\+\s+void this\.media\.play\(\)\.catch\(\(\) => \{/);
+  assert.equal(patch.match(/\+\s+this\.emit\(PLAYBACK_STATUS_UPDATE, .*playing: false/g)?.length, 2);
 });
 
 test('owner greetings and UI sounds preserve the same foreground audio session policy', () => {

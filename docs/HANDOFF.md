@@ -1,5 +1,11 @@
 # HANDOFF
 
+**2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (현재 worktree, 미커밋·미배포)**
+
+- 위치: `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 실제 HEAD `570b5e58`. 아래 앱 시작 배경음 복구는 이 HEAD에 커밋됐다. 이번 수정은 로드 전 입력을 소비하지 않고, 실제 재생 성공까지 신뢰된 입력 리스너를 유지/재등록한다. expo-audio 거절 상태 전달·동기 입력 재생·BGM 꺼짐/로그아웃/unmount 정리와 별도 효과음 로더를 유지한다.
+- 모바일2162/2162·대상43/43·typecheck·lint·CI 연결103개 파일·운영 문서 PASS. npm test는 sandbox tsx IPC EPERM으로 BLOCKED이며 같은 glob의 Node loader로 검증했다. 기존 lint 경고1개. 최신 근거는 [TEST_STATUS](TEST_STATUS.md) 최상단과 `/tmp/bgm-review-*.log`다. API·실제 Safari/Chrome autoplay·각 Android variant 청음·빌드·배포는 NOT_RUN이다.
+- 사용자 지시대로 Git add·commit·stash·merge·rebase·push를 실행하지 않았고 index는 비어 있다. 다음 로컬 검토 명령은 `git diff --check`, `git diff`. 아래 수치는 이전 작업의 이력이다.
+
 **2026-10-09 앱 시작 배경음 복구 (현재 worktree, 미커밋·미배포)**
 
 - 위치: `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 기준 main/HEAD `8aa8b724`. 소유자 보고 "음악이 처음엔 안 나오고 뽑기 한 후부터 재생됨"을 공통 sound controller에서 수정했다. 네이티브 첫 렌더 뒤 지연 loop·웹 첫 입력 loop·뽑기 intro→loop를 유지하며 D-084의 초점 의존은 D-103으로 대체했다.
@@ -27,7 +33,7 @@
 기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 ## 1. 기준 커밋과 작업 위치
 
-- 기준 main 커밋 SHA: `8aa8b724`(PR #429 병합 반영). 작업 위치는 `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `8aa8b724`다. 이번 BGM 수정은 미커밋이며 Git index는 비어 있고 미병합 파일은 없다. 앞선 `feat/collectible-reeded-edge`·`integ/t3b-t4-t8` 검증은 [TEST_STATUS](TEST_STATUS.md)의 이력이다.
+- 기준 main 커밋 SHA: `8aa8b724`(PR #429 병합 반영). 작업 위치는 `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `570b5e58`다. 앱 시작 BGM 복구는 HEAD에 커밋됐고 이번 웹 입력 리뷰 수정은 미커밋이며 Git index는 비어 있고 미병합 파일은 없다. 앞선 `feat/collectible-reeded-edge`·`integ/t3b-t4-t8` 검증은 [TEST_STATUS](TEST_STATUS.md)의 이력이다.
 - 이 세션은 파일 수정만 수행한다. add·commit·stash·rebase·push·merge는 실행하지 않는다. 제출 기준선은 마감 시점의 실제 최신 main과 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)·`SUBMISSION_EVIDENCE.json`에서 별도 확정한다.
 
 ## 2. 현재 통합 상태

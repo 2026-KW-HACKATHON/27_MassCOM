@@ -46,12 +46,13 @@ function fixture(options: { stored?: string | null; prepare?: () => Promise<void
         return player;
       },
       createMusicPlayer: options.music ? (name) => {
-        let listener: ((status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) | undefined;
+        let listener: ((status: { didJustFinish?: boolean; isLoaded?: boolean; playing?: boolean }) => void) | undefined;
         let loaded = options.musicLoaded !== false;
         const player = {
           ...playerFor(name),
+          play() { events.push(`${name}:play`); listener?.({ playing: true }); },
           get isLoaded() { return loaded; },
-          addListener(_event: 'playbackStatusUpdate', next: (status: { didJustFinish?: boolean; isLoaded?: boolean }) => void) {
+          addListener(_event: 'playbackStatusUpdate', next: (status: { didJustFinish?: boolean; isLoaded?: boolean; playing?: boolean }) => void) {
             listener = next;
             return { remove() { listener = undefined; } };
           },
@@ -470,6 +471,10 @@ test('disabled BGM stays silent after hydration and draw focus; reset restores t
     controller.setDrawMusicFocused(false);
     controller.reset();
     await flush();
+    if (deferUiPlayers) {
+      assert.deepEqual(events.filter((event) => event.endsWith(':play')), [], 'reset cannot bypass the cold web gesture gate');
+      controller.loadUiPlayers();
+    }
     assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
     stop();
   }
@@ -499,7 +504,7 @@ test('web BGM waits for first input even when draw is focused, then keeps intro 
   stop();
 });
 
-test('web first input before backend readiness starts the app-wide loop when loading completes', async () => {
+test('web first input before backend readiness retains the gesture gate until a loaded-player gesture', async () => {
   const pending = deferred<void>();
   const { controller, events, musicPlayers } = fixture({ music: true, deferUiPlayers: true, musicLoaded: false, prepare: () => pending.promise });
   const stop = controller.start(true);
@@ -511,6 +516,8 @@ test('web first input before backend readiness starts the app-wide loop when loa
   assert.deepEqual(events.filter((event) => event.endsWith(':play')), []);
   musicPlayers.get('drawLoop')!.load!();
   await flush();
+  assert.deepEqual(events.filter((event) => event.endsWith(':play')), [], 'a load callback is outside the gesture');
+  controller.loadUiPlayers();
   assert.deepEqual(events.filter((event) => event.endsWith(':play')), ['drawLoop:play']);
   stop();
 });

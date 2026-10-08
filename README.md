@@ -104,7 +104,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-09 KST, `fix/bgm-start`, 기준 main `8aa8b724` 위 미커밋 변경): API 단위 672/672(이전 측정·이번 재실행 없음) · 모바일 2156/2156(이번 측정). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, `fix/bgm-start`, HEAD `570b5e58` 위 미커밋 리뷰 수정): API 단위 672/672(이전 측정·이번 재실행 없음) · 모바일 2162/2162(이번 측정). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 앱 시작 배경음 수정은 로컬 구현·검증됐다. 네이티브는 첫 렌더 뒤, 웹은 첫 입력과 자산 준비 뒤 일반 배경음을 재생하며 뽑기 화면의 intro→loop는 유지한다. 실제 브라우저·각 Android 앱 청음과 배포는 별도다([D-103](docs/DECISIONS.md), [검증](docs/TEST_STATUS.md)).
 

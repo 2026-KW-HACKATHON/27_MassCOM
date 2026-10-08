@@ -1,7 +1,7 @@
 diff --git a/node_modules/expo-audio/src/AudioPlayer.web.ts b/node_modules/expo-audio/src/AudioPlayer.web.ts
 --- a/node_modules/expo-audio/src/AudioPlayer.web.ts
 +++ b/node_modules/expo-audio/src/AudioPlayer.web.ts
-@@ -124,7 +124,10 @@
+@@ -124,7 +124,11 @@
      if (!isAudioActive) {
        return;
      }
@@ -9,6 +9,7 @@ diff --git a/node_modules/expo-audio/src/AudioPlayer.web.ts b/node_modules/expo-
 +    void this.media.play().catch(() => {
 +      this.isPlaying = false;
 +      this.stopSampling();
++      this.emit(PLAYBACK_STATUS_UPDATE, { ...getStatusFromMedia(this.media, this.id), playing: false });
 +    });
      this.isPlaying = true;
      this.startSampling();
@@ -16,7 +17,7 @@ diff --git a/node_modules/expo-audio/src/AudioPlayer.web.ts b/node_modules/expo-
 diff --git a/node_modules/expo-audio/build/AudioPlayer.web.js b/node_modules/expo-audio/build/AudioPlayer.web.js
 --- a/node_modules/expo-audio/build/AudioPlayer.web.js
 +++ b/node_modules/expo-audio/build/AudioPlayer.web.js
-@@ -83,7 +83,10 @@
+@@ -83,7 +83,11 @@
          if (!isAudioActive) {
              return;
          }
@@ -24,6 +25,7 @@ diff --git a/node_modules/expo-audio/build/AudioPlayer.web.js b/node_modules/exp
 +        void this.media.play().catch(() => {
 +            this.isPlaying = false;
 +            this.stopSampling();
++            this.emit(PLAYBACK_STATUS_UPDATE, { ...getStatusFromMedia(this.media, this.id), playing: false });
 +        });
          this.isPlaying = true;
          this.startSampling();

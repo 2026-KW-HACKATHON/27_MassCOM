@@ -1,6 +1,10 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, `fix/bgm-start`, 기준 main `8aa8b724` 위 미커밋 변경): API 단위 672/672(이전 측정·이번 재실행 없음) · 모바일 2156/2156(이번 측정). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, `fix/bgm-start`, HEAD `570b5e58` 위 미커밋 리뷰 수정): API 단위 672/672(이전 측정·이번 재실행 없음) · 모바일 2162/2162(이번 측정). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+
+## 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (직접 요청, 미커밋·미배포)
+
+브랜치 `fix/bgm-start`, HEAD `570b5e58` 위에서 웹 BGM 입력 리스너를 실제 재생 성공까지 유지하고, 로드된 플레이어는 신뢰된 입력 처리기 안에서 동기 재생한다. expo-audio source/build 패치는 거절을 `playing: false` 상태로 전달한다. 실패 후 재시도·BGM 끄기/로그아웃/unmount 정리·초기화와 오래된 promise 무효화·별도 효과음 입력 로더를 검증했다. 모바일2162/2162·대상43/43·typecheck·lint·CI 연결·운영 문서 PASS, npm 진입점은 sandbox IPC BLOCKED다. 기존 lint 경고1개를 유지했다. 실제 Safari/Chrome autoplay·Android 청음·빌드·배포는 NOT_RUN이며 Git 쓰기 작업은 수행하지 않았다([TEST_STATUS](TEST_STATUS.md)).
 
 ## 2026-10-09 앱 시작 배경음 복구 (소유자 직접 요청, D-103, 미커밋·미배포)
 

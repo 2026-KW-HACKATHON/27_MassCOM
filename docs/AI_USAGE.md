@@ -1,5 +1,9 @@
 # AI 사용 기록
 
+## 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (직접 요청, 미커밋)
+
+사용자의 직접 요청으로 Codex가 `fix/bgm-start`의 커밋된 HEAD `570b5e58` 위에서 웹 BGM 입력 재시도·성공 상태 확인·거절 상태 전달과 로그아웃 정리를 수정했다. 별도 읽기 전용 explore가 설치된 expo-audio 상태 경로를 확인했고 code-reviewer가 발견한 BGM 꺼짐 시 효과음 로더 누락은 독립 로더와 회귀 시험으로 수정했다. 후속 리뷰에서 남은 actionable 지적은 없다. 모바일2162/2162·소리 대상43/43·타입·린트·CI 연결·운영 문서 검증은 [TEST_STATUS](TEST_STATUS.md)에 기록한다. `npm test`의 sandbox IPC 제한은 같은 glob의 Node loader로 우회했다. Git add·commit·stash·merge·rebase·push·배포·실제 브라우저/기기 청음은 수행하지 않았다.
+
 ## 2026-10-09 앱 시작 배경음 복구 (직접 요청, 미커밋)
 
 사용자의 직접 요청으로 Codex가 `fix/bgm-start`에서 공통 모바일·웹 BGM의 뽑기 초점 의존을 고치고 첫 렌더 뒤 지연 생성·웹 첫 입력·기존 intro→loop를 보존했다. 버전 고정 expo-audio 웹 autoplay 거절 패치와 회귀 시험·D-103·검증 합계·인수인계를 갱신했다. 별도 읽기 전용 explore/code-reviewer가 입력 경로와 최종 구현을 확인했다. 모바일 전체 2156/2156·대상 37/37·타입·린트·접근성·지갑 표면·CI 연결·운영 문서 PASS, `npm test`는 sandbox IPC BLOCKED다([TEST_STATUS](TEST_STATUS.md)). API 이전 측정값은 유지했으며 Git 쓰기 작업·배포·실제 브라우저/기기 청음은 수행하지 않았다.

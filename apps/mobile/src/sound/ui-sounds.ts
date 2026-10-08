@@ -55,14 +55,31 @@ const backend: SoundBackend = {
 // 웹은 UI 소리와 BGM을 첫 입력 뒤에 만든다. 네이티브 BGM도 첫 렌더 뒤에 지연 생성한다.
 const controller = createUiSoundController({ backend, storage: AsyncStorage, deferUiPlayers: Platform.OS === 'web' });
 
-/** 웹: 첫 입력에서 한 번만 `onGesture`를 부르고 리스너를 거둔다. */
-function onFirstGesture(onGesture: () => void): () => void {
+/** 웹: 재생이 확인될 때까지 신뢰된 입력 안에서 로드·재생을 재시도한다. */
+function onFirstGesture(soundController: Pick<ReturnType<typeof createUiSoundController>, 'loadUiPlayers' | 'needsMusicGesture' | 'subscribe'>): () => void {
   if (typeof document === 'undefined') return () => undefined;
   const events = ['pointerdown', 'keydown', 'touchstart'] as const;
-  const stop = () => events.forEach((name) => document.removeEventListener(name, handle, true));
-  function handle() { stop(); onGesture(); }
-  events.forEach((name) => document.addEventListener(name, handle, true));
-  return stop;
+  let armed = false;
+  function sync() {
+    const needed = soundController.needsMusicGesture();
+    if (armed === needed) return;
+    armed = needed;
+    events.forEach((name) => {
+      if (armed) document.addEventListener(name, handle, true);
+      else document.removeEventListener(name, handle, true);
+    });
+  }
+  function handle(event: Event) {
+    if (!event.isTrusted) return;
+    soundController.loadUiPlayers();
+    sync();
+  }
+  const unsubscribe = soundController.subscribe(sync);
+  sync();
+  return () => {
+    unsubscribe();
+    events.forEach((name) => document.removeEventListener(name, handle, true));
+  };
 }
 
 /** Call once from the root layout's effect and return its cleanup. */
@@ -71,12 +88,23 @@ export function initializeUiSounds(): () => void {
   const subscription = AppState.addEventListener('change', (state) => {
     controller.setForeground(state === 'active');
   });
-  const stopGesture = Platform.OS === 'web' ? onFirstGesture(() => controller.loadUiPlayers()) : undefined;
+  const stopUiGesture = Platform.OS === 'web' ? onFirstGesture({
+    loadUiPlayers: () => controller.loadUiPlayers(false),
+    needsMusicGesture: controller.needsUiGesture,
+    subscribe: controller.subscribe,
+  }) : undefined;
+  const stopGesture = Platform.OS === 'web' ? onFirstGesture(controller) : undefined;
   return () => {
+    stopUiGesture?.();
     stopGesture?.();
     subscription.remove();
     cleanup();
   };
+}
+
+/** Logout pauses music and clears pending gesture retries without changing device preferences. */
+export function setUiSoundSessionActive(active: boolean): void {
+  controller.setMusicSessionActive(active);
 }
 
 /** Best effort: an unavailable sound never blocks a press or navigation. */

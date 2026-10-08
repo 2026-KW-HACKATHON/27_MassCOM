@@ -1,5 +1,24 @@
 # 테스트 상태
 
+## 2026-10-09 웹 BGM 첫 입력 리뷰 차단 수정 (직접 요청, 미커밋·미배포)
+
+환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, HEAD `570b5e58d4c163c06c1f4b14733160275c0aa125` 위 미커밋 수정. 아래 앱 시작 배경음 구현은 HEAD에 커밋된 상태이며 이번 리뷰 수정은 staging·commit·stash·merge·rebase·push 없이 수행했다.
+
+첫 입력은 자산 로드를 시작하되 웹 BGM 재생 확인 전까지 입력 리스너를 유지한다. 로드 완료 콜백은 cold web 재생을 시도하지 않고, 이후 신뢰된 `pointerdown`·`keydown`·`touchstart` 처리기 안에서 로드된 플레이어의 `play()`를 동기 호출한다(비동기 seek를 앞세우지 않음). promise 성공 또는 `playing: true` 상태에서 리스너를 거두고 거절·예외·`playing: false`에서는 유지/재등록한다. 설치된 expo-audio source/build와 버전 고정 패치는 거절을 `playbackStatusUpdate`의 `playing: false`로 전달하며 sampling 정리를 유지한다. BGM 끄기·로그아웃·unmount에서 음악 입력 리스너를 정리하고, 설정 초기화·후속 입력·세션 전환은 이전 promise를 무효화한다. 초기화의 기본 BGM 켜짐 값은 아직 재생하지 못한 웹에서 새 입력을 요구한다. 효과음은 별도 첫 입력 로더를 유지해 BGM 꺼짐/로그아웃 상태에서도 기존 동작을 보존한다. 네이티브 시작과 뽑기 intro→loop 시험은 유지했다.
+
+| 검사 | 결과 | 명령·근거 |
+| --- | --- | --- |
+| 모바일 npm 진입점 | `BLOCKED` | `cd apps/mobile && npm test`: tsx Unix IPC `listen EPERM`, 시험 실행 전 exit 1. `/tmp/bgm-review-npm-test.log`. |
+| 모바일 전체 단위 대체 실행 | **2162/2162 `PASS`** | `cd apps/mobile && node --import tsx --test 'src/**/*.test.ts'`, fail 0·skip 0·exit 0. 기존 2156건에서 6건 추가, `/tmp/bgm-review-mobile-tests.log`. |
+| BGM·소리 통합 대상 | **43/43 `PASS`** | `node --import tsx --test src/sound/ui-sound-controller.test.ts src/sound-integration.test.ts`, exit 0. 지연 로드→후속 입력 동기 재생·promise 거절→재시도·상태 성공/거절에 따른 제거/재등록·꺼짐/로그아웃/unmount 정리·초기화/후속 입력의 오래된 promise 무효화·BGM 꺼짐/로그아웃 효과음 로더. 기존 assertion 삭제/skip 없이 새 웹 입력 계약의 무음 단언과 후속 재생 단언을 보강했다. `/tmp/bgm-review-targeted.log`. |
+| 모바일 타입·린트 | `PASS` | `npm run typecheck`, `npm run lint`, exit 0. 기존 `collectible-aura.test.ts:4` 미사용 import 경고 1개·오류 0개. `/tmp/bgm-review-{typecheck,lint}.log`. |
+| CI 연결 | `PASS` | `bash tests/ci/ci_wiring_test.sh`, 시험 파일 103개 연결·exit 0. `/tmp/bgm-review-ci-wiring.log`. |
+| 운영 문서 | `PASS` | `bash tests/bootstrap/verify_operations_docs_test.sh`, exit 0. README·PROJECT_STATE 현재 합계 문장 일치. `/tmp/bgm-review-operations-docs.log`. |
+| 패치·독립 읽기 전용 리뷰 | `PASS` | source/build 패치 reverse dry-run 통과. 최초 리뷰의 BGM 꺼짐 시 효과음 로더 누락은 별도 로더와 회귀 시험으로 수정하고 후속 리뷰에서 남은 actionable 지적 0. |
+| API·브라우저/기기 청음·빌드·배포 | `NOT_RUN` | API 672/672는 이전 측정값. Safari/WebKit·Chrome 실제 autoplay·각 Android variant 설치/청음·web export·배포는 실행하지 않았다. 자동 시험은 동기 호출·상태 전달·리스너 수명만 증명한다. |
+
+재현: BGM을 켠 웹 cold start에서 로드 전 첫 입력 → 자산 준비만으로는 재생 없음/리스너 유지 → 두 번째 입력 안에서 재생. 재생 거절 뒤에도 리스너가 남고 다음 입력에서 재시도하며 실제 성공 뒤에만 제거한다. 검증은 HEAD 위 작업 파일 대상이며 커밋·외부 배포 상태를 뜻하지 않는다.
+
 ## 2026-10-09 앱 시작 배경음 복구 (소유자 직접 요청, D-103, 미커밋·미배포)
 
 환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/bgm`, 브랜치 `fix/bgm-start`, 기준 main/HEAD `8aa8b724` 위 미커밋 변경. 소유자 보고 "음악이 처음엔 안 나오고 뽑기 한 후부터 재생됨"을 확인했다. `musicActivated`가 뽑기 화면 초점에서만 켜져 hydrate 뒤 `applyMusicIntent`가 배경음을 멈추던 원인이다. 공통 모바일 코드가 운영·시연 Android와 Expo 웹에 적용된다.
