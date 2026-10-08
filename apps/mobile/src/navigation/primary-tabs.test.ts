@@ -107,7 +107,7 @@ test('Settings and the root stack no longer carry the removed preview routes, an
 test('the home quick action Link children do not pass style arrays to Expo Router Slot', () => {
   const home = readFileSync(join(app, '..', 'screens', 'home', 'index.tsx'), 'utf8');
   assert.match(home, /<AppHeader[^>]*showFriendsEntry/, 'friends stay available from the home header');
-  for (const href of ['/claim', '/home/tickets', '/home/missions', '/home/exhibit']) {
+  for (const href of ['/claim', '/home/missions', '/home/exhibit']) {
     const link = home.match(new RegExp(`<Link href="${href}" asChild>([\\s\\S]*?)<\\/Link>`))?.[1];
     assert.ok(link, `${href} quick action Link`);
     const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];
@@ -115,4 +115,10 @@ test('the home quick action Link children do not pass style arrays to Expo Route
     assert.match(pressable, /StyleSheet\.flatten\(/, `${href} child flattens style before Expo Router Slot`);
     assert.doesNotMatch(pressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
   }
+  const nextActionLink = home.match(/nextAction \? (<Link[\s\S]*?<\/Link>)/)?.[1];
+  assert.ok(nextActionLink, 'the prioritized home action is a Link');
+  const nextActionPressable = nextActionLink.match(/asChild><Pressable\b[^>]*>/)?.[0];
+  assert.ok(nextActionPressable, 'the prioritized action has a direct Pressable child');
+  assert.match(nextActionPressable, /style=\{\{/, 'the prioritized action passes a plain style object');
+  assert.doesNotMatch(nextActionPressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
 });

@@ -1,6 +1,14 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-09 KST, PR #434·#435·#437 통합 HEAD `5e4e648e` 위 `fix/album-registration-followups`의 미커밋 수정 기준, API는 통합 시 기존 측정값·모바일은 이번 재실행): API 단위 674/674 · 모바일 2203/2203. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
+## 2026-10-09 PR #439 통합 중 (미커밋·미배포)
+
+현재 `.worktrees/i439`의 `integ/pr439`에서 main `b37063c0` 위 PR #439(`e7395c96`)를 합치는 중이다. 홈·도감의 다음 행동, 가게 코인 보기와 점주 최근 결과 이동을 T9 은퇴 점포 숨김·BGM·#435 도감 등록 후속·공공자료 고지와 함께 보존한다. 같은 가게 쿠폰 사용 직후 점주 바로가기는 결과를 다시 읽도록 수정하고, 홈 다음 행동의 T9 은퇴 점포 코인권은 기존 공통 필터로 제외한다. Git index는 의도대로 미병합 상태이며 배포·기기 수용은 수행하지 않았다. 현재 합계의 API 값은 앞선 main 측정, 모바일 값은 이번 통합 실측이며 각각의 실행 경계는 TEST_STATUS에 적는다. 아래 수치는 과거 브랜치 이력이다.
+
+## 2026-10-09 선택 작업 후속 상태 (Issue #438, 이전 브랜치 기록)
+
+`feat/collection-next-actions`는 열린 PR #435를 기준으로 한 후속 브랜치다. U1/U2/U3/O1 구현과 U5 최소 가게 식별 보완, X2 정책 분석을 수행했다. P4 표시는 잔여 수량·기준 미확정으로 보류한다. 기존 데이터/확률/쿠폰 정책은 변경하지 않았다. [작업별 상태와 증거](SELECTED_ACTIONS_QA_2026-10-09.md). 아래 과거 미커밋·미병합 기록은 당시 상태이며 현재 판단은 원격 PR과 이 절의 검증을 따른다.
+
+현재 자동 시험 합계(2026-10-09 KST, 통합 브랜치 `integ/pr439`에 PR #439를 main `b37063c0` 위로 합친 기준): API 단위 674/674 · 모바일 2216/2216. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](https://github.com/2026-KW-HACKATHON/27_MassCOM/blob/main/docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 후속 (파일 수정만·미커밋)
 
