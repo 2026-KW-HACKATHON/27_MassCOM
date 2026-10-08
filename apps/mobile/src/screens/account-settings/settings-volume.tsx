@@ -149,8 +149,10 @@ function VolumeControl({
         onPressIn={setFromEvent}
         style={[styles.volumeTrack, disabled && styles.disabled]}
       >
-        <View pointerEvents="none" style={[styles.volumeFill, { width: `${percent}%` }]} />
-        <View pointerEvents="none" style={[styles.volumeThumb, { marginLeft: `${Math.max(0, Math.min(100, percent))}%` }]} />
+        <View pointerEvents="none" style={styles.volumeBar}>
+          <View style={[styles.volumeFill, { width: `${percent}%` }]} />
+          <View style={[styles.volumeThumb, { marginLeft: `${Math.max(0, Math.min(100, percent))}%` }]} />
+        </View>
       </Pressable>
     </View>
   );

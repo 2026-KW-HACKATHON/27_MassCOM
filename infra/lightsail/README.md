@@ -80,3 +80,34 @@
 - **운영 키는 정책(D-050)상 비워 둔다.** 가게 그림 권한(`MANAGE_ART`)은 기본으로 활성 OWNER에게만 주고, 운영 OWNER는 이제 관리자 웹의 확인 절차(사업자등록증 원본·점포 전화 확인 뒤 참조 번호, D-054)로 생길 수 있다. 그래서 **키를 넣으면 운영 OWNER가 곧바로 비용을 쓸 수 있으므로** 소유자가 월 예산과 운영 사용을 따로 승인하기 전까지 키를 넣지 않는다. `AI_ART_STAFF_MAY_MANAGE`(STAFF 허용)는 이 compose에 넘기지 않아 항상 꺼져 있고, 켜면 활성 STAFF 누구나 비용을 쓸 수 있으므로 **운영에서는 설정하지 않는다**.
 - 선택 값(`AI_ART_MONTHLY_BUDGET_USD` 기본 5, `AI_ART_DAILY_DRAFT_ROUNDS`·`AI_ART_DAILY_FINALS` 기본 3, 모델·단가·`AI_ART_OPENAI_BASE_URL`)은 [`runtime.env.example`](runtime.env.example)에 주석으로 있다. 비우면 기본값이다. 월 예산은 이 운영 DB의 한국 달 합계 기준이고 넘으면 OpenAI를 부르기 전에 거절한다.
 - 운영 앱은 고객 전용이라 점주 화면이 없다(D-038). 이 키는 서버 API만 켠다. 키를 넣은 뒤의 실제 호출(비용·지연 측정)은 `NOT_RUN`이며 키 입력 뒤 따로 확인한다.
+
+## NFT 발행 Worker (프로파일 `nft-live`, D-089)
+
+`compose.yml`의 `mint-worker`는 접수된 NFT 발행 작업을 계속 처리하는 상시 실행 서비스입니다(동작은 [Worker README](../../apps/worker/README.md)의 "상시 실행(반복) 모드"). **평소 배포에서는 뜨지 않습니다.** `profiles: [nft-live]`라서 `--profile nft-live`를 붙이지 않으면 `up`, `config`, 배포 스크립트의 어떤 단계에도 나타나지 않고, 배포 스크립트는 서비스를 이름으로 지정해 올리므로 이 서비스를 건드리지 않습니다(`tests/ops/compose_worker_profile_test.mjs`가 고정). 운영 API는 프로파일과 관계없이 `NFT_MINTING_MODE: PREPARING`이라 새 발행 요청을 계속 거절합니다([D-054](../../docs/DECISIONS.md)).
+
+**켜기 전 조건(go-live, 아직 `NOT_RUN`):** [B-027](../../docs/BLOCKERS.md)의 전제(권리 만료 migration, 발행 서버·메인넷·NFT 시리즈 준비)를 거치고, 그 뒤 `NFT_MINTING_MODE`를 바꾸는 변경은 이 서비스를 켜는 일과 별개로 소유자 승인으로 합니다. 메인넷·운영 민터 키 생성은 소유자만 합니다.
+
+**민터 키 폴더(소유자가 직접 준비):** `NFT_MINTER_KEY_DIR`(기본 `/opt/masscom/minter`) 안에 `keystore.json`(암호화된 keystore)과 `password`(비밀번호만 든 파일)를 둡니다. 폴더는 컨테이너 사용자(`node`, uid 1000) 소유·권한 700, 두 파일은 uid 1000 소유·권한 600이어야 합니다. 그렇지 않으면 Worker가 `MINTER_KEYSTORE_*_PERMISSIONS_TOO_OPEN` 같은 코드를 남기고 시작하지 않습니다. 폴더가 없으면 compose가 만들지 않고 시작을 거절합니다(`create_host_path: false`). 비밀번호·키 내용은 이 저장소, 이미지, 환경 파일에 넣지 않습니다.
+
+**환경 파일:** `runtime.env.example`의 `NFT_*` 값(체인 ID·RPC·계약 주소·민터 주소·조회 시작 블록 등)을 `/opt/masscom/runtime.env`에 채웁니다. `NFT_CHAIN_FROM_BLOCK`은 기본값이 없고 **계약을 배포한 블록 번호**로 반드시 채웁니다(비우면 Worker가 시작을 거절합니다. Base Sepolia 배포 블록은 [`docs/evidence/base-sepolia-deployment.json`](../../docs/evidence/base-sepolia-deployment.json)의 `deployment.blockNumber`, 47152878). 결과 대기(`NFT_CHAIN_RECEIPT_TIMEOUT_MS`)의 기본은 10분입니다. `NFT_METADATA_ORIGIN`은 확정 때 고정되는 값이라 compose에 `https://masscom.kr`로 박혀 있고 환경 파일로 바꿀 수 없습니다. 시리즈의 온체인 `baseTokenURI`는 `https://masscom.kr/nft-metadata/<nft_series.id>/`여야 합니다(Worker README의 "시리즈 만들기 규칙").
+
+> **경고: `COMPOSE_PROFILES=nft-live`를 `runtime.env`(또는 셸 환경)에 절대 넣지 않습니다.** `--env-file`의 `COMPOSE_PROFILES`는 이 서버에서 실행하는 **모든** compose 명령(배포 스크립트의 `up`·`config`·`run`까지)에 프로파일을 켜서, 켜는 절차 없이 발행이 시작될 수 있습니다. 프로파일은 아래 수동 절차처럼 명령마다 `--profile nft-live`로만 켭니다(`tests/ops/compose_worker_profile_test.mjs`가 `runtime.env.example`에 `COMPOSE_PROFILES`가 없고 배포 스크립트가 프로파일을 켜지 않는지 고정합니다).
+
+**켜고 끄기(go-live 때, 배포 스크립트와 별개의 수동 절차):**
+
+```bash
+# 켜기: 현재 릴리스의 compose 파일 경로를 쓴다(위 "서버에서 바로 켜려면"과 같은 방식).
+docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live build mint-worker
+docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live up -d --no-deps mint-worker
+docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live ps mint-worker   # healthy 확인
+docker logs --tail 50 masscom-mint-worker-1                                                                                # MINT_WORKER_LOOP_STARTED
+
+# 끄기: SIGTERM으로 처리 중인 한 건을 끝내고 멈춘다(최대 60초). 강제 종료돼도 복구된다.
+docker compose -p masscom --env-file /opt/masscom/runtime.env -f <현재 릴리스 compose> --profile nft-live stop mint-worker
+```
+
+**go-live 전제 조건(후속, 켜기 전에 반드시 먼저):** `scripts/deploy-lightsail.sh`는 `mint-worker`를 건드리지 않으므로(이 PR은 동작을 바꾸지 않았습니다) 켜 둔 Worker가 있으면 다음 두 가지가 비어 있습니다.
+- **migration 전에 `mint-worker`를 멈춥니다.** 배포가 `migrate`를 돌리는 동안 이전 스키마를 기대하는 Worker가 DB를 쓰지 않도록 배포 절차에서 `--profile nft-live stop mint-worker`를 migrate 앞에 넣고, 배포가 끝난 뒤 다시 켜는 절차를 정합니다(배포 스크립트의 `no` 호환 릴리스가 API를 멈추는 것과 같은 이유).
+- **배포 때 `mint-worker` 이미지를 다시 빌드합니다.** 배포 스크립트는 `build api production-web`만 하므로 Worker 이미지(`masscom-worker:${MASSCOM_WORKER_IMAGE_TAG:-local}`)가 새 릴리스 코드와 어긋난 채 남습니다.
+
+이 둘과 이미지 태그 관리, 롤백 절차를 배포 스크립트에 넣는 일은 아직 만들지 않았습니다(후속). 컨테이너 리허설(일회용 DB·임의 키)과 자동 시험 결과는 [TEST_STATUS](../../docs/TEST_STATUS.md)에 적습니다. 실제 서버 배포와 실제 Base Sepolia·메인넷 전송은 `NOT_RUN`입니다.

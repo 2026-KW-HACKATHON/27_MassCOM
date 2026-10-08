@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createScanGate } from '@/commerce/claim-code';
+import { useDiscovery } from '@/discovery/discovery-provider';
 import { ClaimQr } from '@/commerce/claim-qr';
 import {
   formatFriendCode,
@@ -89,6 +90,7 @@ export function FriendsScreen({
   const friends = useFriends(api);
   const social = useSocial(socialApi);
   const push = useSocialPush();
+  const { setOptIn } = useDiscovery();
   const { snapshot, refreshQuietly, applyMe } = friends;
   const { refreshQuietly: refreshSocialQuietly } = social;
   const myCode = snapshot?.me.code;
@@ -138,6 +140,8 @@ export function FriendsScreen({
     setAddNotice(undefined);
     try {
       const result = await api.addFriend(code);
+      // Adding a friend is the person's own opt-in to friends and mail (Issue #412): the Home buttons and the mail icon stay.
+      void setOptIn({ social: true });
       setCodeInput('');
       setScanning(false);
       setAddNotice({
@@ -151,7 +155,7 @@ export function FriendsScreen({
       addingNow.current = false;
       setAdding(false);
     }
-  }, [api, refreshFriendsAndSocial, setAddNotice, setCodeInput, setScanning]);
+  }, [api, refreshFriendsAndSocial, setAddNotice, setCodeInput, setOptIn, setScanning]);
 
   // A code that arrived by QR or link is asked about first: adding shares my passport with its owner as well.
   // My own code is only said so: there is nothing to add. A link opens this tab before my code is loaded, so it goes through

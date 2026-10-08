@@ -103,7 +103,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-08 KST): API 단위 601/601(`feat/merchant-dual-studio`에서 최신 main `cd01c0d6` 통합 후 재실행) · 모바일 1992/1992(고정 음각 뒷면 작업에서 LF 체크아웃 재실행). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-08 KST, 점주 PR #418에 main `8841efea`의 PR #420·#423 통합 후 재실행): API 단위 601/601 · 모바일 2077/2077. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이전 기준선·브랜치별 검증은 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
 
 점주 웹 두 진입 경로·다음/이전으로 넘기는 단계별 제작기·큰 사진 입력 제한·최근 등록 사진과 로컬 가상 가게의 고객 앱 노출은 [PR #418](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/418)에서 검증했다. [화면과 전달 조건](docs/evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)을 함께 확인한다. 공개 서비스에는 아직 배포하지 않았다.
 

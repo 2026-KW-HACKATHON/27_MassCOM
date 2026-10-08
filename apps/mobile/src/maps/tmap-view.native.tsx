@@ -72,6 +72,6 @@ export function TmapMap({ onReady, onProviderReady, onError, onViewport, onSelec
       onViewport={(event: { nativeEvent: Parameters<NonNullable<TmapMapProps['onViewport']>>[0] }) => { if (currentProvider.current === provider) callbacks.current.onViewport?.(event.nativeEvent); }}
       onSelect={(event: { nativeEvent: { id: string } }) => { if (currentProvider.current === provider) callbacks.current.onSelect?.(event.nativeEvent.id); }}
       onCluster={(event: { nativeEvent: { ids: string[] } }) => { if (currentProvider.current === provider) callbacks.current.onCluster?.(event.nativeEvent.ids); }} />
-    {provider === 'NAVER' ? <Text pointerEvents="none" accessibilityLabel="네이버 지도 대체 연결" style={{ position: 'absolute', top: 8, left: 8, padding: 4, borderRadius: 4, color: '#263d50', backgroundColor: '#ffffffdd', fontSize: 11 }}>네이버 지도 대체 연결</Text> : null}
+    {provider === 'NAVER' ? <Text pointerEvents="none" accessibilityLabel="네이버 지도 대체 연결" style={{ position: 'absolute', top: 8, left: 8, padding: 4, borderRadius: 4, color: '#263d50', backgroundColor: '#ffffffdd', fontSize: 12 }}>네이버 지도 대체 연결</Text> : null}
   </View>;
 }

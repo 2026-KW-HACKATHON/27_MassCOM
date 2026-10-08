@@ -20,6 +20,7 @@ export default function PrimaryTabLayout() {
       <Tabs.Screen name="index" options={{ title: '홈', tabBarAccessibilityLabel: '홈' }} />
       <Tabs.Screen name="play-tab" options={{ title: '놀이', tabBarAccessibilityLabel: '놀이' }} />
       <Tabs.Screen name="shop" options={{ title: '상점', tabBarAccessibilityLabel: '상점' }} />
+      {/* Old /shop-again links redirect to /shop (Issue #412); the route stays out of the tab bar. */}
       <Tabs.Screen name="shop-again" options={{ title: '상점', href: null }} />
       <Tabs.Screen name="map" options={{ title: '지도', href: null }} />
       <Tabs.Screen name="claim" options={{ title: '방문 인증', href: null }} />

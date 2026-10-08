@@ -34,7 +34,10 @@ import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchan
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
 import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
 import { VisitorFeedbackForm } from '../merchant-detail/visitor-feedback-form';
+import { useDiscovery } from '@/discovery/discovery-provider';
+import { canUseDemoHandoff, setDemoHandoff, takeDemoHandoff } from '@/navigation/demo-handoff';
 import { canShowTestVisitSection } from '@/navigation/showcase-entry';
+import { queueMerchantNotificationRole } from '@/notifications/pending-target';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { createShopApiClient, type ShopApiClient } from '@/shop/shop-api';
 import { useShopAvatarArt } from '@/shop/use-shop-avatar-art';
@@ -59,6 +62,8 @@ function readEarnedMileage(client: ShopApiClient): Promise<number | undefined> {
 
 /** 방문 전 적립 합계를 이만큼만 기다린다: 상점 요약이 멈춰 있어도 방문 수령을 붙잡지 않는다. */
 const mileageSnapshotWaitMs = 1500;
+/** 축하(코인 공개) 전에 배지 조회를 이만큼만 기다린다: 조회가 멈춰도 공개는 열리고, 그 뒤에 보이는 마일리지 줄도 막히지 않는다. */
+const badgeBookWaitMs = 3000;
 
 export function ClaimRedeemScreen({
   apiUrl,
@@ -74,6 +79,7 @@ export function ClaimRedeemScreen({
   selectedMerchantId?: string;
 }) {
   const scrollView = useRef<ScrollView>(null);
+  const { refreshStage } = useDiscovery();
   const clearance = useTabBarClearance();
   const companionArt = useShopAvatarArt(apiUrl, credential);
   const { fontScale } = useWindowDimensions();
@@ -112,11 +118,16 @@ export function ClaimRedeemScreen({
   const [artworkReward, setArtworkReward] = useState<{ claimSlotId: string; entitlementIds: readonly string[]; artworkRewards: NonNullable<CelebrationContent['artworkRewards']> }>();
   // #332 방문 완료 카드의 "+N 마일리지 적립"(방문 전·후 적립 합계의 차이)과 "보유 N마일리지"(방문 뒤 상점 요약). 방문(claimSlotId)에
   // 묶어 두고, 늦게 온 이전 방문의 응답이 새 방문의 안내를 덮지 못하게 요청 번호로 거른다.
+  // 코인 공개(축하 화면)를 연 방문. 마일리지 줄은 이 축하가 닫힌 뒤에만 보인다.
+  const [celebratedSlot, setCelebratedSlot] = useState<string>();
   const [rewardContext, setRewardContext] = useState<{ claimSlotId: string; mileageLine: string | null; balance: number | null; mileageDelta?: number }>();
   const rewardContextRequest = useRef(0);
   // 코드를 확인할 때의 적립 합계. badgesBeforeClaim과 같은 방식으로 방문 수령 직전까지 쥐고 있다가 방문 뒤 값과 비교한다.
   const mileageBeforeClaim = useRef<Promise<number | undefined> | undefined>(undefined);
   const [pendingRedeemToken, setPendingRedeemToken] = useState<string>();
+  // 보관된 수령 복구를 읽는 중인지(reading), 없는지(none), 확인 중인지(found), 확인이 끝났는지(settled). 시연 넘김은 읽기와 확인이 끝난 뒤에만
+  // 입력칸을 바꾼다: changeToken이 복구 요청을 무효화하기 때문이다. 복구할 것이 있어도 넘김을 버리지 않고 끝날 때까지 쥐고 있는다.
+  const [restore, setRestore] = useState<'reading' | 'none' | 'found' | 'settled'>(securePending ? 'reading' : 'none');
   const [recoveryAction, setRecoveryAction] = useState<ClaimRecoveryAction>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string>();
@@ -158,6 +169,7 @@ export function ClaimRedeemScreen({
     const restoreRequest = redeemGate.start();
     const isCurrent = () => current && redeemGate.isCurrent(restoreRequest);
     void pendingStore.loadState(accountId, selectedMerchantId).then(async (saved) => {
+      if (current) setRestore(saved.state === 'none' ? 'none' : 'found');
       if (!isCurrent() || saved.state === 'none') return;
       const pending = saved.pending;
       setMessage(saved.state === 'expired'
@@ -177,7 +189,12 @@ export function ClaimRedeemScreen({
           if (isCurrent()) setMessage('이전 코드는 더 이상 사용할 수 없습니다. 새 방문 코드를 확인해 주세요.');
         } else setMessage('이전 방문 결과를 확인하지 못했습니다. 연결을 확인하고 같은 코드를 다시 시도해 주세요.');
       }
-    }).catch(() => { if (isCurrent()) setMessage('이전 방문 확인 정보를 읽지 못했습니다. 같은 코드를 다시 확인해 주세요.'); });
+    }).catch(() => {
+      if (current) setRestore('none');
+      if (isCurrent()) setMessage('이전 방문 확인 정보를 읽지 못했습니다. 같은 코드를 다시 확인해 주세요.');
+    }).finally(() => {
+      if (current) setRestore((phase) => (phase === 'found' ? 'settled' : phase));
+    });
     return () => { current = false; redeemGate.cancel(); };
   }, [accountId, selectedMerchantId, api, pendingStore, securePending, redeemGate]);
 
@@ -188,6 +205,21 @@ export function ClaimRedeemScreen({
     });
     return () => subscription.remove();
   }, [router]));
+
+  // 시연 1인 2역(#412): 점주 화면이 넘긴 방문 코드를 한 번만 받아 입력칸에 채우고 상태까지만 확인한다. "방문 수령 확정"은 직접 누른다.
+  // 보관된 수령 복구를 읽고 확인하는 일이 끝난 뒤에 받는다. 이 기기에 남은 이전 기록이 있어도 넘어온 값을 버리지 않는다. 값은 넘긴 계정만 받는다.
+  const demoHandoff = canUseDemoHandoff(getAppPackageId());
+  useEffect(() => {
+    if (!demoHandoff || restore === 'reading' || restore === 'found') return;
+    const handedOver = takeDemoHandoff('claim', accountId);
+    if (!handedOver) return;
+    changeToken(handedOver);
+    void inspect(handedOver);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 복구 확인이 끝나는 때 한 번만 받는다.
+  }, [restore]);
+
+  // 축하 화면이 열린 방문을 기억해 둔다. 열리기 전(배지 조회 중)에는 아직 공개 전이므로 마일리지 줄을 보이지 않는다.
+  if (celebration?.claimSlotId && celebration.claimSlotId !== celebratedSlot) setCelebratedSlot(celebration.claimSlotId);
 
   // 도감에서 상자를 열고 돌아오면 현재 READY 상태를 다시 읽어 다음 행동을 갱신한다.
   useFocusEffect(useCallback(() => {
@@ -314,6 +346,13 @@ export function ClaimRedeemScreen({
     }
   }
 
+  // 시연 1인 2역: 내 식별 QR을 점주 화면에 넘기고 역할을 바꾼다(점주 화면이 열리며 한 번만 받는다).
+  function handoffToMerchant() {
+    if (!demoHandoff || !identity || isCustomerIdentityExpired(identity.expiresAt)) return;
+    setDemoHandoff({ kind: 'identity', accountId, token: identity.token, expiresAt: identity.expiresAt });
+    queueMerchantNotificationRole(accountId);
+  }
+
   function changeToken(value: string) {
     redeemGate.cancel();
     setBusy(false);
@@ -421,6 +460,8 @@ export function ClaimRedeemScreen({
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
       void loadRewardContext(result, mileageBefore);
+      // 첫 코인·방문이 단계를 바꿨을 수 있다: 다음 화면의 진입 단추가 바로 맞게 보이도록 단계 답을 다시 읽는다.
+      refreshStage();
       setPreview(undefined);
       setToken('');
       setPendingRedeemToken(undefined);
@@ -462,6 +503,8 @@ export function ClaimRedeemScreen({
       setArtworkReward(undefined);
       void findGrantedArtwork(result);
       void loadRewardContext(result, mileageBefore);
+      // 첫 코인·방문이 단계를 바꿨을 수 있다: 다음 화면의 진입 단추가 바로 맞게 보이도록 단계 답을 다시 읽는다.
+      refreshStage();
       setPreview(undefined);
       setToken('');
       setPendingRedeemToken(undefined);
@@ -505,8 +548,8 @@ export function ClaimRedeemScreen({
   async function celebrate(result: RedeemedClaim, before: Promise<BadgeBook | undefined> | undefined) {
     const request = badgeBookGate.start();
     const [previous, after] = await Promise.all([
-      before ?? Promise.resolve(undefined),
-      badgeApi.getBadgeBook().catch(() => undefined),
+      settleWithin(before, badgeBookWaitMs),
+      settleWithin(badgeApi.getBadgeBook(), badgeBookWaitMs),
     ]);
     if (activeClaimSlot.current !== result.claimSlotId) return;
     const diff = diffBadgeBooks(previous, after);
@@ -540,6 +583,8 @@ export function ClaimRedeemScreen({
 
   const currentRewardContext = redeemed && rewardContext?.claimSlotId === redeemed.claimSlotId ? rewardContext : undefined;
   const rewardBalance = currentRewardContext?.balance ?? null;
+  // 마일리지 줄은 코인 공개가 끝난 뒤에 보인다: 축하가 닫혔거나, 축하가 없는 재수령일 때.
+  const revealDone = redeemed !== undefined && !celebration && (redeemed.replayed || celebratedSlot === redeemed.claimSlotId);
   const rewardGuide = redeemed
     ? visitRewardGuide({ progressCount: redeemed.visit.progressVisitCount,
       goals: campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'ready' ? campaignGoals.goals : undefined })
@@ -609,6 +654,12 @@ export function ClaimRedeemScreen({
           {identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <Pressable accessibilityRole="button" disabled={identityBusy} onPress={() => void revokeIdentity()} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
             <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>이 QR 폐기</Text>
           </Pressable> : null}
+          {demoHandoff && identity && !isCustomerIdentityExpired(identity.expiresAt, now) ? <>
+            <Text style={styles.securityNote}>점주 체험 권한이 있는 계정이면 점주 화면이 열리고, 없으면 권한 요청 화면이 나와요.</Text>
+            <Pressable accessibilityRole="button" disabled={identityBusy} onPress={handoffToMerchant} style={[styles.button, { backgroundColor: palette.primaryContainer }, identityBusy && styles.disabled]}>
+              <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>시연: 점주 화면에서 이 QR 확인해 보기</Text>
+            </Pressable>
+          </> : null}
         </FloatingCard>
         </Stagger>
 
@@ -732,8 +783,8 @@ export function ClaimRedeemScreen({
             <Text style={[styles.successBody, { color: palette.onSuccessContainer }]}>
               새 보상권 {redeemed.grantedRewards.length}개 · NFT 발행은 아직 요청하지 않았습니다.
             </Text>
-            {currentRewardContext?.mileageLine ? <Text style={styles.successHighlight}>{currentRewardContext.mileageLine}</Text> : null}
-            {rewardBalance !== null ? <Text style={styles.successBody}>{mileageBalanceLine(rewardBalance)}</Text> : null}
+            {revealDone && currentRewardContext?.mileageLine ? <Text style={styles.successHighlight}>{currentRewardContext.mileageLine}</Text> : null}
+            {revealDone && rewardBalance !== null ? <Text style={styles.successBody}>{mileageBalanceLine(rewardBalance)}</Text> : null}
             {rewardGuide?.nextGradeLine ? <Text style={styles.successBody}>{rewardGuide.nextGradeLine}</Text> : null}
             {campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'error' ? <View>
               <Text style={styles.successBody}>수집품 목표를 확인하지 못했어요. 방문 완료 기록은 그대로예요.</Text>

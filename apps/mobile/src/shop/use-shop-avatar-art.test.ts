@@ -18,11 +18,13 @@ test('profile strip reloads identity and clothing on focus while the room uses s
   assert.match(source, /return useShopAvatarAppearance\(apiUrl, credential, refreshToken\)\?\.art;/);
   const effect = source.slice(source.indexOf('useEffect(() => {'));
   assert.match(effect, /\}, \[apiUrl, credential, refreshToken, focusToken\]\);/);
-  assert.match(home, /const shop = useShop\(shopApi\)/);
-  assert.match(home, /void shop\.refreshQuietly\(\)/);
+  // Home and the strip share the discovery provider's one GET /shop per focus; pull-to-refresh asks the provider again.
+  assert.match(home, /const shop = discovery\.strip\.shop;/);
+  assert.match(home, /discovery\.refresh\(\)/);
   const strip = readFileSync(fileURLToPath(new URL('../ui/profile-strip.tsx', import.meta.url)), 'utf8');
-  assert.match(strip, /useFocusEffect\(useCallback\(\(\) =>/);
-  assert.match(strip, /clients\.shop\.getShop\(\)/);
+  assert.match(strip, /useDiscoveryOnFocus\(\)/);
+  const calls = readFileSync(fileURLToPath(new URL('../discovery/discovery-calls.ts', import.meta.url)), 'utf8');
+  assert.equal((calls.match(/shop\.getShop\(\)/g) ?? []).length, 1, 'the provider reads GET /shop once per strip load');
   assert.match(strip, /<AvatarWardrobe clothing=\{clothing\}/);
   assert.match(readFileSync(fileURLToPath(new URL('../experience/home-collection-display.tsx', import.meta.url)), 'utf8'),
     /clothing=\{equippedClothingArt\(shop\)\}/);

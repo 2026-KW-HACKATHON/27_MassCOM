@@ -71,3 +71,20 @@ test('trial session actions wrap within the card and can grow with large text', 
     assert.equal('height' in styles.secondaryLink, false);
   }
 });
+
+test('the 더 즐기기 rows are touchable and their on/off pill stays readable in both schemes', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeAccountSettingsStyles(palette, world);
+    assert.ok((styles.optInRow.minHeight as number) >= uiMetrics.minTouch);
+    assert.ok(contrast(styles.optInStateText.color as string, styles.optInState.backgroundColor as string) >= 4.5, 'off pill');
+    assert.ok(contrast(styles.optInStateTextOn.color as string, styles.optInStateOn.backgroundColor as string) >= 4.5, 'on pill');
+  }
+});
+
+test('the volume slider keeps a 44dp hit area around its thinner bar', () => {
+  for (const [palette, world] of schemes) {
+    const styles = makeAccountSettingsStyles(palette, world);
+    assert.ok((styles.volumeTrack.minHeight as number) >= uiMetrics.minTouchCompact);
+    assert.ok((styles.volumeBar.height as number) < (styles.volumeTrack.minHeight as number));
+  }
+});

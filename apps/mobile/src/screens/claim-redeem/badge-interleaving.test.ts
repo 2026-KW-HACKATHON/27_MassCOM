@@ -9,6 +9,7 @@ import { createIdentityRequestGate } from '../../commerce/customer-identity';
 import type { RedeemedClaim } from '../../commerce/commerce-api';
 import type { BadgeBook } from '../../gamification/badge-api';
 import { diffBadgeBooks } from '../../gamification/badge-rules';
+import { settleWithin } from '../../commerce/visit-reward-guide';
 
 function delayed<T>() {
   let resolve!: (value: T) => void;
@@ -17,13 +18,14 @@ function delayed<T>() {
 }
 
 // 실제 화면의 focus·축하 콜백을 실행하고, 네이티브 UI 대신 상태 쓰기와 API 경계만 대체한다.
-function harness(reads: Promise<BadgeBook>[]) {
+function harness(reads: Promise<BadgeBook>[], waitMs = 3000) {
   const screen = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
   const focus = screen.slice(screen.indexOf('// 도감에서 상자를'), screen.indexOf('// 수령 후 추천'));
   const celebrate = screen.slice(screen.indexOf('async function celebrate'), screen.indexOf('// #332: 방문 뒤'));
   const result = { claimSlotId: 'claim', merchantName: '가게', grantedRewards: [], visit: { progressCounted: true } } as unknown as RedeemedClaim;
   let onFocus!: () => (() => void);
   let box: string | undefined;
+  const celebrations: unknown[] = [];
   const exports = {} as { celebrate: (claim: RedeemedClaim, before: Promise<BadgeBook>) => Promise<void> };
   runInNewContext(ts.transpileModule(`${focus}\n${celebrate}\nexports.celebrate = celebrate;`, {
     compilerOptions: { module: ts.ModuleKind.CommonJS },
@@ -34,10 +36,11 @@ function harness(reads: Promise<BadgeBook>[]) {
     useFocusEffect: (callback: typeof onFocus) => { onFocus = callback; },
     useCallback: (callback: typeof onFocus) => callback,
     presentedCollectibleIds: () => new Set(), setPresentedIds: () => {},
-    hasOpenableBox, diffBadgeBooks, setCelebration: () => {},
+    hasOpenableBox, diffBadgeBooks, setCelebration: (next: unknown) => { celebrations.push(next); },
+    settleWithin, badgeBookWaitMs: waitMs,
     setOpenableBoxClaimSlot: (next: string | undefined) => { box = next; },
   });
-  return { focus: () => onFocus(), celebrate: (before: Promise<BadgeBook>) => exports.celebrate(result, before), box: () => box };
+  return { focus: () => onFocus(), celebrate: (before: Promise<BadgeBook>) => exports.celebrate(result, before), box: () => box, celebrations };
 }
 
 const book = (state: 'READY' | 'OPENED'): BadgeBook => ({
@@ -63,5 +66,13 @@ test('이전 focus 조회가 늦어도 최신 OPENED 상태를 덮지 않는다'
   const h = harness([stale.promise, Promise.resolve(book('OPENED'))]);
   const blur = h.focus(); blur(); h.focus(); await flush();
   stale.resolve(book('READY')); await flush();
+  assert.equal(h.box(), undefined);
+});
+
+test('a badge lookup that never answers still opens the reveal, so the mileage lines behind it are not held back', async () => {
+  const never = new Promise<BadgeBook>(() => {});
+  const h = harness([never], 5);
+  await h.celebrate(never);
+  assert.equal(h.celebrations.length, 1, 'the celebration is shown after the short wait, without a badge diff');
   assert.equal(h.box(), undefined);
 });

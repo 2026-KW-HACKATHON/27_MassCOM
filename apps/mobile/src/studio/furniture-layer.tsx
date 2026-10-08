@@ -67,5 +67,5 @@ const styles = StyleSheet.create({
   piece: { position: 'absolute', width: 84, height: 84, borderRadius: 12,
     borderWidth: 2, borderColor: 'transparent', alignItems: 'center', justifyContent: 'center' },
   selected: { borderColor: '#0C9F86', borderWidth: 3 },
-  label: { color: '#3B2B1B', fontWeight: '800', fontSize: 11, textAlign: 'center' },
+  label: { color: '#3B2B1B', fontWeight: '800', fontSize: 12, textAlign: 'center' },
 });

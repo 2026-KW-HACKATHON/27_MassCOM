@@ -2,13 +2,14 @@
 
 ## 2026-10-08 프리즘 포함 네 등급과 용량 후속 (PR #418)
 
-기본 발행은 브론즈·실버·골드·프리즘 네 등급이며 모든 활성 추가 등급의 ID와 이미지·동작 자료도 보존한다. 방문 지급은 1/3/5회 브론즈/실버/골드로 유지한다. 프리즘 기본 음각·양각에 청록·분홍·보라의 각도별 색 이동과 같은 계열 테두리를 적용했고, 후면 세 모양도 이미지 생성으로 색을 개선했다. 뒷면12종은 웹·앱에서 동일한512px WebP767,082바이트(749.1KiB)를 사용한다. 아래 수치는 최신 main 통합 전 검증이며 통합 후 다시 기록한다. [실측·캡처·확장 경계](evidence/prism-collectibles-2026-10-08/README.md).
+기본 발행은 브론즈·실버·골드·프리즘 네 등급이며 모든 활성 추가 등급의 ID와 이미지·동작 자료도 보존한다. 방문 지급은 1/3/5회 브론즈/실버/골드로 유지한다. 프리즘 기본 음각·양각에 청록·분홍·보라의 각도별 색 이동과 같은 계열 테두리를 적용했고, 후면 세 모양도 이미지 생성으로 색을 개선했다. 뒷면12종은 웹·앱에서 동일한512px WebP767,082바이트(749.1KiB)를 사용한다. 원격 main `8841efea`(PR #420·#423)을 통합한 LF 체크아웃에서 아래 전체 회귀를 재실행했다. [실측·캡처·확장 경계](evidence/prism-collectibles-2026-10-08/README.md).
 
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |
 | API·PostgreSQL | PASS | API601/601·typecheck·build, 전용 PostgreSQL29/29. 네 기본 등급과 모든 활성 등급의 이미지·living 준비 확인, 추가 ID 보존 |
 | 사이트 | PASS | LF 체크아웃·PYTHONUTF8=1에서 *.test.mjs와 *_test.mjs609/609·skip0. macOS Chrome 실행 파일을 요구하는 verify_showcase_theme_test.mjs 한 파일은 NOT_RUN |
-| 모바일 | PASS | LF 체크아웃1992/1992·typecheck·lint. Android Metro/Hermes export에서 v2 뒷면12개 SHA 일치·v1 PNG0개. APK 설치·실기 재생은 NOT_RUN |
+| 모바일 | PASS | LF 체크아웃2077/2077·typecheck·lint. Android Metro/Hermes export에서 v2 뒷면12개 SHA 일치·v1 PNG0개. APK 설치·실기 재생은 NOT_RUN |
+| 최신 메인 통합 | PASS / 환경 한계 | 제품 코드 충돌 없음. 새 최소 크기 시험의 Windows 경로만 정규화해5/5·전체2077/2077 통과. Worker82개 중77 통과·5개는 Windows 권한/심볼릭 링크 제약, typecheck·build 통과. Compose13개 중5 통과·8개는 docker ENOENT로 NOT_RUN. 보안 검사를 완화하지 않음 |
 | 실제 브라우저 | PASS(합성 fixture) | 프리즘 음각0/±45/180°·자동 회전, 네 등급 게시·재읽기·편집 원본과 저장 프레임 비교. 게시 JSON2,563,589바이트(2.45MiB), 프레임251.6~300.1KiB |
 | 확장·용량 | PASS | 총16등급·전체8MiB·각 프레임1MiB·각 뒷면256KiB 상한 유지, 초과 시 해상도448→384→320→256 축소·최종 초과는 거절. 독립 리뷰 APPROVE(지적0). CDN·새 고유 재질·운영 배포는 별도 |
 
@@ -72,6 +73,40 @@
 | 실제 고객 앱의 가상 가게 | PASS(로컬 DB) | 최신 development Expo 웹 export를 QA API 3308에 연결하여 탐색 목록과 상세의 `QA 가상 월계 달빛빵집`, 주소, 최신 대표 이미지, 1·3·5 목표 및 보상 가능을 확인했다. `07`·`08` 캡처와 `browser-db-result.json`이 같은 DB 실행을 기록한다 |
 | QA 재실행·환경 한계 | PASS / NOT_RUN | 포트 중복으로 다른 API를 검증하지 않도록 시작 전 검사 추가. 3309의 fresh DB `masscom_showcase_ci_202610082fea38_test`에서 최종 스크립트 PASS. production web·proxy 시험은 138 중 136 통과, Caddy 컨테이너 두 시험은 `docker ENOENT`로 실행하지 못함 |
 
+## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
+
+기준 main `48a14811`(PR #420 병합) 위의 작업 브랜치 `feat/first-use-v2c`이며 앱 코드와 문서만 바뀌었다. API·DB·migration은 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행했다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 모바일 시험 | PASS | `npm test` 2077/2077(T2 기준 1992에서 85건 증가). 늘어난 시험은 점진적 공개(단계 기준·사람이 고른 선택이 늘 이김·친구가 있는 계정의 암묵 선택·저장 기록의 3값 처리·다른 계정 기록 삭제), 요청 수(탭 포커스는 세 요청, 단계 답은 홈과 방문 수령 뒤에만), 점주 1인 2역 넘김(계정에 묶임·한 번만·만료·로그아웃/전환/무효화에서 비움·복구와의 순서), 단계 카드 매핑, 홈 오류 문구, 리다이렉트 라우트, 마일리지 줄이 배지 조회에 막히지 않음, 재리뷰 반영(점주 넘겨받기가 이 기기에 남은 이전 보관 기록에 막히지 않음·점주가 코드를 넘길 때 보관 기록 삭제·복구가 끝난 뒤 넘김을 받는 순서와 만료 값을 종류와 무관하게 먼저 버림)이다 |
+| typecheck·lint | PASS | `npm run typecheck`, `npm run lint` 모두 exit 0 |
+| 접근성 의미 검사·지갑 표면 검사·CI 연결 | PASS | 세 스크립트 모두 exit 0. CI 연결 검사는 시험 파일 90개가 모두 실행됨을 확인한다 |
+| 운영 문서 검사·증거 정합 검사 | PASS | README·PROJECT_STATE의 "현재 자동 시험 합계" 줄을 모바일 2077/2077로 함께 고쳤다. 필수 36개 ID는 `31 PASS / 2 BLOCKED / 3 NOT_RUN` 그대로다 |
+| gate | PASS | `bash tools/gate.sh` exit 0 |
+| API 시험 | 변경 없음 | 597/597(main의 PR #422 값), T2c는 API 코드를 바꾸지 않았다 |
+| 독립 리뷰 | 지적 반영 | Claude Sonnet·Claude Opus 교차 리뷰는 🔴 없이 변경을 요청했다. 🟠 둘(넘김 값이 계정에 묶이지 않음, 친구가 있는 기존 사용자가 입구를 잃음)과 🟡들을 반영했다. Claude Opus 재리뷰는 그 둘이 맞게 고쳐졌음을 확인했고 🟠 하나(점주 쪽 보관 기록이 남아 있으면 손님 화면이 넘긴 식별 QR이 버려짐)와 🟡 넷(시연 단추가 점주 권한 없는 계정에도 보임, 한 기기 흐름에서 단계 ④가 켜지지 않음, 뽑기권 조회 실패가 가려짐, 넘김 만료 확인 순서)을 더 찾았다. 이 지적도 반영해 시험으로 고정했고, 그 반영분을 본 Claude Opus 재리뷰는 승인(APPROVE)했다(🔴·🟠 없음, 🟡 반영). 단계 ④와 시연 단추의 권한 안내는 코드가 아닌 D-091의 문서·한 줄 안내로 처리했다 |
+| 공개 서버·설치본 | 변경 없음 | 운영 API·웹 `687427c2`, 운영 test.13, 시연 Preview 22, 시연 `/play/` 번들 `5ca98955`. 이 코드는 다음 빌드부터 사용자에게 닿는다 |
+| 단계별 입구·1인 2역·최소 크기의 실기 | NOT_RUN | 실제 휴대전화·시연 웹에서 단계에 따라 입구가 열리는 모습, 한 기기에서 점주↔손님 역할 전환과 단계 카드, 글자 12dp·터치 44dp 정리의 렌더링은 확인하지 않았다. 화면 구성은 타입 검사와 소스 시험까지만 확인했다 |
+
+### Issue #412 T2c 로컬 검사
+
+환경: macOS, `feat/first-use-v2c` worktree(main `48a14811` 위로 리베이스한 뒤), 2026-10-08 KST.
+
+| 명령 | 결과 |
+| --- | --- |
+| `npm test` (`apps/mobile`) | PASS (2077/2077, exit 0) |
+| `npm run typecheck` (`apps/mobile`) | PASS (exit 0) |
+| `npm run lint` (`apps/mobile`) | PASS (exit 0) |
+| `bash tests/mobile/check_accessibility_semantics_test.sh` | PASS (exit 0) |
+| `bash tests/release/check_release_wallet_surface_test.sh` | PASS (exit 0) |
+| `bash tests/ci/ci_wiring_test.sh` | PASS (시험 파일 90개 모두 실행됨, exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (31 PASS · 2 BLOCKED · 3 NOT_RUN, exit 0) |
+| `bash tools/gate.sh` | PASS (exit 0) |
+
+필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. README와 PROJECT_STATE는 "현재 자동 시험 합계" 줄만 고쳤다. 사용자 판정 필요: 단계 기준과 입구가 열리는 순서, 점주 단계 카드 문구는 실제 화면에서 정한다.
+
 ## 2026-10-08 API 서버 구조 정리 마무리: deps 고정·기본값 한곳·콜백 쿠키와 삭제 접수 배선 고정 (Issue #412 트랙 T1, 배포 동결)
 
 기준 main `b572184e`에서 시작한 작업 브랜치 `refactor/api-deps-routes`를 main `b707ed09`(PR #413·#414·#415·#421 병합) 위로 옮겼다. 그 네 PR은 `apps/api/src`를 건드리지 않아(#421은 `apps/api/package.json`에 `test:cov`·`test:postgres:cov` 스크립트만 더했다) API 시험 수는 그대로다. 코드는 `apps/api`만 바뀌었고 요청·응답 동작은 바뀌지 않았다. 교차 리뷰(Claude Sonnet·Claude Opus)가 승인(🔴 0·🟠 0)하며 남긴 🟡 5건을 반영했다. (1) `createApiServer`가 deps를 복사해 한 번만 얼린다. (2) `trustProxyClientIp`·`webWwwEnabled`·`experienceServices`의 기본값을 한곳에서 정하고 경로 처리기 13곳의 `??`를 지웠다. (3) 웹 로그인 콜백의 쿠키 응답을 시험으로 고정했다. (4) 계정 삭제 접수 서비스 두 개의 배선을 소스 시험으로 고정했다. (5) `experienceServices`를 `Required<ExperienceServices>`로 만들어 안쪽 키 누락도 컴파일에서 잡는다. 배포·게시는 하지 않았다(소유자 결정 A).
@@ -125,6 +160,32 @@
 | 호스트 설치 | NOT_RUN | `masscom-backup`·`masscom-showcase-backup` 타이머는 호스트에 설치하지 않았다. 설치 명령은 [운영 절차](OPERATIONS_RUNBOOK.md)에 있고 소유자 승인이 필요하다 |
 
 필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. 자동 시험 합계는 main 값(API 단위 567, 모바일 1992)을 따르며 이 브랜치는 둘 다 바꾸지 않는다. 아래 절은 당시 이력이다.
+
+## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) (D-089)
+
+기준 main `e06c97cd` 위의 작업 브랜치 `feat/worker-continuous-loop`([PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420), main `48a14811`에 병합됨, 처음 커밋 `418f8c57`). 이후 main `cd01c0d6`(PR #421·#422 병합)을 병합했고 그 뒤 검사는 아래 표 맨 앞 행에 적었다. 앱·API·DB 스키마는 바뀌지 않았고 Worker 코드, Worker 이미지, 운영 compose의 프로파일 서비스, 문서가 바뀌었다. 이 서비스는 어디에도 배포·활성화하지 않았다. 번호는 처음 D-080이었으나 main의 D-080과 겹쳐 D-089로 바꿨다. 독립 리뷰(Claude Sonnet + Opus)의 지적을 고친 뒤의 결과를 아래 표 앞부분("리뷰 반영" 행)에 적었고, 나머지 행은 리뷰 전 구현 커밋(`418f8c57`~`bddbb333`) 기준의 결과다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| main `cd01c0d6`(PR #421·#422 병합) 병합 뒤 검사(macOS, Node 25.9.0, 2026-10-08 KST) | PASS | 충돌은 문서 다섯 곳뿐이었고 `apps/api`·`ci.yml`·compose·`runtime.env.example`·Lightsail README는 자동으로 합쳐졌다. `cd apps/worker && npm ci && npm test && npm run typecheck` 82/82·typecheck PASS, `node --test tests/ops/compose_worker_profile_test.mjs tests/ops/compose_log_rotation_test.mjs` 18/18, `bash tests/ops/deploy_lightsail_test.sh`·`verify_lightsail_deployment_test.sh`·`bash tests/ci/ci_wiring_test.sh`(시험 파일 91개 모두 실행)·`bash tests/bootstrap/verify_operations_docs_test.sh`·`bash tests/site/verify_evidence_consistency_test.sh`·`node scripts/render-current-release.mjs --check`·`bash tools/gate.sh` PASS, `ci.yml` YAML 파싱 PASS. 자동 시험 합계 줄은 main 값(API 597/597·모바일 1992/1992)이고 Worker 시험은 그 줄에 넣지 않았다. Anvil·PostgreSQL 통합 시험과 GitHub Actions 전체 CI는 이 환경에서 `NOT_RUN`이다 |
+| 리뷰 반영: Worker 단위 시험(macOS, Node 25.9.0) | PASS | 82/82(리뷰 전 67 + 신규 12 + 재리뷰 🟡 반영 3: 아래 별도 행). `cd apps/worker && npm ci && npm test`, `npm run typecheck`, `npm run build` 모두 PASS. 신규: 영수증 대기(RPC 주소가 든 오류를 던져도 콘솔 로그 0건·코드만 있는 `RECEIPT_LOOKUP_FAILED`·`getBlockNumber`만 실패해도 처리되지 않은 거절 0건·기한까지 반복 조회·기한 뒤 조회와 타이머가 남지 않음·확인 깊이·`close()`의 공급자 정리), `MINT_WORKER_CRASHED`(두 이벤트 모두 한 줄·주소 없음·종료 코드 1), DB 풀 오류 리스너, 반복마다 조회 시작 블록 갱신(`setScanFromBlock`), 임대 소유자의 호스트·pid 접미사, 빈 `CHAIN_FROM_BLOCK` 거절 |
+| 재리뷰 🟡 반영(Opus 재리뷰가 `e3c156fc`를 🔴 0·🟠 0으로 승인한 뒤의 커밋) | PASS | Worker 82/82, typecheck·build PASS, `compose_worker_profile`·`compose_log_rotation` 18/18, `deploy_lightsail_test.sh`·`ci_wiring_test.sh`·`verify_operations_docs_test.sh`·`verify_evidence_consistency_test.sh`·`tools/gate.sh` PASS. 신규 시험 3개: RPC 요청 시간 상한 10초(`_getConnection().timeout`, ethers 기본 300초) 고정, 영수증 대기의 마지막 조회에 따라 `RECEIPT_LOOKUP_FAILED`/`RECEIPT_NOT_READY` 구분(기존 두 시험의 기대 코드는 `RECEIPT_NOT_READY`로 바뀜), 빌려 간 DB 연결의 오류 리스너(로그 한 줄·중복 없음). 변이 시험: 요청 상한을 300초로 되돌리거나 연결 'connect' 리스너를 지우면 해당 시험이, 배포 스크립트 가드의 금지 단어나 stop/build 조건을 지우면 시료 시험이 실패함을 확인한 뒤 복구했다. 재시도 동작은 그대로다(`mint-worker.test.ts`의 `RECEIPT_NOT_READY` 재시도 시험 통과). 통합 시험(Anvil·PostgreSQL)은 이 환경에 없어 NOT_RUN이고 CI 결과로 확인한다 |
+| 리뷰 반영: 변이 시험 | PASS | 영수증 대기를 옛 `waitForTransaction`으로 되돌리면 새 시험 3개(주소 로그·처리되지 않은 거절·기한)가 실패하고, 풀 리스너를 지우거나 `setScanFromBlock` 호출을 지우면 해당 시험이 실패함을 확인한 뒤 원본으로 복구했다 |
+| 리뷰 반영: compose·배포 스크립트 시험 | PASS | `node --test tests/ops/compose_worker_profile_test.mjs tests/ops/compose_log_rotation_test.mjs` 18/18(Compose는 Docker Desktop). 신규: `runtime.env.example`에 `COMPOSE_PROFILES` 없음, 배포 스크립트는 `mint-worker`를 `stop`·`build` 줄에서만 말하고 `up`·`run`·`start`·`restart`·`create`·프로파일 지정·`COMPOSE_PROFILES`·배열/변수 우회는 거절(허용 목록 방식, 임시 시료 문자열로 금지 형태마다 거절을 증명), 체인 설정(`CHAIN_ID`·`CHAIN_FROM_BLOCK` 등)에 기본값 없음, 결과 대기 기본 10분. `bash tests/ops/deploy_lightsail_test.sh`, `verify_lightsail_deployment_test.sh`, `tests/ci/ci_wiring_test.sh`, `tests/bootstrap/verify_operations_docs_test.sh`, `tests/site/verify_evidence_consistency_test.sh` 모두 PASS |
+| 리뷰 반영: Anvil·PostgreSQL 통합 시험 | NOT_RUN | 이 환경에 Anvil·psql이 없다. 영수증 대기를 바꿨으므로 CI의 통합 시험 결과로 확인한다 |
+| `tools/gate.sh` | PASS | 로컬 빠른 검사(비밀·충돌 표시·부트스트랩·운영 문서·증거 일관성). CI를 대신하지 않는다 |
+| 독립 코드·보안 리뷰(Claude Sonnet + Opus) | 완료, 🔴 0 | 둘 다 변경 요청. 🟠 3건(로그 노출·프로세스 종료, 풀 오류 리스너, 번호 충돌)과 🟡 지적을 모두 고쳤다. Opus 재리뷰가 `e3c156fc`를 🔴 0·🟠 0으로 승인했고 그 🟡(RPC 요청 시간 상한, 빌려 간 연결 오류, 영수증 코드 구분, 배포 스크립트 가드, 병합 조건)은 다음 커밋에서 고쳤다. 그 커밋은 재리뷰하지 않았다 |
+| Worker 단위 시험(Linux, WSL 임시 복사본, 리뷰 전) | PASS | 67/67(기존 55 + 신규 12: 반복 7·설정/로그 4·게이트웨이 조회 시작 블록 1). Node 24.14.0 |
+| Worker 단위 시험(Windows) | 62 PASS / 5 FAIL | 실패는 모두 `minter-signer-config.test.ts`의 키 파일 권한 시험이다. Windows NTFS가 파일 권한을 `666`으로 보고해서 생기는 환경 한계이며 같은 시험이 Linux에서 통과한다. 이 변경이 건드리지 않은 코드다 |
+| Worker typecheck·build | PASS | `npm run typecheck`, `npm run build`(Windows·Linux) |
+| Worker 통합 시험(Linux) | PASS | Anvil 통합 + PostgreSQL 통합 42/42. 일회용 Postgres 16.10과 고정 digest의 Anvil, 시험 뒤 컨테이너 삭제 확인 |
+| 컨테이너 리허설 | PASS | 일회용 DB와 그 실행에서만 만든 임의 키. 상시 루프로 기동(`MINT_WORKER_LOOP_STARTED`), 헬스체크 명령 종료 코드 0, 하트비트 갱신 확인, `docker stop` 1초 안에 종료 코드 0(`MINT_WORKER_STOPPING`→`STOPPED`), 키 파일 권한 644는 `MINTER_KEYSTORE_PERMISSIONS_TOO_OPEN`으로 시작 거절(종료 코드 1). 읽기 전용 루트·tmpfs·uid 1000·`no-new-privileges`로 실행. 작업이 없어 체인에는 아무것도 보내지 않았다 |
+| compose·Dockerfile 구성 시험 | PASS | `tests/ops/compose_worker_profile_test.mjs` 9개 + 기존 `compose_log_rotation_test.mjs` 5개. 평소 렌더에는 `mint-worker`가 없고 필수 변수 없이도 렌더, 배포 스크립트가 Worker를 언급하지 않음, `PREPARING` 고정, 읽기 전용 bind(`create_host_path: false`), 개인키·잠금 해제 변수 없음, 이미지가 `/app/apps/worker`에 위치. Compose v2.29.7·v2.38.2·v5.5.1에서 각각 9/9 통과(2.x는 `config` 출력에서 `create_host_path: false`를 생략하므로 compose.yml 원문도 함께 확인하고, 없는 호스트 폴더 거절은 세 버전 모두 실제 `create`로 확인) |
+| Lightsail README 시험 | PASS(LF 변환 뒤) | Windows CRLF 작업 트리에서는 이 변경과 무관하게 실패하던 시험이다(`## 운영 전체 API·웹 배포 안전장치\n`을 찾는 방식). LF로 바꾸면 통과한다 |
+| 실제 서버 배포·운영 활성화 | NOT_RUN | 배포 스크립트 통합·롤백·이미지 태그 관리는 후속이다 |
+| 상시 Worker 실발행(Base Sepolia, 로컬 WSL `npm start`) | PASS | 2026-10-08 디버깅용으로 임시 배포한 계약(공식 배포 아님, 증거 파일에 기록하지 않음)에서 새 DEMO 계정의 접수를 사람이 개입하지 않고 처리했다. 작업 `FINALIZED`(시도 1회, 오류 코드 없음), 대기열 `PUBLISHED`, 온체인 소유자가 DB의 수령 주소와 일치, 같은 시험의 앞선 발행과 계정·주소가 달라 중복 없음. 앱 접수 화면, 지갑 주소 확인(`VERIFIED`), 동의 `nft-mint-v2`를 거친 흐름이다. 메타데이터 주소가 `127.0.0.1`이라 지갑·탐색기에서 이미지는 확인하지 못했다 |
+| 상시 Worker 메인넷 전송 | NOT_RUN | 운영 민터 키 생성·메인넷·`LIVE` 전환은 소유자 승인 사항이다 |
+| 장시간 실행·부하·RPC 장애 중 반복 | NOT_RUN | 반복 로직은 단위 시험으로만 확인했다 |
 
 ## 2026-10-08 첫 사용 경험: 웹 첫 화면·동의·첫 코인·가게 사실 표시 (Issue #412, 배포 동결)
 

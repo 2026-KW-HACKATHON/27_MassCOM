@@ -234,6 +234,7 @@ export function ShowcaseMerchantScreen({ apiUrl, accountId, credential, onBrowse
       credential={credential}
       onSessionInvalid={onSessionInvalid}
       onReturnToRole={onReturnToRole}
+      onBrowseAsCustomer={onBrowse}
       onTour={() => setTour(true)}
       onArt={() => setArtOpen(true)}
       onAdmin={showAdminEntry ? () => setAdminOpen(true) : undefined}

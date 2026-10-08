@@ -47,8 +47,10 @@
 
 ## 검증과 재현
 
+원격 main `8841efea`(PR #420·#423)을 통합한 뒤 API·사이트·모바일 전체와 타입·lint·Android export를 재검증했다. Windows 경로 구분자가 새 최소 크기 시험의 예외 파일 비교를 깨뜨려 경로만 정규화했다. 보안 관련 Worker 시험5건은 Windows 파일 권한/심볼릭 링크 한계, Docker 관련8건과 macOS Chrome 전용 테마 한 파일은 환경상 검증하지 못했다. [명령별 경계](../../TEST_STATUS.md).
+
 - API 단위 601/601·타입·빌드, 실제 PostgreSQL 관련 통합 29/29 통과. 기본4 필수·추가 custom ID 발행·미디어 제거·권한·기존 발행 보존을 검증했다.
-- 모바일 전체 LF 체크아웃 1,992/1,992·타입·린트·Android Metro/Hermes export 통과. 내보내기는 서명 APK나 실기 설치를 뜻하지 않는다.
+- 모바일 전체 LF 체크아웃 2,077/2,077·타입·린트·Android Metro/Hermes export 통과. 내보내기는 서명 APK나 실기 설치를 뜻하지 않는다.
 - 웹 핵심 프리즘·relief·프레임·후면 시험 67/67, 모델·저장·스타터 26/26, 편집기 92/92 통과. 전체 웹 최종 결과는 [TEST_STATUS](../../TEST_STATUS.md)에 기록한다.
 - 별도 읽기 전용 리뷰에서 발견한 추가 등급 living 누락 경계를 수정하고 재현 입력이 거절됨을 확인했다. 최종 차단 지적 0건.
 - 로컬 합성 점주 fixture에서 실제 게시 버튼을 눌러 새 네 등급 자료를 만들고 HTTP로 다시 읽었다. 0/±45/180도와 자동 회전에서 편집 원본과 저장 프레임을 비교했다. [크기·프레임·자동 회전](browser-results.json), [캡처 해시](capture-hashes.json). 렌더 누적 횟수는 FPS 수치가 아니다. `02-prism-front-45-initial.png`는 추가 색 보완 전 비교 이력이다.

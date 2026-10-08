@@ -141,6 +141,72 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  # NFT 발행 Worker(상시 실행). 평소 배포에서는 뜨지 않는다: 운영은 발행 준비 중이고(D-054) go-live 전제 조건(B-027)을
+  # 거친 뒤에만 `--profile nft-live`로 켠다. 배포 스크립트는 서비스를 이름으로 지정해 올리므로 이 서비스를 건드리지 않는다.
+  # 한 체인에는 서비스 민터가 하나라서 이 서비스는 항상 1개만 띄운다(복제하지 않는다).
+  # 민터 keystore·비밀번호 파일은 저장소·이미지 밖의 호스트 폴더에서 읽기 전용으로 마운트한다. 폴더와 파일은 컨테이너
+  # 사용자(node, uid 1000) 소유, 파일 권한 600, 폴더는 그룹·기타 쓰기 금지여야 Worker의 권한 검사를 통과한다.
+  mint-worker:
+    profiles:
+      - nft-live
+    image: masscom-worker:${MASSCOM_WORKER_IMAGE_TAG:-local}
+    build:
+      context: ../..
+      dockerfile: infra/lightsail/worker.Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://masscom:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/masscom
+      CHAIN_RPC_URL: ${NFT_CHAIN_RPC_URL:-}
+      CHAIN_ID: ${NFT_CHAIN_ID:-}
+      NFT_CONTRACT_ADDRESS: ${NFT_CONTRACT_ADDRESS:-}
+      MINTER_ADDRESS: ${NFT_MINTER_ADDRESS:-}
+      # 기본값을 두지 않는다. 비어 있으면 Worker가 시작을 거절한다(0부터 훑어 RPC 조회 한도를 넘기는 일을 막는다).
+      CHAIN_FROM_BLOCK: ${NFT_CHAIN_FROM_BLOCK:-}
+      CHAIN_CONFIRMATIONS: ${NFT_CHAIN_CONFIRMATIONS:-1}
+      CHAIN_RECEIPT_TIMEOUT_MS: ${NFT_CHAIN_RECEIPT_TIMEOUT_MS:-600000}
+      MINTER_MIN_BALANCE_WEI: ${NFT_MINTER_MIN_BALANCE_WEI:-0}
+      # 확정 때 고정하는 공개 메타데이터의 출처라 환경 파일로 바꿀 수 없게 운영 값으로 고정한다(Issue #254).
+      NFT_METADATA_ORIGIN: https://masscom.kr
+      # Worker가 호스트 이름과 pid를 뒤에 붙여 임대 소유자(lease_owner)를 컨테이너마다 다르게 만든다.
+      WORKER_ID: masscom-mint-worker
+      WORKER_IDLE_POLL_MS: ${NFT_WORKER_IDLE_POLL_MS:-3000}
+      WORKER_HEARTBEAT_FILE: /tmp/mint-worker.heartbeat
+      MINTER_KEYSTORE_PATH: /run/minter/keystore.json
+      MINTER_KEYSTORE_PASSWORD_FILE: /run/minter/password
+    # 필수 변수(:?)로 두면 이 프로파일을 켜지 않은 평소 배포의 compose 검사까지 깨지므로 기본 경로를 둔다.
+    # 호스트 폴더가 없으면 만들지 않고 시작을 거절한다(root 소유 빈 폴더가 생겨 엉뚱하게 도는 것을 막는다).
+    volumes:
+      - type: bind
+        source: ${NFT_MINTER_KEY_DIR:-/opt/masscom/minter}
+        target: /run/minter
+        read_only: true
+        bind:
+          create_host_path: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # 반복이 한 번 성공적으로 끝날 때마다 시각을 적는다. 3분 넘게 갱신되지 않으면 멈춘 것으로 본다.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - try{const t=Number(require('fs').readFileSync('/tmp/mint-worker.heartbeat','utf8'));process.exit(Date.now()-t<180000?0:1)}catch{process.exit(1)}
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # SIGTERM을 받으면 처리 중인 한 건을 끝내고 멈춘다. 60초는 보통의 한 건(영수증 대기 기한 30초, 마지막 RPC 요청이 걸려도 약 50초 포함)에는 충분하지만
+    # 끝난다는 보장은 아니다. 못 끝내고 SIGKILL되면 임대 만료(30초)와 기록된 서명 거래 재전송으로 복구된다.
+    stop_grace_period: 60s
+    read_only: true
+    tmpfs:
+      - /tmp
+    restart: unless-stopped
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
   caddy:
     image: caddy:2.10.2-alpine
     environment:

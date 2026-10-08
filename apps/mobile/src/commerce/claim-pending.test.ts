@@ -171,3 +171,21 @@ test('customer pending cleanup recognizes only final server token outcomes',()=>
   for(const code of ['CLAIM_TOKEN_EXPIRED','CLAIM_TOKEN_INVALID','CLAIM_SLOT_NOT_FOUND'])assert.equal(isTerminalPendingClaimCode(code),true,code);
   for(const code of ['CLAIM_TOKEN_UNAVAILABLE','CLAIM_CAMPAIGN_UNAVAILABLE','SESSION_INVALID','NETWORK_ERROR'])assert.equal(isTerminalPendingClaimCode(code),false,code);
 });
+
+test('#412 a consumed identity replays after round 1 until the staff handoff clears it, and a stale token never clears a newer one', async () => {
+  const { surface: storage } = memoryStorage();
+  const now = Date.parse('2026-10-08T00:00:00Z');
+  const store = createClaimPendingStore(storage, () => now);
+  const round1 = { accountId: 'owner', merchantId: 'demo-shop', token: 'identity-1', expiresAt: new Date(now + 120_000).toISOString() };
+  await store.save(round1);
+  // Later, the merchant screen reopens for round 2: the record is still there ('expired' within the 48h grace), so it would restore.
+  assert.equal((await createClaimPendingStore(storage, () => now + 10 * 60_000).loadState('owner', 'demo-shop')).state, 'expired');
+  // A newer attempt replaces it; the handoff of round 1 (late) must not erase round 2.
+  const round2 = { ...round1, token: 'identity-2' };
+  await store.save(round2);
+  assert.equal(await store.clearIfMatches('owner', { merchantId: 'demo-shop', token: 'identity-1' }), false);
+  assert.deepEqual(await store.load('owner', 'demo-shop'), round2);
+  // The staff handoff clears exactly the record it handed over, so the next merchant screen has nothing to restore.
+  assert.equal(await store.clearIfMatches('owner', { merchantId: 'demo-shop', token: 'identity-2' }), true);
+  assert.equal((await createClaimPendingStore(storage, () => now + 10 * 60_000).loadState('owner', 'demo-shop')).state, 'none');
+});
