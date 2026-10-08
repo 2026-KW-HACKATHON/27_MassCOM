@@ -208,7 +208,7 @@ export class PostgresMerchantOperations implements MerchantOperations {
            FROM counted GROUP BY customer_account_id
          )
          SELECT visit.business_date::text, visit.occurred_at, visit.campaign_title,
-           CASE WHEN visit.business_date = first_dates.first_date THEN '첫 방문' ELSE '재방문' END AS visit_kind,
+           CASE WHEN visit.business_date = first_dates.first_date THEN '처음 확인된 방문' ELSE '다시 확인된 방문' END AS visit_kind,
            (SELECT count(*)::integer FROM reward_entitlements AS reward
              WHERE reward.source_visit_event_id = visit.id AND reward.status <> 'CANCELED') AS rewards,
            (SELECT count(*)::integer FROM badge_coupons AS coupon
@@ -224,7 +224,8 @@ export class PostgresMerchantOperations implements MerchantOperations {
          ORDER BY visit.business_date, visit.occurred_at, visit.id LIMIT 10001`,
         [input.merchantId, fromDate, toDate]);
       if (rows.rows.length > 10000) throw new MerchantOperationError('MERCHANT_OPERATION_LIMIT');
-      const header = ['방문일(KST)', '방문시각(KST)', '캠페인', '방문구분', '수집보상 건수', '쿠폰 발급 건수', '쿠폰 사용 건수'];
+      // 방문구분은 MassCOM에서 이 가게 방문이 처음 확인됐는지(앱 기록 기준)일 뿐 평생 처음 온 손님이라는 뜻이 아니다(D-092).
+      const header = ['방문일(KST)', '방문시각(KST)', '캠페인', '방문구분(MassCOM 확인 기준)', '수집보상 건수', '쿠폰 발급 건수', '쿠폰 사용 건수'];
       const lines = rows.rows.map(row => [row.business_date,
         new Date(row.occurred_at.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' '),
         row.campaign_title, row.visit_kind, row.rewards, row.coupons_issued, row.coupons_redeemed]

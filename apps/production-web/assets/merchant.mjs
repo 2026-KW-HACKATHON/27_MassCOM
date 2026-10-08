@@ -3,6 +3,8 @@ import { campaignEndingNotice } from './commercial-operation.mjs';
 import { profileReadOnlyReason, serializeMerchantProfile } from './merchant-profile.mjs';
 import { mountRealWorldMerchant } from './real-world-merchant.mjs';
 
+// 점주 목적형 캠페인(#412): 서버가 시간대 밖으로 판정한 방문 코드에 붙는 점원 안내. 모바일 점원 화면과 같은 문구다. 혜택은 뒤 PR에서 생기므로 말하지 않는다.
+const outsideWindowStaffNote = '방문 확인 시점 기준으로 점주가 정한 캠페인 시간대 밖이에요. 방문과 수집품은 그대로 인정돼요.';
 const merchantRequests = new WeakMap();
 const merchantClaimResolutions = new WeakMap();
 const merchantClaimSlots = new WeakMap();
@@ -685,8 +687,10 @@ export function bindMerchant(fetcher, doc) {
     reissue.hidden = false;
   };
   const showToken = issued => {
+    // 점주 목적형 캠페인의 시간대 조건(#412): 서버가 시간대 밖으로 판정하면 알려 준다. 방문 인정과는 무관하다.
+    const windowNote = issued.windowStatus === 'OUTSIDE_WINDOW' ? ` · ${outsideWindowStaffNote}` : '';
     claimResult.textContent = `방문 코드: ${issued.token} · 만료: ${new Date(issued.expiresAt).toLocaleTimeString('ko-KR')}${
-      issued.qrRenderFailed || !issued.qrSvgDataUrl ? ' · QR 그림을 만들지 못했습니다. 방문 코드를 고객 앱에 직접 입력해 주세요.' : ''}`;
+      issued.qrRenderFailed || !issued.qrSvgDataUrl ? ' · QR 그림을 만들지 못했습니다. 방문 코드를 고객 앱에 직접 입력해 주세요.' : ''}${windowNote}`;
     if (/^data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+$/.test(issued.qrSvgDataUrl ?? '')) {
       claimQr.src = issued.qrSvgDataUrl;
       claimQr.hidden = false;
@@ -1448,9 +1452,9 @@ export function bindMerchant(fetcher, doc) {
     );
     // API 추가 배포 전에는 0으로 꾸미지 않고 새 항목만 아직 집계되지 않았다고 알린다.
     overviewCards.append(
-      valueCard('이번 주 첫 방문 / 재방문', overview.weekVisitors
+      valueCard('이번 주 처음 확인된 방문 / 다시 확인된 방문', overview.weekVisitors
         ? `${overview.weekVisitors.first}건 / ${overview.weekVisitors.repeat}건` : '집계 준비 중', {
-        notes: ['방문 인증 기준이며 매출과 다를 수 있어요', '한국 시간 이번 주 기준이에요. 이전 날짜에 이 가게 방문 인증이 있으면 재방문, 없으면 첫 방문으로 세요. 사람 수가 아니라 방문 건수예요.'],
+        notes: ['방문 인증 기준이며 매출과 다를 수 있어요', 'MassCOM에서 이 가게 방문이 처음 확인된 건이 "처음 확인된 방문"이에요. 앱 기록만으로는 그 전에 오신 적이 없는지 알 수 없어서 새 손님이라는 뜻은 아니에요. 한국 시간 이번 주 기준이고, 사람 수가 아니라 방문 건수예요.'],
       }),
       overviewCard('이번 주 받은 수집품(등급별)', overview.weekCollectibles === undefined
         ? [textNode('p', 'overview-card-note', '집계 준비 중')]

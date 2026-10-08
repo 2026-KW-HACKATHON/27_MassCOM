@@ -507,6 +507,11 @@ fieldset.admin-consent legend { padding: 0 6px; font-weight: 800; }
   fieldset.admin-consent input[type="checkbox"]:not(:focus-visible) { outline: 2px solid var(--mc-secondary); outline-offset: 0; border-radius: 4px; }
 }
 .panel > *, #admin-campaign-draft, #admin-offer-form { max-width: 44rem; }
+/* 캠페인 목적 입력(Issue #412): 목적별 칸은 [hidden]으로 켜고 끈다. 시간대 한 줄은 좁은 화면에서 줄바꿈한다. */
+.admin-purpose [data-purpose-for] { display: grid; gap: 10px; }
+.admin-purpose [data-purpose-for][hidden] { display: none; }
+fieldset.admin-window { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; min-width: 0; margin: 0; padding: 10px 12px; border: 1px solid var(--mc-separator); border-radius: var(--mc-radius-control); }
+fieldset.admin-window legend { padding: 0 6px; font-weight: 700; }
 @media (min-width: 40rem) {
   .panel, .admin-panel { padding: 28px; }
   .panel form > button, #admin-campaign-draft > button { justify-self: start; min-width: 12rem; }

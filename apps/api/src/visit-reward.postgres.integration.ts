@@ -134,6 +134,8 @@ test('Q01 R01 R03 redeem creates one visit effect per QR and grants fixed goals 
         claimExpiresAt: '2026-12-17T03:00:00.000Z',
       },
     ],
+    // #412: 목적 행이 없는 옛 캠페인은 혜택 시간대 조건이 없다는 뜻의 NONE만 더해진다.
+    benefit: { state: 'NONE' },
   });
   const recovered = await service.redeem({ accountId: 'customer-1', token: firstSlot.token });
   assert.equal(recovered.replayed, true);
