@@ -97,6 +97,19 @@ export async function handleWebAdmin(ctx: RouteContext): Promise<boolean> {
       if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
       sendJson(response, 200, { reports: await roomCommunity.listReports(accountId) }); return true;
     }
+    if (path === '/api/web/admin/room-guestbook-reports' && request.method === 'GET') {
+      if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
+      sendJson(response,200,{ reports: await roomCommunity.listGuestbookReports(accountId) }); return true;
+    }
+    const guestbookModeration = path.match(/^\/api\/web\/admin\/room-guestbook\/([^/]+)\/hide$/);
+    if (guestbookModeration && request.method === 'POST') {
+      if (!roomCommunity) throw new RequestError(503,'ROOM_COMMUNITY_NOT_CONFIGURED');
+      const decision = roomWriteLimiter.consume(accountId);
+      if (!decision.allowed) throw new RequestError(429,'ROOM_RATE_LIMITED');
+      requireEmptyBody(await readJson(request));
+      await roomCommunity.moderateGuestbook({ actorAccountId: accountId,entryId: decodePathParameter(guestbookModeration[1]!) });
+      response.writeHead(204).end(); return true;
+    }
     const roomModeration = path.match(/^\/api\/web\/admin\/room-stamps\/([^/]+)\/hide$/);
     if (roomModeration && request.method === 'POST') {
       if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');

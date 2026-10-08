@@ -103,6 +103,14 @@ test('the privacy policy states retention periods instead of saying they are und
   }
 });
 
+test('guestbook privacy describes author opt-in, daily caps and erasure with dedupe retention', () => {
+  assert.match(privacy, /방명록 작성자 친구 추가는 작성자 본인이 방을 모두 공개 또는 기존 이웃 공개로 설정한 경우에만 허용/);
+  assert.match(privacy, /계정당 한국 날짜 기준 하루20회까지 새 친구/);
+  assert.match(privacy, /작성자당 같은 방에 한국 날짜 기준 하루10건까지 작성/);
+  assert.match(privacy, /글 제거 시 본문은 지우고/);
+  assert.match(privacy, /키를 사용한 본문 비교값, 작성·보상 기록은 계정 삭제 처리까지 보관/);
+});
+
 test('each retention promise in the policy is the value the code and the server jobs implement', () => {
   const retention = source('apps/api/src/postgres/retention.ts');
   assert.equal((retention.match(/ago\('1 year'\)/g) ?? []).length, 1, 'one place defines the one-year period');
@@ -173,7 +181,7 @@ test('the versions named on the two pages are the ones the server, the app and t
   const serverTerms = api.match(/CURRENT_TERMS_VERSION = '([^']+)'/)?.[1];
   const serverPrivacy = api.match(/CURRENT_PRIVACY_VERSION = '([^']+)'/)?.[1];
   assert.equal(serverTerms, 'terms-2026-10-06');
-  assert.equal(serverPrivacy, 'privacy-2026-10-07');
+  assert.equal(serverPrivacy, 'privacy-2026-10-09');
   assert.ok(terms.includes(serverTerms));
   assert.ok(privacy.includes(serverPrivacy));
   for (const version of privacy.match(/privacy-\d{4}-\d{2}-\d{2}/g) ?? []) {

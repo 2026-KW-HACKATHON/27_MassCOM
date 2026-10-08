@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, RefreshControl, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
+import { Platform, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
@@ -11,6 +11,7 @@ import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { clothingArtForId } from '@/shop/wardrobe';
 import { createRoomApiClient, roomErrorMessage, RoomApiError, type PublicRoom, type RoomSettings, type RoomStampKind, type RoomVisibility, type RoomVisitor } from '@/studio/room-api';
 import { StudioScene } from '@/studio/studio-scene';
+import { GuestbookModal } from '@/studio/guestbook-modal';
 import { displayStudioItems } from '@/studio/studio-api';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
@@ -50,7 +51,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
   const [notice, setNotice] = useState<string>();
   const [needsConsent, setNeedsConsent] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation>();
-  const [guestbookMessage, setGuestbookMessage] = useState('');
+  const [guestbookVisible, setGuestbookVisible] = useState(false);
   const active = useRef(false);
   const generation = useRef(0);
   const operation = useRef(false);
@@ -61,21 +62,22 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
     if (refresh) setRefreshing(true); else setLoading(true);
     setError(undefined); setNeedsConsent(false);
     try {
-      const [result, nearby, recent, linkedRoom] = await Promise.all([
+      if (requestedRoomId) {
+        const linkedRoom = await client.getRoom(requestedRoomId);
+        if (active.current && generation.current === request) setRoom(linkedRoom);
+        return;
+      }
+      const [result, nearby, recent] = await Promise.all([
         client.getSettings(), client.neighbors().then((rooms) => ({ rooms, failed: false })).catch(() => ({ rooms: [] as PublicRoom[], failed: true })),
         client.visitors().then((entries) => ({ entries, failed: false })).catch(() => ({ entries: [] as RoomVisitor[], failed: true })),
-        requestedRoomId ? client.getRoom(requestedRoomId).then((room) => ({ room, error: null }))
-          .catch((caught: unknown) => ({ room: null, error: roomErrorMessage(caught) }))
-          : Promise.resolve({ room: null, error: null }),
       ]);
       if (active.current && generation.current === request) {
         setSettings(result); setScopeChoice(result.visibility); setNeighbors(nearby.rooms); setNeighborError(nearby.failed);
         setVisitors(recent.entries); setVisitorError(recent.failed);
-        if (linkedRoom.room) setRoom(linkedRoom.room);
-        if (linkedRoom.error) setError(linkedRoom.error);
       }
     } catch (caught) {
       if (active.current && generation.current === request) {
+        if (requestedRoomId && caught instanceof RoomApiError && [403, 404].includes(caught.status)) setRoom(null);
         setError(roomErrorMessage(caught)); setNeedsConsent(needsConsentRecheck(caught));
       }
     } finally {
@@ -84,7 +86,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
   }, [client, requestedRoomId]);
 
   useFocusEffect(useCallback(() => {
-    active.current = true; setRoom(undefined); setNotice(undefined); setConfirmation(undefined); setGuestbookMessage(''); void load();
+    active.current = true; setRoom(undefined); setNotice(undefined); setConfirmation(undefined); setGuestbookVisible(false); void load();
     return () => { active.current = false; generation.current += 1; operation.current = false; setConfirmation(undefined); };
   }, [load]));
 
@@ -103,7 +105,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
     void run(async () => {
       const next = await client.randomRoom(room?.roomId);
       if (!live(request)) return;
-      setRoom(next); setGuestbookMessage(''); setNotice(next ? undefined : '지금 둘러볼 공개 방이 없어요. 나중에 다시 찾아보세요.');
+      setRoom(next); setGuestbookVisible(false); setNotice(next ? undefined : '지금 둘러볼 공개 방이 없어요. 나중에 다시 찾아보세요.');
     });
   }
 
@@ -114,7 +116,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
       const next = await client.setVisibility(scopeChoice);
       if (!live(request)) return;
       setSettings(next); setAgreed(false);
-      setNotice(next.visibility === 'PRIVATE' ? '내 방 공개를 중단했어요.' : next.visibility === 'FRIENDS' ? '친구에게 방을 공개했어요.' : '같은 가게 이웃에게 방을 공개했어요.');
+      setNotice(next.visibility === 'PRIVATE' ? '내 방 공개를 중단했어요.' : next.visibility === 'FRIENDS' ? '친구에게 방을 공개했어요.' : next.visibility === 'PUBLIC' ? '모두에게 방을 공개했어요.' : '같은 가게 이웃에게 방을 공개했어요.');
       if (!next.visible && room?.roomId === settings.roomId) { setRoom(undefined); setConfirmation(undefined); }
     });
   }
@@ -131,7 +133,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
   }
 
   function addRoomFriend() {
-    if (!room || room.mine || room.friendshipId || room.visibility !== 'NEIGHBORS') return;
+    if (!room || room.mine || room.friendshipId || !['PUBLIC', 'NEIGHBORS'].includes(room.visibility)) return;
     const request = generation.current;
     const roomId = room.roomId;
     void run(async () => {
@@ -156,20 +158,6 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
           setNotice('친구로 추가했어요. 이 방의 공개 상태가 바뀌어 다시 열 수 없어요.');
         } else setNotice('친구로 추가했어요. 방 정보를 다시 불러오지 못했어요.');
       }
-    });
-  }
-
-  function leaveStamp(kind: RoomStampKind) {
-    if (!room) return;
-    const request = generation.current;
-    const roomId = room.roomId;
-    const message = guestbookMessage;
-    void run(async () => {
-      const stamp = await client.stamp(roomId, kind, message);
-      if (!live(request)) return;
-      setRoom((current) => current?.roomId === roomId ? { ...current, stamps: [...current.stamps.filter((item) => item.id !== stamp.id), stamp] } : current);
-      setGuestbookMessage((current) => current === message ? '' : current);
-      setNotice(stamp.message ? '방명록과 칭찬 도장을 남겼어요.' : '칭찬 도장을 남겼어요.');
     });
   }
 
@@ -218,19 +206,21 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
   const header = <BackHeader title="월계 방 탐험" />;
   return <SkyBackdrop><SkyScrollView header={header} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"
     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} progressViewOffset={insets.top} />}>
+    {!requestedRoomId ? <>
     <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.separator }]}>
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>내 방 공개</Text>
-      <Text style={[styles.body, { color: palette.secondaryLabel }]}>공개할 사람을 선택하세요. 공개하면 방 꾸밈과 동행, 전시 코인과 닉네임을 선택한 범위에 보여줘요. 같은 가게 이웃은 방을 방문하고 친구 추가를 선택할 수 있어요.</Text>
+      <Text style={[styles.body, { color: palette.secondaryLabel }]}>공개할 사람을 선택하세요. 방 꾸밈과 동행, 전시 코인, 닉네임과 방명록을 선택한 범위에 보여줘요.</Text>
       {loading && !settings ? <StateScene kind="loading" title="공개 설정 확인 중" /> : null}
       {settings ? <>
-        <Text style={[styles.status, { color: settings.visible ? palette.success : palette.secondaryLabel }]}>현재 {settings.visibility === 'PRIVATE' ? '나만 보기' : settings.visibility === 'FRIENDS' ? '친구에게 공개' : '같은 가게 이웃에게 공개'}</Text>
-        {(['PRIVATE', 'FRIENDS', 'NEIGHBORS'] as const).map((scope) => <Pressable key={scope} accessibilityRole="radio"
+        <Text style={[styles.status, { color: settings.visible ? palette.success : palette.secondaryLabel }]}>현재 {settings.visibility === 'PRIVATE' ? '나만 보기' : settings.visibility === 'FRIENDS' ? '친구에게만 공개' : settings.visibility === 'PUBLIC' ? '모두에게 공개' : '같은 가게 이웃에게 공개 (기존 설정)'}</Text>
+        {(['PUBLIC', 'FRIENDS', 'PRIVATE'] as const).map((scope) => <Pressable key={scope} accessibilityRole="radio"
           accessibilityState={{ checked: scopeChoice === scope }} aria-checked={scopeChoice === scope} onPress={() => chooseScope(scope)}
           {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(() => chooseScope(scope)) } : {})} style={styles.checkRow}>
           <Text style={[styles.check, { color: palette.primary }]}>{scopeChoice === scope ? '◉' : '○'}</Text>
-          <Text style={[styles.body, { color: palette.label, flex: 1 }]}>{scope === 'PRIVATE' ? '나만 보기' : scope === 'FRIENDS' ? '친구' : '같은 가게 이웃'}</Text>
+          <Text style={[styles.body, { color: palette.label, flex: 1 }]}>{scope === 'PRIVATE' ? '나만 보기' : scope === 'FRIENDS' ? '친구에게만 공개' : '모두에게 공개'}</Text>
         </Pressable>)}
-        {scopeChoice === 'NEIGHBORS' ? <Text style={[styles.body, { color: palette.secondaryLabel }]}>같은 가게의 방문이 확인된 이웃도 내 방을 볼 수 있어요.</Text> : null}
+        {scopeChoice === 'PUBLIC' ? <Text style={[styles.body, { color: palette.secondaryLabel }]}>로그인한 모든 사람이 내 방을 방문하고 방명록을 볼 수 있어요.</Text> : null}
+        {settings.visibility === 'NEIGHBORS' ? <Text style={[styles.body, { color: palette.secondaryLabel }]}>기존 이웃 공개 범위를 유지하고 있어요. 다른 범위를 선택해 저장하면 바뀌어요.</Text> : null}
         {scopeChoice !== 'PRIVATE' && scopeChoice !== settings.visibility ? <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: agreed }} aria-checked={agreed}
           accessibilityLabel="방 공개 범위 확인" onPress={toggleAgreed} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggleAgreed) } : {})} style={styles.checkRow}>
           <Text style={[styles.check, { color: palette.primary }]}>{agreed ? '☑' : '□'}</Text>
@@ -243,8 +233,8 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
         {settings.visible && settings.roomId ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => {
           setConfirmation(undefined);
           const request = generation.current;
-          void run(async () => { const mine = await client.getRoom(settings.roomId!); if (live(request)) { setRoom(mine); setGuestbookMessage(''); setNotice(undefined); } });
-        }} style={styles.link}><Text style={[styles.linkText, { color: palette.primary }]}>내 공개 방과 도장 보기 ›</Text></Pressable> : null}
+          void run(async () => { const mine = await client.getRoom(settings.roomId!); if (live(request)) { setRoom(mine); setGuestbookVisible(false); setNotice(undefined); } });
+        }} style={styles.link}><Text style={[styles.linkText, { color: palette.primary }]}>내 공개 방 보기 ›</Text></Pressable> : null}
       </> : null}
     </View>
 
@@ -268,12 +258,11 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
             <Text style={[styles.linkText, { color: palette.primary }]}>가게 ›</Text>
           </Pressable>
           <View style={styles.stampChoices}>{group.rooms.map((entry) => <Pressable key={entry.roomId} accessibilityRole="button"
-            onPress={() => { setRoom(entry); setGuestbookMessage(''); setConfirmation(undefined); }} style={[styles.stampChoice, { borderColor: palette.primaryContainer }]}>
+            onPress={() => { setRoom(entry); setGuestbookVisible(false); setConfirmation(undefined); }} style={[styles.stampChoice, { borderColor: palette.primaryContainer }]}>
             <Text style={[styles.stampText, { color: palette.label }]}>{entry.studio.nickname}의 방 ›</Text>
           </Pressable>)}</View>
         </View>) : <Text style={[styles.body, { color: palette.secondaryLabel }]}>공통으로 방문한 가게의 공개 방이 아직 없어요.</Text>}
     </View>
-
     <View style={[styles.card, { backgroundColor: palette.surface, borderColor: palette.separator }]}>
       <Text accessibilityRole="header" style={[styles.heading, { color: palette.label }]}>이웃 방 둘러보기</Text>
       <Text style={[styles.body, { color: palette.secondaryLabel }]}>다른 공개 방을 랜덤으로 찾아요. 실제 방문 이력이 있으면 하루 첫 5곳에서 각 2P까지 받을 수 있어요.</Text>
@@ -281,6 +270,8 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
         <Text style={[styles.buttonText, { color: palette.onPrimary }]}>{busy ? '처리 중…' : room ? '다른 방 찾아가기' : '랜덤 방 찾아가기'}</Text>
       </Pressable>
     </View>
+    </> : null}
+    {requestedRoomId && loading && !room ? <StateScene kind="loading" title="방을 불러오는 중" /> : null}
 
     {error ? <View style={[styles.card, { backgroundColor: palette.errorContainer, borderColor: palette.error }]}>
       <Text accessibilityRole="alert" style={[styles.body, { color: palette.onErrorContainer }]}>{error}</Text>
@@ -300,7 +291,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
         onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: merchant.merchantId } })} style={styles.checkRow}>
         <Text style={[styles.linkText, { color: palette.primary }]}>{publicDataDemoStoreName(merchant.merchantId, merchant.merchantName)} · 가게와 획득 조건 보기 ›</Text>
       </Pressable>)}
-      {!ownRoom && !room.friendshipId && room.visibility === 'NEIGHBORS' ? <View style={{ gap: 6 }}>
+      {!ownRoom && !room.friendshipId && ['PUBLIC', 'NEIGHBORS'].includes(room.visibility) ? <View style={{ gap: 6 }}>
         <Text style={[styles.body, { color: palette.secondaryLabel }]}>친구가 아니어도 이웃 방을 방문할 수 있어요.</Text>
         <Pressable accessibilityRole="button" disabled={busy} onPress={addRoomFriend}
           style={[styles.button, { backgroundColor: palette.primary }, busy && styles.disabled]}>
@@ -316,18 +307,10 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
       {!ownRoom ? <Pressable accessibilityRole="button" disabled={busy} onPress={visit} style={[styles.button, { backgroundColor: palette.primary }, busy && styles.disabled]}>
         <Text style={[styles.buttonText, { color: palette.onPrimary }]}>방 방문하기</Text>
       </Pressable> : null}
-      <Text style={[styles.subheading, { color: palette.label }]}>칭찬 방명록</Text>
-      {!ownRoom ? <View style={{ gap: 8 }}>
-        <TextInput accessibilityLabel="방명록 글, 선택 사항" placeholder="좋았던 점을 한 줄로 남겨 주세요 (선택)"
-          placeholderTextColor={palette.secondaryLabel} value={guestbookMessage} editable={!busy}
-          onChangeText={(value) => setGuestbookMessage(Array.from(value).slice(0, 120).join(''))}
-          style={[styles.guestbookInput, { color: palette.label, backgroundColor: palette.surface, borderColor: palette.separator }]} />
-        <Text accessibilityLiveRegion="polite" style={[styles.body, { color: palette.secondaryLabel, textAlign: 'right' }]}>{Array.from(guestbookMessage).length}/120자 · 글 없이 칭찬만 남겨도 돼요.</Text>
-        <View style={styles.stampChoices}>{(Object.keys(stampLabels) as RoomStampKind[]).map((kind) => <Pressable key={kind}
-        accessibilityRole="button" disabled={busy} onPress={() => leaveStamp(kind)} style={[styles.stampChoice, { borderColor: palette.primaryContainer }]}>
-        <Text style={[styles.stampText, { color: palette.label }]}>{stampLabels[kind]}</Text>
-        </Pressable>)}</View>
-      </View> : null}
+      <Pressable accessibilityRole="button" onPress={() => setGuestbookVisible(true)} style={[styles.button, { backgroundColor: palette.primaryContainer }]}>
+        <Text style={[styles.buttonText, { color: palette.onPrimaryContainer }]}>{ownRoom ? '방명록 보기' : '방명록 보기 · 글 남기기'}</Text>
+      </Pressable>
+      {room.stamps.length ? <Text style={[styles.subheading, { color: palette.label }]}>이전에 받은 응원</Text> : null}
       {room.stamps.length ? room.stamps.map((stamp) => <View key={stamp.id} style={[styles.stampRow, { borderTopColor: palette.separator }]}>
         <View style={{ flex: 1 }}><Text style={[styles.body, { color: palette.label }]}>{stamp.authorNickname} · {stampLabels[stamp.kind]}{stamp.mine ? ' · 내가 남김' : ''}</Text>
           {stamp.message ? <Text style={[styles.body, { color: palette.label }]}>{stamp.message}</Text> : null}</View>
@@ -338,7 +321,7 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
           <View style={styles.confirmActions}><Pressable accessibilityRole="button" onPress={() => setConfirmation(undefined)} style={styles.confirmButton}><Text style={[styles.linkText, { color: palette.label }]}>취소</Text></Pressable>
             <Pressable accessibilityRole="button" disabled={busy} onPress={confirmAction} style={styles.confirmButton}><Text style={[styles.linkText, { color: palette.error }]}>신고 확인</Text></Pressable></View>
         </View> : null}
-      </View>) : <Text style={[styles.body, { color: palette.secondaryLabel }]}>아직 남긴 도장이 없어요.</Text>}
+      </View>) : null}
       {!ownRoom ? <Pressable accessibilityRole="button" disabled={busy} onPress={blockRoom} style={styles.link}>
         <Text style={[styles.linkText, { color: palette.error }]}>이 방 차단</Text>
       </Pressable> : null}
@@ -348,7 +331,10 @@ export function RoomExploreScreen({ apiUrl, credential, onSessionInvalid, reques
           <Pressable accessibilityRole="button" disabled={busy} onPress={confirmAction} style={styles.confirmButton}><Text style={[styles.linkText, { color: palette.error }]}>차단 확인</Text></Pressable></View>
       </View> : null}
     </View> : null}
-  </SkyScrollView></SkyBackdrop>;
+  </SkyScrollView>
+    {room ? <GuestbookModal apiUrl={apiUrl} credential={credential} onSessionInvalid={onSessionInvalid}
+      visible={guestbookVisible} roomId={room.roomId} own={room.mine} onClose={() => setGuestbookVisible(false)} /> : null}
+  </SkyBackdrop>;
 }
 
 const styles = StyleSheet.create({

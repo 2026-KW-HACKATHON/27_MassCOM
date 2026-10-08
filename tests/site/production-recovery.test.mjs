@@ -5,7 +5,7 @@ import * as productionWeb from '../../apps/production-web/assets/production.mjs'
 const { loadMerchants } = productionWeb;
 const html = readFileSync(new URL('../../apps/production-web/index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../../apps/production-web/assets/production.css', import.meta.url), 'utf8');
-const consentAccepted = { required: false, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-07' };
+const consentAccepted = { required: false, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-09' };
 const emptyCollection = { visits: [], collectibles: [] };
 const okJson = value => ({ ok: true, json: async () => value });
 function element() {
@@ -77,9 +77,9 @@ function consentDocument() {
   return fixture;
 }
 
-const consentRequired = { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-07' };
+const consentRequired = { required: true, termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-09' };
 const consentBodySent = {
-  termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-07',
+  termsVersion: 'terms-2026-10-06', privacyVersion: 'privacy-2026-10-09',
   ageConfirmed: true, termsAccepted: true, privacyAccepted: true,
 };
 

@@ -1,10 +1,10 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
-import { Text, TextInput, useColorScheme, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Text, useColorScheme, View } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
-import { createSocialApiClient, createSocialRequestId, isHHmm, socialErrorMessage, type MailDetail } from '@/social/social-api';
+import { createSocialApiClient, createSocialRequestId, socialErrorMessage, type MailDetail } from '@/social/social-api';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { BounceButton } from '@/ui/bounce-button';
@@ -12,6 +12,8 @@ import { FloatingCard } from '@/ui/floating-card';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { StateScene } from '@/ui/state-scene';
+import { MealTimePicker } from './meal-date-time-picker';
+import { mealDateLabel, mealResponseTimeError, mealScheduleError } from './meal-picker-state';
 
 export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId }: {
   apiUrl: string;
@@ -25,8 +27,11 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
   const [mail, setMail] = useState<MailDetail>();
   const [error, setError] = useState<unknown>();
   const [busy, setBusy] = useState(false);
-  const [selectedTime, setSelectedTime] = useState('');
+  const [timeSelection, setTimeSelection] = useState<{ mailId: string; value: string }>();
+  const selectedTime = timeSelection?.mailId === mailId ? timeSelection.value : '';
   const [notice, setNotice] = useState<string>();
+  const responseRequest = useRef<{ decision: 'ACCEPT' | 'DECLINE'; requestId: string } | undefined>(undefined);
+  useEffect(() => { responseRequest.current = undefined; }, [mailId, apiUrl, credential]);
 
   const load = useCallback(async () => {
     setError(undefined);
@@ -46,20 +51,24 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
   async function respond(decision: 'ACCEPT' | 'DECLINE') {
     if (!mail?.mealInvitation || busy) return;
     setNotice(undefined);
-    if (decision === 'ACCEPT' && mail.mealInvitation.schedule.kind === 'RANGE' && (!isHHmm(selectedTime)
-      || selectedTime < mail.mealInvitation.schedule.startTime || selectedTime > mail.mealInvitation.schedule.endTime)) {
-      setNotice('제안된 범위 안의 시간을 HH:mm으로 입력해 주세요.');
-      return;
+    if (decision === 'ACCEPT') {
+      const invitation = mail.mealInvitation;
+      const scheduleError = invitation.schedule.kind === 'RANGE'
+        ? mealResponseTimeError(invitation.date, selectedTime, invitation.schedule.startTime, invitation.schedule.endTime)
+        : mealScheduleError(invitation.date, invitation.schedule);
+      if (scheduleError) { setNotice(scheduleError); return; }
     }
+    if (responseRequest.current?.decision !== decision) responseRequest.current = { decision, requestId: createSocialRequestId('meal-response') };
     setBusy(true);
     try {
       const result = await api.respondToMealInvitation({
         invitationId: mail.mealInvitation.invitationId,
-        requestId: createSocialRequestId('meal-response'),
+        requestId: responseRequest.current.requestId,
         decision,
         selectedTime: decision === 'ACCEPT' && mail.mealInvitation.schedule.kind === 'RANGE' ? selectedTime : undefined,
       });
       setMail(result.mail);
+      responseRequest.current = undefined;
       setNotice(decision === 'ACCEPT' ? '초대를 수락했어요. 친구에게 우편을 보냈어요.' : '초대를 거절했어요. 친구에게 우편을 보냈어요.');
     } catch (caught) {
       setNotice(socialErrorMessage(caught));
@@ -111,14 +120,13 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
               {mail.mealInvitation.status === 'PENDING' && mail.direction === 'INBOX' ? (
                 <View style={{ gap: 10 }}>
                   {mail.mealInvitation.schedule.kind === 'RANGE' ? (
-                    <TextInput
+                    <MealTimePicker
                       value={selectedTime}
-                      onChangeText={setSelectedTime}
-                      placeholder="예: 12:40"
-                      accessibilityLabel="수락할 시간"
-                      autoCapitalize="none"
-                      placeholderTextColor={palette.secondaryLabel}
-                      style={{ minHeight: 48, borderWidth: 1, borderColor: palette.separator, borderRadius: 8, paddingHorizontal: 12, color: palette.label, backgroundColor: palette.surface }}
+                      onChange={value => { if (value !== selectedTime) { setTimeSelection({ mailId, value }); responseRequest.current = undefined; } }}
+                      label="수락할 시간"
+                      minTime={mail.mealInvitation.schedule.startTime}
+                      maxTime={mail.mealInvitation.schedule.endTime}
+                      disabled={busy}
                     />
                   ) : null}
                   <View style={{ flexDirection: 'row', gap: 10 }}>
@@ -137,7 +145,7 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
 }
 
 export function mealScheduleCopy(date: string, schedule: NonNullable<MailDetail['mealInvitation']>['schedule']): string {
-  return schedule.kind === 'CONFIRMED' ? `${date} ${schedule.time}` : `${date} ${schedule.startTime}-${schedule.endTime}`;
+  return schedule.kind === 'CONFIRMED' ? `${mealDateLabel(date)} ${schedule.time}` : `${mealDateLabel(date)} ${schedule.startTime}-${schedule.endTime}`;
 }
 
 function invitationStatusCopy(status: NonNullable<MailDetail['mealInvitation']>['status']): string {

@@ -92,9 +92,9 @@ export function respondWithError(response: ServerResponse, error: unknown): void
   }
   if (error instanceof RoomCommunityError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410
-      : error.code === 'ROOM_NOT_FOUND' || error.code === 'ROOM_STAMP_NOT_FOUND' ? 404
-      : error.code === 'ROOM_RATE_LIMITED' ? 429 : error.code === 'ROOM_CONSENT_REQUIRED' ? 403
-      : error.code === 'ROOM_STAMP_LIMIT' ? 409 : 400, { code: error.code }); return;
+      : error.code === 'ROOM_NOT_FOUND' || error.code === 'ROOM_STAMP_NOT_FOUND' || error.code === 'ROOM_GUESTBOOK_NOT_FOUND' ? 404
+      : error.code === 'ROOM_RATE_LIMITED' || error.code === 'ROOM_GUESTBOOK_DAILY_LIMIT' ? 429 : error.code === 'ROOM_CONSENT_REQUIRED' ? 403
+      : error.code === 'ROOM_STAMP_LIMIT' || error.code === 'ROOM_REQUEST_CONFLICT' ? 409 : 400, { code: error.code }); return;
   }
   if (error instanceof FurnitureError) {
     sendJson(response, error.code === 'ACCOUNT_DELETED' ? 410
@@ -316,8 +316,8 @@ function statusForBadgeReward(code: string): number {
 }
 
 function statusForFriend(code: string): number {
-  if (code === 'FRIEND_CODE_NOT_FOUND' || code === 'FRIEND_NOT_FOUND' || code === 'FRIEND_NEIGHBOR_NOT_FOUND') return 404;
-  if (code === 'FRIEND_CODE_RATE_LIMITED') return 429;
+  if (code === 'FRIEND_CODE_NOT_FOUND' || code === 'FRIEND_NOT_FOUND' || code === 'FRIEND_NEIGHBOR_NOT_FOUND' || code === 'FRIEND_GUESTBOOK_NOT_FOUND') return 404;
+  if (code === 'FRIEND_CODE_RATE_LIMITED' || code === 'FRIEND_GUESTBOOK_DAILY_LIMIT') return 429;
   if (code === 'FRIEND_NICKNAME_INVALID' || code === 'PROFILE_INTRO_INVALID') return 400;
   if (code === 'ACCOUNT_DELETED') return 410;
   return 409;

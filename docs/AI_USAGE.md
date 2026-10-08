@@ -1,5 +1,13 @@
 # AI 사용 기록
 
+## 2026-10-09 친구 그림 버튼·날짜 선택기·글 방명록 (Issue #436)
+
+사용자의 직접 Codex 요청으로 별도 `feat/friend-actions-guestbook` 브랜치에서 친구 오른쪽 그림 버튼, 원자 우정 받기/답장, 날짜·시간 휠, 전체/친구/개인 방 공개와 보상·읽음·작성자 프로필을 갖춘 글 방명록을 구현했다. 최초 기준은 PR #433 반영 `c7632b35`이고 PR #434 반영 최신 main `3645c4c7`을 `2a541d73`에 통합하고 PR #440으로 전달했다. 기존 임시 Codex 중지 정책을 상시 변경하지 않고 이번 직접 요청 범위로 한정한다.
+
+네이티브 하위 에이전트가 소셜 API·친구 UI·식사 선택기·방 API·방 UI·격리된 검증 환경·문서를 나누고, 구현에 참여하지 않은 별도 검토가 변경을 확인했다. 검토에서 찾은 이미 수령된 우정 답장 재응답 처리와 실제 화면에서 찾은 날짜 선택기의 빈 공간을 고쳤다. 이미지 생성과 새 의존성은 사용하지 않았다. API 단위679/679·모바일2196/2196·관련 웹173/173, 타입·API 빌드·모바일 lint·운영/시연 Android export와 합성 브라우저48장 확인이 PASS다. 전체 PostgreSQL599건은596 PASS·0 FAIL·기존 hosted 전용3 SKIP이며 독립 최종 판정은 APPROVE다. 상세는 [TEST_STATUS](TEST_STATUS.md)에 기록하고 [화면 증거](evidence/friend-actions-2026-10-09/README.md)는 실제 서버 배포·Android 실기 검증을 뜻하지 않는다.
+
+**이하 이전 AI 사용 이력 — 다른 브랜치의 당시 지시·검증 범위이며 이번 작업에 소급하지 않는다.**
+
 ## 2026-10-09 PR #445와 main 병합 충돌 해결 (직접 요청, 파일 수정만)
 
 Codex가 `feat/gacha-stamp-reveal`에서 문서·브라우저 fixture의 양쪽 변경을 보존하고 Android 영상 준비 및 영상 음소거 조건을 수정했다. 기존 시험을 약화하지 않고 대상 9/9와 모바일 전체 대체 실행 2229/2229, 타입·린트·접근성·지갑 표면·CI 연결·운영 제출 준비를 확인했다. npm 진입점은 sandbox tsx IPC `listen EPERM`으로 `BLOCKED`이며 API·브라우저·설치본·실제 청음·배포는 `NOT_RUN`이다([TEST_STATUS](TEST_STATUS.md)). Git add·commit·stash·merge·rebase·push는 수행하지 않는다.
@@ -538,3 +546,10 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 Codex와 독립 검토 에이전트로 시연 Reown 환경 전달 및 APK 지도 키 누락을 진단·수정했다. 연결된 Samsung의 기존 오류와 키 미포함을 확인했다. 값은 대화/저장소에 기록하지 않고 공개 설정만 빌드에 전달한다. 모바일2218/2218·설정33·지도산출물6·타입검사 PASS, lint 오류0/기존경고1. 새 APK 실기 결과는 후속 검증 기록을 따른다.
 
 2026-10-09 Issue #447 후속 검증: 모바일2231/2231·타입·lint 오류0, Samsung 교체설치·실제 TMAP 타일·지갑 CONNECTED/BASE_SEPOLIA 및 연결 복원 PASS. 주소 확인 서명·공개 배포는 NOT_RUN. 상세는 `docs/evidence/wallet-map-config-2026-10-09/README.md`.
+
+## 2026-10-09 — PR #440 리뷰 지적9건 후속 수정
+
+- 소유자의 이번 직접 요청에 따라 Codex가 `feat/friend-actions-guestbook` HEAD `2a541d73` 위 파일을 수정했다. 역할을 나눠 HTTP·구 파서 호환, 작성자 친구 추가 동의와 하루 상한, 방명록·삭제·migration을 구현했으며 별도 읽기 전용 검토가 보안·혼합 버전·잠금 경합을 확인했다. 이전 Codex 중지 기록은 일반 정책으로 유지하고 이번 지시를 이 작업의 범위 한정 근거로 기록한다.
+- 기존 친구 그림 버튼·날짜 선택기·보상 규칙을 보존한다. 구 설치본 visibility 협상, 본인 방 공개에 따른 친구 추가 허용, KST 하루 상한, 비친구 공통 가게 비공개, 본문 제거·중복 방지, cursor·계정 수명 오류, migration 제약·인덱스·삭제 잠금 순서를 고쳤다. 새 의존성과 새 skip을 넣지 않는다.
+- 지정 전용 테스트 DB URL은 환경 변수로만 읽고 출력하지 않았다. 단위·PostgreSQL·타입·lint·CI 연결·운영 문서·법률 페이지·gate의 실제 실행 근거는 [TEST_STATUS](TEST_STATUS.md)의 PR #440 후속 항목에 남긴다. API/앱 공개 배포·새 APK·서명·설치·실기·원격 CI 완료를 대신하지 않는다.
+- Git add·commit·stash·merge·rebase·push는 실행하지 않았다. 운영 test.14·시연 Preview 24와 함께 `backward_compatible=no`의 stop-migrate-start 전환이 필요하며 배포 자체는 이번 작업에 포함하지 않는다.

@@ -20,6 +20,8 @@ import { createCoinApiClient, type CoinCollection } from '@/shop/coin-api';
 import { friendArt } from '@/shop/shop-art';
 import { AvatarWardrobe, clothingArtForId, equippedClothingArt, useEquippedClothingArt } from '@/shop/wardrobe';
 import { StudioScene } from '@/studio/studio-scene';
+import { GuestbookModal, GuestbookUnreadDot } from '@/studio/guestbook-modal';
+import { useGuestbookStatus } from '@/studio/use-guestbook-status';
 import { itemFromCollection } from '@/studio/studio-items';
 import { ShareFormatButtons, useStudioShare } from '@/studio/studio-share';
 import { createStudioApiClient, studioErrorMessage, type FurnitureSnapshot, type Studio, type StudioGoal, type StudioItem, type StudioSnapshot, type StudioTheme, type StudioCoinSource } from '@/studio/studio-api';
@@ -63,6 +65,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   const shopClient = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const coinClient = useMemo(() => createCoinApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
+  const guestbook = useGuestbookStatus(apiUrl, credential, onSessionInvalid);
+  const [guestbookVisible, setGuestbookVisible] = useState(false);
   const merchantClient = useMemo(() => createMerchantApiClient(apiUrl), [apiUrl]);
   const [snapshot, setSnapshot] = useState<StudioSnapshot>();
   const [collection, setCollection] = useState<CollectionSnapshot>();
@@ -340,6 +344,19 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
   return <SkyBackdrop>
     <SkyScrollView header={header} contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refreshIfClean} progressViewOffset={insets.top} />}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={guestbook.unreadCount ? `방명록 보기, 새 글 ${guestbook.unreadCount}개` : '방명록 보기'}
+          onPress={() => setGuestbookVisible(true)} style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12 }}>
+          <Text style={{ color: palette.primary, fontWeight: '800' }}>방명록 보기</Text>
+          {guestbook.unreadCount ? <GuestbookUnreadDot /> : null}
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={() => router.push('/room-explore')} style={{ minHeight: 48, justifyContent: 'center', paddingHorizontal: 12 }}>
+          <Text style={{ color: palette.primary, fontWeight: '700' }}>공개 설정</Text>
+        </Pressable>
+      </View>
+      {guestbook.error ? <Pressable accessibilityRole="button" onPress={() => void guestbook.refresh()} style={{ minHeight: 48, justifyContent: 'center' }}>
+        <Text style={{ color: palette.secondaryLabel }}>새 방명록 확인 실패 · 다시 시도</Text>
+      </Pressable> : null}
       <View style={styles.sceneFrame}>
         <StudioScene studio={draft} items={selected} avatar={avatarChoice} clothing={clothingArt} apiUrl={apiUrl} width={sceneWidth} height={Math.round(sceneWidth * 0.80)}
           furniture={furniture} furnitureItems={snapshot.furnitureItems} selectedFurnitureId={selectedFurnitureId}
@@ -611,6 +628,8 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
         onCancel={() => { pendingRemoval.current = null; setShowDiscard(false); }}
         onConfirm={() => { setShowDiscard(false); setAllowRemoval(true); }} />
     </SkyScrollView>
+    <GuestbookModal apiUrl={apiUrl} credential={credential} onSessionInvalid={onSessionInvalid} own
+      visible={guestbookVisible} onClose={() => setGuestbookVisible(false)} />
   </SkyBackdrop>;
 }
 

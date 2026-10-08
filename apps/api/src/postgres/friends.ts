@@ -26,12 +26,13 @@ import {
 import { AccountLifecycleError, type PostgresAccountLifecycle } from './account-lifecycle.js';
 import { countedVisitFilterSql, countedVisitFromSql } from './badge-rewards.js';
 import { publicCampaignGoalsHaving, publicCampaignPredicate } from './merchant-catalog.js';
-import { canViewRoom, sharedRoomMerchants } from './room-access.js';
+import { canViewRoom, checkedGuestbookEntry, sharedRoomMerchants } from './room-access.js';
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from '../account-consent.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // 코드 충돌은 32^8분의 1 확률이라 몇 번만 다시 뽑는다.
 const codeGenerationAttempts = 8;
+const guestbookFriendDay = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
 
 // /me/badges와 같은 "센 방문" 규칙(countedVisit*Sql)을 여러 계정에 한 번에 적용한다. 계정마다 값이 같아야 하므로
 // friends.postgres.integration.ts가 getBadges와 값을 직접 비교한다. 다만 친구 화면은 하루 지연이라 $2(어제, 한국 날짜)까지의
@@ -260,23 +261,49 @@ export class PostgresFriendService implements FriendService {
       }
       const room = (await client.query<{ visibility: string }>(`SELECT visibility FROM public_rooms
         WHERE id=$1 AND account_id=$2 FOR SHARE`, [input.roomId, target])).rows[0];
-      if (room?.visibility !== 'NEIGHBORS') throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      if (room?.visibility !== 'NEIGHBORS' && room?.visibility !== 'PUBLIC') throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
       const consent = await client.query<{ account_id: string }>(`SELECT account_id FROM account_consents
         WHERE account_id=ANY($1::text[]) AND terms_version=$2 AND privacy_version=$3`,
       [[me,target],CURRENT_TERMS_VERSION,CURRENT_PRIVACY_VERSION]);
-      if (consent.rows.length !== 2 || !(await canViewRoom(client, me, target, 'NEIGHBORS')))
+      if (consent.rows.length !== 2 || !(await canViewRoom(client, me, target, room.visibility)))
         throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
       const { low, high } = orderAccountPair(me, target);
       const existing = (await client.query<{ id: string }>(
         'SELECT id FROM friendships WHERE account_low=$1 AND account_high=$2', [low, high])).rows[0];
       if (existing) return { kind: 'added' as const, friendshipId: existing.id, created: false };
-      if (!(await sharedRoomMerchants(client, me, target)).length) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
+      if (room.visibility === 'NEIGHBORS' && !(await sharedRoomMerchants(client, me, target)).length) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
       return this.insertFriendship(client, me, target, this.now());
     });
     const snapshot = await this.list(me);
     const friend = snapshot.friends.find(candidate => candidate.friendshipId === outcome.friendshipId);
     if (!friend) throw new FriendError('FRIEND_NEIGHBOR_NOT_FOUND');
     return { friend, created: outcome.created };
+  }
+
+  async addGuestbookAuthor(input: { accountId: string; entryId: string }): Promise<AddedFriend> {
+    const outcome = await this.transaction(async client => {
+      const entry = await checkedGuestbookEntry(client,this.accountLifecycle,input.accountId,input.entryId);
+      if (entry.author_account_id === input.accountId) throw new FriendError('FRIEND_SELF');
+      const authorRoom = (await client.query<{ visibility: string }>(
+        'SELECT visibility FROM public_rooms WHERE account_id=$1 FOR SHARE', [entry.author_account_id])).rows[0];
+      if (authorRoom?.visibility !== 'PUBLIC' && authorRoom?.visibility !== 'NEIGHBORS')
+        throw new FriendError('FRIEND_GUESTBOOK_NOT_FOUND');
+      const now = this.now();
+      const added = await this.insertFriendship(client,input.accountId,entry.author_account_id,now);
+      if (added.created) {
+        const counted = await client.query(`INSERT INTO room_guestbook_friend_add_counts(account_id,business_date,created_count)
+          VALUES($1,$2,1) ON CONFLICT(account_id,business_date) DO UPDATE
+          SET created_count=room_guestbook_friend_add_counts.created_count+1
+          WHERE room_guestbook_friend_add_counts.created_count<20 RETURNING created_count`,
+        [input.accountId,guestbookFriendDay.format(now)]);
+        if (!counted.rowCount) throw new FriendError('FRIEND_GUESTBOOK_DAILY_LIMIT');
+      }
+      return added;
+    });
+    const snapshot = await this.list(input.accountId);
+    const friend = snapshot.friends.find(candidate => candidate.friendshipId === outcome.friendshipId);
+    if (!friend) throw new FriendError('FRIEND_NOT_FOUND');
+    return { friend,created: outcome.created };
   }
 
   private async insertFriendship(client: PoolClient, me: string, target: string, now: Date): Promise<Extract<AddOutcome, { kind: 'added' }>> {

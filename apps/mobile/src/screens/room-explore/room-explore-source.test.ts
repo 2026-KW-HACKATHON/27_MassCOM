@@ -14,7 +14,7 @@ test('room reporting and blocking have on-screen confirmation for native and web
 });
 
 test('nonfriend neighbor can add friendship without blocking room visits', () => {
-  assert.match(source, /!ownRoom && !room\.friendshipId && room\.visibility === 'NEIGHBORS'/);
+  assert.match(source, /!ownRoom && !room\.friendshipId && \['PUBLIC', 'NEIGHBORS'\]\.includes\(room\.visibility\)/);
   assert.match(source, /client\.addFriend\(roomId\)/);
   assert.match(source, /setRoom\(\(current\) => current\?\.roomId === roomId \? \{ \.\.\.current, friendshipId: added\.friend\.friendshipId \}/);
   assert.match(source, /client\.getRoom\(roomId\)/);
@@ -22,10 +22,10 @@ test('nonfriend neighbor can add friendship without blocking room visits', () =>
   assert.match(source, /onPress=\{visit\}/);
 });
 
-test('guestbook input is optional and existing stamp actions still govern text', () => {
-  assert.match(source, /<TextInput accessibilityLabel="방명록 글, 선택 사항"/);
-  assert.match(source, /Array\.from\(value\)\.slice\(0, 120\)/);
-  assert.match(source, /client\.stamp\(roomId, kind, message\)/);
+test('guestbook opens a plain-text modal while previous reactions can still be moderated', () => {
+  assert.match(source, /<GuestbookModal/);
+  assert.match(source, /방명록 보기 · 글 남기기/);
+  assert.doesNotMatch(source, /client\.stamp\(/);
   assert.match(source, /stamp\.message \? <Text/);
   assert.match(source, /removeStamp\(stamp\.id\)/);
   assert.match(source, /reportStamp\(stamp\.id\)/);
@@ -43,6 +43,8 @@ test('the visibility confirmation checkbox exposes aria-checked on the web and t
 });
 
 test('the three visibility scope radios expose aria-checked on the web and pick on Space like a press', () => {
+  assert.match(source, /\['PUBLIC', 'FRIENDS', 'PRIVATE'\]/);
+  assert.match(source, /같은 가게 이웃에게 공개 \(기존 설정\)/);
   assert.match(source, /const chooseScope = \(scope: RoomVisibility\) => \{ setScopeChoice\(scope\); setAgreed\(false\); \};/);
   const start = source.indexOf('accessibilityRole="radio"');
   const row = source.slice(start, source.indexOf('</Pressable>', start));
