@@ -12,7 +12,7 @@ import { PostgresAuthSessionService } from './postgres/auth-session.js';
 import { PostgresCollectionReader } from './postgres/collection.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
 import { runMigrations } from './postgres/migrate.js';
-import { createApiServer, createBearerAccountResolver } from './server.js';
+import { createApiServer, createBearerAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const lifecycleSecret = 'test-only-account-deletion-secret-at-least-32-bytes';

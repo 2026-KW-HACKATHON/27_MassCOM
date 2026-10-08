@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-08 KST): API 단위 571/571(`feat/merchant-dual-studio` 고정 방문 보상 후속 재실행) · 모바일 1992/1992(고정 음각 뒷면 작업에서 LF 체크아웃 재실행). README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
+현재 자동 시험 합계(2026-10-08 KST): API 단위 601/601(`feat/merchant-dual-studio`에서 최신 main `cd01c0d6` 통합 후 재실행) · 모바일 1992/1992(고정 음각 뒷면 작업에서 LF 체크아웃 재실행). README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 
 ## 2026-10-08 점주 웹 제작기와 가상 가게 QA (PR #418, Issue #416·#417)
 
@@ -13,6 +13,20 @@
 원격 main `e06c97cd`에서 분기했다. 제작기 홈의 AI 초안·준비 이미지 두 경로, 최신 등록 사진 가져오기, 20MiB·48MP·12,000px 입력 제한과 3MiB·4,096px 저장 정규화, 웹 세션 AI art API, 최신 사진 대표 정렬을 구현했다. API 569/569·타입·빌드, 사이트 384/384, 별도 PostgreSQL 통합 1/1이 통과했다. Docker가 없는 Windows에서 Caddy 컨테이너 시험 두 개는 실행하지 못했다.
 
 합성 fixture에서 두 경로와 초안 저장을 브라우저로 확인했다. 별도 실제 PostgreSQL/API에 등록한 `QA 가상 월계 달빛빵집`이 최신 고객 앱의 탐색·상세에 표시되고 이름·주소·최신 이미지·1/3/5 코인 캠페인이 연결됨을 확인했다. [캡처와 재현 기록](evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)에 환경을 구분했다. 실제 AI 과금·공개 배포·APK 갱신은 하지 않았다. 운영 계정은 승인된 점포가 없고, 라이브 `/api/web/v1/*`는 PR #413 배포 전까지 404라 운영 종단 QA가 남는다.
+
+## 2026-10-08 API 서버 구조 정리: routes·http·이름 붙은 deps (Issue #412 트랙 T1, 배포 동결)
+
+기준 main `b572184e`(PR #411 병합)에서 시작해 main `b707ed09`(PR #413·#414·#415·#421 병합) 위로 옮긴 작업이다. 브랜치 `refactor/api-deps-routes`에서 `apps/api/src/server.ts`(약 2,600줄이던 요청 처리와 구성 루트)를 나눴고 동작은 바꾸지 않았다. 결정은 [D-088](DECISIONS.md)이다. 구조는 이렇다. `src/routes/*.ts`의 `handleXxx(ctx): Promise<boolean>` 17개를 `server.ts`가 정해진 순서로 부른다(순서가 곧 경로 우선순위). 요청·응답 도우미는 `src/http/*.ts`에 있다. `createApiServer`는 위치 인자 40여 개 대신 이름 붙은 `ApiDeps` 하나를 받는다. 시작 코드의 `Required<ApiDeps>`와 `Required<ExperienceServices>`가 키 누락을 컴파일에서 잡는다. 제한기·계정 해석 래퍼는 `createApiRuntime(deps)`가 서버 인스턴스마다 만든다(모듈 전역 상태 없음).
+
+마무리에서 교차 리뷰의 🟡를 반영했다. `createApiServer`가 받은 deps를 복사해 한 번만 얼리고(`Object.freeze`), 기본값(`trustProxyClientIp`·`webWwwEnabled`·`experienceServices`)을 거기서만 정해 런타임과 경로 처리기가 `??` 없이 같은 객체를 읽는다. 웹 로그인 콜백의 쿠키 응답(실패마다 state 쿠키 지우기와 noindex, 성공 시 [지우기, 세션] 두 쿠키 순서)과 계정 삭제 접수 서비스 두 개의 배선(`webAuth && !showcaseInvites`, `showcaseInvites`의 `SHOWCASE_APP` 출처)을 시험으로 고정했다.
+
+검증: API 단위 597/597(이 작업 전 591, 새 시험 6건), PostgreSQL 전체 524 pass / 0 fail / 3 skip, 요청 처리 본문 `89d7a5e4` 대비 인라인 동등성 1797/1797줄(차이는 로그아웃 블록 위치뿐), 변이 점검 6건 모두 시험 실패, 빌드와 `/health` 부팅 PASS. 교차 리뷰(Claude Sonnet·Claude Opus) 승인, 🔴 0·🟠 0. 자세한 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다. 서버·설치본은 바뀌지 않았고 배포하지 않았다(소유자 결정 A).
+
+남은 것: 위치 인자 `createApiServer`를 흉내 내는 시험 전용 덮개(`apps/api/src/server-test-support.ts`와 `http-test-support.ts`의 `positionalArgs`)는 그것을 쓰는 시험이 남아 있어 두었다. 쓰는 시험이 없어지면 지운다. `postgres/`·`showcase/`의 서비스 파일 39개에 되풀이되는 `BEGIN`/`COMMIT`/`ROLLBACK` 묶음을 `withTransaction` 도우미로 모으는 일은 이 작업에서 하지 않았다(D-088).
+
+## 2026-10-08 기능 수준 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 단일 원본 (Issue #412, 배포 동결)
+
+PR #421(브랜치 `chore/ops-quality-t5`, 병합 커밋 `b707ed09`)로 main에 15분 가동 점검(`.github/workflows/uptime.yml`, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(호스트에 미설치), `db-restore-drill.sh --restore-only`, 큰 파일 가드, `docs/CURRENT_RELEASE.json`(현재 배포 단일 원본), CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용), [APK 용량 분석](APK_SIZE_ANALYSIS.md)을 더했다. 배포·호스트 설치는 하지 않았다(소유자 결정 A). 절차는 [운영 절차](OPERATIONS_RUNBOOK.md), 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 
 ## 2026-10-08 첫 사용 경험: 웹 첫 화면·동의·첫 코인·가게 사실 표시 (Issue #412, 배포 동결)
 

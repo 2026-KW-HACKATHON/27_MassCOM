@@ -11,7 +11,7 @@ import { runMigrations } from './postgres/migrate.js';
 import { PostgresReversalService } from './postgres/reversal.js';
 import { PostgresVisitorFeedbackService } from './postgres/visitor-feedback.js';
 import { maskedCustomerLabel } from './reversal-rules.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { maskedVisitorFeedbackLabel } from './visitor-feedback-rules.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 

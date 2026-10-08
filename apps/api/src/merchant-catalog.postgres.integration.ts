@@ -5,7 +5,7 @@ import { Pool } from 'pg';
 
 import { PostgresMerchantCatalog } from './postgres/merchant-catalog.js';
 import { runMigrations } from './postgres/migrate.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 test('GET /merchants reads only active merchants with a public current campaign from PostgreSQL', async (t) => {

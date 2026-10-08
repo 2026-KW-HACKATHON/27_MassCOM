@@ -71,6 +71,16 @@
       "file": "14-incised-left.png",
       "bytes": 57235,
       "sha256": "a183c2b9ce15d4a6f9a4839d2ad5fa47ab29c16db33ebcd767cbafe534f5c5d4"
+    },
+    {
+      "file": "15-incised-gold.png",
+      "bytes": 58530,
+      "sha256": "837a497673501aecbd8fcd8c66124ed365c1bc0d911534e4b6056cccf114feb6"
+    },
+    {
+      "file": "16-incised-bronze.png",
+      "bytes": 58281,
+      "sha256": "301a677dc6cc2b780325dd3aa9794a7e094194444e432025bc7d6a29af4b5101"
     }
   ]
 }

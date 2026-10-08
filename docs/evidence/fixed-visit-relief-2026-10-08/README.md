@@ -11,6 +11,7 @@
 - [03 양각 −35°](03-raised-left.png) · [04 양각 +35°](04-raised-right.png) · [05 음각 −35°](05-incised-left.png) · [06 음각 +35°](06-incised-right.png): 같은 원본·실버·깊이 80에서 조명·윤곽 비교.
 - [07 실제 자동 회전](07-published-automatic-rotation.png): 저장본 재읽기 후 회전이 계속 렌더링됨. 렌더 횟수는 FPS 측정값이 아니다.
 - [08 정면](08-published-front.png) · [09 −45°](09-published-left.png) · [10 +45°](10-published-right.png) · [11 옆면 90°](11-published-edge.png) · [12 고정 뒷면 180°](12-published-back.png): 왼쪽 편집 원본, 오른쪽 저장된 각도 프레임.
+- [15 음각 골드](15-incised-gold.png) · [16 음각 브론즈](16-incised-bronze.png): 같은 −45°에서 등급별 재질과 저장 전후를 비교.
 - [13 음각 저장 정면](13-incised-front.png) · [14 음각 저장 −45°](14-incised-left.png): 양각 게시본을 보존하고 음각을 새 버전으로 게시해 다시 읽었다.
 
 사용자 그림 `87_55169d4f1d3c8_1309.png`(336×286px)를 파일 선택창으로 넣었다. 원본 밝기×alpha에서 얻은 높이에 따라 밝은 영역이 높은 표면이 된다. 실버·깊이 80·좌우 회전·음각/양각을 직접 조작하고 세 등급의 반복 회전을 추가했다. 브론즈·실버·골드는 비활성화할 수 없다. 프리즘은 편집·미리보기할 수 있지만 게시 파생 이미지는 고정 방문 보상에 쓰이는 세 등급만 만든다.
@@ -27,7 +28,7 @@
 
 깊이는 높이·법선 조명·윤곽 변위와 2D 외곽 압출을 합친 **2.5D**다. 실제 3D 메시나 높이/법선 맵을 저장하지 않으며 alpha 외곽을 완전히 옮기는 형상 투영도 아니다. 정면 0°는 −7.5°/+7.5°의 보간이라 게시본 윤곽이 조금 부드러워진다. 모바일은 별도 재질 조명과 다른 재생 주기를 사용하므로 웹과 픽셀·속도가 같다는 의미는 아니다. 작은 원본의 화질 한계도 남는다.
 
-API 전체 571/571·typecheck·build PASS. 새 전용 `masscom_fixed_visit_20261008_test` PostgreSQL에서 게시/버전/모션 round-trip·점주 연장 금지·관리자 연장 유지 통합 29/29 PASS. 독립 리뷰에서 발견한 depth=0 칠하기 오류를 수정했다. 사이트 전체와 LF 게이트의 최종 수치는 [TEST_STATUS](../../TEST_STATUS.md)를 따른다. 운영 계정의 승인 점포가 없어 실제 게시 QA는 BLOCKED이며 운영 배포·방문 지급·Android 실기·메모리/FPS 실측은 별도 검증이다.
+최신 main `cd01c0d6`(API 라우트 분리·운영 가드 포함) 통합 뒤 API 전체 601/601·typecheck·build, 사이트 416/416·현재 배포 시험 12/12 PASS. 새 전용 `masscom_fixed_visit_20261008190444_test` PostgreSQL에서 게시/버전/모션 round-trip·점주 연장 금지·관리자 연장 유지 통합 29/29 PASS. 독립 리뷰에서 발견한 depth=0 칠하기 오류를 수정했다. 사이트 전체와 LF 게이트의 최종 수치는 [TEST_STATUS](../../TEST_STATUS.md)를 따른다. 운영 계정의 승인 점포가 없어 실제 게시 QA는 BLOCKED이며 운영 배포·방문 지급·Android 실기·메모리/FPS 실측은 별도 검증이다.
 
 ## 재현
 

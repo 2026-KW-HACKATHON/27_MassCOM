@@ -76,6 +76,10 @@ COMMIT;
 
 제거 뒤 고객 도감(`/collection`)에서 해당 획득품의 `artwork`가 빠지고 상세(`/collectibles/:entitlementId`)는 404 `COLLECTIBLE_NOT_FOUND`입니다. 방문·보상권·NFT 기록은 바꾸지 않습니다. 복사본은 만들 때 원본의 `lineage_id`(처음 만든 프로젝트의 id)를 물려받으므로 중간 초안을 지웠거나 원본을 이미 비웠어도 계보로 찾습니다. 계보가 다르고 사진을 다시 편집해 바이트가 달라진 별도 프로젝트(예: 같은 사람을 다시 찍은 사진)는 찾지 못하므로 반환 목록과 그 점포의 남은 프로젝트를 확인합니다. 이 함수는 `PUBLIC` 실행 권한을 거둬 함수 소유자(마이그레이션을 실행한 앱 DB 역할)만 부를 수 있습니다. 요청 경위와 실행 시각은 운영 기록에 남깁니다.
 
+## 코드 구조
+
+`src/server.ts`는 `createApiServer(deps)`(요청 처리), 서비스를 엮는 구성 루트와 `main`, 옛 export를 둡니다. 경로 처리는 나뉘어 있습니다. `src/api-deps.ts`는 서버가 받는 의존성 묶음 `ApiDeps`와 계정 해석기 타입을, `src/api-runtime.ts`의 `createApiRuntime(deps)`는 서버 인스턴스마다 한 번 만드는 제한기와 동의·스캔 확인을 정의합니다(모듈 전역 상태는 두지 않습니다). `src/http/`에는 본문 읽기·헤더·쿠키·오류 응답 같은 공용 도우미가 있고, `src/routes/<영역>.ts`는 `handleXxx(ctx): Promise<boolean>`을 내보냅니다. `true`는 응답을 냈다는 뜻이고 `false`는 다음 처리기로 넘긴다는 뜻이며, `server.ts`가 정해진 순서대로 부르므로 이 순서가 곧 경로 우선순위입니다. 경로 모듈은 `server.ts`를 가져오지 않습니다. `createApiServer`는 받은 deps를 복사해 한 번만 얼리고 기본값(`trustProxyClientIp`·`webWwwEnabled`·`experienceServices`)도 거기서만 정하므로, 런타임과 경로 처리기는 `??` 없이 그대로 읽습니다. `src/server-test-support.ts`는 시험 전용으로, 위치 인자로 서비스 몇 개만 채워 서버를 만들던 옛 `createApiServer` 모양을 `ApiDeps` 위에 얹은 얇은 덮개입니다.
+
 ## 실행
 
 ```bash

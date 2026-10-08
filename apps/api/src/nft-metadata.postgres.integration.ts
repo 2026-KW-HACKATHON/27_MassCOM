@@ -9,7 +9,7 @@ import { Pool } from 'pg';
 import { PostgresAdminService } from './postgres/admin.js';
 import { runMigrations } from './postgres/migrate.js';
 import { PostgresNftMetadataReader } from './postgres/nft-metadata.js';
-import { createApiServer, developmentHeaderAccountResolver } from './server.js';
+import { createApiServer, developmentHeaderAccountResolver } from './server-test-support.js';
 import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
 
 const testUrl = process.env.TEST_DATABASE_URL;

@@ -92,7 +92,12 @@
       35
     ],
     "campaignControlsRemoved": true,
-    "merchantExtensionFormRemoved": true
+    "merchantExtensionFormRemoved": true,
+    "savedReplayGrades": [
+      "bronze",
+      "silver",
+      "gold"
+    ]
   },
   "boundaries": [
     "2.5D lighting and contour projection; no stored 3D mesh",

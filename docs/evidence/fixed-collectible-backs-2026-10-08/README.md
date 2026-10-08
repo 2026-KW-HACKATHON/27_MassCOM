@@ -38,3 +38,5 @@ node tests/fixtures/collectible-qa-server.mjs
 `apps/mobile`에서 개발 variant로 `npx --no-install expo export --platform android`를 실행해 PASS했다. [번들 증거](android-export.json)는 export metadata가 참조하는 파일의 SHA-256을 원본과 비교한 것으로, 12/12 이미지가 실제 번들에 포함된다. APK 빌드·설치·실기기 렌더는 실행하지 않았다.
 
 독립 코드 리뷰에서 차단 지적은 없었다. 시험 합계와 남은 운영 검증은 [TEST_STATUS](../../TEST_STATUS.md)에 기록한다. 신규 API·DB migration이나 방문·쿠폰·NFT 규칙 변경은 없다.
+
+최신 main의 큰 파일 가드를 함께 적용하면서 확정 v1 런타임 PNG 24개(모바일·웹 각 12개)에 정확한 경로와 현재 크기 +10% 상한을 지정했다. 이 파일은 실행 자산이며 증거 원본용 예외가 아니다. 새 버전은 크기를 다시 검수하고 기존 v1은 덮어쓰지 않는다. 게시용 512px 뒷면의 256KiB 제한은 그대로다.

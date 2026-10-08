@@ -107,11 +107,11 @@ TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_restore_test' \
   npm run test:postgres --prefix apps/api
 ```
 
-위 절차를 한 번에 연습하는 스크립트가 있습니다. dump → `<DB 이름>_restore_test` 복원 → 테이블별 행 수와 migration 목록 대조 → scratch DB 삭제까지 하며 원본은 읽기만 합니다. scratch DB 이름에는 프로세스 번호가 들어가 기존 DB를 이름으로 지우지 않고, 백업 파일 경로를 주지 않으면 dump는 임시 파일로 만들어져 끝날 때 삭제됩니다(실제 데이터가 들어 있으므로 경로를 줬다면 암호화 보관 절차를 따릅니다). 경로를 준 dump는 `umask 077`로 같은 폴더의 임시 파일에 쓰고 dump가 성공했을 때만 그 경로로 옮기므로 새 파일은 항상 mode 600이고, dump가 실패하면 그 경로의 이전 백업은 그대로 남습니다(Issue #263). 쓰기가 조용할 때 실행하세요(행 수를 실행 시점의 원본과 비교합니다).
+위 절차를 한 번에 연습하는 스크립트가 있습니다. dump → `<DB 이름>_restore_test` 복원 → 테이블별 행 수와 migration 목록 대조 → scratch DB 삭제까지 하며 원본은 읽기만 합니다. scratch DB 이름에는 프로세스 번호가 들어가 기존 DB를 이름으로 지우지 않고, 백업 파일 경로를 주지 않으면 dump는 임시 파일로 만들어져 끝날 때 삭제됩니다(실제 데이터가 들어 있으므로 경로를 줬다면 암호화 보관 절차를 따릅니다). 경로를 준 dump는 `umask 077`로 같은 폴더의 임시 파일에 쓰고 dump가 성공했을 때만 그 경로로 옮기므로 새 파일은 항상 mode 600이고, dump가 실패하면 그 경로의 이전 백업은 그대로 남습니다(Issue #263). 이미 있는 경로와 `/opt/masscom*/backups`의 `*.dump`에는 `--overwrite`를 주지 않으면 DB에 접속하기 전에 거절합니다(`--restore-only`를 빼먹고 진짜 백업을 새 dump로 덮는 사고를 막으려는 것, Issue #412). 그리고 `/opt/masscom*/backups` 안에 **이미 있는 파일은 `--overwrite`를 줘도 바꾸지 않고** 종료 코드 1로 거절합니다(이름과 상관없이, 상대 경로나 심볼릭 링크로 가리켜도 같습니다). `--overwrite`가 되는 곳은 그 밖의 경로와, 그 폴더에 새 `*.dump`를 쓰는 경우뿐입니다. 쓰기가 조용할 때 실행하세요(행 수를 실행 시점의 원본과 비교합니다).
 
 ```bash
 read -s PGPASSWORD && export PGPASSWORD
-DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-restore-drill.sh [백업 파일 경로]
+DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-restore-drill.sh [--overwrite] [백업 파일 경로]
 # 클라이언트 도구가 컨테이너 안에만 있으면: PG_EXEC='docker exec -i -e PGPASSWORD <컨테이너>' (URL은 컨테이너 안에서 보이는 주소)
 ```
 
@@ -132,6 +132,73 @@ DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-re
 | DB 장애 | API 변경 요청 실패, 완료 화면 금지. Worker는 체인에 아무것도 전송하지 않고 오류로 종료 | DB 일관성·migration·Outbox lease 확인 뒤 Worker 재실행 |
 | 전송 응답 유실 | 새 키 발급 금지 | reward key·기존 transaction·event 대조 |
 | 확정 전 재조직 | 완료 처리 금지 | 필요한 confirmation과 canonical block hash 확인 |
+
+## 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 원본 (Issue #412)
+
+이 절의 변경은 배포하지 않았습니다(소유자 결정 A). 공개 서버·설치본은 그대로이고, 호스트에는 아무것도 설치하지 않았습니다.
+
+### 가동 점검 (`.github/workflows/uptime.yml`, `scripts/uptime-probe.sh`)
+
+- 15분마다(cron `*/15 * * * *`, GitHub 최선 노력이라 몇 분 밀리거나 건너뛸 수 있음)와 수동 실행으로 돕니다. 예약 실행은 기본 브랜치(main)에 있는 이 파일로만 돕니다. 서드파티 액션 없이 러너의 `curl`·`jq`·`openssl`·`gh`만 쓰고 권한은 `contents: read`·`issues: write`, 실행은 하나씩(`concurrency: uptime`), 제한 5분입니다. 저장소에 60일 동안 활동이 없으면 GitHub가 예약 실행을 끕니다. 가끔 커밋이 없던 기간에는 Actions 탭에서 Uptime이 살아 있는지 보고, 꺼졌으면 수동 실행이나 커밋으로 다시 켭니다.
+- 1단계(읽기 전용, 매번): 운영 `api.masscom.kr`의 `/health`·`/merchants`, 시연 `demo-api.masscom.kr`의 `/health`·`/merchants`(가상 점포 3곳 이상, 전부 `demo:true`), 첫 시연 점포의 `/v1/discovery/merchants/<id>`·`/merchants/<id>/collectible-preview`, 시연 `/play/` HTML이 이름을 부른 진입 JS가 200과 JavaScript content-type으로 오는지, 운영 `masscom.kr/app/`·`/merchant/`의 `<title>`. 운영 `/merchants`는 지금 빈 목록이라 `merchants` 배열이 있는지만 봅니다.
+- 경고(이슈 없음): TLS 인증서 만료까지 14일 미만, 응답 3초 초과. 실행 로그의 주석과 요약에만 남습니다.
+- 일시적인 끊김은 세지 않습니다. 1단계에서 실패한 항목이 있으면 약 30초 뒤 1단계를 한 번 더 돌려 그 결과로만 판정하고(읽기 전용이라 부작용이 없습니다), 그래도 실패한 것만 이슈 대상입니다. 요청 시간 예산(200초)을 넘기면 남은 요청은 하지 않고 실패로 세며 TLS 점검은 건너뜁니다. `gh` 호출은 `timeout 30`으로 감싸 멈춘 `gh`가 job을 5분 제한까지 붙잡지 않습니다.
+- 상태는 `uptime` 라벨이 붙은 열린 이슈 하나입니다. 실패가 있고 열린 이슈가 없으면 한국어 제목 `[장애 감지] …`와 실패 항목 목록으로 이슈를 만들고(라벨이 없으면 만듭니다), 열린 이슈가 있으면 중복해서 만들지 않으며, 모두 통과하면 복구 댓글과 함께 닫습니다. 단, 쓰기 점검까지 돈 실행에서 쓰기 점검이 실패했으면 "모두 통과"가 아니므로 열린 이슈를 닫지 않습니다. 실패한 실행은 빨갛게 끝나 GitHub 기본 알림도 함께 갑니다.
+- 2단계 쓰기 점검(시연 게스트 체험 시작 → `/me/consent` → `/collection` → 로그아웃)은 **수동 전용**입니다. Actions의 Uptime에서 Run workflow의 `write_probe`를 켜야 돌고 예약되지 않습니다. **로그아웃은 세션만 폐기하고 체험 자리를 돌려주지 않습니다.** 한 번 실행이 체험 자리를 전역 300 중 1, 같은 클라이언트(IP)당 30 중 1 잡은 채 24시간 뒤 만료까지 놓지 않고, 체험 계정·체험 가게·캠페인 사본도 남깁니다. 15분마다 예약하면 24시간 동안 늘 96자리가 잡혀 전역 상한 300의 약 3분의 1을 점검이 차지하므로 예약하지 않습니다(`--retry 0`이라 시작 요청이 자동 재시도로 자리를 두 번 잡지도 않습니다). 예약 여부는 소유자가 정합니다. 이 단계의 실패는 이슈를 열지 않고 실행만 빨갛게 만듭니다. 이 단계는 실제 시연 서버에 대해 아직 한 번도 돌리지 않았습니다(`NOT_RUN`, 가짜 curl 시험만 통과).
+
+### 매일 DB 백업 (`masscom-backup`, 호스트에 아직 설치하지 않음)
+
+- 파일: `infra/lightsail/host-jobs/masscom-backup.{sh,service,timer}`(운영, 매일 18:50 UTC), `infra/showcase-host/host-jobs/masscom-backup.sh`와 `masscom-showcase-backup.{service,timer}`(시연, 매일 19:05 UTC). 정리 작업(`masscom-retention`)과 같은 방식으로 compose 레이블로 Postgres 컨테이너를 고르고 같은 유닛 보안 설정을 씁니다.
+- 동작: 정리 작업과 나누는 잠금(백업 폴더 자체를 읽기로 열어 그 위에 거는 `flock`, 잠금 파일 없음; 최대 20분=1200초 기다리며 유닛의 `TimeoutStartSec=30min`보다 짧습니다)을 잡고, `pg_isready`로 Postgres가 연결을 받을 때까지 기다린 뒤(5초 간격 12번), 직전 `daily-*.dump` 크기의 2배 이상 디스크가 남았는지 봅니다(직전 백업이 없으면 건너뜀). `umask 077`과 `noclobber`로 `daily-<UTC 시각>.dump.part`에 `pg_dump --format=custom`으로 받고, `pg_restore -f /dev/null`로 아카이브를 끝까지 읽어 보고(목차와 모든 데이터 블록을 풀므로 잘린·깨진 덤프가 걸립니다), `daily-<UTC 시각>.dump.sha256`을 쓴 뒤 `daily-<UTC 시각>.dump`로 한 번에 `mv`합니다. 이 확인은 "읽을 수 있다"이지 "복원된다"가 아닙니다: 복원은 아래 복원 전용 드릴로 따로 시험합니다. 실패하면 절반짜리 파일을 남기지 않고 종료 코드 1이며, 유닛은 10분 뒤 다시 시도합니다(2시간 안에 처음 실행을 포함해 3번까지, `Restart=on-failure`·`RestartSec=10min`, oneshot에서 `Restart=on-failure`는 systemd 244 이상). 이름이 정리 작업의 삭제 범위(`*.dump`·`*.dump.*`)에 들어가 30일 뒤 함께 지워지되, 정리 작업은 가장 최근 `daily-*.dump` 3개와 그 sha256을 나이와 상관없이 남깁니다(백업이 한동안 실패해도 마지막 좋은 백업이 지워지지 않게 하는 하한). 두 작업이 같은 잠금을 쓰므로 정리가 도는 동안 백업이 쓰지 않고 그 반대도 같습니다. 쓸 수 있는 곳은 백업 폴더뿐입니다.
+- 크기 급감 확인: 덤프가 끝난 뒤 새 파일이 직전 `daily-*.dump`(새로 만들기 전의 가장 최근 것)의 **50% 미만**이면 두 파일을 모두 그대로 두고(지우지 않습니다) stderr에 `BACKUP_SIZE_DROP<TAB><새 바이트><TAB><직전 바이트>`를 쓰고 종료 코드 3으로 끝납니다. 데이터가 갑자기 빠진 백업이 조용히 성공으로 보이지 않게 하려는 것이라, 유닛은 `RestartPreventExitStatus=3`으로 이 코드를 다시 시도하지 않고 `failed`로 남깁니다(다시 받으면 방금의 작은 파일과 비교되어 통과하고 실패가 가려집니다). 정확히 50%는 통과하고, 직전 백업이 없으면(첫 실행) 건너뜁니다. 원인을 확인한 뒤(정상적인 대량 삭제였는지) `sudo systemctl reset-failed masscom-backup.service`로 실패 표시를 지웁니다. 한계: 다음 실행은 이 작은 파일과 비교하므로 기준이 낮아집니다.
+- 시작 횟수 제한: 수동 `sudo systemctl start masscom-backup.service`도 `StartLimitBurst=3`(`StartLimitIntervalSec=2h`)의 시작 횟수에 들어갑니다. 설치 직후 시험 삼아 여러 번 시작하거나 자동 재시도와 겹치면 2시간 안의 네 번째 시작이 `start request repeated too quickly`로 거절됩니다. 이때는 `sudo systemctl reset-failed masscom-backup.service`(시연은 `masscom-showcase-backup.service`)로 횟수를 지운 뒤 다시 시작하거나 2시간을 기다립니다.
+- 설치는 소유자 승인 뒤에 합니다. 운영: `sudo bash infra/lightsail/host-jobs/install.sh masscom-backup`, 시연: `sudo bash infra/showcase-host/host-jobs/install.sh masscom-showcase-backup`. 이어서 `sudo systemctl start masscom-backup.service`(시연은 `masscom-showcase-backup.service`)로 한 번 돌리고 같은 install.sh에 같은 이름과 `--verify`를 붙여 확인합니다. `install.sh`는 이름과 동작(`install`·`--uninstall`·`--verify`)을 순서와 상관없이 받고, 모르는 인자나 같은 종류의 중복은 아무것도 하지 않고 종료 코드 2로 멈춥니다(`--uninstall masscom-backup`이 정리 작업을 지우는 일이 없도록). 이름이 없는 `install.sh`는 지금처럼 정리 작업만 설치합니다(운영 배포 스크립트가 인자 없이 부릅니다).
+- 후속: `scripts/deploy-lightsail.sh`의 배포 후 관문은 아직 백업 작업의 첫 실행 성공을 요구하지 않습니다(위험이 크고 시험이 무거워 이 변경에서 바꾸지 않았습니다).
+- 한계: 같은 디스크의 백업이라 서버를 잃으면 함께 사라집니다. 서버 밖 사본(암호화 후 보관 위치·비용)은 소유자 결정 사항입니다.
+- 배포가 설치본을 다시 맞추지 않습니다(유닛 드리프트). `deploy-lightsail.sh`는 정리 작업만 다시 설치하므로, 저장소의 `masscom-backup.{sh,service,timer}`를 고쳐도 호스트의 설치본은 그대로입니다. 고친 뒤에는 같은 `install.sh <이름>`을 다시 실행하고 `--verify`로 호스트 파일이 저장소와 같은지 확인합니다.
+- 백업 실패 알림이 아직 없습니다(소유자 결정 대기). 백업이 실패해도 유닛이 `failed`가 될 뿐 아무도 받지 않습니다. 설치 뒤에는 `systemctl status masscom-backup.service`나 `ls /opt/masscom/backups/daily-*.dump`로 직접 확인해야 하고, 알림 수단(healthchecks.io·Telegram·세분화된 PAT 등)은 소유자가 고른 뒤 호스트 점검 타이머로 더합니다.
+
+### 복원 전용 드릴 (`scripts/db-restore-drill.sh --restore-only`)
+
+```bash
+read -s PGPASSWORD && export PGPASSWORD
+# 운영 서버: Postgres 포트를 호스트에 열어 두지 않았으므로 클라이언트 도구를 컨테이너 안에서 실행합니다(URL은 컨테이너 안에서 보이는 주소, <container>는 `docker ps`로 찾은 postgres 컨테이너).
+PG_EXEC='docker exec -i -e PGPASSWORD <container>' \
+DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-restore-drill.sh --restore-only /opt/masscom/backups/daily-<시각>.dump
+```
+
+`PG_EXEC` 없이 쓰는 형식(`DRILL_DATABASE_URL=... scripts/db-restore-drill.sh --restore-only <파일>`)은 호스트에서 `psql`·`pg_restore`가 URL에 닿을 때(로컬 개발 DB 등)만 됩니다.
+
+- 옵션은 맨 앞에 정확히 `--restore-only <파일>` 하나로 줍니다. 파일 뒤에 인자가 더 있거나(`--restore-only <파일> 추가`), `--restore-only=<파일>`처럼 모르는 `-` 옵션이면 DB에 접속하기 전에 종료 코드 2로 거절합니다. `--restore-only`를 빼고 기존 백업 경로만 주면 덮어쓰지 않고 거절합니다(위 `--overwrite` 규칙).
+- 있는 백업 파일만 읽습니다(원본 DB는 덤프하지 않고 파일은 건드리지 않음). 끝나면 scratch DB의 남은 연결만 끊고(`pg_terminate_backend`, 그 `datname`만) 지웁니다. 같은 이름의 DB가 이미 있어 만들기에 실패하면 아무것도 지우지 않고 실패합니다. scratch DB에 복원하고 `pg_restore` 종료 0, 비어 있지 않은 `schema_migrations`, 원본과 같은 테이블 집합을 확인한 뒤 scratch DB를 지웁니다. 출력의 마지막 줄이 걸린 시간(RTO 측정값)입니다: `restore-only drill passed: <N> tables match the live database, <M> migrations, restored in <S> seconds`.
+- 여유 공간: scratch DB를 **만들기 전에** 서버의 데이터 디렉터리(`SHOW data_directory`)가 있는 파일시스템에 백업 파일 크기의 **3배 이상**이 남았는지 `df -Pk`로 봅니다(복원은 덤프 내용의 전체 사본에 인덱스·WAL이 더해져 파일보다 훨씬 커집니다). 모자라면 `restore drill FAILED: not enough free space …`로 종료 코드 1이고 DB에는 아무것도 만들지 않습니다. `df`는 PostgreSQL 도구가 도는 곳에서 돕니다: `PG_EXEC`를 쓰면 컨테이너 안에서, 안 쓰면 URL이 이 PC(호스트가 비었거나 `localhost`·`127.0.0.1`·`::1`)일 때만 이 PC에서 잽니다(공개 포트로 로컬에 열린 컨테이너 DB는 `PG_EXEC`를 쓰세요. 안 쓰면 같은 이름의 이 PC 경로를 잴 수 있습니다). 원격 서버를 `PG_EXEC` 없이 가리키거나 `SHOW data_directory`(슈퍼유저 또는 `pg_read_all_settings` 필요)·`df`가 실패하면 잴 수 없으므로 stderr에 `free-space check skipped: …`를 남기고 건너뜁니다(복원은 계속). 건너뛴 실행은 여유 공간을 확인한 것이 아니니 직접 `df -h`로 봅니다.
+- 행 수는 비교하지 않습니다(백업은 원본보다 오래됐습니다). 배포로 테이블이 늘면 다음 백업이 생길 때까지 직전 백업은 테이블 집합 확인에서 실패합니다.
+- 일회용 로컬 Postgres 16.10 컨테이너에서만 실행했습니다(`S`는 0초, 작은 데이터). 서버의 실제 백업으로 잰 RTO는 없습니다(`NOT_RUN`).
+
+### 큰 파일 가드 (`scripts/check-large-files.sh`)
+
+- `<base-ref>...HEAD`에서 추가·수정된 파일만 봅니다. `docs/evidence/**` 바이너리가 1 MiB 초과이거나 어떤 파일이든 3 MiB 초과이면 실패합니다. CI(비밀값 검사 바로 뒤, PR 기준 커밋이나 push 직전 커밋과 비교)와 `tools/gate.sh`(`origin/main` 기준)가 실행합니다. 커밋하지 않은 파일은 보지 않습니다.
+- 증거 영상·원본 크기 이미지는 저장소가 아니라 GitHub Release의 자산(`evidence-YYYY-MM-DD-<주제>`)에 올리고, 증거 JSON에 자산 이름과 SHA-256을 적습니다. Git LFS와 이력 다시 쓰기는 쓰지 않습니다.
+- 예외는 `scripts/large-files-allowlist.txt`에 `경로<TAB>이유<TAB>최대 바이트`로 한 줄씩 적습니다(경로는 정확히 일치, 이유는 필수, 세 번째 칸은 선택이지만 지금 크기 + 10%를 적는 것이 기본입니다). 최대 바이트가 있으면 예외 파일도 그 크기까지만 허용해 조용히 더 커지지 않습니다. 지금은 가드 도입 전부터 있던 `demo-flow-390.webm`과 `draw-loop.mp3` 두 개뿐입니다.
+- 이름 바꾸기·옮기기는 감지하지 않고 새 파일로 셉니다. 큰 파일을 옮기면 새 경로를 예외 목록에 올려야 걸리지 않습니다.
+- 이미 저장소에 있는 `docs/evidence/**` 바이너리 가운데 1~3 MiB인 파일은 고쳐서 커밋하면(수정도 대상) 1 MiB 규칙에 걸립니다. 그런 파일을 고칠 때는 예외 목록에 올리거나 줄인 사본으로 바꿉니다.
+
+### 현재 배포 상태의 기준 파일 (`docs/CURRENT_RELEASE.json`)
+
+- 설치본 태그·날짜·APK 이름·SHA-256·크기·소스 커밋과 운영 API·시연 API·`/play/` 번들 커밋을 **손으로 고치는 기준 파일**입니다. `docs/open.html`의 생성 블록은 여기서 만듭니다. 이 파일 하나로 모든 문서가 정해지는 것은 아닙니다: 아래 "검사 범위" 밖의 문서와 세 군데의 고정 문자열은 사람이 맞춥니다.
+- 검사 범위(`--check`가 JSON에 없는 태그·APK 이름·해시를 현재처럼 적었는지 보는 곳): `docs/open.html`(생성 블록 밖), `README.md`의 "바로 체험" 절, `docs/DEMO_RUNBOOK.md`, `docs/SUBMISSION_CHECKLIST.md`. `이전`·`옛` 바로 뒤에 오는 토큰은 옛 설치본 설명으로 보고 넘어가고, 체크리스트에는 정당한 옛 언급 두 개(`09dfceb0` 운영 배포 증거 링크 이름, 대체 시연 영상의 SHA-256)만 정확히 허용합니다.
+- 검사 밖: `docs/ANDROID_DOWNLOADS.md`는 날짜별 이력 표라 옛 태그가 정상이라 보지 않습니다. `README.md`의 "바로 체험" 밖, `docs/PROJECT_STATE.md`·`docs/HANDOFF.md`·`docs/TEST_STATUS.md`의 서술도 사람이 맞춥니다.
+- 새 설치본이 나왔을 때의 갱신 순서:
+  1. 새 evidence JSON을 두고 `docs/CURRENT_RELEASE.json`을 고칩니다.
+  2. `node scripts/render-current-release.mjs`로 `open.html` 생성 블록을 다시 만듭니다.
+  3. `node scripts/render-current-release.mjs --check`로 위 검사 범위의 어긋남을 찾아 고칩니다.
+  4. 고정 문자열 세 군데를 직접 새 태그로 고칩니다: `scripts/verify-project-site.sh`(58~59줄 근처), `tests/site/public-entry.test.mjs`(26줄 근처), `tests/site/verify_project_site_test.sh`(82~83줄 근처). 안 고치면 세 검사가 새 `open.html`에서 옛 태그를 찾지 못해 실패하므로 놓치지는 않지만, 고쳐야 통과합니다.
+- `--check`는 JSON이 evidence 파일(태그·APK 이름·SHA-256·소스)과 같은지도 봅니다. `tools/gate.sh`와 CI(`tests/site/current_release_test.mjs`)가 실행합니다. 마이그레이션 수는 이 파일에 두지 않습니다(`apps/api/migrations`의 파일 수가 기준이고 서술은 문서가 맞춥니다).
+
+### 커버리지와 설치본 용량
+
+- CI는 API 단위 시험(`npm run test:cov --prefix apps/api`)의 커버리지를 실행 요약에 보고합니다(보고용, 기준선 없음). 실측은 줄 약 58.5%·분기 88.4%·함수 60.1%입니다(실행마다 줄 비율이 0.1%p 안팎으로 달라집니다). PostgreSQL 통합 시험의 커버리지는 로컬에서 한 번 쟀습니다(`npm run test:postgres:cov --prefix apps/api`, 줄 91.3%·분기 81.9%·함수 86.6%, 약 24분). CI의 제한 25분에 맞지 않아 CI에는 넣지 않았습니다.
+- Android 설치본 용량(운영 약 324MB, 시연 약 330MB)은 [APK 용량 분석](APK_SIZE_ANALYSIS.md)에 측정값과 가설을 나눠 적었습니다. 원인은 단정하지 않았고 공개 APK를 직접 열어 보는 일은 남아 있습니다.
 
 ## 목표와 실제
 

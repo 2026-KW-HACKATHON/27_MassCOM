@@ -123,16 +123,16 @@ export function upgradeCollectibleProject(value: unknown): CollectibleProject {
   const source = value as Record<string, unknown>;
   if (source.schemaVersion === 2) return structuredClone(source) as CollectibleProject;
   if (source.schemaVersion !== 1) invalid();
-  const upgraded = structuredClone(source) as Record<string, any>;
+  const upgraded = structuredClone(source) as Record<string, unknown>;
   upgraded.schemaVersion = 2;
-  upgraded.stickers = (upgraded.stickers as any[]).map(sticker => ({
+  upgraded.stickers = (upgraded.stickers as Record<string, unknown>[]).map(sticker => ({
     ...sticker,
     text: typeof sticker.text === 'string' ? sticker.text.replace(/[\r\n\t]+/g, ' ') : sticker.text,
     align: 'center',
     layouts: {},
   }));
   upgraded.back = { mode: 'default', color: upgraded.baseColor, stickers: [] };
-  upgraded.motion = (upgraded.motion as any[]).map(motion => ({
+  upgraded.motion = (upgraded.motion as Record<string, unknown>[]).map(motion => ({
     ...motion,
     playback: 'loop',
     ...(motion.type === 'confetti' ? { particle: 'confetti' } : {}),
