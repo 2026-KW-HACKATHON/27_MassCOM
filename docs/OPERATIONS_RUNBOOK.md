@@ -64,6 +64,9 @@ UPDATE nft_series SET max_ever_minted = 18446744073709551615 WHERE max_ever_mint
 ALTER TABLE nft_series ALTER COLUMN max_ever_minted SET NOT NULL;
 COMMIT;
 ```
+27. `0069_campaign_benefits.sql`(D-094, 새 API 이미지보다 먼저 적용)
+
+적용 후 예상 원장 수는 **43 + 27 = 70건**이다(최대 번호 0069과 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 70건·마지막 `0069_campaign_benefits.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다.
 
 ### 개인정보 재동의·설치본 관문
 

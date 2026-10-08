@@ -325,3 +325,15 @@ D-065와의 대비: D-065는 점주 직원 화면에서 43자 고객 식별 토�
 **경계와 한계:** 이미 Base Sepolia에 배포된 컨트랙트(`docs/evidence/base-sepolia-deployment.json`, 상한 1)는 바뀌지 않는다. **기존 상한 1 실증 시리즈에는 운영 발행을 보내지 않는다.** 기존 계약에서 새 시리즈를 만들 때는 실제 배포된 시그니처 `createSeries(bytes32 seriesId, string baseTokenURI, uint64 maxEverMinted)`의 세 번째 인자에 `18446744073709551615`(uint64 최댓값)를 넣어 사실상 상한 없이 운영한다. 새 계약에서는 2인자 `createSeries(bytes32 seriesId, string baseTokenURI)`를 쓴다. Worker 운영 코드는 `createSeries`를 부르지 않는다. 기존 계약에서 `SeriesSupplyExceeded`가 발생하면 제출 전 gas 추정에서 이 오류가 확인되면 Worker는 재시도하지 않고 `SERIES_SUPPLY_EXCEEDED`로 즉시 `MANUAL_REVIEW`에 보낸다(추정 뒤 경합으로 채굴된 revert는 기존 `MINT_TRANSACTION_REVERTED` 재확인 경로를 따른다)(권리는 `MINT_REQUESTED`로 남아 운영자 복구 판단 필요). 배포된 컨트랙트의 기존 시리즈 상한은 바꿀 수 없다. PRD RQ-014(공급 상한)는 이 결정으로 더 이상 요구가 아니다.
 
 **남은 위험(열림):** 상한이 없으므로 탈취된 민터 키는 계약이 일시 중지될 때까지 활성 시리즈에 잠긴 NFT를 제한 없이 발행할 수 있다. 총 NFT 가스 지출을 제한하는 장치는 민터 잔액 하한과 건당 수수료 상한뿐이다. 소유자가 상한 해제를 결정했지만 이 두 위험에 대한 별도 통제 결정은 없다.
+
+## D-094 캠페인 혜택의 추가 원가 상한과 이미 발급한 약속 (Issue #412 T3 PR 2, 2026-10-09)
+
+소유자 방향 4와 이번 작업 지시의 D·E를 구현했다. migration은 예약 번호 `0069_campaign_benefits.sql`만 쓰고, 다른 브랜치의 D-093·migration 0072는 바꾸지 않는다. 배포하지 않는다(소유자 결정 A).
+
+- **상한의 뜻.** `issued_count`는 ISSUED+REDEEMED 행 수다. 만료된 미사용 쿠폰도 이미 발급한 것으로 남으며 상한을 자동 반환하지 않는다. `issued_count BETWEEN 0 AND max_uses` CHECK와 `status='ACTIVE' AND issued_count<max_uses` 조건부 증가가 신규 수령을 막는다. 상한 도달·발급 중지는 이미 발급한 쿠폰의 사용 가능 여부를 바꾸지 않는다. 비용·상한·내용은 수정할 수 없고, 상한을 바꾸려면 중지 후 새 혜택과 새 점주 동의가 필요하다. 관리자는 같은 점포 동의 다섯 항목과 정규화한 문서 참조 번호를 확인한다. 이전 PAUSED 혜택도 상태 목록에 남아 그 약속을 숨기지 않는다.
+- **수령과 취소.** 방문 거래 안에서 발급하지 않는다. 고객이 별도 수령 경로를 호출하며 계정 수명주기 확인 뒤 고객·캠페인 advisory → 점포 FOR SHARE → 유효 원천 방문 FOR SHARE → 조건부 카운터 증가 → 쿠폰 삽입 순서를 쓴다. 같은 고객·캠페인의 재전송은 기존 쿠폰을 돌려준다. 방문 취소도 같은 advisory를 먼저 잡고 해당 방문의 미사용 쿠폰을 `VISIT_CANCELED`로 무효화해 `issued_count-1 WHERE issued_count>0`로 한도를 반환한다. 취소로 무효화한 행은 남기되 같은 고객의 새 유효 방문 수령을 허용한다. 사용한 쿠폰이 있으면 방문 취소를 거절한다.
+- **목적과 시각.** MassCOM에서 점포의 처음 확인된 방문이 캠페인 기간 안인 경우, 첫 캠페인 방문 날짜 뒤 최소·최대 일수 안의 다른 날짜 방문, 또는 `claim_slots.created_at`이 KST 시간대 안인 방문을 각각 판정한다. 재방문 쿠폰의 `usable_from`은 조건을 채운 방문 날짜의 KST 자정+`revisit_min_days`다. 사용 시작 전에는 조회·사용을 막는다. 늦게 수령해도 DB 시간 CHECK를 깨지 않도록 유효 기간은 `max(수령 시각, usable_from)+valid_days`부터 계산한다. 방문 확정 `claim-slot-service.redeem()`은 바꾸지 않는다.
+- **네 숫자와 원가.** 한 집계 질의로 발급(ISSUED+REDEEMED), 사용(REDEEMED), 아직 사용 가능(ISSUED이고 미만료), 만료 미사용, 추가 발급 가능량 `greatest(max_uses-issued_count,0)`을 읽는다. 추가 원가 부담=`사용×건당 추가 원가`, 최대 추가 원가=`상한×건당 추가 원가`, 이미 약속한 최대 비용=`(사용+미만료 ISSUED)×건당 추가 원가`다. 원화 곱셈은 bigint이고 JSON에는 십진 문자열로 보낸다. 미래 사용 시작 쿠폰도 미만료 약속에 포함한다. 관리자·점주 화면은 이를 추가 원가로 표시하며 매출·이익 성과로 바꾸지 않는다.
+- **고객·삭제.** 고객 응답에는 비용·상한·재고 숫자를 넣지 않고 가능 여부는 "받을 수 있음"/"모두 소진"만 표시한다. 기존 쿠폰 모양에 선택 `usableFrom`을 더해 직원 조회·사용과 고객 QR을 재사용한다. 계정 삭제는 고객·사용 처리자·무효 처리자를 가명화하며 행과 비용 약속을 삭제하지 않는다. 사용 되돌리기는 10분 안에만 허용한다. 지정 스키마에는 사용 되돌리기 감사/재생 표가 없어 두 번째 되돌리기는 `COUPON_NOT_REDEEMED`다(별도 재생 원장 확장은 후속).
+
+실행 증거와 한계는 [TEST_STATUS](TEST_STATUS.md) 맨 위와 [HANDOFF](HANDOFF.md)에 기록한다. 운영·시연은 공통 고객 코드지만 실제 두 variant 설치·기기 수용은 각각 NOT_RUN이다.

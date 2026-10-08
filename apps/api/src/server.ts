@@ -39,6 +39,7 @@ import { safeErrorMetadata } from './security-log.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { PostgresCampaignEnrollmentService } from './postgres/campaign-enrollment.js';
+import { PostgresCampaignBenefitService } from './postgres/campaign-benefits.js';
 import { PostgresAccountConsentService } from './postgres/account-consent.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountDeletionIntakeService } from './postgres/account-deletion-intake.js';
@@ -610,6 +611,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     accountDeletions,
     requireReauthentication: reauthenticationGuard,
     campaignEnrollments,
+    campaignBenefits: pool && accountLifecycle ? new PostgresCampaignBenefitService(pool, { accountLifecycle }) : undefined,
     authSessions,
     authLoginLimiter,
     trustProxyClientIp: authMode.kind === 'production' && process.env.AUTH_TRUST_CADDY_FORWARDED_FOR === 'true',

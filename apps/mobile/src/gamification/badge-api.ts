@@ -35,6 +35,7 @@ export type Coupon = {
   detail: string;
   status: CouponStatus;
   issuedAt: string;
+  usableFrom?: string;
   expiresAt: string;
   redeemedAt: string | null;
 };
@@ -60,6 +61,17 @@ export type BadgeBook = {
 };
 
 export type OpenedReward = { coupon: Coupon; replayed: boolean };
+
+export type CampaignBenefit = {
+  benefitId: string;
+  campaignId: string;
+  merchantId: string;
+  merchantName: string;
+  title: string;
+  detail: string;
+  state: 'CLAIMABLE' | 'CAP_REACHED' | 'OWNED';
+  coupon?: Coupon;
+};
 
 export class BadgeApiError extends Error {
   constructor(
@@ -124,7 +136,38 @@ export function createBadgeApiClient(options: Options) {
       });
       return parseOpenedReward(payload, milestone);
     },
+    async getCampaignBenefits(): Promise<readonly CampaignBenefit[]> {
+      return parseCampaignBenefits(await request('/me/campaign-benefits'));
+    },
+    async claimCampaignBenefit(benefitId: string): Promise<OpenedReward> {
+      if (!isString(benefitId)) throw new BadgeApiError(400, 'INVALID_REQUEST');
+      const payload = await request(`/me/campaign-benefits/${encodeURIComponent(benefitId)}/claim`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      return parseOpenedReward(payload, 3);
+    },
   };
+}
+
+export function parseCampaignBenefits(value: unknown): readonly CampaignBenefit[] {
+  if (!isRecord(value) || !Array.isArray(value.benefits)) throw invalidResponse('캠페인 혜택');
+  return value.benefits.map((item: unknown) => {
+    if (!isRecord(item) || !isString(item.benefitId) || !isString(item.campaignId) ||
+      !isString(item.merchantId) || !isString(item.merchantName) || !isString(item.title) ||
+      typeof item.detail !== 'string' ||
+      (item.state !== 'CLAIMABLE' && item.state !== 'CAP_REACHED' && item.state !== 'OWNED')) {
+      throw invalidResponse('캠페인 혜택');
+    }
+    const coupon = item.coupon == null ? undefined : parseCoupon(item.coupon);
+    if ((item.state === 'OWNED') !== (coupon !== undefined) ||
+      (coupon && (coupon.merchantId !== item.merchantId || coupon.milestone !== 3))) {
+      throw invalidResponse('캠페인 혜택');
+    }
+    return { benefitId: item.benefitId, campaignId: item.campaignId, merchantId: item.merchantId,
+      merchantName: item.merchantName, title: item.title, detail: item.detail, state: item.state, ...(coupon ? { coupon } : {}) };
+  });
 }
 
 export function parseBadgeBook(value: unknown): BadgeBook {
@@ -249,6 +292,7 @@ function parseCoupon(value: unknown): Coupon {
     detail: value.detail,
     status: value.status,
     issuedAt: value.issuedAt,
+    ...(isDate(value.usableFrom) ? { usableFrom: value.usableFrom } : {}),
     expiresAt: value.expiresAt,
     redeemedAt: value.redeemedAt,
   };

@@ -5,6 +5,9 @@
 ## 1. 기준 커밋과 작업 위치
 
 - 기준 main 커밋 SHA: `055d0523`(PR #425 병합, 2026-10-09 KST). PR #424 작업 브랜치 `feat/remove-nft-series-cap`에는 이 main이 병합돼 있다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
+- 현재 작업: `.worktrees/t3-benefits`, `feat/campaign-benefits`, 기준 `055d0523`(T3 PR 1 병합). T3 PR 2 구현/검증과 문서가 변경 상태다. 이번 세션은 push/stash/rebase·배포·PR 생성/병합을 하지 않는다. 커밋은 shared Git index.lock 쓰기 차단으로 미실행이며 전체 파일은 11절에 기록한다.
+
+- 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
 - PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
 - 병합 순서: PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결, `a742e32d`) → #406(재측정·대체 시연 영상·제출 후보 기록, `6ce8ad03`) → #408(Issue #407의 낮은 화면 결함 4건 수정과 #402를 다음 설치본·웹 체험에 반영, `687427c2`). Issue #401은 #403 병합으로 닫혔다.
 - 운영·시연 서버 배포와 수정본 `/play/` 재측정은 끝났다. Issue #407의 코드(`5ca98955`)로 운영 test.13·시연 Preview 22를 게시했고 시연 `/play/`를 같은 소스로 전환했다. #402의 변경도 이 설치본과 `/play/`에 들어 있다. 라이브 `/open`은 test.13·Preview 22를 가리킨다(2026-10-08 확인).
@@ -15,6 +18,8 @@
 - [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 T2c(점진적 공개·점주 1인 2역·최소 크기)는 브랜치 `feat/first-use-v2c`에서 PR #423으로 main `8841efea`에 병합됐다. 병합 전에는 PR #420이 병합된 main `48a14811` 위로 리베이스했다. 결정은 [D-090~D-091](DECISIONS.md)이다(D-089는 main의 PR #420 몫이다).
 
 ## 2. 현재 통합 상태
+
+- T3 PR 1은 로컬 Git의 PR #425 병합 `055d0523`에서 확인했다. T3 PR 2는 이 worktree의 로컬 변경이며 외부 PR/CI 상태를 확인하거나 생성하지 않았다. 다른 동료 PR #424는 손대지 않았다.
 
 - PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414·#415·#420·#421·#422·#423은 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
 - NFT 발행 Worker 상시 실행([D-089](DECISIONS.md))의 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)은 병합돼 main `48a14811`에 있고 서버 배포·운영 활성화는 하지 않았다.
@@ -37,6 +42,8 @@
 - Issue #412 T1의 API 코드도 배포하지 않았다(소유자 결정 A). 서버에 올라간 API는 위 운영 `687427c2`·시연 `2d483ed` 그대로다.
 
 ## 4. 이번 작업의 범위
+
+- 현재 범위는 T3 PR 2 D·E: 캠페인 혜택/쿠폰·비용 상한, 목적별 별도 수령, 기존 조회/사용·되돌리기·방문 취소·삭제 연결, 관리자/점주 네 숫자와 모바일 쿠폰 UI. 결정 D-094와 migration0069만 사용했다. 기존 공통 동의/권한/쿠폰/QR을 재사용하고 새 의존성을 넣지 않았다.
 
 - [Issue #401](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/401)은 제출 전 운영·문서·심사 대응 정리이며 #403 병합으로 닫혔다. PR #408은 [Issue #407](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/407)의 앱 수정 코드와 test.13·Preview 22 게시, `/play/` 전환, 현재 요약 문서 갱신을 함께 담아 병합됐다.
 - [수정본 재측정](evidence/submission-2026-10-08-recheck/README.md)(Playwright, 시연 서버 임시 계정만)에서 이전 [17단계 실측](evidence/submission-2026-10-08/README.md)의 결함 4건이 모두 FIXED였다. 5분 시연 15단계가 전부 PASS이고 `console.error`·`pageerror`·4xx/5xx·요청 실패는 0건이다. 대체 시연 영상 `demo-flow-390.webm`(10,053,739바이트·4분 8초·390×844)과 캡처 68장을 같은 폴더에 보존했다.
@@ -67,6 +74,8 @@
 
 ## 7. 마이그레이션과 롤백 경계
 
+- T3 PR 2 migration0069는 추가 전용이고 SET LOCAL 5초, 비용/상한 불변·ACTIVE→PAUSED·카운터±1과 범위 CHECK를 가진다. 로컬 T3 `_test` DB에 최종 SQL을 재적용해 통합 557건을 실행했다. 운영/시연 DB에는 적용하지 않았다. 서버 롤백 때 새 혜택 원장/쿠폰을 삭제하지 않는다. courses0072의 감사 CHECK 재작성은 두 혜택 action도 보존해야 한다.
+
 - 새 원장에 거래가 기록된 뒤에는 이를 모르는 구 API로 자동 복귀하지 않는다. 이번 비호환 릴리스의 배포 증거는 `backward_compatible=no`로 기록하고 실패 시 쓰기를 멈춘 뒤 새 원장을 이해하는 버전으로 전진 복구한다.
 - 릴리스 전후 백업·원장 수·쓰기 중지 조건은 [운영 절차](OPERATIONS_RUNBOOK.md)와 실제 복원 시험에서 검증한다.
 - migration `0068_campaign_purposes.sql`(Issue #412 T3 PR 1)은 새 표·함수·트리거와 감사 CHECK 확장(`CAMPAIGN_PURPOSE_SET`, 기존 16개 전체 유지)만 더하고 잠금 대기는 5초다. `backward_compatible=yes`라 이전 API 이미지로 되돌려도 기존 쓰기는 그대로 허용된다. 아직 서버에 적용하지 않았다(운영·시연 원장은 68건 그대로, 마지막 `0067_room_guestbook.sql`). **배포 순서: 0068을 새 API 이미지보다 먼저 적용한다.** 방문 발급·재발급·확정·재생 경로가 `campaign_purposes`를 읽으므로 표가 없는 DB에 새 이미지가 먼저 뜨면 방문 확정이 실패한다(`scripts/deploy-lightsail.sh`는 `migrate` 뒤에 `api`를 올리므로 순서가 맞다). 혜택(PR 2)이 생기기 전에는 목적형 캠페인을 공개하지 않는다([D-092](DECISIONS.md)).
@@ -77,6 +86,8 @@
 - 시연 API와 운영 API는 배포됐고 Preview 22·test.13이 게시됐다(이전 Preview 21·test.12). 라이브 `/open`은 새 링크를 가리킨다. 구 설치본의 재동의 확인은 별도 수용 항목이다.
 
 ## 9. 자동 검증 상태
+
+- T3 PR 2 최종 로컬 측정: API 625/625·typecheck/build PASS, PostgreSQL 557건 중 554 pass/0 fail/3 skip, 모바일 2098/2098·typecheck/lint PASS, 사이트 584/584와 기존 Chrome 1건 BLOCKED. CI 연결 94파일·접근성·지갑 표면·운영 문서 PASS. `LC_ALL=C bash tools/gate.sh` PASS(plain gate의 기존 Bash locale 오류는 TEST_STATUS에 별도 기록). 전체 근거는 TEST_STATUS 맨 위다.
 
 - Issue #412 T3 PR 1 브랜치 `feat/purpose-campaigns`(main `8841efea` 병합 후): API 단위 615/615(main 597에서 18건 증가)·typecheck, PostgreSQL 전체 543건 중 540 pass / 0 fail / 3 skip(이 작업 전 527건 중 524 pass, 3건은 전용 hosted seed 컨테이너 조건), 모바일 `npm test` 2093/2093(main 2077에서 16건 증가)·typecheck·lint, 사이트·운영 웹 578/578, CI 연결·모바일 접근성 의미·지갑 표면·`bash tools/gate.sh` PASS, 변이 점검 8건 모두 시험 실패. 바뀐 기존 단언과 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 
@@ -98,6 +109,8 @@
 
 ## 10. 수동 수용과 미실행 항목
 
+- T3 PR 2 관리자/점주 실제 브라우저, 고객/직원 실제 휴대전화 수령→사용/취소, production/showcase 각각 설치·수용·TalkBack는 NOT_RUN. 가짜 DOM·파서·PG 시험을 실기 완료로 확대하지 않는다. 기존 Chrome 시연 테마는 SIGABRT 두 번으로 BLOCKED(BLOCKERS의 최소 재현).
+
 - 실제 Preview 22/test.13 설치·개인정보 재동의·점주 역할·NFT 발행은 이 문서 갱신으로 `PASS`가 되지 않는다. 두 APK의 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산)다. 운영 DB 복원 리허설과 운영 배포는 각각 별도 증거로 PASS이고, 수정된 `/play/` 번들의 공개 재측정도 [재측정 기록](evidence/submission-2026-10-08-recheck/README.md)으로 PASS다.
 - 사용자 판정 필요: Issue #409의 웹 history 수정(`history.get(nextIndex)`) 뒤로는, 깊은 흐름을 지난 뒤 홈 탭을 누르면 브라우저 기록이 가장 앞선 홈 항목까지 되감긴다. 그 뒤 브라우저 뒤로 가기를 한 번 더 누르면 `/play/`를 벗어난다. 수정 전에는 뒤로 가기가 직전 화면으로 돌아갔다. 새 동작은 네이티브/React Navigation과 같지만 사용자가 알아챌 수 있다. 배포하지 않았으므로(결정 A) 다음 빌드 전에 소유자가 유지할지 정한다.
 - Issue #412 T1은 사용자 판정이 필요한 항목이 없다(화면·동작 변경 없음). 운영·시연 서버에서의 실제 부팅은 하지 않았고(배포 동결) DB·비밀값 없이 빌드한 서버를 띄워 `/health`만 확인했다.
@@ -111,6 +124,58 @@
 
 ## 11. 남은 이슈와 PR 확인
 
+- T3 PR 2는 커밋되지 않았다. 코드 staging은 성공했지만 `git commit`이 `/Users/choi/Desktop/MassCOM/27_MassCOM/.git/worktrees/t3-benefits/index.lock` 생성 `Operation not permitted`로 실패했다. 기준 HEAD는 `055d0523`이다. push/stash/rebase/PR 생성은 하지 않았고 온라인 PR/CI 상태는 새로 조회하지 않았다. 외부 shell에서 실제 권한이 있을 때 아래 변경을 기존 Lore 메시지 형식으로 커밋한다.
+
+전체 미커밋 파일 45개:
+
+```text
+.github/workflows/ci.yml
+README.md
+apps/api/README.md
+apps/api/migrations/0069_campaign_benefits.sql
+apps/api/src/admin-store-go-live.postgres.integration.ts
+apps/api/src/api-deps.ts
+apps/api/src/badge-rewards.ts
+apps/api/src/campaign-benefit-lifecycle.postgres.integration.ts
+apps/api/src/campaign-benefit-rules.test.ts
+apps/api/src/campaign-benefit-rules.ts
+apps/api/src/campaign-benefits.postgres.integration.ts
+apps/api/src/campaign-benefits.ts
+apps/api/src/http/error-response.ts
+apps/api/src/migrate.test.ts
+apps/api/src/postgres/account-deletion.ts
+apps/api/src/postgres/badge-rewards.ts
+apps/api/src/postgres/campaign-benefits.ts
+apps/api/src/postgres/reversal.ts
+apps/api/src/routes/customer.ts
+apps/api/src/routes/web-admin.ts
+apps/api/src/routes/web-merchant.ts
+apps/api/src/server-campaign-benefits.test.ts
+apps/api/src/server.ts
+apps/mobile/src/gamification/badge-api.test.ts
+apps/mobile/src/gamification/badge-api.ts
+apps/mobile/src/gamification/campaign-benefit-ui.test.ts
+apps/mobile/src/gamification/coupon-use-sheet.tsx
+apps/mobile/src/screens/collection/index.tsx
+apps/mobile/src/screens/merchant-detail/index.test.ts
+apps/mobile/src/screens/merchant-detail/index.tsx
+apps/mobile/src/screens/play/play-content.test.ts
+apps/production-web/admin.html
+apps/production-web/assets/admin.mjs
+apps/production-web/assets/campaign-benefit-status.mjs
+apps/production-web/assets/merchant.mjs
+apps/production-web/merchant.html
+apps/production-web/server.mjs
+docs/AI_USAGE.md
+docs/BLOCKERS.md
+docs/DECISIONS.md
+docs/HANDOFF.md
+docs/PROJECT_STATE.md
+docs/TEST_STATUS.md
+tests/site/campaign-benefits-web.test.mjs
+tests/site/merchant-copy-no-newcomer.test.mjs
+```
+
 - #206의 전체 체험 수용과 #380·#394의 남은 범위는 실제 Issue 상태와 증거를 재확인한다. 과거 기록의 열린 PR 목록을 현재 목록으로 사용하지 않는다.
 - PR 상태는 `gh pr list --state all` 및 개별 `gh pr view <번호> --json state,mergedAt,headRefOid`로 확인한다.
 - [PR #402](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/402)(팀원 PragmoB, 뽑기 `CONSENT_REQUIRED`를 "동의 확인하기"로 연결)는 `a742e32d`로 병합됐다. 최신 main과 문서 충돌을 풀고 `INTERNAL_ERROR` 문구를 일반 재시도 안내로 바꾸고 동의 문구 연결을 시험으로 고정했으며 모바일 1,878/1,878·gate 통과, 독립 리뷰 승인이다. test.13·Preview 22와 `/play/`(`5ca98955`)에 포함됐다. 남은 🟡: 개발용 DEMO 계정의 동의 화면 "로그아웃"이 DEMO 상태를 벗어나지 못함, 동의·미설정 거절 뒤 뽑기 대기 기록 유지(같은 요청 ID 복구).
@@ -121,6 +186,8 @@
 
 ## 12. 다음 실행 명령
 
+1. 현재 T3 PR 2 재현: 비공개 제공 파일에서 TEST_DATABASE_URL을 환경 변수로 읽고 `DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate --prefix apps/api` → API typecheck/test/test:postgres → mobile test/typecheck/lint → 사이트 시험·CI 연결·운영 문서·접근성·지갑 표면·gate. URL/비밀번호를 출력하지 않는다. Chrome 테마만 별도 환경에서 재검증한다. push/stash/rebase와 배포는 하지 않는다.
+
 1. 완료: PR #408 병합과 운영 웹 재배포로 라이브 `/open`이 test.13·Preview 22를 가리킨다.
 2. Issue #409·#410 코드와 PR #413(Caddy)·#414(놀이)·#415(첫 사용 경험)·#420(NFT 발행 Worker 상시 실행)·#421(T5 운영 품질)·#422(T1 API 서버 구조 정리)는 main에 있고 모두 배포하지 않았다(소유자 결정 A). PR 상태는 `gh pr list --state all`로 확인한다. 새 Preview·test 번호와 게시 시점은 소유자가 정한다. 다음 빌드 전에 10절의 사용자 판정 항목(홈 탭 뒤로 가기)도 소유자가 정한다.
 3. 웹/Caddy 배포 때 `scripts/deploy-lightsail-web.sh` probe가 `/api/web/v1/merchant/merchants/x/real-world-profile`의 JSON 401을 확인한다. 배포 뒤 `curl -si https://www.masscom.kr/api/web/v1/merchant/merchants/x/real-world-profile`이 404가 아니라 JSON 401(`cache-control: no-store`)인지 본다. 배포 시점은 소유자가 정한다(결정 A).
@@ -130,7 +197,7 @@
 7. 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 확인하고, 필요하면 위 남은 🟡 중 (3)(4)(6)의 처리 여부를 정한다.
 8. 실제 점주·이용자 현장 자료, 설치본 실기·TalkBack, 지도 공급자 키·한도, 가구 가격·리롤권 지급량, 발표 리허설은 소유자 판단·수동 항목이다.
 9. 대회 최종 제출과 Google Play는 소유자 승인이 필요한 별도 경계다. 승인 전에는 제출 버전을 고정하지 않는다.
-10. Issue #412 T3(점주 목적형 캠페인)의 다음 PR: (2) 혜택·쿠폰·발급 한도와 비용 네 숫자, (3) 결과 카드와 설문, (4) 파일럿 설정 패널·안내물·모바일 표면 순서다([D-092](DECISIONS.md)). 이번 PR의 migration `0068`은 서버에 적용하지 않았으니(소유자 결정 A) 배포 때 `scripts/deploy-lightsail.sh`가 적용하고, `backward_compatible=yes`로 기록한다.
+10. Issue #412 T3 PR 2의 혜택·쿠폰·발급 한도와 비용 네 숫자는 이 worktree에 구현했다. 다음 PR은 (3) 결과 카드와 설문, (4) 파일럿 설정 패널·안내물 순서다([D-092](DECISIONS.md)). 이번 PR의 migration `0068`은 서버에 적용하지 않았으니(소유자 결정 A) 배포 때 `scripts/deploy-lightsail.sh`가 적용하고, `backward_compatible=yes`로 기록한다.
 11. NFT 발행 Worker 상시 실행(D-089)은 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)으로 main `48a14811`에 병합됐고 서버 배포·운영 활성화는 하지 않았다(`NOT_RUN`). 독립 리뷰(Sonnet + Opus)의 지적은 반영한 뒤 병합했다. 켜기 전 조건은 [B-027](BLOCKERS.md)과 [Lightsail 문서](../infra/lightsail/README.md)의 "NFT 발행 Worker"다. 운영 민터 키 생성·메인넷·`LIVE` 전환은 소유자 승인 사항이다.
 
 PR 제목·본문 검사:
@@ -149,6 +216,8 @@ bash tests/bootstrap/check_pr_korean_test.sh  # checker 자체 회귀 시험
 - braces·node-forge 의존성 보안 예외는 2026-10-31에 만료된다. 만료 전에 재검토한다.
 
 ## 14. 이력과 변경 규칙
+
+- 이 세션 커밋은 가능할 때 한국어 의도 제목+Lore trailer만 사용한다. AI 공동 작성자 서명 없음. Git common directory 쓰기가 sandbox로 막히면 변경을 그대로 남기고 목록을 전달한다.
 
 - 2026-09-22부터 2026-10-07까지의 날짜별 인수인계 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 그대로 보존한다. 과거 기록의 “현재”, “열린 PR”, “다음 명령”은 작성 당시의 상태다.
 - 다음 중단 전 이 14절의 기준 SHA·브랜치·PR·공개 버전·검증 상태·다음 명령만 실제 근거에 맞춰 갱신한다.

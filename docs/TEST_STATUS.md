@@ -15,6 +15,37 @@
 | PostgreSQL·Anvil 통합, 운영·시연 배포·설치본 | 오케스트레이터 범위 | NOT_RUN |
 
 새 회귀를 고치기 전 대상 시험은 2개 실패했다(영구 오류 코드가 interface mismatch, gas estimate가 retryable RPC 오류). 수정 뒤 기존 단언을 유지한 채 통과했다. 롤백 SQL은 옛 `integer` 열을 `numeric(20,0)`으로 넓힌 뒤 NULL을 uint64 최댓값으로 채우고 NOT NULL을 복구한다. 실제 DB 실행은 이 세션에서 하지 않았다.
+## 2026-10-09 캠페인 혜택·추가 원가 상한 (Issue #412 T3 PR 2, 배포하지 않음)
+
+환경: macOS/zsh, worktree `.worktrees/t3-benefits`, 브랜치 `feat/campaign-benefits`, 기준 main `055d0523`(PR #425로 목적형 캠페인 PR 1 병합). 아래 숫자는 이 작업의 실제 실행 결과다. 데이터베이스 URL은 제공된 비공개 파일에서 환경 변수로만 읽었고 출력하지 않았다. 최종 0069의 DELETE guard가 실제 시험에 포함되도록 일회용 T3 `_test` DB의 새 혜택 표/함수/0069 원장만 초기화한 뒤 파일 전체를 다시 적용했다. 이전 migration은 유지했다.
+
+| 대상 | 결과 | 실제 명령·숫자·경계 |
+| --- | --- | --- |
+| API 단위·타입·빌드 | PASS | `npm run typecheck --prefix apps/api`, `npm test --prefix apps/api`, `npm run build --prefix apps/api`: 625/625, 0 fail/skip. 새 순수 규칙 2건·라우트 8건(기준 615에서 +10). `/private/tmp/t3b-api-typecheck-final.log`, `t3b-api-unit-verified.log`, `t3b-api-build.log` |
+| PostgreSQL migration | PASS | `DATABASE_URL="$TEST_DATABASE_URL" npm run db:migrate --prefix apps/api`: 최종 0069 적용. URL·비밀번호 비출력. 기존 배포 API와 기존 캠페인의 표/응답 계약 보존 |
+| PostgreSQL 통합 | PASS | `npm run test:postgres --prefix apps/api`(`--test-concurrency=1`): 557건 중 554 pass / 0 fail / 3 skip. 기준 543에서 +14(혜택 서비스 7·수명주기 7). skip 3건은 기존의 전용 hosted seed 컨테이너 요구 시험. `/private/tmp/t3b-pg-final.log` |
+| 모바일 단위·타입·lint | PASS | `npm test --prefix apps/mobile`, `npm run typecheck --prefix apps/mobile`, `npm run lint --prefix apps/mobile`: 2098/2098(2093에서 +5), typecheck/lint exit 0. 공통 코드 검사이며 variant 설치/실기 증거는 아니다 |
+| 사이트(Chrome 제외 전체) | PASS | 사이트 `.test.mjs`/`_test.mjs` 전체에서 `verify_showcase_theme_test.mjs`만 별도로 분리: 584/584, 0 fail/skip. 새 혜택 가짜 DOM 7건, 모듈 제공 허용 목록·기존 소스 문구 검사 포함. `/private/tmp/t3b-site-final.log`. 실제 첫 전체 실행 585건 중 583 pass/2 fail에서 새 모듈의 404는 허용 목록 수정으로 해결 |
+| 기존 Chrome 시연 테마 | BLOCKED | 전체 실행과 단독 `node --test tests/site/verify_showcase_theme_test.mjs` 모두 Chrome 시작 SIGABRT. 총 사이트 585건의 나머지 1건은 CSS 단언 전 실패이며 PASS로 세지 않는다. `/private/tmp/t3b-site-theme.log`, [환경 최소 재현](BLOCKERS.md#2026-10-09-issue-412-t3-pr-2-로컬-chrome-테마-시험) |
+| CI 연결·접근성·지갑 표면 | PASS | `bash tests/ci/ci_wiring_test.sh`(시험 파일 94개), `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh` |
+| 문서·빠른 gate | PASS(환경 지정) | `bash tests/bootstrap/verify_operations_docs_test.sh`와 `LC_ALL=C bash tools/gate.sh` exit 0. 기본 C.UTF-8 환경의 plain gate는 기존 `check-large-files.sh:91`의 `$checked개` Bash 변수 해석 오류로 종료 1(새 코드 변경 없음). 미커밋 상태여서 HEAD 기준 큰 파일 검사는 0개이며 별도 크기 검사로 모든 변경 파일이 3 MiB 이하이고 증거 바이너리 추가가 없음을 확인. `/private/tmp/t3b-operations-docs.log`, `t3b-gate.log`, `t3b-gate-c.log` |
+| 독립 소스 검토 | 지적 반영 | 별도 code-reviewer 세션이 늦은 재방문 수령의 과거 만료·중지 후 새 동의 양식·적격 필터 전 100개 제한·UUID DB500을 지적했고 수정분을 재검토해 남은 소스 지적 없음. LSP/AST 도구는 이 세션에 없었으므로 도구 검토 승인을 꾸미지 않았다. fresh typecheck/build/통합 시험과 별도 근거다 |
+| Git 커밋 | BLOCKED | 코드 staging 성공 뒤 `git commit --file /private/tmp/t3b-feature-commit-message.txt`가 shared Git `index.lock` 생성 Operation not permitted로 끝났다. 변경은 미커밋 상태로 보존했고 push/stash/rebase는 하지 않았다. 전체 파일 목록은 HANDOFF 11절 |
+| 배포·설치본·실제 입력 | NOT_RUN | 결정 A. 운영/시연 모두 변경 배포 안 함. 관리자/점주 실제 브라우저 입력, 고객/직원 휴대전화 종단 흐름, 두 variant 설치·TalkBack, screenshot 비교는 실행 안 함 |
+
+새 PG 시험은 5명 대 상한 2·동일 계정 첫 수령 8개(1발급/7재생)·실제 잠금 대기를 확인한 점포 숨김/발급 중지 경합·이미 발급한 쿠폰의 상한 후 사용·실제 수령→방문 취소→새 방문→재수령·수령/취소 경합·되돌리기 10분 창·조기 사용·만료·직원 본인 사용·카운터와 비무효 행 수 일치·고객/사용/무효 처리자 삭제 가명화·실제 원가/만료 fixture·늦은 재방문 수령·terms UPDATE/DELETE guard·과거 중지 혜택 비용 보존을 확인한다. bigint 경로와 KST 적격·금액 있는 동의 안내는 순수 규칙 시험, 고객 비용 비노출은 직렬화/소스/파서 시험으로 확인한다. 기존 캠페인/방문 회귀는 전체 PG 시험에 포함됐다.
+
+**바꾼 기존 단언과 이유.**
+
+| 파일 | 바뀐 단언·이유 |
+| --- | --- |
+| `apps/api/src/admin-store-go-live.postgres.integration.ts` | 감사 CHECK 개수 17→19, 두 혜택 action 허용 단언·시험명: 새 migration이 이전 17개를 보존하고 두 개만 더함 |
+| `apps/api/src/migrate.test.ts` | 기존 SET LOCAL 5초 검사 목록·시험명에 0069 추가: 새 SQL도 운영 잠금 대기를 제한해야 함 |
+| `apps/mobile/src/screens/merchant-detail/index.test.ts` | focus cleanup의 정확한 소스 단언에 `setBenefitBusy(false)` 추가: 화면을 떠날 때 수령 버튼도 풀림 |
+| `apps/mobile/src/screens/play/play-content.test.ts` | "일곱 번째를 버리고 첫 여섯 개" 단언을 고정 날짜의 여섯 실제/서로 다른 점포 단언으로 변경: 제품은 KST 날짜별 회전이며 10월 9일 전환 때 기존 기대가 실패함. 제품 로직은 바꾸지 않음 |
+| `tests/site/merchant-copy-no-newcomer.test.mjs` | 기존 소스 검사 목록/필수 대상에 새 API·웹·모바일 혜택 파일을 추가: 앱 기록을 생애 처음 방문으로 과장하지 않는 문구 계약을 동일하게 적용 |
+
+단순화: 기존 동의·권한·쿠폰·QR·거래 패턴 재사용, 새 의존성 없음, 방문 확정 거래 변경 없음. 남은 위험/후속: 실제 설치본·현장 수용, Chrome 환경 재검증, 지정 스키마에 없는 undo 재생 감사(두 번째 요청은 COUPON_NOT_REDEEMED), T3 PR 3 결과/설문과 PR 4 파일럿 안내물.
 
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 

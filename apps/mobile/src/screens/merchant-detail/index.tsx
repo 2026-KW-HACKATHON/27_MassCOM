@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { useAuthSession } from '@/auth/auth-provider';
+import { BadgeApiError, createBadgeApiClient, type CampaignBenefit } from '@/gamification/badge-api';
+import { couponStatusLabel } from '@/gamification/badge-rules';
 import { recommendMerchant } from '@/friends/recommend-share';
 import { fetchCollectiblePreview, type CollectiblePreview, type CollectiblePreviewGoal } from '@/merchant/collectible-preview-api';
 import { sendDiscoveryDetailView } from '@/merchant/discovery-detail-view';
@@ -40,9 +42,13 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const router=useRouter();
   const ds=useRealDetailStyles();
   const api=useMemo(()=>createDiscoveryApiClient({apiUrl,credential,onSessionInvalid}),[apiUrl,credential,onSessionInvalid]);
+  const benefitApi=useMemo(()=>credential?createBadgeApiClient({apiUrl,credential,onSessionInvalid}):null,[apiUrl,credential,onSessionInvalid]);
   const studioApi=useMemo(()=>credential?createStudioApiClient({apiUrl,credential,onSessionInvalid}):null,[apiUrl,credential,onSessionInvalid]);
   const [merchant,setMerchant]=useState<MerchantDetail|null>(null);
   const [preview,setPreview]=useState<CollectiblePreview|null>(null);
+  const [benefit,setBenefit]=useState<CampaignBenefit|null>(null);
+  const [benefitError,setBenefitError]=useState<string|null>(null);
+  const [benefitBusy,setBenefitBusy]=useState(false);
   const [loading,setLoading]=useState(true);
   const [refreshing,setRefreshing]=useState(false);
   const foreground=useAppForeground();
@@ -58,13 +64,17 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
       const detail=await api.merchant(merchantId);
       if(current!==generation.current)return;
       setMerchant(detail);setError(null);
+      if(benefitApi&&detail.campaign?.state==='ACTIVE') void benefitApi.getCampaignBenefits()
+        .then(items=>{if(current===generation.current){setBenefit(items.find(item=>item.campaignId===detail.campaign?.id)??null);setBenefitError(null);}})
+        .catch(()=>{if(current===generation.current){setBenefit(null);setBenefitError('혜택 상태를 확인하지 못했어요. 다시 새로고침해 주세요.');}});
+      else {setBenefit(null);setBenefitError(null);}
       void sendDiscoveryDetailView(api,merchantId,detailViewSource(from),()=>Crypto.randomUUID()).catch(()=>undefined);
       if(detail.campaign?.state==='ACTIVE')void fetchCollectiblePreview(apiUrl,merchantId).then(value=>{if(current===generation.current)setPreview(value);}).catch(()=>{if(current===generation.current)setPreview(null);});
       else setPreview(null);
     } catch(cause) {if(current===generation.current){if(cause instanceof DiscoveryApiError&&cause.status===404)setMerchant(null);setError(cause instanceof DiscoveryApiError&&cause.status===404?'이 가게는 게시되지 않았거나 찾을 수 없습니다.':'최신 가게 정보를 가져오지 못했습니다.');}}
     finally {if(current===generation.current){setLoading(false);setRefreshing(false);}}
-  },[api,apiUrl,merchantId,from]);
-  useFocusEffect(useCallback(()=>{if(!foreground)return;void refresh();return()=>{generation.current++;goalGeneration.current++;setGoalBusy(false);};},[refresh,foreground]));
+  },[api,benefitApi,apiUrl,merchantId,from]);
+  useFocusEffect(useCallback(()=>{if(!foreground)return;void refresh();return()=>{generation.current++;goalGeneration.current++;setGoalBusy(false);setBenefitBusy(false);};},[refresh,foreground]));
   if(loading&&!merchant)return <Frame><StateScene kind="loading" title="실제 가게 정보 확인 중"/></Frame>;
   if(error&&!merchant)return <Frame><StateScene kind="error" title="가게 정보를 표시할 수 없습니다" body={error} action={{label:'다시 확인',onPress:()=>{void refresh();}}}/></Frame>;
   if(!merchant)return <Frame><StateScene kind="empty" title="가게 정보 없음"/></Frame>;
@@ -80,6 +90,21 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
   const coinNow=coinAvailability(campaign);
   const purposeBlock=campaign?campaignPurposeBlock(campaign.purpose):undefined;
   const source=detailViewSource(from);
+  const claimBenefit=async()=>{
+    if(!benefitApi||!benefit||benefit.state!=='CLAIMABLE'||benefitBusy)return;
+    const current=generation.current;
+    setBenefitBusy(true);setBenefitError(null);
+    try {
+      const result=await benefitApi.claimCampaignBenefit(benefit.benefitId);
+      if(current===generation.current)setBenefit({...benefit,state:'OWNED',coupon:result.coupon});
+      void benefitApi.getCampaignBenefits().then(items=>{if(current===generation.current)setBenefit(items.find(item=>item.benefitId===benefit.benefitId)??null);}).catch(()=>undefined);
+    } catch(cause) {
+      if(current!==generation.current)return;
+      setBenefitError(cause instanceof BadgeApiError&&cause.code==='CAP_REACHED'?'모두 소진':
+        cause instanceof BadgeApiError&&cause.code==='BENEFIT_PAUSED'?'혜택 제공이 잠시 멈췄어요.':'혜택을 받지 못했어요. 다시 시도해 주세요.');
+      void benefitApi.getCampaignBenefits().then(items=>{if(current===generation.current)setBenefit(items.find(item=>item.benefitId===benefit.benefitId)??null);}).catch(()=>undefined);
+    } finally {if(current===generation.current)setBenefitBusy(false);}
+  };
   const saveGoal=async(targetVisitCount:1|3|5)=>{
     if(!studioApi||!campaign||campaign.state!=='ACTIVE'||campaign.rewardAvailability!=='AVAILABLE'||!preview?.publicationId||preview.campaignId!==campaign.id||!preview.goals.some(goal=>goal.visitCount===targetVisitCount))return;
     const current=++goalGeneration.current;setGoalBusy(true);setGoalMessage(null);
@@ -122,6 +147,13 @@ function MerchantDetailContent({merchantId,apiUrl,from,credential,accountId,onSe
         {preview?.goals.length?<Text style={ds.muted}>AI 생성 수집품 그림 · 실제 가게 사진과 다릅니다</Text>:null}
         <Link href="/collection" asChild><Pressable accessibilityRole="button" style={ds.action}><Text style={ds.actionText}>내 방문과 수집품 확인</Text></Pressable></Link>
       </FloatingCard>
+      {campaign&&benefit?<FloatingCard><Text accessibilityRole="header" style={ds.section}>{benefit.title}</Text>
+        {benefit.detail?<Text style={ds.body}>{benefit.detail}</Text>:null}
+        <Text style={ds.muted}>{benefit.state==='CAP_REACHED'?'모두 소진':benefit.state==='CLAIMABLE'?'받을 수 있음':`내 쿠폰 · ${couponStatusLabel(benefit.coupon!.status)}`}</Text>
+        {benefit.state==='CLAIMABLE'?<Pressable accessibilityRole="button" accessibilityState={{disabled:benefitBusy}} disabled={benefitBusy} onPress={()=>{void claimBenefit();}} style={ds.action}><Text style={ds.actionText}>{benefitBusy?'확인 중…':'혜택 받기'}</Text></Pressable>:null}
+        {benefit.state==='OWNED'?<Link href="/collection" asChild><Pressable accessibilityRole="button" style={ds.action}><Text style={ds.actionText}>내 쿠폰 보기</Text></Pressable></Link>:null}
+      </FloatingCard>:null}
+      {benefitError?<Text accessibilityRole="alert" style={ds.muted}>{benefitError}</Text>:null}
       <FloatingCard><Text accessibilityRole="header" style={ds.section}>방문 인정 조건</Text><Text style={ds.muted}>코인은 방문이 인정될 때 받아요.</Text>
         {visitConditions(merchant).map((condition,index)=><Text key={condition.key} style={ds.body}>{`${index+1}. ${condition.text} ${conditionSourceLabel(condition.source)}`}</Text>)}
       </FloatingCard>

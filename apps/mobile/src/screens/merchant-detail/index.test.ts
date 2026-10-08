@@ -30,7 +30,15 @@ test('open state can separately show last-order closure without a closed-shop la
 });
 
 test('leaving during goal save releases the disabled button while stale save completions stay fenced',()=>{
-  assert.match(source,/useFocusEffect\(useCallback\(\(\)=>\{if\(!foreground\)return;void refresh\(\);return\(\)=>\{generation\.current\+\+;goalGeneration\.current\+\+;setGoalBusy\(false\);\}/);
+  assert.match(source,/useFocusEffect\(useCallback\(\(\)=>\{if\(!foreground\)return;void refresh\(\);return\(\)=>\{generation\.current\+\+;goalGeneration\.current\+\+;setGoalBusy\(false\);setBenefitBusy\(false\);\}/);
   assert.match(source,/\[refresh,foreground\]\)/);
   assert.match(source,/finally\{if\(goalGeneration\.current===current\)setGoalBusy\(false\);\}/);
+});
+
+test('campaign benefit appears only from an account-backed response and claims through its own endpoint',()=>{
+  assert.match(source,/credential\?createBadgeApiClient/);
+  assert.match(source,/items\.find\(item=>item\.campaignId===detail\.campaign\?\.id\)/);
+  assert.match(source,/benefitApi\.claimCampaignBenefit\(benefit\.benefitId\)/);
+  for(const copy of ['혜택 받기','받을 수 있음','모두 소진','내 쿠폰 보기']) assert.match(source,new RegExp(copy));
+  assert.doesNotMatch(source,/unitExtraCostWon|maxUses|issuedCount/);
 });

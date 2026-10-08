@@ -6,6 +6,7 @@ import { ConsentError } from '../account-consent.js';
 import { AuthSessionError } from '../auth-session.js';
 import { BadgeRewardError } from '../badge-rewards.js';
 import { CampaignEnrollmentError } from '../campaign-enrollment.js';
+import { CampaignBenefitError } from '../campaign-benefits.js';
 import { ClaimSlotError } from '../claim-slot-service.js';
 import { CoinEconomyError } from '../coin-economy.js';
 import { CollectibleProjectError } from '../collectible-project.js';
@@ -112,6 +113,14 @@ export function respondWithError(response: ServerResponse, error: unknown): void
   }
   if (error instanceof BadgeRewardError) {
     sendJson(response, statusForBadgeReward(error.code), { code: error.code });
+    return;
+  }
+  if (error instanceof CampaignBenefitError) {
+    const status = error.code === 'ACCOUNT_DELETED' ? 410
+      : error.code === 'ADMIN_FORBIDDEN' || error.code === 'OWNER_FORBIDDEN' || error.code === 'BENEFIT_NOT_ELIGIBLE' ? 403
+      : error.code === 'CAMPAIGN_NOT_FOUND' || error.code === 'BENEFIT_NOT_FOUND' ? 404
+      : error.code === 'ADMIN_INVALID_INPUT' || error.code === 'ADMIN_DOCUMENT_REF_INVALID' ? 400 : 409;
+    sendJson(response, status, { code: error.code });
     return;
   }
   if (error instanceof ReversalError) {
