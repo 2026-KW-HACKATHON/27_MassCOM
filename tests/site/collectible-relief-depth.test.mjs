@@ -149,6 +149,8 @@ const recordingCanvasDom = () => {
         if (key in target) return target[key];
         if (key === 'drawImage') return (...args) => { draws.push(args); calls.push(['drawImage', args]); };
         if (key === 'translate') return (...args) => { calls.push(['translate', args]); };
+        if (key === 'beginPath' || key === 'closePath') return () => { calls.push([key]); };
+        if (key === 'moveTo' || key === 'lineTo') return (...args) => { calls.push([key, args]); };
         if (key === 'getImageData' || key === 'createImageData') return (x, y, width = element.width, height = element.height) => ({ data: new Uint8ClampedArray(width * height * 4), width, height });
         if (key === 'createLinearGradient' || key === 'createRadialGradient' || key === 'createPattern') return () => ({ addColorStop() {} });
         if (key === 'measureText') return () => ({ width: 10 });
@@ -159,6 +161,17 @@ const recordingCanvasDom = () => {
     return element;
   };
   return { ...dom, draws, calls };
+};
+
+const recordedPaths = (calls) => {
+  const paths = [];
+  let path = [];
+  for (const [method, args] of calls) {
+    if (method === 'beginPath') path = [];
+    if (method === 'moveTo' || method === 'lineTo') path.push(args);
+    if (method === 'closePath') { paths.push(path); path = []; }
+  }
+  return paths;
 };
 
 test('published renderer samples angle frames with the same effective animation used for volume', async () => {
@@ -185,15 +198,31 @@ test('web volume side slices offset to opposite sides for positive and negative 
     const canvas = dom.document.createElement('canvas');
     canvas.width = canvas.height = 208;
     await renderPublishedCollectible(canvas, snapshot, { angle: 35 });
+    const positivePaths = recordedPaths(dom.calls);
+    const positiveQuads = positivePaths.filter(path => path.length === 4);
+    const positiveSpans = positiveQuads.map(path => Math.abs(path[0][0] - path[3][0]));
     const positiveOffsets = dom.calls.filter(([method, args]) => method === 'translate' && args[1] === 0).map(([, args]) => args[0]);
-    assert.ok(Math.max(...positiveOffsets) > 0 && Math.min(...positiveOffsets) < 0, `positive angle should draw depth slices around the face: ${positiveOffsets.join(',')}`);
     assert.ok(positiveOffsets.at(-1) < 0, `positive angle face offset should be negative: ${positiveOffsets.at(-1)}`);
+    assert.ok(dom.calls.filter(([method]) => method === 'lineTo' || method === 'moveTo').length > 40, 'positive angle should still draw a swept side outline');
+    assert.ok(positiveSpans.length > 0 && positiveSpans.every(span => span > .5), `positive angle should draw nonzero side depth: ${positiveSpans.join(',')}`);
+    positiveQuads.forEach((path, index) => assert.ok(Math.abs(positiveSpans[index] - Math.abs(path[1][0] - path[2][0])) < 1e-6, `positive side quad ${index} should have equal depth at both ends`));
 
     dom.calls.length = 0;
     await renderPublishedCollectible(canvas, snapshot, { angle: -35 });
+    const negativePaths = recordedPaths(dom.calls);
+    const negativeQuads = negativePaths.filter(path => path.length === 4);
+    const negativeSpans = negativeQuads.map(path => Math.abs(path[0][0] - path[3][0]));
     const negativeOffsets = dom.calls.filter(([method, args]) => method === 'translate' && args[1] === 0).map(([, args]) => args[0]);
-    assert.ok(Math.max(...negativeOffsets) > 0 && Math.min(...negativeOffsets) < 0, `negative angle should keep the same absolute slice span: ${negativeOffsets.join(',')}`);
     assert.ok(negativeOffsets.at(-1) > 0, `negative angle face offset should be positive: ${negativeOffsets.at(-1)}`);
-    assert.equal(Math.ceil(Math.max(...positiveOffsets) - Math.min(...positiveOffsets)), Math.ceil(Math.max(...negativeOffsets) - Math.min(...negativeOffsets)), 'positive and negative angles should keep the same absolute depth span');
+    assert.ok(dom.calls.filter(([method]) => method === 'lineTo' || method === 'moveTo').length > 40, 'negative angle should still draw a swept side outline');
+    assert.equal(negativeSpans.length, positiveSpans.length, 'opposite angles should draw the same number of side quads');
+    negativeQuads.forEach((path, index) => assert.ok(Math.abs(negativeSpans[index] - Math.abs(path[1][0] - path[2][0])) < 1e-6, `negative side quad ${index} should have equal depth at both ends`));
+    positiveSpans.forEach((span, index) => assert.ok(Math.abs(span - negativeSpans[index]) < 1e-6, `side quad ${index} should keep equal depth: ${span} vs ${negativeSpans[index]}`));
+    // Path 0 is the blurred fill cap; path 1 is the swept volume's back cap.
+    const positiveCap = positivePaths[1], negativeCap = negativePaths[1];
+    assert.equal(positiveCap.length, negativeCap.length);
+    positiveCap.forEach(([x], index) => assert.ok(Math.abs(x - negativeCap[index][0] - positiveSpans[0]) < 1e-6, `back cap ${index} should mirror by the side depth`));
+    assert.ok(Math.abs(positiveCap[0][0] - Math.max(positiveQuads[0][0][0], positiveQuads[0][3][0])) < 1e-6, 'positive back cap should join the first side quad');
+    assert.ok(Math.abs(negativeCap[0][0] - Math.min(negativeQuads[0][0][0], negativeQuads[0][3][0])) < 1e-6, 'negative back cap should join the first side quad');
   } finally { dom.restore(); }
 });

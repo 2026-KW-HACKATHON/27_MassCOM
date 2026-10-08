@@ -1,0 +1,61 @@
+{
+  "date": "2026-10-09",
+  "source": "local synthetic merchant browser; production renderer",
+  "captures": [
+    {
+      "file": "01-prism-thick-48.jpg",
+      "bytes": 75609,
+      "sha256": "f2f54913a43f132836bd517f751b280b5487f3fb2cf7c321e7d45fff38dda9bd"
+    },
+    {
+      "file": "02-prism-thin-4.jpg",
+      "bytes": 68676,
+      "sha256": "9c2ae5a98bda2deb59d5a91811103abc72d1585fab71a7902f468a2b633fdfb3"
+    },
+    {
+      "file": "03-shapes-grades-front.jpg",
+      "bytes": 124211,
+      "sha256": "d00a99a108a4204590e8b289ef399e9e956c600dbf72fdcc262435ea16c37012"
+    },
+    {
+      "file": "04-shapes-grades-back.jpg",
+      "bytes": 128093,
+      "sha256": "6b86ad00dc468d18c5e717a7ea74b4a2fbb26d161939253f6041a94e240e8b0c"
+    },
+    {
+      "file": "05-glass-front-mask.jpg",
+      "bytes": 113159,
+      "sha256": "316d3bc9fa691b39e9fa89e3d1087728cc503396559f7fb433c7e2ec7a54c609"
+    },
+    {
+      "file": "06-brush-hardness-workspace.jpg",
+      "bytes": 71152,
+      "sha256": "f6a0282e91305e51157b363e103b6813916e80a962ae366663cb0a16da873e09"
+    },
+    {
+      "file": "07-silver-rim-no-default-stickers.jpg",
+      "bytes": 73949,
+      "sha256": "b7c452e93306ec904226b0f0498ac1ca8c9b7dde219ff374727ef80a1e407030"
+    },
+    {
+      "file": "08-prism-aura-controls.jpg",
+      "bytes": 64656,
+      "sha256": "8e5ed7d17eb4efd0329badbab19990b2f2761e2546ee1272c69f6febd697a276"
+    },
+    {
+      "file": "09-separate-rotation-motion.jpg",
+      "bytes": 77467,
+      "sha256": "efca1b7cfee9ab4373bbe12df1aa86eee073333a951501a7c1f0f41e9fbf84d1"
+    },
+    {
+      "file": "10-prism-rotation-paused.jpg",
+      "bytes": 69054,
+      "sha256": "ec252bb8366d4d1c47a10b30cec704d7730b44fa974dda064c4d41b68275b5ea"
+    },
+    {
+      "file": "11-continuous-edge-90.jpg",
+      "bytes": 115643,
+      "sha256": "4a958eb5b1bf8fbe365f4706287cfa3e59618e2468f2809ada25e79f8e07ffcf"
+    }
+  ]
+}

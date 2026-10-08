@@ -1,18 +1,36 @@
 # HANDOFF
 
+**2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 (미커밋)**
+
+- 위치: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`. PR #430 반영 main `a1a3eef3` 병합의 충돌 파일을 수정 중이며 Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지 및 접근성 이름을 함께 보존한다.
+- README·PROJECT_STATE의 현재 전체 합계는 사용자 요청대로 `__API__`·`__MOB__`를 유지한다. 이번 병합의 모바일 대체 단위 2148/2148와 typecheck·lint·운영 제출 준비·접근성·CI 연결 103개 파일은 PASS, `npm test`는 tsx IPC `EPERM`으로 BLOCKED다. 아래 PR #429와 Issue #412 수치는 각각 이전 작업의 기록이다. 이번 작업에서는 파일만 수정하며 Git add·commit·stash·merge·rebase·push와 배포·실기는 실행하지 않는다.
+
+**앞선 PR #429 CI 수정 전달 (미커밋)**
+
+- 당시 위치: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `6231def8`, 열린 [PR #429](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/429), 당시 기준 main `a8ed0dd1`. 당시 사용자 직접 지시에 따라 staging·commit·stash·merge·rebase·push를 하지 않았다.
+- Flame `useAnimatedProps` 안의 imported helper 호출을 같은 SVG 수식으로 인라인했다. 기존 crash guard assertion은 그대로이고, 실제 callback 경로/불투명도와 helper의 일치를 시험1건 추가했다. 결정은 D-102로 정정했다. 회전/움직임 분리·Flame·옆면·실버 림·기본 스티커 제거는 유지한다.
+- 추가 수정: 기록한 polygon 좌표의 0이 아닌 동일·대칭 깊이와 cap/옆면 연결을 복원했고 PR의 새 assertion도 보존했다. 모바일·웹은 저장 순서의 활성 Flame 오라 앞4개만 렌더링하며 뒤의 효과는 저장본을 바꾸지 않고 무시한다. 64개 상한 회귀와 기존 worklet 안전성 PASS.
+- 최신 모바일2113/2113·typecheck·lint·접근성 PASS, 사이트330건 중324 PASS·6 소켓 BLOCKED, 최종 깊이11/11 PASS. 로그는 `/tmp/pr429-extra-*.log`, 상세는 [TEST_STATUS](TEST_STATUS.md)의 같은 PR 추가 수정 표를 따른다. 아래 API·release·CI·운영 문서 결과는 이전 수정 기록이다.
+- 이전 검증: 모바일2112/2112·typecheck·lint, API typecheck, 접근성·release 지갑 표면·CI 연결·운영 문서 검사 PASS. API625건 중457 PASS·168 소켓 BLOCKED, 사이트331건 중325 PASS·6 소켓 BLOCKED. 상세 명령·사이트 결과·로그는 [TEST_STATUS](TEST_STATUS.md)의 PR #429 CI 수정 절을 따른다. `npm test`의 tsx IPC 차단은 `node --import tsx --test 'src/**/*.test.ts'`로 우회했다.
+- 다음 명령: 소켓을 허용하는 CI에서 `npm test --prefix apps/api`와 `node --test tests/site/collectible-*.test.mjs tests/site/merchant-copy-no-newcomer.test.mjs`를 재실행한다. 운영 배포·Android 실제 설치본은 NOT_RUN이며 이번 수정만으로 실기 안전성을 확정하지 않는다.
+
+**2026-10-09 새 점주 제작기 후속 전달**
+
+브랜치 `feat/collectible-reeded-edge`는 #418 병합 뒤 최신 main `a8ed0dd1` 기준의 별도 PR이다. main squash 트리와 앞서 통합한 `f2a29439`는 동일하다. 실버 테두리·기본 스티커 제거, 큰 편집 화면·붓 경도/확대, 흑백·회전/움직임 분리·단일 재생, 강도별 재질·Flame 오라, 고정 후면 실시간 조명과 얇은 옆면 홈을 담는다. [캡처·저장·성능](evidence/coin-edge-2026-10-09/README.md), [시험](TEST_STATUS.md)을 확인한다. 로컬 합성 게시·재읽기와 독립 리뷰를 수행했다. 최악 조건 새 각도50ms 초과는 남아 있어 추가 성능 검수가 필요하다. 운영 배포·Android 실기는 실행하지 않았다. 기존API/웹 동시 배포·1/3/5 보상 조건을 유지한다.
+
 기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 ## 1. 기준 커밋과 작업 위치
 
-- 기준 main 커밋 SHA: `a8ed0dd1`(PR #418·#424·#426 반영, 현재 병합 대상). 작업 위치는 `.worktrees/integ`, 브랜치 `integ/t3b-t4-t8`, HEAD `ac285339`다. T3 혜택·T4 코스·T8 시연 점포를 보존하며 `origin/main` 병합 충돌을 작업 트리 파일에서 해결했다. Git index는 아직 미병합 상태다.
+- 기준 main 커밋 SHA: `a1a3eef3`(PR #430 반영, 현재 병합 대상). 작업 위치는 `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`이다. T3 혜택·T4 코스·T8 시연 점포와 PR #429 코인 제작기 변경을 보존하며 병합 충돌을 작업 트리 파일에서 해결한다. Git index는 아직 미병합 상태다. 앞선 별도 `integ/t3b-t4-t8`의 HEAD `ac285339`과 main `a8ed0dd1` 병합 검증은 [TEST_STATUS](TEST_STATUS.md)의 이력이다.
 - 이 세션은 파일 수정만 수행한다. add·commit·stash·rebase·push·merge는 실행하지 않고 Git index의 미병합 상태를 유지한다. 제출 기준선은 마감 시점의 실제 최신 main과 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)·`SUBMISSION_EVIDENCE.json`에서 별도 확정한다.
 
 ## 2. 현재 통합 상태
 
-- T8 시연 seed는 공공자료 점포 30곳과 A/B/C를 합쳐 33곳이다. 운영 DB·서버·설치본·공개 `/play/`에는 배포하지 않았다. 이 병합 작업에서 Git add/commit/push/merge는 실행하지 않는다.
+- T8 시연 seed는 공공자료 점포 30곳과 A/B/C를 합쳐 33곳이다. 공공자료 점포 이름이 보이는 곳의 개별 고지와 접근성 이름을 유지한다. 운영 DB·서버·설치본·공개 `/play/`에는 배포하지 않았다. 이 병합 작업에서 Git add/commit/push/merge는 실행하지 않는다.
 - T8 리뷰 고지 후속 이력: 원래 브랜치 `feat/showcase-wolgye-stores`, HEAD `29afaf46` 위 미커밋 변경의 기록. 고객 가게명 카드·행·지도·추천·홈과 수집/보상/공유의 공공자료 시연 고지를 공통 ID helper로 표시하고 접근성 이름에도 넣었다. 모바일 동일 glob Node loader 2105/2105·typecheck·lint·접근성·지갑 표면 PASS. `npm test` 자체는 sandbox IPC `EPERM`으로 BLOCKED(동일 시험의 Node loader 결과와 구분). 정확한 범위·제한은 [TEST_STATUS](TEST_STATUS.md)의 T8 리뷰 절에 있다. 사용자 지시로 add/commit/stash/rebase/push 없음. 다음 검토 명령은 `git diff --check`, `git diff`; 배포·새 설치본 검증은 하지 않았다.
 - T8 원래 기준 main: `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`(PR #425 병합). 작업 브랜치 `feat/showcase-wolgye-stores`는 이 기준에서 시작해 월계동 공공 상가정보 점포 30곳을 showcase seed에 더했다([D-100](DECISIONS.md)). 현재 통합 상태는 1절의 브랜치와 worktree에서 확인한다.
 - T3 혜택([D-094](DECISIONS.md), migration 0069)과 T4 코스([D-093](DECISIONS.md), migration 0072)를 함께 보존한다. 적용 순서는 0068 → 0069 → 0072 → 0075다. 0072의 감사 CHECK는 먼저 적용된 목적·혜택 action과 코스 action을 모두 허용해야 한다.
-- PR #424의 NFT 시리즈 발행 상한 해제([D-095](DECISIONS.md), migration 0075)는 병합 대상 main `a8ed0dd1`에 포함된다. 기존 Base Sepolia 상한 1 실증 시리즈는 운영 발행에 쓰지 않는다. 운영·시연 배포와 설치본은 이 통합으로 바뀌지 않았다.
+- PR #424의 NFT 시리즈 발행 상한 해제([D-095](DECISIONS.md), migration 0075)는 병합 대상 main `a1a3eef3`에 포함된다. 기존 Base Sepolia 상한 1 실증 시리즈는 운영 발행에 쓰지 않는다. 운영·시연 배포와 설치본은 이 통합으로 바뀌지 않았다.
 - 현재 PR·CI 상태는 이번 문서 작업에서 조회하지 않았다. 재개할 때 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 확인한다.
 - 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 앞서 기록한 `687427c2` 운영 배포와 test.13·Preview 22·`/play/` 증거는 2026-10-08 당시 공개 상태를 가리킨다([3절](#3-공개-서버와-설치본)). 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
 - PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`), PR #425(T3 점주 목적형 캠페인, main `055d0523`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
@@ -42,7 +60,7 @@
 
 ## 4. 이번 작업의 범위
 
-- 현재 범위는 T3 PR 2의 캠페인 혜택/쿠폰(D-094, 0069), T4 A의 가게 사이 코스(D-093, 0072), T8 시연 점포(D-100)를 main의 PR #418 점주 제작기(D-096~D-099)와 함께 보존하는 충돌 해결이다. 관리자 API·웹, 고객 가게 상세, 감사 시험과 문서에서 두 기능을 함께 유지한다. 0072 감사 CHECK가 앞선 0069 혜택 action을 누락하지 않도록 검사한다.
+- 현재 범위는 PR #429의 회전·움직임 분리, Flame 오라·옆면(D-102)와 main의 T3 PR 2 캠페인 혜택/쿠폰(D-094, 0069), T4 A 가게 사이 코스(D-093, 0072), T8 시연 점포(D-100), PR #418 점주 제작기(D-096~D-099)를 함께 보존하는 충돌 해결이다. 관리자 API·웹, 고객 가게 상세, 감사 시험과 문서에서 두 기능을 함께 유지한다. 0072 감사 CHECK가 앞선 0069 혜택 action을 누락하지 않도록 검사한다.
 - **T8 월계동 시연 점포(2026-10-09):** 원본 487곳에서 월계역 기준 가장 가까운 30곳을 선택했다. 중분류별 6/6/6/5/3/2/2곳, 거리 약 28–823m다. `is_demo = true`와 안정 ID `showcase-wolgye-<SEMAS id>`로 표시하며, `merchant.story`에 D-100의 고정 비참여 고지를 넣는다. 영업시간·메뉴·가격·점포 소개 등 확인되지 않은 정보는 만들지 않았고 코인 그림은 기존 A/B/C 템플릿을 분류별로 재사용한다. 출처는 소상공인시장진흥공단 상가(상권)정보 2026-06-30이며, 영업 여부와 LOCALDATA는 교차 확인하지 않았다.
 - PR #418은 AI 초안·준비 이미지 스튜디오, 4단계 사진 편집, 1/3/5 고정 방문 보상, 프리즘을 포함한 네 기본 등급, v2 고정 뒷면 12종과 회전 속도·두께 48을 더했다. 점주 캠페인 연장 경로는 제거됐고 관리자 연장은 유지한다. 기존 발행본은 보존한다([D-096~D-099](DECISIONS.md), [화면·검증](evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)).
 
@@ -90,7 +108,9 @@
 
 ## 9. 자동 검증 상태
 
-- 현재 main `a8ed0dd1` 병합 충돌 파일 검증: API typecheck `PASS`; 모바일 typecheck·lint와 대체 단위 2132/2132 `PASS`. `npm test`는 tsx IPC `listen EPERM`으로 `BLOCKED`다. 공공자료 고지·고정 뒷면 대상 26/26, CI 연결 101개 파일, 운영 제출 준비(migration 72건), 모바일 접근성은 `PASS`. 소켓 없는 API 직접 확인에서 점주 혜택 상태·AI art 권한과 점주 연장 POST 35회의 제한기 이전 404가 `PASS`다. 지정 사이트 선택 350건 중 344 PASS / 6 소켓 환경 BLOCKED(18건 묶음 12/18, 나머지 332/332 PASS)이고 혜택 웹 6/6, 제작기·현황·문구 67/67은 별도 PASS다. 추적 파일 충돌 표시 검사·점주 JavaScript 문법·`git diff --check` PASS. README·PROJECT_STATE의 전체 API·모바일 합계는 이번 병합의 전체 통과 수치가 없어 요청대로 문자 그대로 `__API__`·`__MOB__`로 둔다. 자세한 명령은 [TEST_STATUS](TEST_STATUS.md) 최상단에 있다. API 전체 단위·build, PostgreSQL 통합·실기·배포는 현재 `NOT_RUN`이다.
+- 현재 PR #429와 main `a1a3eef3` 병합의 지정 검사: 모바일 typecheck·lint·동일 glob Node loader 단위 시험 2148/2148·운영 제출 준비·모바일 접근성·CI 연결 103개 파일 `PASS`, `npm test`는 tsx IPC `EPERM`으로 `BLOCKED`다([TEST_STATUS](TEST_STATUS.md) 최신 항목). 아래 2132/2132·26/26 등의 수치는 앞선 별도 통합 브랜치 결과이며 이번 병합의 전체 통과 수치가 아니다.
+
+- 앞선 별도 통합 브랜치의 main `a8ed0dd1` 병합 충돌 파일 검증: API typecheck `PASS`; 모바일 typecheck·lint와 대체 단위 2132/2132 `PASS`. `npm test`는 tsx IPC `listen EPERM`으로 `BLOCKED`다. 공공자료 고지·고정 뒷면 대상 26/26, CI 연결 101개 파일, 운영 제출 준비(migration 72건), 모바일 접근성은 `PASS`. 소켓 없는 API 직접 확인에서 점주 혜택 상태·AI art 권한과 점주 연장 POST 35회의 제한기 이전 404가 `PASS`다. 지정 사이트 선택 350건 중 344 PASS / 6 소켓 환경 BLOCKED(18건 묶음 12/18, 나머지 332/332 PASS)이고 혜택 웹 6/6, 제작기·현황·문구 67/67은 별도 PASS다. 추적 파일 충돌 표시 검사·점주 JavaScript 문법·`git diff --check` PASS. README·PROJECT_STATE의 당시 전체 API·모바일 합계는 그 병합의 전체 통과 수치가 없어 `__API__`·`__MOB__`로 두었다. 자세한 명령은 [TEST_STATUS](TEST_STATUS.md)의 해당 이력에 있다. API 전체 단위·build, PostgreSQL 통합·실기·배포는 그 검증에서 `NOT_RUN`이었다.
 
 - 앞선 T3·T4·T8 통합(`HEAD 8c0bad5e`) 검증 이력: API typecheck `PASS`; `npm test`는 tsx IPC `EPERM`으로 `BLOCKED`, 대체 전체 단위 실행은 662건 중 488 `PASS` / 174 `FAIL`(모두 socket `listen EPERM`)이다. 모바일 typecheck·lint와 대체 단위 시험 2115/2115 `PASS`. 관리자 웹 혜택·목적·코스 격리 시험 22/22와 CI 연결 95개 파일 `PASS`; `verify_production_web_test.mjs`는 서버 listen 훅에서 멈춰 5초 제한 재실행이 시간 초과돼 환경 `BLOCKED`다. 운영 제출 준비 검사 `PASS`(실제 43 + 29 = 72건), 0072 감사 action 23개 합집합·`NOT VALID` 정적 확인 `PASS`. 이 수치는 PR #418 포함 main 병합 뒤의 전체 결과가 아니다.
 
@@ -144,9 +164,9 @@
 
 ## 12. 다음 실행 명령
 
-1. `git status -sb`와 `git log -1 --oneline`으로 통합 브랜치·HEAD·미병합 파일을 확인한다. add·commit·stash·rebase·push·merge는 이번 작업에서 금지된다.
+1. `git status -sb`와 `git log -1 --oneline`으로 PR #429 브랜치·HEAD·미병합 파일을 확인한다. add·commit·stash·rebase·push·merge는 이번 작업에서 금지된다.
 2. `cd apps/api && npm run typecheck && npm test`; `cd apps/mobile && npm run typecheck && npm run lint` 뒤 모바일 단위 시험을 실행한다. `npm test`가 막히면 `node --import tsx --test 'src/**/*.test.ts'`를 쓴다.
-3. 저장소 루트에서 `node --test tests/site/campaign-purpose-admin.test.mjs tests/site/courses-admin.test.mjs tests/site/verify_production_web_test.mjs`, `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/ci/ci_wiring_test.sh`, `bash tests/bootstrap/verify_operations_docs_test.sh`를 실행한다. README·PROJECT_STATE의 합계 자리표시자는 이번 작업에서 유지한다. 숫자만 바꾸는 운영 문서 변이 검사는 이 상태에서 실패할 수 있음을 별도로 기록한다.
+3. 저장소 루트에서 `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/ci/ci_wiring_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`를 실행한다. README·PROJECT_STATE의 합계 자리표시자는 이번 작업에서 유지한다. 숫자만 바꾸는 운영 문서 변이 검사는 이 상태에서 실패할 수 있음을 별도로 기록한다.
 4. migration 파일 순서와 0072 감사 CHECK의 전체 action을 확인하고 `git diff --check` 및 텍스트 충돌 표시 검사를 한다. PostgreSQL 통합과 실제 기기·브라우저·배포의 실행 여부는 [TEST_STATUS](TEST_STATUS.md)에 구분해서 기록한다.
 
 PR 제목·본문 검사:

@@ -98,6 +98,10 @@ function renderedAccessibleName(path: string, marker: string, bindings: Record<s
 
 test('secondary cards announce the disclosure in explicit accessible names', () => {
   const labels: [string, string, Record<string, unknown>][] = [
+    ['../screens/collection/collectible-detail.tsx', "reverse ? '뒷면' : '앞면'", {
+      merchantId: id, merchantName: name, reverse: false, snapshot: { name: '수집품', gradeName: '금', shape: 'circle', thickness: 48 },
+      shapeName: () => '원형', angle: 0,
+    }],
     ['../screens/home/home-tickets.tsx', 'ticket.merchantId, ticket.merchantName', { ticket: { merchantId: id, merchantName: name, displayName: '수집품' } }],
     ['../screens/collection/collectible-browser.tsx', 'group.merchantId, group.merchantName', { group: { merchantId: id, merchantName: name, artwork: { name: '수집품', gradeName: '금' }, count: 1 } }],
     ['../studio/studio-scene.tsx', 'item.merchantId, item.merchantName', { item: { merchantId: id, merchantName: name, displayName: '수집품' } }],

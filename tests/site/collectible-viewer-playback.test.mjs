@@ -32,6 +32,79 @@ async function open(dom, snapshot) {
   return dom.document.body.children.find((node) => node.tagName?.toLowerCase() === 'dialog');
 }
 
+function installFrameClock(dom, start = 1000) {
+  let now = start, sequence = 0;
+  const frames = new Map();
+  dom.document.defaultView.performance = { now: () => now };
+  dom.document.defaultView.requestAnimationFrame = (handler) => { const id = ++sequence; frames.set(id, handler); return id; };
+  dom.document.defaultView.cancelAnimationFrame = (id) => { frames.delete(id); };
+  return {
+    set hidden(value) { dom.document.hidden = value; },
+    async step(milliseconds) {
+      now += milliseconds;
+      const [id, handler] = frames.entries().next().value ?? [];
+      if (!handler) return false;
+      frames.delete(id);
+      handler(now);
+      await settle(6);
+      return true;
+    },
+    async jump(milliseconds) { now += milliseconds; await settle(1); },
+  };
+}
+
+function instrumentStageFrames(dom) {
+  const frames = [];
+  const originalCreateElement = dom.document.createElement.bind(dom.document);
+  dom.document.createElement = (tag) => {
+    const element = originalCreateElement(tag);
+    if (tag !== 'canvas') return element;
+    const originalGetContext = element.getContext.bind(element);
+    let patched = false;
+    element.getContext = (type) => {
+      const context = originalGetContext(type);
+      if (!patched) {
+        patched = true;
+        const originalClearRect = context.clearRect;
+        const originalScale = context.scale;
+        const originalQuadraticCurveTo = context.quadraticCurveTo;
+        context.clearRect = (...args) => {
+          if (element.classList.contains('collectible-stage')) frames.push({ scales: [], flame: [] });
+          return originalClearRect(...args);
+        };
+        context.scale = (...args) => {
+          if (element.classList.contains('collectible-stage') && frames.length) frames.at(-1).scales.push(args[0]);
+          return originalScale(...args);
+        };
+        context.quadraticCurveTo = (...args) => {
+          if (element.classList.contains('collectible-stage') && frames.length) frames.at(-1).flame.push(args.map(value => Math.round(Number(value) || 0)));
+          return originalQuadraticCurveTo(...args);
+        };
+      }
+      return context;
+    };
+    return element;
+  };
+  return { frames, restore: () => { dom.document.createElement = originalCreateElement; } };
+}
+
+const latestHorizontalScale = (frames) => frames.findLast(frame => frame.scales.length)?.scales.at(-1);
+const latestFlameSignature = (frames) => JSON.stringify(frames.findLast(frame => frame.flame.length)?.flame ?? []);
+const isBackProjection180 = (value) => Math.abs(value - 1) < 1e-12;
+const motionSnapshot = (animation) => ({
+  ...baseSnapshot,
+  gradeId: 'prism',
+  gradeName: '프리즘',
+  shape: 'stamp',
+  thickness: 18,
+  rotationSpeed: 10,
+  animation,
+  motions: [{ type: animation, playback: 'loop' }],
+  backImageDataUrl: tinyPng,
+  effects: [{ type: 'flame', target: 'aura', gradeIds: ['prism'], strength: 100, color: '#5dd8ff', speed: 1 }],
+  living: { dataUrl: tinyPng, count: 8, columns: 4, cellWidth: 32, cellHeight: 32, periodMs: 1000, box: { x: .3, y: .3, w: .4, h: .4 } },
+});
+
 test('loop 모션이 있으면 열자마자 자동재생하고(버튼이 "동작 정지") 수동으로도 쓸 수 있다', async () => {
   const dom = installMiniDom();
   try {
@@ -116,4 +189,106 @@ test('"획득 장면 다시 보기"는 once 모션이 여러 개면 전부 순�
     await settle(4);
     assert.equal(canvas._context.fillStyle, particleAt('sparkles', 19, 0).color, '두 번째 once 모션(sparkles)도 이어서 재생해야 한다(버그였다면 snow 색에서 멈춘다)');
   } finally { dom.restore(); }
+});
+
+for (const animation of ['shine', 'float']) {
+  test(`loop ${animation} 재생은 rotate 템플릿이 아니어도 코인 각도를 전진시킨다`, async () => {
+    const dom = installMiniDom();
+    const clock = installFrameClock(dom);
+    const recorder = instrumentStageFrames(dom);
+    try {
+      await open(dom, motionSnapshot(animation));
+      const initial = latestHorizontalScale(recorder.frames);
+      await clock.step(750);
+      const advanced = latestHorizontalScale(recorder.frames);
+      assert.notEqual(advanced, initial, `${animation} 재생 중에는 카드 모션과 별개로 실제 코인 회전 각도가 바뀌어야 한다`);
+    } finally { recorder.restore(); dom.restore(); }
+  });
+}
+
+for (const animation of ['shine', 'float']) {
+  test(`loop ${animation} 재생 중 수동 회전 슬라이더는 180도 정지 렌더를 유지한다`, async () => {
+    const dom = installMiniDom();
+    const clock = installFrameClock(dom);
+    const recorder = instrumentStageFrames(dom);
+    try {
+      const dialog = await open(dom, motionSnapshot(animation));
+      await clock.jump(1000);
+
+      const rotation = dialog.querySelector('input[aria-label="수집품 회전 각도"]');
+      rotation.value = '180';
+      rotation.dispatchEvent({ type: 'input' });
+      rotation.dispatchEvent({ type: 'change' });
+      await settle(6);
+
+      assert.equal(rotation.value, '180', '재생 중 input 핸들러가 pause() 뒤에도 선택한 슬라이더 값을 보존해야 한다');
+      assert.ok(isBackProjection180(latestHorizontalScale(recorder.frames)), 'change 렌더는 사용자가 고른 180도 후면 투영을 그려야 한다');
+
+      await clock.step(750);
+      assert.equal(rotation.value, '180', 'living 재그리기 뒤에도 슬라이더 값은 180도로 유지돼야 한다');
+      assert.ok(isBackProjection180(latestHorizontalScale(recorder.frames)), 'living 재그리기 뒤에도 실제 렌더는 180도 후면 투영을 유지해야 한다');
+    } finally { recorder.restore(); dom.restore(); }
+  });
+}
+
+test('동작 정지 중 living 루프가 다시 그려도 코인 각도와 flame 시계는 멈춘 채 유지된다', async () => {
+  const dom = installMiniDom();
+  const clock = installFrameClock(dom);
+  const recorder = instrumentStageFrames(dom);
+  try {
+    const dialog = await open(dom, motionSnapshot('shine'));
+    await clock.step(750);
+    const pausedAtScale = latestHorizontalScale(recorder.frames);
+    const pausedAtFlame = latestFlameSignature(recorder.frames);
+
+    findByText(dialog, '동작 정지').dispatchEvent({ type: 'click' });
+    await settle(3);
+    await clock.step(750);
+
+    assert.equal(latestHorizontalScale(recorder.frames), pausedAtScale, '정지 중에는 living 때문에 다시 그려져도 코인 각도가 더 진행되면 안 된다');
+    assert.equal(latestFlameSignature(recorder.frames), pausedAtFlame, '정지 중에는 flame aura의 effectTime도 더 진행되면 안 된다');
+  } finally { recorder.restore(); dom.restore(); }
+});
+
+test('움직임 줄이기 중 다시 그려도 코인 각도와 flame 시계는 정지 프레임으로 유지된다', async () => {
+  const dom = installMiniDom();
+  dom.document.defaultView.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  const clock = installFrameClock(dom);
+  const recorder = instrumentStageFrames(dom);
+  try {
+    const dialog = await open(dom, motionSnapshot('shine'));
+    const stillScale = latestHorizontalScale(recorder.frames);
+    const stillFlame = latestFlameSignature(recorder.frames);
+    const reduceCheckbox = [...dialog.querySelectorAll('input')].find((node) => node.parentElement?.textContent?.includes('움직임 줄이기'));
+
+    await clock.jump(1000);
+    reduceCheckbox.checked = true; reduceCheckbox.dispatchEvent({ type: 'change' });
+    await settle(3);
+
+    assert.equal(latestHorizontalScale(recorder.frames), stillScale, '움직임 줄이기 중에는 시간이 흘러도 코인 각도가 진행되면 안 된다');
+    assert.equal(latestFlameSignature(recorder.frames), stillFlame, '움직임 줄이기 중에는 flame aura도 effectTime 0 정지 프레임을 유지해야 한다');
+  } finally { recorder.restore(); dom.restore(); }
+});
+
+test('숨겨진 탭에서 흐른 시간은 다시 재생할 때 코인 회전에 더하지 않는다', async () => {
+  const dom = installMiniDom();
+  const clock = installFrameClock(dom);
+  const recorder = instrumentStageFrames(dom);
+  try {
+    const dialog = await open(dom, motionSnapshot('shine'));
+    await clock.step(750);
+    clock.hidden = true;
+    for (const handler of dom.document.listeners.get('visibilitychange') ?? []) handler({ type: 'visibilitychange' });
+    const hiddenAtScale = latestHorizontalScale(recorder.frames);
+
+    await clock.jump(5000);
+    clock.hidden = false;
+    for (const handler of dom.document.listeners.get('visibilitychange') ?? []) handler({ type: 'visibilitychange' });
+    findByText(dialog, '동작 재생').dispatchEvent({ type: 'click' });
+    await settle(3);
+    assert.equal(latestHorizontalScale(recorder.frames), hiddenAtScale, '숨겨져 있던 시간만큼 즉시 점프하지 않아야 한다');
+
+    await clock.step(750);
+    assert.notEqual(latestHorizontalScale(recorder.frames), hiddenAtScale, '재개한 뒤의 새 프레임 시간만큼만 회전해야 한다');
+  } finally { recorder.restore(); dom.restore(); }
 });

@@ -1,5 +1,84 @@
 # 테스트 상태
 
+## 2026-10-09 PR #429에 PR #430 반영 main 병합 충돌 해결 (미커밋·미배포)
+
+환경: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`에서 main `a1a3eef3` 병합 중. Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지를 파일 수준에서 보존한다. 사용자 요청에 따라 README·PROJECT_STATE의 현재 전체 API·모바일 합계는 `__API__`·`__MOB__`로 유지한다. 아래 PR #429 및 Issue #412 결과는 각각 이전 브랜치에서 얻은 이력이다.
+
+- `cd apps/mobile && npm run typecheck`: `PASS`(exit 0).
+- `cd apps/mobile && npm run lint`: `PASS`(exit 0, 기존 `src/screens/collection/collectible-aura.test.ts:4`의 미사용 `runInNewContext` 경고 1개, 오류 0개).
+- `cd apps/mobile && npm test`: tsx Unix IPC `listen EPERM`으로 `BLOCKED`. 동일 glob 대체 명령 `node --import tsx --test 'src/**/*.test.ts'`는 **2148/2148 `PASS`**, fail 0·skip 0·exit 0이다.
+- 공공자료 개별 고지·Flame 오라·옆면·움직임 대상 32/32 `PASS`. 공공자료 행의 접근성 이름 assertion은 충돌 해결 전 4 PASS / 1 FAIL, 해결 뒤 PASS였다.
+- `bash tests/bootstrap/operations_submission_readiness_test.sh`, `bash tests/mobile/check_accessibility_semantics_test.sh`: 모두 `PASS`(exit 0).
+- `bash tests/ci/ci_wiring_test.sh`: `PASS`(exit 0, 시험 파일 103개 연결). 검증 로그는 `/tmp/pr429-merge-{typecheck,lint,npm-test,mobile-tests,targeted,disclosure-red,operations,accessibility,ci-wiring}.log`다.
+- API 전체 단위·build, PostgreSQL 통합, Android 두 variant 설치·실기와 운영·시연 배포는 이번 병합에서 `NOT_RUN`이다.
+
+## 2026-10-09 PR #429 CI 수정 (미커밋)
+
+환경: macOS 제한 sandbox, Node v25.9.0, `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `6231def8`. `gh pr view 429`에서 같은 브랜치의 OPEN PR을 확인했다. staging·commit·stash·merge·rebase·push는 실행하지 않았다.
+
+**원인·수정:** `src/ui/components.test.ts`의 "animated style worklets only touch shared values and captured numbers, never imported JS helpers" 시험은 animated style/props에서 Reanimated 이외 import 호출을 금지한다. Flame `useAnimatedProps`가 `collectibleFlamePath()`를 호출해 재현1/1 FAIL이었다. helper에는 이미 `'worklet'`가 있으므로 이 helper의 실기 crash를 재현했다고 기록하지 않는다. 같은 SVG 수식을 callback에 인라인하고 미사용 import만 제거했다. 기존 assertion은 그대로이며 실제 callback의 path/opacity와 helper가 세 모양·여섯 각도에서 같고 빈 tongue가 숨겨짐을 검증하는 시험1건을 추가했다. 수정 후 대상39/39 PASS, 독립 읽기 전용 검토도39/39 PASS. 결정 참조는 D-102로 정정했으며 다른 tracked 참조는 없었다.
+
+**추가 수정(같은 PR, 2026-10-09):**
+- `collectible-relief-depth.test.mjs`는 `origin/main`의 기하학 검증 의도를 새 swept-volume 경로에 맞춰 복원했다. 기록한 사각형 좌표로 양 끝의 깊이가 같고 0이 아닌지, ±35°의 깊이 크기가 같고 뒤쪽 cap이 반대 방향으로 이동하는지, 실제 cap과 옆면이 이어지는지 검증한다. PR이 추가한 drawing-call 수와 앞면 offset assertion은 보존했다. `/tmp`에 복사한 렌더러에서 깊이 붕괴·음수 각도의 절반 깊이·cap 단독 이동을 각각 넣으면 모두 대상 시험이 실패한다(기준선11/11, 각 변이10 PASS·1 FAIL). 실제 파일 복원 후11/11 PASS.
+- 모바일 `flameAuraEffects`와 웹의 같은 선택 함수가 저장 순서의 활성 `flame/aura` 효과 **최대4개**만 렌더링한다. 뒤의 효과는 렌더링에서 결정적으로 무시하며 저장 metadata는 바꾸지 않는다. 웹은 등급 필터 뒤에 같은 상한을 적용한다. 활성/비활성·다른 type/target·64개 중 앞4개 선택·동일 효과64개·입력 보존 단위 시험을 앱/웹에1건씩 추가했고, 기존 웹 gradient 시험도64개가 실제로4개 분량만 그리는지 확인한다. 기존 worklet 안전성 시험과 callback parity 시험을 유지했다. 공통 고객 코드이므로 운영·시연 variant 모두에 적용된다.
+
+**추가 수정의 최신 검증:**
+
+| 명령·대상 | 결과 | 수량·로그·경계 |
+| --- | --- | --- |
+| `cd apps/mobile && npm test` | BLOCKED | tsx Unix IPC 소켓 `listen EPERM`; `/tmp/pr429-extra-mobile-npm.log` |
+| `cd apps/mobile && node --import tsx --test 'src/**/*.test.ts'` | PASS | **2113/2113**, fail0·skip0; worklet 안전성 포함; `/tmp/pr429-extra-mobile-fallback.log` |
+| `cd apps/mobile && npm run typecheck`, `npm run lint` | PASS | `/tmp/pr429-extra-mobile-typecheck.log`, `/tmp/pr429-extra-mobile-lint.log` |
+| `node --test tests/site/collectible-relief-depth.test.mjs tests/site/collectible-*.test.mjs` | BLOCKED 포함 | 소켓 오류 뒤 pending hook으로30초 제한 종료124; `/tmp/pr429-extra-site-requested.log`. 아래 두 그룹으로 전체330건을 끝까지 기록했다 |
+| 소켓 파일4개 `node --test --test-timeout=5000` | BLOCKED 포함 | 11건 중5 PASS·6 BLOCKED(실행기 fail6·skip0·종료1). `collectible-back-assets.test.mjs`1·`collectible-mascot-assets.test.mjs`1·`collectible-viewer.test.mjs`2는 `listen EPERM`, `collectible-qa-fixture.test.mjs`2는 소켓 거절 뒤 before hook timeout; `/tmp/pr429-extra-site-sockets.log` |
+| 나머지 `collectible-*.test.mjs`, `node --test --test-timeout=180000` | PASS | **319/319**, fail0·skip0. 합계 **324 PASS·6 BLOCKED/330**. 이전 아래331건은 `merchant-copy-no-newcomer.test.mjs`2건을 포함했고 이번에는 새 상한 시험1건이 추가됐다; `/tmp/pr429-extra-site-remaining.log` |
+| `node --test tests/site/collectible-relief-depth.test.mjs` | PASS | 마지막 cap 연결 assertion까지11/11; `/tmp/pr429-extra-relief-final.log` |
+| `bash tests/mobile/check_accessibility_semantics_test.sh` | PASS | `/tmp/pr429-extra-accessibility.log` |
+| 웹 aura/renderer `node --check`, `git diff --check` | PASS | 문법·whitespace 오류 없음 |
+| Android 운영·시연 설치본/실기·실측 프레임 성능 | NOT_RUN | Node 소스·기하학 검증과 실제 UI runtime 검증을 구분한다 |
+
+아래는 이전 worklet 수정에서 실행한 검증 기록을 보존한 것이다. 최신 모바일 합계는 위2113건이며 README·PROJECT_STATE에도 같은 값으로 반영했다.
+
+| 명령·대상 | 결과 | 수량·로그·경계 |
+| --- | --- | --- |
+| `cd apps/mobile && npm test` | BLOCKED | tsx가 Unix IPC 소켓을 열 때 `listen EPERM`; `/tmp/pr429-mobile-test.log` |
+| `cd apps/mobile && node --import tsx --test 'src/**/*.test.ts'` | PASS | 2112/2112, fail0·skip0; `/tmp/pr429-mobile-fallback.log` |
+| `cd apps/mobile && npm run typecheck && npm run lint` | PASS | `/tmp/pr429-mobile-typecheck.log`, `/tmp/pr429-mobile-lint.log` |
+| `cd apps/api && npm run typecheck` | PASS | `/tmp/pr429-api-typecheck.log` |
+| `cd apps/api && npm test` | BLOCKED | 같은 tsx IPC 제한; `/tmp/pr429-api-test.log` |
+| `cd apps/api && node --import tsx --test 'src/**/*.test.ts'` | BLOCKED 포함 | 625건 중457 PASS·168 BLOCKED, 실행기에는 fail168·skip0·종료1. HTTP/가짜 서버의 TCP 소켓 `listen EPERM`(127.0.0.1 또는0.0.0.0); `/tmp/pr429-api-fallback.log` |
+| `node --test tests/site/collectible-*.test.mjs tests/site/merchant-copy-no-newcomer.test.mjs` | BLOCKED 포함 | 원명령은 소켓 오류 뒤 pending hook 때문에 정지해 Ctrl-C 종료130. 아래 bounded 분리 실행으로 전체331건을 기록했다; `/tmp/pr429-site.log` |
+| 사이트 소켓 파일4개, `node --test --test-timeout=5000` | BLOCKED 포함 | 11건 중5 PASS·6 BLOCKED, fail6·skip0·종료1. `collectible-back-assets.test.mjs`1건·`collectible-mascot-assets.test.mjs`1건·`collectible-viewer.test.mjs`2건은 `listen EPERM`; `collectible-qa-fixture.test.mjs`2건은 before hook의 소켓 거절 뒤 timeout. `/tmp/pr429-site-sockets.log` |
+| 위4개 외 `collectible-*.test.mjs` + `merchant-copy-no-newcomer.test.mjs`, `node --test --test-timeout=180000` | PASS | 320/320, fail0·skip0·종료0; `/tmp/pr429-site-remaining.log`. 합산325 PASS·6 BLOCKED/331, assertion·skip·기대값 변경 없음 |
+| `bash tests/mobile/check_accessibility_semantics_test.sh` | PASS | `/tmp/pr429-check_accessibility_semantics_test.sh.log` |
+| `bash tests/release/check_release_wallet_surface_test.sh` | PASS | 합성 AAB·소스 변이 검사; `/tmp/pr429-check_release_wallet_surface_test.sh.log` |
+| `bash tests/ci/ci_wiring_test.sh` | PASS | 시험 파일100개 연결; `/tmp/pr429-ci_wiring_test.sh.log` |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS | README·PROJECT_STATE 동일 합계 갱신 후 재실행; `/tmp/pr429-verify_operations_docs_test.sh.log` |
+| `git diff --check` | PASS | whitespace 오류 없음 |
+| Android 운영·시연 설치본/실기·배포 | NOT_RUN | 공통 Flame 코드 수정은 두 variant에 적용되나 이번 Node 검사로 실제 설치본·UI runtime 검증을 대신하지 않는다 |
+
+소켓 최소 재현과 해소 조건은 [BLOCKERS](BLOCKERS.md#pr-429-로컬-검증-환경-차단-2026-10-09)에 분리했다. `/tmp` 로그는 로컬 세션 증거이며 저장소에 포함하지 않는다. 소켓을 허용하는 CI에서 API·사이트 원명령을 다시 실행해야 한다. 회전/움직임 분리·Flame 오라·옆면 홈·실버 림·기본 스티커 제거 의도와 저장 계약은 유지한다.
+
+## 2026-10-09 새 점주 제작기 후속 (별도 PR)
+
+#418이 병합돼 브랜치 `feat/collectible-reeded-edge`는 최신 main `a8ed0dd1` 기준이다. main squash 트리와 이미 검증한 `f2a29439` 트리의 byte 동일성을 확인했고 코드 변경 없이 병합했다. #418을 직접 갱신하지 않고 이번 편집기·회전·재질·오라·옆면 변경을 별도 PR로 전달한다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 사이트 전체 회귀 | PASS | LF QA 체크아웃에서 macOS Chrome 전용 `verify_showcase_theme_test.mjs`를 제외한668/668 PASS. 최신 main 시험의 Windows URL·경로 정규화 오류를 수정해 단독2/2 PASS, 기존 의미·대상 assertion은 유지했다. 최종 명령 종료0·fail0·skip0. |
+| API 계약 | PASS | collectible-project-rules30/30, API typecheck. 새 Flame speed·강도·대상과 흑백·붓 경도 계약 포함 |
+| 앱 전체·계약·렌더 순수 로직 | PASS(로컬) | 최종 LF 체크아웃에서 앱 전체2112/2112·fail0·skip0. 모바일 typecheck·변경 파일 ESLint, worklet 계약·오라·회전54/54. 새 효과 metadata 파서·획득 snapshot 보존·75ms/도 실제 재생·얇은 측면 포함 |
+| 독립 읽기 전용 리뷰 | PASS | 저장/게시 경합·이미지 비동기 가드·256→512 표시/드래그 좌표·geometry·등급별 림 확인. 관련8파일204/204, 새P1/P2 차단0 |
+| 사진 픽셀 최적화 | PASS | 원본/흑백/음각/양각×4각도×2재질32개 전후 결과 byte 동일 |
+| 실제 브라우저·로컬 게시 | PASS(합성 fixture) | 버전6 게시·재읽기, 기본 스티커0, 양각·2배·Flame 보존. 실버 테두리·큰 붓 화면·오라·회전/움직임 분리 캡처. 투명 영역13,608표본·옆면 누출0 |
+| 성능 | 개선·남은 한계 | 동일 최대효과 프로젝트72각도에서640/512 중앙88.5ms·P95 103ms, 재생256/256 중앙63.6ms·P95 90.3ms. 새 각도 계산은 여전히50ms 초과. 기기 전체 FPS 보장 아님 |
+| PostgreSQL·전체 CI | DB PASS / 수정 후 CI 대기 | 첫 CI에서 API625/625·typecheck·build, PostgreSQL544건 중541 PASS·0 FAIL·기존3 SKIP. 앱 worklet 계약1건 실패를 수정한 뒤 로컬 전체2112/2112 확인. 새 CI에서 번들까지 재확인한다. Windows 로컬 PostgreSQL은 NOT_RUN. |
+| 운영·실계정·실기 | NOT_RUN | 운영 배포·실계정 점포 게시·Android 실기 재생은 이번 후속에서 실행하지 않았다. API/웹 동시 배포 조건 유지 |
+
+[캡처·재현·저장 크기·성능 원자료](evidence/coin-edge-2026-10-09/README.md). 새 의존성·이번 후속의 새 migration·등급별 Flame 이미지 추가 없음. 이미지 생성 모델은 이번 후속에서 호출하지 않았다. 기존 확정 뒷면12종을 재사용한다.
+
+첫 [PR #429 CI](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/37810012488)는 앱2111건 중2110 PASS·1 FAIL이었다. `useAnimatedProps`의 imported helper 호출 금지 계약을 유지해 불꽃 SVG 경로를 명시적 worklet의 `useDerivedValue`에서 미리 계산하고, props는 공유 경로 문자열만 읽도록 수정했다. helper의 worklet 선언 유지도 회귀로 검사한다. 해당 수정의 별도 읽기 전용 리뷰 APPROVE·새P1/P2 없음·39/39 PASS. 최종 로컬 전체2112/2112 결과와 첫 CI의 실패를 구분한다. 최종 CI 상태는 [PR #429](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/429)의 Checks에서 확인한다.
+
 ## 2026-10-09 PR #418 포함 main 병합 충돌 파일 검증 (Issue #412 통합, 미배포)
 
 환경: macOS 제한된 작업 트리 `.worktrees/integ`, 브랜치 `integ/t3b-t4-t8`, HEAD `ac285339`에서 main `a8ed0dd1` 병합 중. Git index는 미병합 상태이고 파일만 수정했다. 아래 결과는 이번 병합 파일에 대한 검증이며, README·PROJECT_STATE의 전체 API·모바일 합계 `__API__`·`__MOB__`를 확정하는 전체 통과 수치는 아니다.

@@ -170,8 +170,8 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   if (merchantArtUrl) panels[0].append(action('가게 그림으로 시작', 'art-photo', undefined, 'ce-text-button'));
   panels[0].append(shapes, photoStage, disclosure('사진 규격·보관 안내', photoHelp));
   const style = field('style'); style.hidden = true;
-  const styles = section('표현 스타일', '원본 색, 음각, 양각을 직접 비교해 보세요.');
-  styles.append(style, choices('style', [['original', '원본'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style'), field('relief'), view('fixed-back'));
+  const styles = section('표현 스타일', '원본·흑백·음각·양각을 고르고 움직임을 더해 보세요.');
+  styles.append(style, choices('style', [['original', '원본'], ['monochrome', '흑백'], ['incised', '음각'], ['raised', '양각']], '표현 스타일', 'style'), field('relief'), view('fixed-back'));
   panels[2].append(styles);
   const thickness = field('thickness'), thicknessReset = container.querySelector('[data-action="thickness-reset"]'), thicknessHelp = thicknessReset.nextElementSibling;
   const thicknessCustom = node('p', 'ce-thickness-custom'); thicknessCustom.hidden = true;
@@ -217,8 +217,8 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
     const tile = toolIcon(node('button', 'ce-choice'), path, label); tile.type = 'button'; tile.dataset.editPanel = name; tile.setAttribute('aria-pressed', 'false'); editorTabs.append(tile);
   }
   const brushPanel = section('사진 도구');
-  const brushSize = field('brush-size'), brushColor = field('brush-color');
-  brushPanel.append(brush, node('p', 'ce-help', '도구를 고른 뒤 사진 위를 드래그하세요.'), brushSize, brushColor);
+  const brushSize = field('brush-size'), brushColor = field('brush-color'), brushHardness = field('brush-hardness');
+  brushPanel.append(brush, node('p', 'ce-help', '도구를 고른 뒤 사진 위를 드래그하세요. 경도가 낮으면 붓 끝이 부드러워져요.'), brushSize, brushHardness, brushColor);
   const FILTERS = [['merge', '색 합치기'], ['simplify', '단순화'], ['cartoon', '만화풍']];
   const filterSliders = new Map(FILTERS.map(([name]) => [name, container.querySelector(`[data-edit="${name}"]`).closest('label')]));
   const filterTiles = node('div', 'ce-choice-grid ce-filter-choices'); filterTiles.setAttribute('role', 'group'); filterTiles.setAttribute('aria-label', '필터 선택');
@@ -244,16 +244,26 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   const syncEditTools = () => {
     for (const [name, panel] of editOptions) panel.hidden = name !== editPanel;
     for (const tile of editorTabs.children) tile.setAttribute('aria-pressed', String(tile.dataset.editPanel === editPanel && (editPanel !== 'brush' || tile.dataset.id === control('brush').value)));
-    brushSize.hidden = control('brush').value === 'move'; brushColor.hidden = control('brush').value !== 'color';
+    brushSize.hidden = control('brush').value === 'move'; brushHardness.hidden = brushSize.hidden; brushColor.hidden = control('brush').value !== 'color';
   };
   const selectEditPanel = name => { if (!editOptions.has(name)) return; editPanel = name; syncEditTools(); };
   editorTabs.addEventListener('click', event => { const tile = event.target.closest('[data-edit-panel]'); if (tile) { if (tile.dataset.editPanel === 'brush') control('brush').value = tile.dataset.id; selectEditPanel(tile.dataset.editPanel); } });
-  photoEditor.replaceChildren(tools, editorTabs, cropSlots[1], ...editOptions.values()); panels[1].append(photoEditor);
-  const materials = section('재질 효과', '지금 보는 등급 한 개와 효과를 적용할 여러 등급은 따로 골라요.');
+  const editorZoomRow = node('div', 'ce-editor-zoom'), editorZoomLabel = node('label', 'ce-field', '편집 화면 확대 '), editorZoomValue = node('output', '', '100%'), editorZoom = node('input');
+  editorZoom.type = 'range'; editorZoom.min = '1'; editorZoom.max = '3'; editorZoom.step = '.5'; editorZoom.value = '1'; editorZoom.dataset.control = 'editor-zoom'; editorZoom.setAttribute('aria-label', '편집 화면 확대'); editorZoomLabel.append(editorZoomValue, editorZoom);
+  const editorZoomReset = action('화면 맞춤', 'editor-zoom-reset');
+  const syncEditorZoom = () => { photoEditor.style.setProperty('--ce-editor-zoom', editorZoom.value); editorZoomValue.textContent = `${Math.round(Number(editorZoom.value) * 100)}%`; };
+  editorZoom.addEventListener('input', syncEditorZoom); editorZoomReset.addEventListener('click', () => { editorZoom.value = '1'; syncEditorZoom(); cropSlots[1].scrollTop = cropSlots[1].scrollLeft = 0; });
+  editorZoomRow.append(editorZoomLabel, editorZoomReset);
+  photoEditor.replaceChildren(tools, editorTabs, editorZoomRow, cropSlots[1], ...editOptions.values()); panels[1].append(photoEditor);
+  const materials = section('재질 효과', '효과를 누르면 지금 보는 등급에 바로 적용돼요. 같은 효과를 다시 누르면 꺼져요.');
   const effectControls = field('effect-type').parentElement; field('effect-type').hidden = true; field('effect-target').hidden = true;
-  const materialsChoices = choices('effect-type', Object.entries(effectNames), '재질 효과', 'material');
+  const materialsChoices = choices('effect-type', Object.entries(effectNames).filter(([type]) => type !== 'flame'), '재질 효과', 'material');
+  for (const tile of materialsChoices.children) tile.dataset.action = 'material-toggle';
   const targets = node('div', 'ce-target-chips'); targets.dataset.view = 'effect-target-chips'; targets.setAttribute('role', 'group'); targets.setAttribute('aria-label', '새 효과의 적용 대상');
   materials.append(materialsChoices, node('h4', '', '효과 대상'), targets, effectControls, container.querySelector('[data-action="effect-add"]'), view('effects'));
+  const aura = section('오라', '코인 바깥에서 이글이글 올라오는 불꽃이에요. 색·강도·속도를 정하고 재생해 보세요.');
+  const auraToggle = action('불꽃 오라', 'aura-toggle'); auraToggle.setAttribute('aria-pressed', 'false');
+  const auras = node('div'); auras.dataset.view = 'auras'; aura.append(auraToggle, auras);
   gradeContent.replaceChildren(); gradesDetail.remove();
   // Issue #284 WP3: "살아 있는 그림"은 motionDetail과 별개인 <details>라 여기서 명시적으로 모아 주지 않으면
   // 아래 controls.replaceChildren(...panels)가 panels에 없는 요소를 전부 버려 고아가 된다(브러시 대상 select가
@@ -271,11 +281,15 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   identity.append(disclosure('시즌 설정', seasonTiles('theme'), field('theme'), container.querySelector('[data-action="copy"]')));
   const result = section('완성된 코인', '코인을 저장하거나 방문 보상으로 게시하세요.');
   const resultSummary = node('p', 'ce-result-summary'); resultSummary.dataset.view = 'result-summary'; result.append(resultSummary, action('코인 이미지 저장', 'export-image', undefined, 'ce-export-button'));
-  const extras = section('애니메이션과 효과', '움직임·재질 효과·목소리를 고르고 바로 재생해 보세요.');
+  const rotation = section('회전', '회전 속도와 시작 각도를 정하세요. 움직임은 옆 탭에서 따로 고를 수 있어요.');
+  const rotationTemplates = node('div', 'ce-templates'), rotationGrades = node('div'), rotationSettings = node('div');
+  rotationTemplates.dataset.view = 'rotation-templates'; rotationGrades.dataset.view = 'rotation-grades'; rotationSettings.dataset.view = 'rotation-settings';
+  rotation.append(field('rotation-speed'), container.querySelector('[data-action="angle-reset"]'), rotationTemplates, rotationGrades, rotationSettings);
+  const extras = section('애니메이션과 효과', '회전·움직임·재질 효과·오라를 고르고 바로 재생해 보세요.');
   extras.classList.add('ce-animation-panel');
   const extraTabs = node('div', 'ce-extra-tabs'); extraTabs.setAttribute('role', 'group'); extraTabs.setAttribute('aria-label', '추가 꾸미기');
-  const extraOptions = new Map([['motion', motionDetail], ['materials', materials], ['voice', voice], ['living', livingDetail], ['story', story]]);
-  for (const [name, label] of [['motion', '움직임'], ['materials', '재질 효과'], ['voice', '목소리'], ['living', '살아 있는 그림'], ['story', '가게 이야기']]) {
+  const extraOptions = new Map([['rotation', rotation], ['motion', motionDetail], ['materials', materials], ['aura', aura], ['voice', voice], ['living', livingDetail], ['story', story]]);
+  for (const [name, label] of [['rotation', '회전'], ['motion', '움직임'], ['materials', '재질 효과'], ['aura', '오라'], ['voice', '목소리'], ['living', '살아 있는 그림'], ['story', '가게 이야기']]) {
     const tile = node('button', '', label); tile.type = 'button'; tile.dataset.extraPanel = name; tile.setAttribute('aria-pressed', 'false'); extraTabs.append(tile);
     const panel = extraOptions.get(name); panel.dataset.extraOptions = name; panel.hidden = true;
   }
@@ -285,16 +299,16 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   };
   extraTabs.addEventListener('click', event => { const tile = event.target.closest('[data-extra-panel]'); if (tile) selectExtraPanel(tile.dataset.extraPanel); });
   extras.append(extraTabs, ...extraOptions.values());
-  selectExtraPanel('motion');
-  panels[2].prepend(extras);
+  selectExtraPanel('rotation');
+  panels[2].insertBefore(extras, styles.nextElementSibling);
   panels[3].append(result, rewards);
   controls.replaceChildren(...panels);
   const preview = grid.querySelector('.ce-preview'), publishBox = grid.querySelector('.ce-publish');
   const previewActions = field('angle').nextElementSibling;
   const iconize = (button, icon) => { button.setAttribute('aria-label', button.textContent); button.textContent = icon; button.classList.add('ce-icon-button'); return button; };
-  const play = iconize(previewActions.querySelector('[data-action="play"]'), '▶'), pause = iconize(previewActions.querySelector('[data-action="pause"]'), '❚❚');
-  const previewRow = node('div', 'ce-preview-row'); previewRow.append(play, pause, field('angle'));
-  const previewMore = disclosure('미리보기 옵션', previewActions.querySelector('[data-action="replay"]'), previewActions.querySelector('[data-action="angle-reset"]'), control('reduce-motion').closest('label'), view('preview-caption'), view('greeting'));
+  const play = iconize(previewActions.querySelector('[data-action="play"]'), '▶');
+  const previewRow = node('div', 'ce-preview-row'); previewRow.append(play, field('angle'));
+  const previewMore = disclosure('미리보기 옵션', previewActions.querySelector('[data-action="replay"]'), control('reduce-motion').closest('label'), view('preview-caption'), view('greeting'));
   previewMore.classList.add('ce-preview-more');
   previewActions.remove();
   // 예전 게시 묶음(.ce-publish)은 해체한다: 초안·게시 중지·삭제는 ⋯ 메뉴로, 게시는 하단 바로, 안내·배포 상태는 4단계 게시 정보로, 저장 상태는 알림 줄로 옮긴다. 복제하지 않고 옮기기만 한다.
@@ -303,7 +317,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   rewardsBody.append(publishBox.querySelector('.ce-help'), view('distribution'));
   const statusLine = node('div', 'ce-status-line'); statusLine.append(view('save-state'));
   publishBox.remove();
-  preview.append(previewRow, field('rotation-speed'), previewMore);
+  preview.append(previewRow, previewMore);
   publish.textContent = '게시하기';
   const previous = action('← 이전', 'previous-step'), nextButton = action('다음 →', 'next-step', undefined, 'primary'), fullPreview = action('전체 미리보기', 'replay', undefined, 'ce-full-preview');
   const footer = node('div', 'ce-stage-footer'); footer.append(previous, fullPreview, nextButton, publish);
@@ -326,7 +340,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   workspace.append(bottom);
   // 알림은 작업 영역에서는 하단 바 위 알림 줄, 스튜디오 홈에서는 홈 맨 위에 둔다(showStep·showHome이 옮긴다).
   const noticeView = view('notice');
-  let targetSignature = '';
+  let targetSignature = '', effectsProject = null, previewGrade = 'bronze';
   function syncChoices() {
     for (const tile of container.querySelectorAll('[data-action="choice"]')) tile.setAttribute('aria-pressed', String(control(tile.dataset.controlFor)?.value === tile.dataset.id));
     const targetControl = control('effect-target'), signature = [...targetControl.options].map(item => `${item.value}:${item.textContent}`).join('|');
@@ -335,6 +349,8 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
       for (const item of targetControl.options) { const tile = action(item.textContent, 'choice', item.value, 'ce-target-chip'); tile.dataset.controlFor = 'effect-target'; targets.append(tile); }
     }
     for (const tile of targets.children) tile.setAttribute('aria-pressed', String(tile.dataset.id === targetControl.value));
+    for (const tile of materialsChoices.children) tile.setAttribute('aria-pressed', String(effectsProject?.effects.some(effect => effect.type === tile.dataset.id && effect.target === targetControl.value && effect.gradeIds.includes(previewGrade)) ?? false));
+    auraToggle.setAttribute('aria-pressed', String(effectsProject?.effects.some(effect => effect.type === 'flame' && effect.gradeIds.includes(previewGrade)) ?? false));
     const thicknessValue = Number(control('thickness').value);
     thicknessCustom.hidden = thicknessPresetLabel(thicknessValue) !== null; thicknessCustom.textContent = `직접 지정 ${thicknessValue}`;
     syncEditTools();
@@ -396,6 +412,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
   return {
     showStep, showHome, renderProjects, setBusy, selectEditPanel, selectExtraPanel, dispose: restoreBackground,
     setPreviewGrade(id, name) {
+      previewGrade = id; syncChoices();
       const tint = collectibleMetalColors(id, name)[1];
       workspace.dataset.previewGrade = ['bronze', 'silver', 'gold', 'prism'].find(grade => collectibleMetalColors(grade)[1] === tint) || 'bronze';
     },
@@ -423,6 +440,7 @@ export function createCollectibleStudio(container, { effectNames, listen, mercha
       if (value === 'custom') custom.focus();
     },
     sync(project, { dirty, wrapper } = {}) {
+      effectsProject = project;
       syncFilter(project);
       const color = project.baseColor.toLowerCase();
       for (const [name, value] of [['hex', color], ['r', parseInt(color.slice(1, 3), 16)], ['g', parseInt(color.slice(3, 5), 16)], ['b', parseInt(color.slice(5, 7), 16)]]) {

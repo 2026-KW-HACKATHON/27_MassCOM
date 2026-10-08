@@ -1,5 +1,9 @@
 # BLOCKERS
 
+## PR #429 로컬 검증 환경 차단 (2026-10-09)
+
+macOS 제한 sandbox에서 Unix IPC와 TCP localhost 소켓 `listen`이 `EPERM`으로 거절된다. 모바일/API `npm test`의 tsx IPC 오류가 반복됐으며 Node loader 직접 실행으로 IPC만 우회했다. API HTTP/가짜 서버168건과 사이트의 localhost HTTP 시험은 여전히 BLOCKED다. 시험 assertion·skip·기대값은 바꾸지 않았다. 최소 재현: `node -e 'require("node:net").createServer().listen(0, "127.0.0.1")'`. 로그: `/tmp/pr429-mobile-test.log`, `/tmp/pr429-api-test.log`, `/tmp/pr429-api-fallback.log`, `/tmp/pr429-site-sockets.log`. 해소 조건: 소켓을 허용하는 CI에서 원명령 재실행. 이 차단은 운영 서버 장애나 이번 수정의 제품 결함으로 판정하지 않는다.
+
 | ID | 원인 | 영향 | 해소 조건 | 상태 |
 | --- | --- | --- | --- | --- |
 | B-001 | D-004~D-008 승인 기록 없음 | 앱·계약·보상·배포 스캐폴드 확정 불가 | 2026-09-18 사용자 승인 기록 | `RESOLVED` |
