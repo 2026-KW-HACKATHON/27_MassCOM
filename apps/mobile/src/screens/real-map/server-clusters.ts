@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import type { Bounds, MapCluster, MerchantSummary } from '../../../../api/src/real-world-contract';
 import type { MapMarker } from '@/maps/tmap-view';
 
@@ -21,9 +22,9 @@ export function markersForDiscovery(clusters:readonly MapCluster[],merchants:rea
   for(const cluster of clusters){
     const loaded=merchants.filter(m=>m.position&&contains(cluster.bounds,m.position));
     loaded.forEach(m=>represented.add(m.id));
-    if(cluster.count===1&&loaded.length===1){const m=loaded[0]!;markers.push({id:m.id,latitude:m.position!.latitude,longitude:m.position!.longitude,title:m.name,state:visited.has(m.id)?'visited':'unvisited'});}
+    if(cluster.count===1&&loaded.length===1){const m=loaded[0]!;markers.push({id:m.id,latitude:m.position!.latitude,longitude:m.position!.longitude,title:publicDataDemoStoreName(m.id, m.name),state:visited.has(m.id)?'visited':'unvisited'});}
     else markers.push({id:clusterMarkerId(cluster.id),latitude:cluster.position.latitude,longitude:cluster.position.longitude,title:`전체 ${cluster.count}곳`,state:'external',count:cluster.count});
   }
-  for(const m of merchants){if(represented.has(m.id)||!m.position)continue;markers.push({id:m.id,latitude:m.position.latitude,longitude:m.position.longitude,title:m.name,state:visited.has(m.id)?'visited':'unvisited'});}
+  for(const m of merchants){if(represented.has(m.id)||!m.position)continue;markers.push({id:m.id,latitude:m.position.latitude,longitude:m.position.longitude,title:publicDataDemoStoreName(m.id, m.name),state:visited.has(m.id)?'visited':'unvisited'});}
   return markers;
 }

@@ -1,28 +1,6 @@
 # AI 사용 기록
 
-## 2026-10-09 PR #418 리뷰 지적 수정 (직접 요청, 미커밋)
-
-사용자의 이번 직접 요청으로 Codex가 `feat/merchant-dual-studio` 작업 트리에서 리뷰 지적 1~10의 코드·시험·문서를 수정했다. 기존 임시 모델 운용 정책에 대한 이번 작업 범위의 직접 요청을 근거로 실행했다. API·웹 편집기·불필요한 v1 자산/로컬 QA 경로·기존 모바일 시험의 결정적 시간 입력을 bounded native 서브에이전트로 나눴다. API·모바일·사이트 및 전용 scratch PostgreSQL 검증 결과는 [TEST_STATUS](TEST_STATUS.md)에 따로 기록한다. 실제 이미지 생성·과금·배포·운영 DB 접속·기기 검수는 수행하지 않았다. staging·commit·stash·rebase·push는 오케스트레이터 몫으로 남겼다.
-
-## 2026-10-09 PR #424 검토 지적 수정
-
-- 사용자의 이번 Codex 작업 지시에 따라 코드·시험·문서 지적 8개를 고쳤다. 메인 세션은 Worker 오류 분류·회귀 시험·검증·PR 본문 갱신을, executor 서브에이전트는 문서와 Foundry 시험을 각각 맡았다. code-reviewer는 구현과 다른 세션에서 Worker·계약 시험 변경을 읽고 차단 결함을 찾지 않았다. 현재 세션은 2026-10-08의 일반 Codex 중지 기록을 상시 정책 변경으로 해석하지 않는다.
-- 검증: API 615/615, Worker 85/85(새 3개)·대상 41/41, API·Worker·모바일 typecheck PASS, `bash scripts/forge.sh test` 10/10(fuzz 128회), 운영 제출 준비·운영 문서·bootstrap·CI 연결 PASS, gate는 기본 locale에서 기존 Bash 변수 파싱 오류 뒤 `LC_ALL=C`로 PASS. 새 시험은 수정 전 2개 실패하고 수정 뒤 통과했다. PostgreSQL·Anvil 통합과 실제 배포·설치본 검증은 NOT_RUN(오케스트레이터 범위).
-- 사용자가 금지한 staging·commit·stash·rebase·push는 실행하지 않았다. 수량 상한 재도입·새 통제·새 의존성·운영 키·운영 DB 변경은 없다.
-
-## 2026-10-08 — 재생 회전·속도 조절 후속 직접 요청 (PR #418)
-
-소유자가 같은 제작기의 재생 회전·속도 조절과 PR 수정을 직접 요청했다. Codex가 웹 미리보기 시계·속도 UI·저장 렌더링을 구현하고 native 서브에이전트에 API/앱의 선택 속도 계약과 회귀를 나눴다. 다른 읽기 전용 세션의 검토에서 정지 뒷면 스티커 드래그 검사를 고쳤다. 실제 브라우저 조작과 격리 합성 점주 게시, 단위·타입·lint 시험을 수행했다. 추가 직접 요청에 따라 이름·애니메이션의 단계 이동과 굵은 제목·두께48도 구현했다. API/앱 경계와 웹 회귀는 독립 담당이 검증했고 별도 읽기 전용 리뷰가 찾은 빈 이름 저장·녹음 단계 조건도 수정했다. 이번 후속에는 이미지 생성·추가 의존성·실제 과금·운영 배포가 없다. [캡처·시험·계약](evidence/rotation-playback-2026-10-08/README.md).
-
-## 2026-10-08 — 프리즘 색감·네 등급 발행·용량 후속 (PR #418)
-
-Codex가 기본4등급 및 활성 특수등급 발행, API완성자료검증·customsnapshot 보존, 프리즘의 공간/각도별 금속색과 테두리, v2WebP 카탈로그를 반영했다. built-in image_gen.imagegen으로 기존 프리즘 음각 후면3장을 색상 편집했다. 전체 프롬프트와 원본 위치는 [생성 기록](evidence/prism-collectibles-2026-10-08/prompts.json), 기존 sharp는 창작 편집 없이512px WebP quality80 인코딩에만 사용했다. 네 기본등급 및 확장·용량·브라우저 재현과 별도 읽기전용 리뷰를 수행했다. Android번들 내보내기에서 v2후면12장 포함·v1원본0장 포함을 해시로 검증한다. 실제 운영 배포·Android실기는 별도다.
-
-### 앞선 자동 방문 보상·회전 깊이 구현 이력
-
-2026-10-08 앞선 요청에서는 Codex가 고정 1/3/5 방문 보상과 회전 깊이를 구현했다. API·점주 운영 UI·회귀 시험을 bounded native 서브에이전트로 나누고 별도 읽기 전용 리뷰에서 발견한 relief=0 칠하기 오류를 고쳤다. 사용자의 기존 그림으로 실제 브라우저에서 음각·양각·자동 회전을 조작하고 저장본 재읽기 비교를 남겼다. 이 앞선 작업에서는 새 이미지 생성 모델을 호출하지 않았다. 저장 형식은 기존 앱 호환의 각도 스프라이트와 동작 JSON을 유지한다. [프레임 크기·캡처·검수](evidence/fixed-visit-relief-2026-10-08/README.md). 운영 배포나 Android 실기 재생 검증을 뜻하지 않는다.
-
-## 한눈에 보기 (2026-10-08 기준)
+## 한눈에 보기 (2026-10-09 기준)
 
 같은 점주 제작기 후속 직접 요청으로 Codex가 방문 보상 중심 화면·4단계 사진 편집·화살표 실행 취소·RGB/HEX 배경과 등급별 음각·양각을 구현했다. 범위가 독립적인 점주 화면·렌더러·회귀 시험을 native 서브에이전트에 나누고 별도 읽기 전용 코드 검토를 받았다. Codex가 사용자가 준 그림을 브라우저 파일 선택창으로 넣고 실제 마우스로 배치·보정한 뒤 코인 결과를 저장했다. 이번 그림은 UI에서 편집했으며 새 이미지 생성 모델을 호출하지 않았다. [편집·PNG·검증 증거](evidence/merchant-photo-editor-2026-10-08/README.md). 운영 계정·실제 배포·과금 성공을 증명하는 작업은 아니다.
 
@@ -37,6 +15,75 @@ Codex가 기본4등급 및 활성 특수등급 발행, API완성자료검증·cu
 - PR 본문의 "독립 리뷰"는 AI 세션의 판정입니다. 사람이 코드를 따로 리뷰하는 일은 남아 있습니다.
 - 사람 검토가 남은 항목: 팀 전원의 핵심 흐름·AI 사용·한계 설명 확인, 사람의 발표 리허설, 최신 APK 실기·TalkBack(`NOT_RUN`), 현장 자료(`NOT_RUN`), 이용약관·개인정보처리방침 법률 검토, 대회 최종 제출 승인입니다.
 
+
+## 2026-10-09 PR #418 포함 main 병합 충돌 해결 (사용자 직접 요청)
+
+이번 사용자 요청으로 Codex와 파일별 native 서브에이전트가 `integ/t3b-t4-t8`에서 PR #418의 점주 제작기·네 등급·고정 뒷면과 T3 혜택·T4 코스·T8 시연 점포를 함께 보존하도록 충돌 파일을 수정하고 검증했다. 과거의 일반 Codex 일시 중지 기록은 이 직접 요청 범위를 금지하지 않는다. Git add·commit·stash·merge·rebase·push, 운영 배포·실기 검증은 수행하지 않았다. API typecheck와 모바일 typecheck·lint·대체 단위 2132/2132, 대상 26/26, 운영 제출 준비·CI 연결·접근성 결과와 `npm test`의 tsx IPC `EPERM` 제한은 [TEST_STATUS](TEST_STATUS.md)에 구분해 기록했다.
+
+## 2026-10-09 PR #418 리뷰 지적 수정 (직접 요청, 미커밋)
+
+사용자의 이번 직접 요청으로 Codex가 `feat/merchant-dual-studio` 작업 트리에서 리뷰 지적 1~10의 코드·시험·문서를 수정했다. 기존 임시 모델 운용 정책에 대한 이번 작업 범위의 직접 요청을 근거로 실행했다. API·웹 편집기·불필요한 v1 자산/로컬 QA 경로·기존 모바일 시험의 결정적 시간 입력을 bounded native 서브에이전트로 나눴다. API·모바일·사이트 및 전용 scratch PostgreSQL 검증 결과는 [TEST_STATUS](TEST_STATUS.md)에 따로 기록한다. 실제 이미지 생성·과금·배포·운영 DB 접속·기기 검수는 수행하지 않았다. staging·commit·stash·rebase·push는 오케스트레이터 몫으로 남겼다.
+
+## 2026-10-09 T3 혜택·T4 코스 통합 (Issue #412)
+
+2026-10-09 T8 병합 문서 정리: 이번 사용자 요청으로 Codex와 문서 담당 native executor가 README·PROJECT_STATE·HANDOFF·TEST_STATUS·AI_USAGE의 합집합 중복과 날짜 순서를 정리했다. DECISIONS의 D-100 위치를 바로잡아 D 번호를 유일한 숫자 순서로 정리했다. API·모바일 합계 자리표시자는 그대로 두고 T8 측정값은 기능 이력으로 옮겼다. 코드 변경·Git add/commit/stash/merge/rebase/push는 실행하지 않았다. 지정 문서·CI·배포 원장 검사 결과는 [TEST_STATUS](TEST_STATUS.md)의 통합 절에 기록했다.
+
+이번 사용자의 명시적인 Codex 요청으로 `integ/t3b-t4-t8`에서 Codex와 네이티브 서브에이전트가 파일별 충돌 해결을 나눠 맡았다. API 관리자 라우트·운영 웹 관리자·모바일 가게 상세와 회귀 시험에서 혜택·코스를 함께 보존하고, migration 0072와 감사 시험을 23개 action 합집합으로 고쳤다. README·PROJECT_STATE·DECISIONS·HANDOFF·TEST_STATUS·AI_USAGE·OPERATIONS_RUNBOOK의 문서 합집합과 운영 제출 준비 검사를 정리했다. 기존 브랜치의 검증 숫자를 이번 통합의 통과 결과로 쓰지 않고 실제 판정을 아래에 기록했다.
+
+현재 확인된 검사는 API typecheck, 모바일 typecheck·lint·대체 단위 2115/2115, 격리 관리자 웹 22/22, CI 연결 95개 파일, 운영 제출 준비 72건, 0072 감사 action 23개 정적 확인이 `PASS`다. API 전체 대체 실행은 662건 중 174건이 socket `listen EPERM`으로 실패했고 원래 `npm test`도 tsx IPC `EPERM`으로 막혔다. `verify_production_web_test.mjs`는 서버 listen 훅에서 멈춰 제한 시간 안에 실행하지 못했다. 실제 PostgreSQL 적용·기기·배포는 `NOT_RUN`이다. 자세한 명령과 판정은 [TEST_STATUS](TEST_STATUS.md)의 통합 항목을 따른다.
+
+사용자가 금지한 add·commit·stash·rebase·push·merge는 실행하지 않는다. 운영 배포·실기 수용은 이번 작업에 포함되지 않는다.
+
+
+## 2026-10-09 — T8 공공자료 시연 점포 카드 고지 리뷰 수정
+
+- 사용자 지정 범위에서 Codex가 공통 ID helper·고객 카드/행/지도/수집/보상 고지·접근성 이름과 회귀 시험을 작성했다. native explore·executor·code-reviewer가 범위 탐색·독립 화면 수정·검토를 보조했다. API/schema·의존성 추가와 Git add/commit/stash/rebase/push는 없다.
+- 검증: 모바일 동일 glob Node loader 2105/2105, typecheck·lint·접근성·지갑 표면 PASS. 정확한 `npm test`는 sandbox tsx IPC `EPERM`으로 시작 전 BLOCKED. Android/TalkBack·브라우저·배포 NOT_RUN. 세부 증거·예외는 `docs/TEST_STATUS.md` T8 절에 있다.
+
+
+## 2026-10-09 PR #424 검토 지적 수정
+
+- 사용자의 이번 Codex 작업 지시에 따라 코드·시험·문서 지적 8개를 고쳤다. 메인 세션은 Worker 오류 분류·회귀 시험·검증·PR 본문 갱신을, executor 서브에이전트는 문서와 Foundry 시험을 각각 맡았다. code-reviewer는 구현과 다른 세션에서 Worker·계약 시험 변경을 읽고 차단 결함을 찾지 않았다. 현재 세션은 2026-10-08의 일반 Codex 중지 기록을 상시 정책 변경으로 해석하지 않는다.
+- 검증: API 615/615, Worker 85/85(새 3개)·대상 41/41, API·Worker·모바일 typecheck PASS, `bash scripts/forge.sh test` 10/10(fuzz 128회), 운영 제출 준비·운영 문서·bootstrap·CI 연결 PASS, gate는 기본 locale에서 기존 Bash 변수 파싱 오류 뒤 `LC_ALL=C`로 PASS. 새 시험은 수정 전 2개 실패하고 수정 뒤 통과했다. PostgreSQL·Anvil 통합과 실제 배포·설치본 검증은 NOT_RUN(오케스트레이터 범위).
+- 사용자가 금지한 staging·commit·stash·rebase·push는 실행하지 않았다. 수량 상한 재도입·새 통제·새 의존성·운영 키·운영 DB 변경은 없다.
+
+## 2026-10-09 캠페인 혜택·추가 원가 상한 (Issue #412 T3 PR 2)
+
+이번 요청에서 소유자가 Codex에 구현을 직접 지시한 범위의 예외로 Codex와 네이티브 서브에이전트를 사용했다. 저장소의 2026-10-08 임시 모델 정책 자체를 바꾸지 않았다. Codex가 라우트·의존성 배선·문서를, executor 세션들이 DB·서비스·쿠폰 수명주기·웹·모바일을 나누어 구현했고 다른 code-reviewer 세션이 읽기 전용 검토를 했다. Claude가 구현·리뷰했다고 기록하지 않는다. AI 공동 작성자 trailer는 넣지 않는다.
+
+소유자가 정한 것은 D·E 범위, migration 0069/D-094 예약, 기존 쿠폰 약속 유지·취소 시 상한 반환·고객 금액 비노출, 배포 금지와 push/stash/rebase 금지다. AI의 구현 선택은 기존 BadgeCoupon/QR 모양 재사용, 금액 문자열, 중지된 과거 혜택의 원가 목록, 늦은 재방문 수령의 유효기간 시작 기준이다([D-094](DECISIONS.md)). 독립 검토가 찾은 늦은 수령 만료·중지 후 새 동의 양식·대상 필터 전 100개 제한·잘못된 UUID 오류를 반영했다. 기존 플레이 시험이 날짜에 따라 실패하던 단언은 고정 날짜의 여섯 점포 검증으로 고쳤다.
+
+실행한 명령과 숫자는 [TEST_STATUS](TEST_STATUS.md) 맨 위가 정본이다. 실제 관리자 브라우저·설치본·휴대전화·두 variant 종단 수용은 NOT_RUN, Chrome 시연 테마 시험은 로컬 SIGABRT로 BLOCKED다. 코드·시험 통과는 사람의 발표·현장 판정·리뷰를 대신하지 않는다.
+
+## 2026-10-09 코스 리뷰 지적 수정 (Issue #412 T4 A)
+
+이번 사용자의 명시적인 Codex 수정 요청으로 브랜치 `feat/cross-store-courses`, HEAD `29644366`에서 권한 재검사·보존 복구·조회 배치·추천 호환·DB 가드·모바일 캐시와 코스 안내를 수정했다. 기본 세션이 통합·문서를 담당하고 executor 세션이 백엔드, migration/보존·시험, 모바일의 범위를 나눠 맡았다. 검증은 [TEST_STATUS](TEST_STATUS.md)와 [코스 증거](evidence/t4-courses-2026-10-08.md)에 실제 실행 결과를 기록한다. Git 쓰기·운영 데이터·배포는 실행하지 않고 후속 커밋은 오케스트레이터가 담당한다.
+
+## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8)
+
+Codex가 선택기·showcase seed·PostgreSQL 시험과 문서를 구현하고 확인했다. Codex native subagents가 저장소 탐색, 데이터 선택기, 모바일 거리 정렬, PostgreSQL 시험을 맡았다. 별도 코드 리뷰 에이전트가 날짜 고정 가드의 누락을 찾아, 선택기가 2026-06-30 이외의 자료를 거부하도록 보강했다. 전체 API·PostgreSQL·모바일 시험, CI 연결·접근성·웹 export·문서 검사와 gate는 PASS다([TEST_STATUS](TEST_STATUS.md)). AI 이미지 생성은 하지 않았고 기존 코인 템플릿을 재사용했다. 웹 export는 테스트 전용 OAuth fixture로 컴파일 경로만 확인했으며 로그인·브라우저 수용은 하지 않았다. 서버 배포·앱 게시·Git 이력 쓰기는 하지 않았다.
+
+## 2026-10-08 — 재생 회전·속도 조절 후속 직접 요청 (PR #418)
+
+소유자가 같은 제작기의 재생 회전·속도 조절과 PR 수정을 직접 요청했다. Codex가 웹 미리보기 시계·속도 UI·저장 렌더링을 구현하고 native 서브에이전트에 API/앱의 선택 속도 계약과 회귀를 나눴다. 다른 읽기 전용 세션의 검토에서 정지 뒷면 스티커 드래그 검사를 고쳤다. 실제 브라우저 조작과 격리 합성 점주 게시, 단위·타입·lint 시험을 수행했다. 추가 직접 요청에 따라 이름·애니메이션의 단계 이동과 굵은 제목·두께48도 구현했다. API/앱 경계와 웹 회귀는 독립 담당이 검증했고 별도 읽기 전용 리뷰가 찾은 빈 이름 저장·녹음 단계 조건도 수정했다. 이번 후속에는 이미지 생성·추가 의존성·실제 과금·운영 배포가 없다. [캡처·시험·계약](evidence/rotation-playback-2026-10-08/README.md).
+
+## 2026-10-08 — 프리즘 색감·네 등급 발행·용량 후속 (PR #418)
+
+Codex가 기본4등급 및 활성 특수등급 발행, API완성자료검증·customsnapshot 보존, 프리즘의 공간/각도별 금속색과 테두리, v2WebP 카탈로그를 반영했다. built-in image_gen.imagegen으로 기존 프리즘 음각 후면3장을 색상 편집했다. 전체 프롬프트와 원본 위치는 [생성 기록](evidence/prism-collectibles-2026-10-08/prompts.json), 기존 sharp는 창작 편집 없이512px WebP quality80 인코딩에만 사용했다. 네 기본등급 및 확장·용량·브라우저 재현과 별도 읽기전용 리뷰를 수행했다. Android번들 내보내기에서 v2후면12장 포함·v1원본0장 포함을 해시로 검증한다. 실제 운영 배포·Android실기는 별도다.
+
+### 앞선 자동 방문 보상·회전 깊이 구현 이력
+
+2026-10-08 앞선 요청에서는 Codex가 고정 1/3/5 방문 보상과 회전 깊이를 구현했다. API·점주 운영 UI·회귀 시험을 bounded native 서브에이전트로 나누고 별도 읽기 전용 리뷰에서 발견한 relief=0 칠하기 오류를 고쳤다. 사용자의 기존 그림으로 실제 브라우저에서 음각·양각·자동 회전을 조작하고 저장본 재읽기 비교를 남겼다. 이 앞선 작업에서는 새 이미지 생성 모델을 호출하지 않았다. 저장 형식은 기존 앱 호환의 각도 스프라이트와 동작 JSON을 유지한다. [프레임 크기·캡처·검수](evidence/fixed-visit-relief-2026-10-08/README.md). 운영 배포나 Android 실기 재생 검증을 뜻하지 않는다.
+
+
+## 2026-10-08 — NFT 시리즈 발행 수량 상한 해제 (D-095)
+
+- Claude Sonnet 5.5가 컨트랙트 `createSeries`의 상한 인자·오류 제거, API 발행 신청의 수량 검사·`CAPACITY_UNAVAILABLE` 제거, migration 0075, 관련 시험(Foundry·API·Worker)과 문서 수정을 구현했다. 소유자가 오프라인 회의의 합의와 "상한을 보존하지 않고 코드를 고친다"는 결정을 지시했다.
+- 검증: `forge test` 8개, API PostgreSQL 통합 524 통과·0 실패·3 건너뜀(건너뛴 3개는 `_merchant_test` DB 전용이라 따로 돌려 4개 통과), Worker Anvil 12/12, Worker PostgreSQL 30/30. 변경 전 커밋 `8841efea`에서도 같은 모바일 15개·Worker 5개·API 단위 1개가 실패한다(Windows 줄바꿈 CRLF·미적용 패치·권한 시험). 독립 코드 검토는 하지 않았다.
+
+## 2026-10-08 가게 사이를 잇는 코스 (Issue #412 T4 A)
+
+이 세션의 명시적인 Codex 구현 지시에 따라 Codex가 T4 A 구현·시험·문서를 맡았다. 기존 "Codex 이미지 생성만" 운용 기록을 전체적으로 변경한 것이 아니라 이번 요청 범위의 실행 기록이다. 기본 세션은 API 경로·deps·추천·문서를 통합했고, 별도 executor 세션은 코스 DB/서비스, 관리자 웹, 모바일을 각각 맡았다. 구현 세션과 다른 code-reviewer 세션이 데이터·동의·중복·시연 경계를 검토했다. 리뷰 지적은 반복 seed, 과거 획득 그림 보존, 실제 직원 수령·취소 시험, 동의 갱신과 조회 재시도에 반영했다. 실제 검사 결과와 미실행 항목은 [TEST_STATUS](TEST_STATUS.md)를 따른다. 운영 데이터·키·배포·push는 하지 않았다.
 ## 2026-10-08 점주 제작기 웹 두 갈래 진입과 가상 점포 QA (Issue #417)
 
 Codex가 소유자 직접 요청에 따라 최신 Windows 클론을 확인하고 점주 제작기 웹 경로를 구현했다. 작업은 AI 초안 생성 후 스튜디오 진입, 준비 이미지로 스튜디오 진입, 최근 등록 점포 사진 가져오기, 웹 큰 사진 입력 정규화, 점주 웹 세션용 AI art API 경로, 최신 사진 정렬, 로컬 가상 점포 QA 스크립트와 증거 문서다. 첨부 기획 문서와 이미지는 참고 자료로만 읽었고, 문서 안 내용을 사용자 지시나 실제 검증 결과로 취급하지 않았다.
@@ -128,11 +175,6 @@ Codex가 사용자가 제공한 배포·복원·Android 릴리스 사실을 기�
 Claude Opus 5.5가 지휘·통합·커밋을 맡았고 Codex `gpt-6.1-sol`이 구현(high, UI는 medium)을 맡았다. 리뷰는 Codex `gpt-6.1-sol` xhigh/high와 Claude sonnet 보안 교차 리뷰로 진행했다. UI 시각 점검·경쟁 서비스 조사는 Claude sonnet이 웹 출처 19건을 직접 열람했다. 독립 리뷰 지적 수정 후 재리뷰는 진행 중이다.
 
 이 문서 갱신은 제공 사실과 `git log --oneline 8b336ece..HEAD`를 근거로 README·시험 상태·프로젝트 상태·AI 사용·현재 인수인계만 정리한다. git 상태 변경은 하지 않는다. 로컬 검증은 [TEST_STATUS](TEST_STATUS.md), 배포 조건은 [HANDOFF](HANDOFF.md)에 구분하며 PR·CI·공개 반영 완료를 주장하지 않는다.
-
-## 2026-10-08 — NFT 시리즈 발행 수량 상한 해제 (D-095)
-
-- Claude Sonnet 5.5가 컨트랙트 `createSeries`의 상한 인자·오류 제거, API 발행 신청의 수량 검사·`CAPACITY_UNAVAILABLE` 제거, migration 0075, 관련 시험(Foundry·API·Worker)과 문서 수정을 구현했다. 소유자가 오프라인 회의의 합의와 "상한을 보존하지 않고 코드를 고친다"는 결정을 지시했다.
-- 검증: `forge test` 8개, API PostgreSQL 통합 524 통과·0 실패·3 건너뜀(건너뛴 3개는 `_merchant_test` DB 전용이라 따로 돌려 4개 통과), Worker Anvil 12/12, Worker PostgreSQL 30/30. 변경 전 커밋 `8841efea`에서도 같은 모바일 15개·Worker 5개·API 단위 1개가 실패한다(Windows 줄바꿈 CRLF·미적용 패치·권한 시험). 독립 코드 검토는 하지 않았다.
 
 ## 2026-10-07 등급 전체 뽑기 오류 문구 구분
 

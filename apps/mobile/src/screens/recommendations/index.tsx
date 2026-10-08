@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
@@ -6,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { MerchantMark } from '@/merchant/merchant-mark';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
+import { courseChipText } from '@/courses/course-copy';
 import { colorsForScheme, type AppColors } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { FloatingCard } from '@/ui/floating-card';
@@ -25,6 +27,7 @@ export function RecommendationsScreen({
   credential: AccountCredential;
   onSessionInvalid: () => Promise<void>;
 }) {
+  const router = useRouter();
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeRecommendationsStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
@@ -110,6 +113,9 @@ export function RecommendationsScreen({
           <Text selectable style={styles.body}>
             아직 안 가본 가게와 다음 보상이 가까운 가게를 먼저 보여줘요. 자리가 다 찬 가게는 빼요.
           </Text>
+          <Pressable accessibilityRole="button" onPress={() => router.push('/courses')} style={styles.courseListLink}>
+            <Text style={styles.courseListLinkText}>동네 코스 보기 →</Text>
+          </Pressable>
         </View>
 
         <Text style={styles.rotationNote}>순위가 같은 가게는 날마다 순서를 바꿔 보여줘요.</Text>
@@ -146,9 +152,12 @@ function RecommendationCard({ styles, palette, item, index }: { styles: Recommen
       </View>
       <View style={styles.cardNameRow}>
         <MerchantMark label={String(index + 1)} visited={item.progressVisitCount > 0} palette={palette} />
-        <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{item.merchantName}</Text>
+        <Text selectable style={[styles.cardTitle, { flex: 1 }]}>{publicDataDemoStoreName(item.merchantId, item.merchantName)}</Text>
       </View>
       <Text selectable style={styles.reason}>{item.reasonText}</Text>
+      {item.course ? <Pressable accessibilityRole="button" accessibilityLabel={`${courseChipText(item.course)} 상세 보기`}
+        onPress={(event) => { event.stopPropagation(); router.push({ pathname: '/courses/[courseId]', params: { courseId: item.course!.courseId } }); }}
+        style={styles.courseChip}><Text style={styles.courseChipText}>{courseChipText(item.course)} →</Text></Pressable> : null}
       <Text style={styles.meta}>{item.roadAddress}</Text>
       <View style={styles.progressRow}>
         <Text style={styles.progress}>현재 {item.progressVisitCount}회</Text>

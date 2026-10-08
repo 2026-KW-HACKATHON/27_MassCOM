@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useColorScheme, useWindowDimensions } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { platformSecureStore } from '@/auth/platform-secure-store';
 import {
   CommerceApiError,
@@ -33,6 +34,8 @@ import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
+import { courseListIsNotConfigured, createCourseApiClient, type Course } from '@/courses/course-api';
+import { courseChipText } from '@/courses/course-copy';
 import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
 import { VisitorFeedbackForm } from '../merchant-detail/visitor-feedback-form';
 import { useDiscovery } from '@/discovery/discovery-provider';
@@ -157,6 +160,9 @@ export function ClaimRedeemScreen({
   const badgeBookGate = useRef(createIdentityRequestGate()).current;
   const [presentedIds, setPresentedIds] = useState<ReadonlySet<string>>(() => presentedCollectibleIds(apiUrl, accountId));
   const [nextSuggestion, setNextSuggestion] = useState<{ claimSlotId: string; item: Recommendation }>();
+  const [nextCourse, setNextCourse] = useState<{ claimSlotId: string; course: Course }>();
+  const [courseReadError, setCourseReadError] = useState<string>();
+  const [courseRetry, setCourseRetry] = useState(0);
   const [campaignGoals, setCampaignGoals] = useState<
     { claimSlotId: string; status: 'ready'; goals: readonly VisitGoal[] } | { claimSlotId: string; status: 'error' }
   >();
@@ -261,6 +267,28 @@ export function ClaimRedeemScreen({
     }).catch(() => undefined);
     return () => { current = false; controller.abort(); };
   }, [apiUrl, credential, onSessionInvalid, redeemed]);
+
+  // A claim can satisfy a course step. This one follow-up read is display-only; unlock rechecks on the server.
+  useEffect(() => {
+    if (!redeemed) return;
+    let current = true;
+    const controller = new AbortController();
+    const claimSlotId = redeemed.claimSlotId;
+    void createCourseApiClient({ apiUrl, credential, onSessionInvalid }).list(controller.signal).then((courses) => {
+      const course = courses.find((item) => item.steps.some((step) => step.merchantId === redeemed.merchantId));
+      if (current) {
+        setNextCourse(course ? { claimSlotId, course } : undefined);
+        setCourseReadError(undefined);
+      }
+    }).catch((cause) => {
+      if (!current || controller.signal.aborted) return;
+      if (courseListIsNotConfigured(cause)) {
+        setNextCourse(undefined);
+        setCourseReadError(undefined);
+      } else setCourseReadError(claimSlotId);
+    });
+    return () => { current = false; controller.abort(); };
+  }, [apiUrl, credential, onSessionInvalid, redeemed, courseRetry]);
 
   // 의견 조회는 선택 사항이다. 이전 방문·계정의 늦은 응답은 현재 수령 카드에 붙이지 않는다.
   useEffect(() => {
@@ -556,6 +584,7 @@ export function ClaimRedeemScreen({
     const diff = diffBadgeBooks(previous, after);
     if (badgeBookGate.isCurrent(request)) setOpenableBoxClaimSlot(hasOpenableBox(after) ? result.claimSlotId : undefined);
     setCelebration({
+      merchantId: result.merchantId,
       claimSlotId: result.claimSlotId,
       grantedRewards: result.grantedRewards,
       merchantName: result.merchantName,
@@ -723,7 +752,7 @@ export function ClaimRedeemScreen({
                     onPress={() => setSelectedTestVisitMerchantId(merchant.id)}
                     style={[styles.testVisitChip, selected && styles.testVisitChipSelected]}
                   >
-                    <Text style={[styles.testVisitChipText, selected && styles.testVisitChipTextSelected]}>{merchant.name}</Text>
+                    <Text style={[styles.testVisitChipText, selected && styles.testVisitChipTextSelected]}>{publicDataDemoStoreName(merchant.id, merchant.name)}</Text>
                   </Pressable>
                 );
               })}
@@ -750,7 +779,7 @@ export function ClaimRedeemScreen({
           <FloatingCard style={styles.previewCard}>
             <Text style={styles.sectionTitle}>2 · 방문 확정</Text>
             <StatusRow palette={palette} label="상태" value={preview.status === 'AVAILABLE' ? '수령 가능' : '만료'} />
-            <StatusRow palette={palette} label="가게" value={preview.merchantName} />
+            <StatusRow palette={palette} label="가게" value={publicDataDemoStoreName(preview.merchantId, preview.merchantName)} />
             <StatusRow palette={palette} label="캠페인" value={preview.campaignTitle} />
             <StatusRow palette={palette} label="만료" value={formatDateTime(preview.expiresAt)} />
             {recoveryAction?.kind === 'collection-check' ? (
@@ -788,6 +817,16 @@ export function ClaimRedeemScreen({
             {revealDone && currentRewardContext?.mileageLine ? <Text style={styles.successHighlight}>{currentRewardContext.mileageLine}</Text> : null}
             {revealDone && rewardBalance !== null ? <Text style={styles.successBody}>{mileageBalanceLine(rewardBalance)}</Text> : null}
             {rewardGuide?.nextGradeLine ? <Text style={styles.successBody}>{rewardGuide.nextGradeLine}</Text> : null}
+            {nextCourse?.claimSlotId === redeemed.claimSlotId ? <Pressable accessibilityRole="button"
+              accessibilityLabel={`${courseChipText(nextCourse.course)} 상세 보기`}
+              onPress={() => router.navigate({ pathname: '/courses/[courseId]', params: { courseId: nextCourse.course.id } })}
+              style={styles.textLink}><Text style={styles.textLinkText}>{courseChipText(nextCourse.course)} · 단계 보기 →</Text></Pressable> : null}
+            {courseReadError === redeemed.claimSlotId ? <View>
+              <Text style={styles.successBody}>코스 진행을 확인하지 못했어요. 방문 완료 기록은 그대로예요.</Text>
+              <Pressable accessibilityRole="button" onPress={() => setCourseRetry((value) => value + 1)} style={styles.textLink}>
+                <Text style={styles.textLinkText}>코스 다시 불러오기</Text>
+              </Pressable>
+            </View> : null}
             {campaignGoals?.claimSlotId === redeemed.claimSlotId && campaignGoals.status === 'error' ? <View>
               <Text style={styles.successBody}>수집품 목표를 확인하지 못했어요. 방문 완료 기록은 그대로예요.</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="수집품 목표 다시 불러오기"

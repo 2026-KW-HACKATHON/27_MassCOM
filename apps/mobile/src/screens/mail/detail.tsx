@@ -3,6 +3,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Text, TextInput, useColorScheme, View } from 'react-native';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { createSocialApiClient, createSocialRequestId, isHHmm, socialErrorMessage, type MailDetail } from '@/social/social-api';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
@@ -101,7 +102,7 @@ export function MailDetailScreen({ apiUrl, credential, onSessionInvalid, mailId 
           <FloatingCard>
             <View style={{ gap: 10 }}>
               <Text accessibilityRole="header" style={{ color: palette.label, fontWeight: '800', fontSize: 18 }}>식사 초대</Text>
-              <Text style={{ color: palette.label }}>{mail.mealInvitation.merchant.name}</Text>
+              <Text style={{ color: palette.label }}>{publicDataDemoStoreName(mail.mealInvitation.merchant.id, mail.mealInvitation.merchant.name)}</Text>
               <Text style={{ color: palette.secondaryLabel }}>{mail.mealInvitation.merchant.address}</Text>
               <BounceButton label="가게 정보 보기" variant="secondary" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: mail.mealInvitation!.merchant.id } })} />
               <Text style={{ color: palette.label }}>{mealScheduleCopy(mail.mealInvitation.date, mail.mealInvitation.schedule)}</Text>

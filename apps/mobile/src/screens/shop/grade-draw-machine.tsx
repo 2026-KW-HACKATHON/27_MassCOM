@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { cancelAnimation, useAnimatedStyle, useSharedValue, withSequence, withTiming } from 'react-native-reanimated';
 
 import { consentRecheckLabel, consentRequiredMessage } from '@/privacy/consent-flow';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
 import { ConfettiBurst } from '@/gamification/confetti';
 import { drawHaptic } from '@/gamification/native-effects';
@@ -102,11 +103,11 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
           <Text accessibilityRole="header" style={styles.heading}>이번 뽑기 결과</Text>
           {motionAllowed && !result.replayed ? <BurstRays color={tone.color} /> : null}
           {motionAllowed && !result.replayed ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={140} originY={130} width={280} height={250} count={pool.grade === 'GOLD' ? 32 : 18} /> : null}
-          <View accessible accessibilityLabel={`${tone.name} ${kindName[reward.kind]} ${reward.name}${result.duplicate ? ' 중복' : ''}`} style={[styles.resultCard, { borderColor: tone.color }]}>
+          <View accessible accessibilityLabel={`${tone.name} ${kindName[reward.kind]} ${reward.name}${reward.kind === 'COIN' ? `, ${publicDataDemoStoreName(reward.merchantId, reward.merchantName)}` : ''}${result.duplicate ? ' 중복' : ''}`} style={[styles.resultCard, { borderColor: tone.color }]}>
             <Text style={[styles.gradePill, { backgroundColor: tone.color }]}>{tone.name} · {kindName[reward.kind]}</Text>
             <RewardArt reward={reward} size={170} />
             <Text style={styles.characterName}>{reward.name}</Text>
-            {reward.kind === 'COIN' ? <Text style={styles.description}>{reward.merchantName} · 보유 {result.quantity}개</Text> : null}
+            {reward.kind === 'COIN' ? <Text style={styles.description}>{publicDataDemoStoreName(reward.merchantId, reward.merchantName)} · 보유 {result.quantity}개</Text> : null}
             <Text style={styles.description}>{result.duplicate ? '이미 가진 보상이 다시 나왔어요.' : '새 보상을 받았어요.'}</Text>
             <Text style={styles.resultBalance}>남은 마일리지 {result.balance.toLocaleString('ko-KR')}P</Text>
           </View>

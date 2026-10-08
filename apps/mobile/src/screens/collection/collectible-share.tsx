@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } fr
 import { Image, Share, StyleSheet, Text, View } from 'react-native';
 
 import { captureViewAsPng, shareImageFile } from '@/gamification/native-effects';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { lightColors } from '@/theme/palette';
 
 import { performShare, type ShareOutcome } from './collectible-share-flow';
@@ -9,7 +10,7 @@ import { gradeMaterialFor } from './grade-material';
 import { GradeMaterialLayer } from './grade-material-layer';
 
 export type ShareableCollectible = {
-  thumbnailDataUrl: string; merchantName: string; name: string;
+  thumbnailDataUrl: string; merchantId?: string; merchantName: string; name: string;
   gradeId: string; gradeName: string; shape: 'circle' | 'stamp' | 'serrated';
 };
 
@@ -18,7 +19,7 @@ export type { ShareOutcome };
 const cardSize = { width: 320, height: 400 } as const;
 
 function shareLine(item: ShareableCollectible): string {
-  return `${item.merchantName}에서 ${item.name}을 받았어요.`;
+  return `${publicDataDemoStoreName(item.merchantId, item.merchantName)}에서 ${item.name}을 받았어요.`;
 }
 
 /**
@@ -77,7 +78,7 @@ function ShareableCollectibleCard({ item, ref }: { item: ShareableCollectible; r
             variant="card" active={false} />
         ) : null}
       </View>
-      <Text allowFontScaling={false} style={styles.merchant}>{item.merchantName}</Text>
+      <Text allowFontScaling={false} style={styles.merchant}>{publicDataDemoStoreName(item.merchantId, item.merchantName)}</Text>
       <Text allowFontScaling={false} style={styles.line}>{shareLine(item)}</Text>
       <Text allowFontScaling={false} style={styles.footer}>MassCOM 도감</Text>
     </View>

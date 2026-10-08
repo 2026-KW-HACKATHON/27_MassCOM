@@ -191,7 +191,7 @@ export function EnvelopeReveal({ cards, merchantName, series, milestone, collect
           <Animated.View style={dragStyle}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${current.collectible.name}, ${current.collectible.gradeName}${current.isNew ? ', 새로 받음' : ''}, ${cardStep.index + 1}/${cards.length}번째 카드, 탭하면 다음 카드`}
+              accessibilityLabel={`${current.collectible.name}, ${merchantName}, ${current.collectible.gradeName}${current.isNew ? ', 새로 받음' : ''}, ${cardStep.index + 1}/${cards.length}번째 카드, 탭하면 다음 카드`}
               onPress={() => goTo(1)}
             >
               <EnvelopeCard

@@ -146,7 +146,7 @@ export class PostgresReversalService implements ReversalService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      // 잠금 순서: 계정 → 점포 멤버 → [고객, 캠페인] → 배지 상자 → 방문 → 권리 → 발행 작업·outbox → 쿠폰.
+      // 잠금 순서: 계정 → 캠페인 혜택 → 점포 멤버 → [고객, 캠페인] → 배지 상자 → 방문 → 권리 → 발행 작업·outbox → 쿠폰.
       // 앞의 셋은 방문 수령·상자 열기·계정 삭제와 같은 순서라 서로 교착하지 않는다.
       const peek = uuidPattern.test(input.visitEventId)
         ? (
@@ -160,6 +160,7 @@ export class PostgresReversalService implements ReversalService {
         client,
         peek ? [input.staffAccountId, peek.customer_account_id] : [input.staffAccountId],
       );
+      if (peek) await advisoryLock(client, `campaign-benefit:${peek.customer_account_id}:${peek.campaign_id}`);
       // 숨긴 점포여도 되돌리기는 허용한다(점포 상태는 보지 않는다).
       await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId, 'CONFIRM_VISIT');
       if (!peek) throw new ReversalError('VISIT_NOT_FOUND');
@@ -185,7 +186,9 @@ export class PostgresReversalService implements ReversalService {
         const counts = await client.query<{ revoked: number; voided: number }>(
           `SELECT
              (SELECT count(*)::integer FROM reward_entitlements WHERE revoked_by_visit_event_id = $1) AS revoked,
-             (SELECT count(*)::integer FROM badge_coupons WHERE void_visit_event_id = $1) AS voided`,
+             ((SELECT count(*)::integer FROM badge_coupons WHERE void_visit_event_id = $1) +
+              (SELECT count(*)::integer FROM campaign_benefit_coupons
+               WHERE source_visit_event_id = $1 AND status = 'VOIDED' AND void_reason = 'VISIT_CANCELED')) AS voided`,
           [visit.id],
         );
         await client.query('COMMIT');
@@ -293,7 +296,10 @@ export class PostgresReversalService implements ReversalService {
         });
       }
 
-      const voidedCouponCount = await this.voidCouponsWithLostRequirement(client, {
+      const benefitVoids = await this.voidBenefitCouponsForVisit(client, {
+        staffAccountId: input.staffAccountId, visitEventId: visit.id, now,
+      });
+      const voidedCouponCount = benefitVoids + await this.voidCouponsWithLostRequirement(client, {
         customerAccountId: visit.customer_account_id,
         staffAccountId: input.staffAccountId,
         visitEventId: visit.id,
@@ -342,7 +348,13 @@ export class PostgresReversalService implements ReversalService {
        FROM badge_coupons AS coupon
        JOIN merchants AS merchant ON merchant.id = coupon.merchant_id
        WHERE coupon.merchant_id = $1 AND coupon.status = 'REDEEMED' AND coupon.redeemed_at > $2
-       ORDER BY coupon.redeemed_at DESC, coupon.id
+       UNION ALL
+       SELECT coupon.id, coupon.title, coupon.customer_account_id, coupon.redeemed_at, coupon.redeemed_by_account_id,
+              merchant.is_demo AS merchant_is_demo
+       FROM campaign_benefit_coupons AS coupon
+       JOIN merchants AS merchant ON merchant.id = coupon.merchant_id
+       WHERE coupon.merchant_id = $1 AND coupon.status = 'REDEEMED' AND coupon.redeemed_at > $2
+       ORDER BY redeemed_at DESC, id
        LIMIT $3`,
       [input.merchantId, new Date(now.getTime() - recentCouponRedemptionWindowMs), recentCouponRedemptionLimit],
     );
@@ -370,9 +382,41 @@ export class PostgresReversalService implements ReversalService {
     try {
       await client.query('BEGIN');
       await this.accountLifecycle.assertActive(client, input.staffAccountId);
+      if (!uuidPattern.test(input.couponId)) throw new ReversalError('COUPON_NOT_FOUND');
+      const benefitPeek = (await client.query<{ customer_account_id: string; campaign_id: string }>(
+        `SELECT customer_account_id, campaign_id FROM campaign_benefit_coupons
+         WHERE id = $1 AND merchant_id = $2`, [input.couponId, input.merchantId],
+      )).rows[0];
+      if (benefitPeek) {
+        await advisoryLock(client, `campaign-benefit:${benefitPeek.customer_account_id}:${benefitPeek.campaign_id}`);
+      }
       // 숨긴 점포여도 되돌리기는 허용한다(점포 상태는 보지 않는다).
       await requireActiveMerchantMember(client, input.merchantId, input.staffAccountId, 'REDEEM_COUPON');
-      if (!uuidPattern.test(input.couponId)) throw new ReversalError('COUPON_NOT_FOUND');
+      if (benefitPeek) {
+        const coupon = (await client.query<{
+          id: string; customer_account_id: string; status: 'ISSUED' | 'REDEEMED' | 'VOIDED';
+          redeemed_at: Date | null; merchant_is_demo: boolean;
+        }>(`SELECT coupon.id, coupon.customer_account_id, coupon.status, coupon.redeemed_at,
+                   merchant.is_demo AS merchant_is_demo
+            FROM campaign_benefit_coupons AS coupon
+            JOIN merchants AS merchant ON merchant.id = coupon.merchant_id
+            WHERE coupon.id = $1 AND coupon.merchant_id = $2
+            FOR UPDATE OF coupon`, [input.couponId, input.merchantId])).rows[0];
+        if (!coupon) throw new ReversalError('COUPON_NOT_FOUND');
+        if (coupon.customer_account_id !== benefitPeek.customer_account_id) throw new ReversalError('ACCOUNT_DELETED');
+        const now = this.now();
+        if (coupon.customer_account_id === input.staffAccountId && !coupon.merchant_is_demo) {
+          throw new ReversalError('COUPON_SELF_UNDO');
+        }
+        // ponytail: 재사용 감사 행이 없어 ISSUED에서 미사용과 되돌린 이력을 구분할 수 없다. 재시도 재생이 필요하면 감사 이력을 추가한다.
+        if (coupon.status !== 'REDEEMED') throw new ReversalError('COUPON_NOT_REDEEMED');
+        if (!isWithinCouponUndoWindow(coupon.redeemed_at!, now)) throw new ReversalError('COUPON_UNDO_WINDOW_CLOSED');
+        await client.query(`UPDATE campaign_benefit_coupons
+          SET status = 'ISSUED', redeemed_at = NULL, redeemed_by_account_id = NULL
+          WHERE id = $1 AND status = 'REDEEMED'`, [coupon.id]);
+        await client.query('COMMIT');
+        return { couponId: coupon.id, status: 'ISSUED', replayed: false };
+      }
       // 다른 점포·없는 쿠폰은 조건에 맞는 행이 없어 구분 없이 같은 404가 된다.
       const peek = (
         await client.query<{ customer_account_id: string }>(
@@ -577,6 +621,40 @@ export class PostgresReversalService implements ReversalService {
         SET revoked_at=$2, revoked_by_visit_event_id=$3 WHERE id=ANY($1::uuid[])`,
       [affectedCoupons.rows.map(coupon => coupon.id), now, visitEventId]);
     }
+  }
+
+  private async voidBenefitCouponsForVisit(
+    client: PoolClient,
+    input: { staffAccountId: string; visitEventId: string; now: Date },
+  ): Promise<number> {
+    const candidates = await client.query<{ id: string; benefit_id: string }>(
+      `SELECT id, benefit_id FROM campaign_benefit_coupons
+       WHERE source_visit_event_id = $1 AND status <> 'VOIDED'
+       ORDER BY benefit_id, id`, [input.visitEventId],
+    );
+    let voided = 0;
+    for (const candidate of candidates.rows) {
+      await client.query('SELECT id FROM campaign_benefits WHERE id = $1 FOR UPDATE', [candidate.benefit_id]);
+      const coupon = (await client.query<{ status: 'ISSUED' | 'REDEEMED' | 'VOIDED' }>(
+        'SELECT status FROM campaign_benefit_coupons WHERE id = $1 FOR UPDATE', [candidate.id],
+      )).rows[0];
+      if (coupon?.status === 'REDEEMED') throw new ReversalError('VISIT_REWARD_COUPON_REDEEMED');
+      if (coupon?.status !== 'ISSUED') continue;
+      await client.query(
+        `UPDATE campaign_benefit_coupons
+         SET status = 'VOIDED', void_reason = 'VISIT_CANCELED', voided_at = $2,
+             voided_by_account_id = $3
+         WHERE id = $1 AND status = 'ISSUED'`,
+        [candidate.id, input.now, input.staffAccountId],
+      );
+      const released = await client.query(
+        'UPDATE campaign_benefits SET issued_count = issued_count - 1 WHERE id = $1 AND issued_count > 0',
+        [candidate.benefit_id],
+      );
+      if (released.rowCount !== 1) throw new Error('campaign benefit issued_count underflow');
+      voided += 1;
+    }
+    return voided;
   }
 
   // 다시 센 배지 수로 더는 열 수 없는 상자의 미사용 쿠폰을 무효로 한다. 사용한 쿠폰과 이미 만료된 쿠폰은 건드리지 않는다

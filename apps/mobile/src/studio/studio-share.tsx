@@ -3,6 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { captureViewAsPng, exportImageFile } from '@/gamification/native-effects';
 import { useMotionEnabled } from '@/motion/use-motion';
+import { PUBLIC_DATA_DEMO_STORE_LABEL, isPublicDataDemoStore } from '@/merchant/public-data-demo-store';
 import { studioComposition } from './studio-composition';
 import type { ExperienceProfile } from '@/experience/experience-api';
 import type { EquippedClothingArt } from '@/shop/wardrobe';
@@ -46,9 +47,10 @@ export function StudioShareCard({ studio, items, avatar, clothing, apiUrl, forma
       </View>
       <View style={[styles.copy, { height: copyHeights[format] }]}>
         <Text allowFontScaling={false} style={styles.eyebrow}>MASSCOM · 나의 공간</Text>
-        <Text allowFontScaling={false} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6} style={styles.title}>
+        <Text allowFontScaling={false} style={styles.title}>
           {first?.merchantName ?? '함께 모은 우리 동네'}
         </Text>
+        {first && isPublicDataDemoStore(first.merchantId) ? <Text allowFontScaling={false} style={styles.disclosure}>{PUBLIC_DATA_DEMO_STORE_LABEL}</Text> : null}
         <Text allowFontScaling={false} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6} style={styles.summary}>
           {first ? `${first.displayName}${items.length > 1 ? ` 외 ${items.length - 1}개` : ''}` : '첫 동행과 첫 수집품을 기다려요'}
         </Text>
@@ -196,6 +198,7 @@ const styles = StyleSheet.create({
   copy: { paddingHorizontal: 20, paddingVertical: 3, alignItems: 'center', justifyContent: 'center', gap: 2 },
   eyebrow: { color: '#327C8B', fontSize: 11, lineHeight: 14, fontWeight: '800' },
   title: { color: '#182940', fontSize: 20, lineHeight: 24, fontWeight: '900', textAlign: 'center', width: '100%' },
+  disclosure: { color: '#182940', fontSize: 11, textAlign: 'center' },
   summary: { color: '#536577', fontSize: 12, lineHeight: 17, fontWeight: '600', textAlign: 'center', width: '100%' },
   demo: { color: '#7B401E', backgroundColor: '#FFF1D8', fontSize: 10, lineHeight: 15, fontWeight: '800', paddingHorizontal: 5 },
   footer: { width: 360, height: 45, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, borderTopWidth: 1, borderTopColor: '#E6EDF0' },

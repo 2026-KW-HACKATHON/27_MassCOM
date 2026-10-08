@@ -1,5 +1,5 @@
 import {
-  decodePathParameter, readJson, requireNumber, requireOnlyKeys, requireString,
+  decodePathParameter, readJson, requireEmptyBody, requireNumber, requireOnlyKeys, requireString,
 } from '../http/request-body.js';
 import { RequestError } from '../http/request-error.js';
 import { sendJson } from '../http/response.js';
@@ -8,8 +8,22 @@ import type { RouteContext } from './context.js';
 
 export async function handleCustomer(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
-  const { friends, storeTickets, mileageShop, visitorFeedback, recommendations } = deps;
+  const { friends, storeTickets, mileageShop, visitorFeedback, recommendations, campaignBenefits } = deps;
   const { resolveAccountId, visitorFeedbackWriteLimiter } = runtime;
+  if (request.method === 'GET' && path === '/me/campaign-benefits') {
+    if (!campaignBenefits) throw new RequestError(503, 'CAMPAIGN_BENEFITS_NOT_CONFIGURED');
+    sendJson(response, 200, await campaignBenefits.listBenefits(await resolveAccountId(request)));
+    return true;
+  }
+  const benefitClaim = path.match(/^\/me\/campaign-benefits\/([^/]+)\/claim$/);
+  if (request.method === 'POST' && benefitClaim) {
+    if (!campaignBenefits) throw new RequestError(503, 'CAMPAIGN_BENEFITS_NOT_CONFIGURED');
+    const accountId = await resolveAccountId(request);
+    requireEmptyBody(await readJson(request, true));
+    const result = await campaignBenefits.claimBenefit({ accountId, benefitId: decodePathParameter(benefitClaim[1]!) });
+    sendJson(response, result.replayed ? 200 : 201, result);
+    return true;
+  }
   if (request.method === 'GET' && request.url === '/me/friends') {
     if (!friends) throw new RequestError(503, 'FRIENDS_NOT_CONFIGURED');
     const accountId = await resolveAccountId(request);

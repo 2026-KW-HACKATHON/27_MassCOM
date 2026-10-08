@@ -5,6 +5,7 @@ import { Pool } from 'pg';
 
 import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { runMigrations } from './postgres/migrate.js';
+import type { CourseView } from './course-rules.js';
 
 test('recommendation candidates combine active campaigns with account progress', async (t) => {
   const connectionString = process.env.TEST_DATABASE_URL;
@@ -88,4 +89,19 @@ test('recommendation candidates combine active campaigns with account progress',
     { targetVisitCount: 3, displayName: '단골 새싹' },
     { targetVisitCount: 5, displayName: '월계수 관' },
   ]);
+  await t.test('only the next incomplete course store receives a recommendation hint', async () => {
+    const course = { id: 'course-1', title: '식사와 커피', situation: 'AFTER_MEAL',
+      done: 1, total: 3, startsAt: '2026-09-01T00:00:00Z', steps: [
+        { merchantId: 'merchant-visited', targetVisitCount: 1, state: 'AVAILABLE', done: true },
+        { merchantId: 'merchant-new', targetVisitCount: 1, state: 'AVAILABLE', done: false },
+        { merchantId: 'merchant-full', targetVisitCount: 1, state: 'AVAILABLE', done: false },
+      ] } as CourseView;
+    const reader = new PostgresRecommendationSource(pool, () => new Date('2026-09-19T04:00:00Z'),
+      { list: async accountId => { assert.equal(accountId, 'customer-1'); return [course]; } });
+    const candidates = await reader.listCandidates('customer-1');
+    assert.deepEqual(candidates.find(item => item.merchantId === 'merchant-new')?.courseHint,
+      { courseId: 'course-1', title: '식사와 커피', situation: 'AFTER_MEAL', done: 1, total: 3 });
+    assert.equal(candidates.find(item => item.merchantId === 'merchant-visited')?.courseHint, undefined);
+    assert.equal(candidates.find(item => item.merchantId === 'merchant-full')?.courseHint, undefined);
+  });
 });

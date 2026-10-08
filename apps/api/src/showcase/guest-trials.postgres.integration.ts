@@ -186,7 +186,7 @@ test('#309 the production entry point has no guest-trial route; the local showca
     const context = await fetch(`${local}/merchant/merchants/${state.trialMerchantId}/context`, { headers: bearer });
     assert.equal(context.status, 200);
     const merchants = await (await fetch(`${local}/merchants`)).json() as { merchants: { id: string }[] };
-    assert.equal(merchants.merchants.length, 3);
+    assert.equal(merchants.merchants.length, 33);
     assert.ok(merchants.merchants.every((merchant) => merchant.id !== state.trialMerchantId));
   }));
 });
@@ -244,12 +244,12 @@ test('#309 start creates a guest account, a hidden trial store copied from A, ST
 
     // 체험 가게는 누구의 목록·추천에도 나오지 않는다(체험자 본인 포함).
     const listed = await new PostgresMerchantCatalog(pool).listPublicMerchants();
-    assert.equal(listed.length, 3);
+    assert.equal(listed.length, 33);
     assert.ok(listed.every((merchant) => merchant.id !== trial.merchant_id));
     const recommendations = new PostgresRecommendationSource(pool);
     for (const accountId of [session.accountId, 'acct_someone_else']) {
       const candidates = await recommendations.listCandidates(accountId);
-      assert.equal(candidates.length, 3, accountId);
+      assert.equal(candidates.length, 33, accountId);
       assert.ok(candidates.every((candidate) => candidate.merchantId !== trial.merchant_id), accountId);
     }
 

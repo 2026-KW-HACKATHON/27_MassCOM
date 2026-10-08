@@ -13,6 +13,7 @@ import { getAppPackageId } from '@/config/app-identity';
 import { consentRecheckLabel, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { fetchCollectiblePreview, type CollectiblePreview } from '@/merchant/collectible-preview-api';
 import { createShopApiClient, type ShopSnapshot } from '@/shop/shop-api';
 import { createCoinApiClient, type CoinCollection } from '@/shop/coin-api';
@@ -521,7 +522,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
               onPress={toggle} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggle) } : {})}
               style={[styles.row, styles.ownedRow, checked && styles.rowSelected, { flex: 1, backgroundColor: checked ? palette.primaryContainer : palette.surface, borderColor: checked ? palette.primary : palette.separator }]}>
               <Text style={[styles.checkbox, { color: palette.primary }]}>{checked ? '✓' : '+'}</Text>
-              <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{merchantName}</Text></View>
+              <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{publicDataDemoStoreName(source.merchantId, merchantName)}</Text></View>
             </Pressable><Pressable accessibilityRole="button" disabled={experience.saving}
               onPress={() => void experience.save({ coinSource: { sourceKind: source.sourceKind, sourceId: source.sourceId } })}
               style={styles.goButton}><Text style={styles.goText}>대표</Text></Pressable></View>;
@@ -539,7 +540,7 @@ export function StudioScreen({ apiUrl, credential, onSessionInvalid, requestedEn
             onPress={toggle} {...(Platform.OS === 'web' ? { onKeyDown: spaceToggles(toggle) } : {})} style={[styles.row, styles.ownedRow, selectedItem && styles.rowSelected,
               { backgroundColor: selectedItem ? palette.primaryContainer : palette.surface, borderColor: selectedItem ? palette.primary : palette.separator }]}>
             <Text style={[styles.checkbox, { color: palette.primary }]}>{selectedItem ? '✓' : '+'}</Text>
-            <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{item.displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{item.merchantName}</Text></View>
+            <View style={styles.rowText}><Text style={[styles.rowTitle, { color: palette.label }]}>{item.displayName}</Text><Text style={[styles.rowMeta, { color: palette.secondaryLabel }]}>{publicDataDemoStoreName(item.merchantId, item.merchantName)}</Text></View>
           </Pressable>;
         })}
           {page.totalPages > 1 ? <View style={styles.pagination}>

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { PublishedCollectible } from '@/commerce/collectible-artwork';
 import { FullScreenModal } from '@/gamification/full-screen-modal';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { StateScene } from '@/ui/state-scene';
 
 import { collectibleDetailFailure, type CollectibleDetailFailure } from './collectible-detail-state';
@@ -12,6 +13,7 @@ import type { StoreSeries } from './store-series';
 
 type Props = {
   entitlementIds: readonly string[];
+  merchantId?: string;
   merchantName: string;
   load: (entitlementId: string) => Promise<PublishedCollectible>;
   /** Account's full collection, lite: decides which of this batch are NEW and whether a distinct-kind milestone was crossed. */
@@ -32,7 +34,7 @@ type Props = {
  * envelope/envelope-reveal.tsx가 맡는다(봉투 흔들기·찢기는 reveal-lifecycle.ts의 opening/revealed 패턴을 그대로 쓴다).
  * 언제든 건너뛸 수 있고, 건너뛰어도 보관은 이미 끝난 상태다(이 화면은 저장에 관여하지 않는다).
  */
-export function CollectibleReveal({ entitlementIds, merchantName, load, collectibles, series, onSkip, onCardShown, onOpenDetail }: Props) {
+export function CollectibleReveal({ entitlementIds, merchantId, merchantName, load, collectibles, series, onSkip, onCardShown, onOpenDetail }: Props) {
   const [cards, setCards] = useState<readonly EnvelopeCardData[]>();
   const [failure, setFailure] = useState<CollectibleDetailFailure>();
   // 도감은 3초마다 조용히 다시 조회돼 `collectibles`가 새 배열로 바뀐다. 그걸 아래 배치 로드 effect의 의존성에 두면, 느린
@@ -63,11 +65,12 @@ export function CollectibleReveal({ entitlementIds, merchantName, load, collecti
 
   const milestone = useMemo(() => milestoneForBatch(entitlementIds, collectibles), [entitlementIds, collectibles]);
   const batchSeries = useMemo(() => seriesForBatch(series, collectibles, entitlementIds), [series, collectibles, entitlementIds]);
+  const batchMerchantId = merchantId ?? collectibles.find((item) => entitlementIds.includes(item.entitlementId))?.merchantId;
 
   return (
     <FullScreenModal visible animationType="fade" onRequestClose={onSkip}>
       {cards ? (
-        <EnvelopeReveal cards={cards} merchantName={merchantName} series={batchSeries} milestone={milestone} collectibles={collectibles} onSkip={onSkip} onCardShown={onCardShown} onOpenDetail={onOpenDetail} />
+        <EnvelopeReveal cards={cards} merchantName={publicDataDemoStoreName(batchMerchantId, merchantName)} series={batchSeries} milestone={milestone} collectibles={collectibles} onSkip={onSkip} onCardShown={onCardShown} onOpenDetail={onOpenDetail} />
       ) : failure ? (
         <View style={styles.loadingFrame}>
           <SkipButton onPress={onSkip} />

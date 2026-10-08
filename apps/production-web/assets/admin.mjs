@@ -1,14 +1,17 @@
 import { campaignTiming, extendedCampaignEnd, orderedCampaigns } from './commercial-operation.mjs';
 import { mountRealWorldAdmin } from './real-world-merchant.mjs';
+import { benefitStatusRecords, campaignBenefitsStatusText } from './campaign-benefit-status.mjs';
 
 const endpoint = '/api/web/admin/merchants';
 const deletionEndpoint = '/api/web/admin/account-deletion-intakes';
 const offerEndpoint = '/api/web/admin/reward-offers';
 const campaignEndpoint = '/api/web/admin/campaigns';
+const courseEndpoint = '/api/web/admin/courses';
 const adminRequests = new WeakMap();
 const funnelRequests = new WeakMap();
 const playMetricRequests = new WeakMap();
 const realWorldCleanups = new WeakMap();
+const courseMerchants = new WeakMap();
 function clearRealWorld(doc) {
   realWorldCleanups.get(doc)?.();
   realWorldCleanups.delete(doc);
@@ -24,6 +27,39 @@ export function documentReferenceProblem(value) {
     return `참조 번호를 확인해 주세요. ${referenceHint}`;
   }
   return null;
+}
+
+export function courseDraftPayload(data) {
+  const stepCount = Number(data.get('stepCount'));
+  if (!Number.isInteger(stepCount) || stepCount < 2 || stepCount > 4) throw localError('코스는 2~4곳을 선택해 주세요.');
+  const steps = Array.from({ length: stepCount }, (_, index) => {
+    const position = index + 1;
+    const ownerOptinRef = String(data.get(`ownerOptinRef${position}`) ?? '').trim();
+    const problem = documentReferenceProblem(ownerOptinRef);
+    if (problem) throw localError(`${position}번 가게: ${problem}`);
+    return {
+      merchantId: String(data.get(`merchantId${position}`) ?? ''),
+      targetVisitCount: Number(data.get(`targetVisitCount${position}`)),
+      pieceKey: String(data.get(`pieceKey${position}`) ?? '').trim(),
+      pieceLabel: String(data.get(`pieceLabel${position}`) ?? '').trim(),
+      ownerOptinRef,
+    };
+  });
+  if (steps.some(step => !step.merchantId || ![1, 3, 5].includes(step.targetVisitCount) ||
+    !/^[a-z0-9-]{1,40}$/.test(step.pieceKey) || !step.pieceLabel || step.pieceLabel.length > 20) ||
+    new Set(steps.map(step => step.merchantId)).size !== steps.length) {
+    throw localError('각 단계의 서로 다른 가게·목표·조각 키·이름을 확인해 주세요.');
+  }
+  const date = name => {
+    const value = String(data.get(name) ?? '').trim();
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (!Number.isFinite(parsed.getTime())) throw localError('코스 날짜와 시각을 확인해 주세요.');
+    return parsed.toISOString();
+  };
+  return { title: String(data.get('title') ?? '').trim(), situation: String(data.get('situation') ?? ''),
+    sceneKey: String(data.get('sceneKey') ?? '').trim(), startsAt: date('startsAt'), endsAt: date('endsAt'),
+    countsFrom: date('countsFrom'), steps };
 }
 
 // 공개 전에 채워 저장해야 하는 항목(서버의 ADMIN_MERCHANT_NOT_READY와 같은 기준).
@@ -74,6 +110,10 @@ const goLiveMessages = {
   ADMIN_CAMPAIGN_ACTIVE_EXISTS: '이 점포에는 이미 공개 중인 캠페인이 있어요. 먼저 그 캠페인을 중지해 주세요.',
   ADMIN_CAMPAIGN_NOT_FOUND: '캠페인을 찾을 수 없어요. 새로고침해 주세요.',
   ADMIN_INVALID_INPUT: '입력값을 확인해 주세요.',
+  COURSE_INVALID_INPUT: '코스 이름·상황·장면 키·단계 입력을 확인해 주세요.',
+  COURSE_NOT_FOUND: '코스를 찾을 수 없어요. 목록을 새로 불러와 주세요.',
+  COURSE_STATE_CONFLICT: '코스 상태가 먼저 바뀌었습니다. 목록을 새로 불러와 주세요.',
+  COURSE_NOT_PUBLISHABLE: '코스를 공개할 수 없어요. 최근 점검 결과와 모든 단계의 점주 참여 동의 참조 번호를 확인해 주세요.',
   ADMIN_OFFER_TEXT_INVALID: '혜택 이름·설명에 이메일·웹 주소·전화번호처럼 보이는 내용(숫자 8자리 이상 포함)이나 보이지 않는 글자는 쓸 수 없어요.',
   WEB_SESSION_REAUTH_REQUIRED: '점주 올리기·내리기는 10분 안에 한 로그인이 필요해요. 로그아웃한 뒤 관리자 계정으로 다시 로그인해 주세요.',
 };
@@ -128,6 +168,33 @@ export function rewardOfferPayload(data) {
     consentDocumentRef, consent };
 }
 
+export function campaignBenefitPayload(data) {
+  const title = String(data.get('title') ?? '').trim();
+  if (!title || [...title].length > 40) throw localError('혜택 이름은 1~40자로 입력해 주세요.');
+  const detail = String(data.get('detail') ?? '').replace(/\s*\p{Cc}+\s*/gu, ' ').trim();
+  if ([...detail].length > 120) throw localError('혜택 설명은 120자까지 입력해 주세요.');
+  const integer = (name, min, max, label) => {
+    const raw = String(data.get(name) ?? '');
+    const value = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(value) || value < min || value > max) {
+      throw localError(`${label}은 ${min.toLocaleString('ko-KR')}~${max.toLocaleString('ko-KR')} 사이 정수로 입력해 주세요.`);
+    }
+    return value;
+  };
+  const validDays = integer('validDays', 1, 60, '유효 기간');
+  const unitExtraCostWon = integer('unitExtraCostWon', 1, 1_000_000, '1장당 추가 원가');
+  const maxUses = integer('maxUses', 1, 10_000, '발급 상한');
+  const consent = {};
+  for (const [key, field] of consentFields) {
+    if (data.get(field) !== 'on') throw localError('점주 동의 5항목을 모두 확인해 주세요.');
+    consent[key] = true;
+  }
+  const consentDocumentRef = String(data.get('consentDocumentRef') ?? '').trim();
+  const problem = documentReferenceProblem(consentDocumentRef);
+  if (problem) throw localError(problem);
+  return { title, detail, validDays, unitExtraCostWon, maxUses, consentDocumentRef, consent };
+}
+
 const milestoneLabels = { 1: '첫 번째 상자', 2: '두 번째 상자', 3: '황금 상자' };
 const campaignStatusLabels = { ACTIVE: '공개 중', PAUSED: '중지됨', ENDED: '종료', DRAFT: '비공개 초안' };
 const demotionReasons = [
@@ -177,6 +244,30 @@ async function jsonRequest(fetcher, path, method = 'GET', body) {
     throw error;
   }
   return response.json();
+}
+
+export async function loadAdminBenefit(fetcher, doc, requestId = adminRequests.get(doc)) {
+  const select = doc.getElementById('admin-benefit-campaign');
+  const status = doc.getElementById('admin-benefit-status');
+  const form = doc.getElementById('admin-benefit-form');
+  const pause = doc.getElementById('admin-benefit-pause');
+  if (!select || !status || !form || !pause) return;
+  form.hidden = true;
+  pause.hidden = true;
+  if (!select.value) { status.textContent = '확인할 캠페인이 없습니다.'; return; }
+  const campaignId = select.value;
+  status.textContent = '혜택 현황을 불러오는 중이에요.';
+  try {
+    const result = await jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(campaignId)}/benefit-status`);
+    if (adminRequests.get(doc) !== requestId || select.value !== campaignId) return;
+    const benefits = benefitStatusRecords(result);
+    status.textContent = campaignBenefitsStatusText(result);
+    form.hidden = benefits.some(benefit => benefit.status === 'ACTIVE');
+    if (!form.hidden) form.reset();
+    pause.hidden = !form.hidden;
+  } catch {
+    if (adminRequests.get(doc) === requestId && select.value === campaignId) status.textContent = '혜택 현황을 불러오지 못했습니다.';
+  }
 }
 
 const funnelTotals = [
@@ -799,6 +890,103 @@ export function canRepublishCampaign(campaign, now = Date.now()) {
   return campaign?.status === 'PAUSED' && Number.isFinite(ends) && ends > now;
 }
 
+function courseStepFields(doc, merchants, position) {
+  const group = doc.createElement('fieldset');
+  const legend = doc.createElement('legend'); legend.textContent = `${position}번 가게`;
+  group.append(legend);
+  const field = (label, name, tag = 'input') => {
+    const wrapper = doc.createElement('label'); wrapper.textContent = `${label} `;
+    const control = doc.createElement(tag); control.name = `${name}${position}`; control.required = true;
+    wrapper.append(control); group.append(wrapper);
+    return control;
+  };
+  const merchant = field('실제 점포', 'merchantId', 'select');
+  for (const store of merchants.filter(item => item.status === 'ACTIVE' && item.demo === false)) {
+    const option = doc.createElement('option'); option.value = store.id; option.textContent = store.name;
+    merchant.append(option);
+  }
+  const goal = field('목표 방문 횟수', 'targetVisitCount', 'select');
+  for (const count of [1, 3, 5]) {
+    const option = doc.createElement('option'); option.value = String(count); option.textContent = `${count}회`;
+    goal.append(option);
+  }
+  const key = field('조각 키', 'pieceKey'); key.maxLength = 40; key.pattern = '[a-z0-9-]{1,40}'; key.value = `piece-${position}`;
+  const label = field('조각 이름', 'pieceLabel'); label.maxLength = 20;
+  const reference = field('점주 참여 동의 참조 번호', 'ownerOptinRef');
+  reference.maxLength = 40; reference.autocomplete = 'off';
+  return group;
+}
+
+function renderCourseSteps(doc, merchants) {
+  const form = doc.getElementById('admin-course-create');
+  const list = doc.getElementById('admin-course-steps');
+  if (!form || !list) return;
+  list.replaceChildren();
+  const count = Number(form.querySelector('[name="stepCount"]')?.value ?? 2);
+  for (let position = 1; position <= count; position++) list.append(courseStepFields(doc, merchants, position));
+}
+
+export async function loadAdminCourses(fetcher, doc, merchants, act, current = () => true) {
+  const form = doc.getElementById('admin-course-create');
+  const list = doc.getElementById('admin-courses');
+  const status = doc.getElementById('admin-course-status');
+  if (!form || !list || !status) return;
+  courseMerchants.set(doc, merchants);
+  list.replaceChildren();
+  renderCourseSteps(doc, merchants);
+  form.hidden = merchants.filter(item => item.status === 'ACTIVE' && item.demo === false).length < 2;
+  if (form.hidden) status.textContent = '공개 중인 실제 점포가 둘 이상 있어야 초안을 만들 수 있어요.';
+  else status.textContent = '';
+  try {
+    const payload = await jsonRequest(fetcher, courseEndpoint);
+    if (!current()) return;
+    if (!Array.isArray(payload.courses) || !payload.courses.every(course => typeof course?.id === 'string' &&
+      typeof course.title === 'string' && Array.isArray(course.steps))) throw new Error('invalid courses');
+    if (!payload.courses.length) list.textContent = '저장된 코스가 없습니다.';
+    for (const course of payload.courses) {
+      const row = doc.createElement('section'); row.className = 'admin-panel';
+      const heading = doc.createElement('h4'); heading.textContent = `${course.title} · ${course.steps.length}곳 · ${course.status}`;
+      const steps = doc.createElement('p');
+      steps.textContent = course.steps.map(step => `${step.position}번 ${step.merchantName} (${step.targetVisitCount}회, ${step.pieceLabel})`).join(' → ');
+      row.append(heading, steps);
+      if (course.checkSummary) {
+        const summary = doc.createElement('div'); summary.setAttribute('role', 'status');
+        const label = doc.createElement('p');
+        label.textContent = `${course.checkSummary.label} · ${course.checkedAt ? formatKst(course.checkedAt) : '시각 미확인'} · 실패 ${course.checkSummary.failures}건 · 주의 ${course.checkSummary.warnings}건`;
+        summary.append(label);
+        for (const item of course.checkSummary.items ?? []) {
+          const line = doc.createElement('p'); line.textContent = `${item.status} · ${item.detail}`; summary.append(line);
+        }
+        row.append(summary);
+      }
+      const button = (action, text) => {
+        const control = doc.createElement('button'); control.type = 'button'; control.textContent = text;
+        control.setAttribute('aria-label', `${course.title} 코스 ${text}`);
+        control.addEventListener('click', () => act(control,
+          () => {
+            const hour = doc.getElementById('admin-course-hour')?.value ?? '';
+            if (action === 'check' && hour !== '' && (!Number.isInteger(Number(hour)) || Number(hour) < 0 || Number(hour) > 23)) {
+              throw localError('권하는 시각은 0~23시로 입력해 주세요.');
+            }
+            return jsonRequest(fetcher, `${courseEndpoint}/${encodeURIComponent(course.id)}/${action}`, 'POST',
+              action === 'check' && hour !== '' ? { suggestedHour: Number(hour) } : {});
+          },
+          action === 'check' ? '코스 점검 결과를 저장했습니다.' : action === 'publish' ? '코스를 공개했습니다.' : '코스를 중지했습니다.',
+          `코스를 ${text}하지 못했습니다.`));
+        row.append(control);
+      };
+      if (course.status === 'DRAFT' || course.status === 'PAUSED') {
+        button('check', '점검'); button('publish', '공개');
+      } else if (course.status === 'ACTIVE') button('pause', '중지');
+      list.append(row);
+    }
+  } catch (error) {
+    if (!current()) return;
+    if (error.status === 401 || error.status === 403) throw error;
+    list.textContent = '코스 목록을 불러오지 못했습니다.';
+  }
+}
+
 function campaignButton(fetcher, doc, act, campaign, action, text) {
   const button = doc.createElement('button');
   button.type = 'button';
@@ -889,6 +1077,10 @@ export async function loadAdmin(fetcher, doc) {
   const offerList = doc.getElementById('admin-offers');
   const campaignList = doc.getElementById('admin-campaigns');
   const campaignSummary = doc.getElementById('admin-campaign-summary');
+  const benefitSelect = doc.getElementById('admin-benefit-campaign');
+  const benefitCampaignIds = new Set();
+  const courseForm = doc.getElementById('admin-course-create');
+  const courseList = doc.getElementById('admin-courses');
   let campaignLoaded = !campaignList;
   const funnelStatus = doc.getElementById('admin-funnel-status');
   const funnelTotalsNode = doc.getElementById('admin-funnel-totals');
@@ -905,6 +1097,13 @@ export async function loadAdmin(fetcher, doc) {
   offerList?.replaceChildren();
   offerMerchant?.replaceChildren();
   campaignList?.replaceChildren();
+  const previousBenefitCampaign = benefitSelect?.value;
+  benefitSelect?.replaceChildren();
+  const benefitForm = doc.getElementById('admin-benefit-form');
+  if (benefitForm) benefitForm.hidden = true;
+  const benefitPause = doc.getElementById('admin-benefit-pause');
+  if (benefitPause) benefitPause.hidden = true;
+  courseList?.replaceChildren();
   if (campaignSummary) { campaignSummary.textContent = ''; campaignSummary.hidden = true; }
   funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
   playMetricRequests.set(doc, (playMetricRequests.get(doc) ?? 0) + 1);
@@ -917,6 +1116,7 @@ export async function loadAdmin(fetcher, doc) {
   if (playStatus) playStatus.textContent = '';
   if (draftForm) draftForm.hidden = true;
   if (offerForm) offerForm.hidden = true;
+  if (courseForm) courseForm.hidden = true;
   const current = () => adminRequests.get(doc) === requestId;
   // 공개·점주·혜택·캠페인 동작 뒤에는 목록을 새로 읽고 결과를 상태 줄에 알린다.
   const act = async (button, request, done, fallback) => {
@@ -1287,6 +1487,13 @@ export async function loadAdmin(fetcher, doc) {
           item.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안 · 정원 ${draft.enrollmentCapacity}명${period}${purposeLabel(draft.purpose)}`;
           if (typeof draft.id === 'string' && draft.id) {
             item.append(campaignButton(fetcher, doc, act, draft, 'publish', '공개'));
+            if (benefitSelect) {
+              const option = doc.createElement('option');
+              option.value = draft.id;
+              option.textContent = `${draft.merchantName} · ${draft.title} · 비공개 초안`;
+              benefitSelect.append(option);
+              benefitCampaignIds.add(draft.id);
+            }
           }
           draftList.append(item);
         }
@@ -1333,7 +1540,16 @@ export async function loadAdmin(fetcher, doc) {
             row.append(campaignExtensionButton(fetcher, doc, item, 90, published.generatedAt, current, status, extensionState));
           }
           campaignList.append(row);
+          if (benefitSelect) {
+            const option = doc.createElement('option');
+            option.value = item.id;
+            option.textContent = `${item.merchantName} · ${item.title}`;
+            benefitSelect.append(option);
+            benefitCampaignIds.add(item.id);
+          }
         }
+        if (benefitSelect && benefitCampaignIds.has(previousBenefitCampaign)) benefitSelect.value = previousBenefitCampaign;
+        await loadAdminBenefit(fetcher, doc, requestId);
         campaignLoaded = true;
       } catch (error) {
         if (adminRequests.get(doc) !== requestId) return;
@@ -1382,6 +1598,8 @@ export async function loadAdmin(fetcher, doc) {
       }
     }
     if (!current()) return;
+    await loadAdminCourses(fetcher, doc, payload.merchants, act, current);
+    if (!current()) return;
     status.textContent = payload.merchants.length ? `${payload.merchants.length}곳의 실제 상점입니다.` : '등록된 실제 상점이 없습니다.';
     content.hidden = false;
     realWorldCleanups.set(doc, mountRealWorldAdmin(fetcher, doc, payload.merchants));
@@ -1398,12 +1616,14 @@ export async function loadAdmin(fetcher, doc) {
     offerList?.replaceChildren();
     offerMerchant?.replaceChildren();
     campaignList?.replaceChildren();
+    courseList?.replaceChildren();
     funnelRequests.set(doc, (funnelRequests.get(doc) ?? 0) + 1);
     funnelTotalsNode?.replaceChildren();
     funnelTable?.replaceChildren();
     if (funnelStatus) funnelStatus.textContent = '';
     if (draftForm) draftForm.hidden = true;
     if (offerForm) offerForm.hidden = true;
+    if (courseForm) courseForm.hidden = true;
     if (error.status === 401) {
       status.textContent = '관리자 계정으로 로그인해 주세요.';
       login.hidden = false;
@@ -1434,6 +1654,7 @@ export function bindAdmin(fetcher, doc) {
     doc.getElementById('admin-deletions')?.replaceChildren();
     doc.getElementById('admin-offers')?.replaceChildren();
     doc.getElementById('admin-campaigns')?.replaceChildren();
+    doc.getElementById('admin-courses')?.replaceChildren();
     doc.getElementById('admin-funnel-totals')?.replaceChildren();
     doc.getElementById('admin-funnel-table')?.replaceChildren();
     doc.getElementById('admin-play-events')?.replaceChildren();
@@ -1448,6 +1669,8 @@ export function bindAdmin(fetcher, doc) {
     const offerForm = doc.getElementById('admin-offer-form');
     offerForm?.querySelector('select[name="merchantId"]')?.replaceChildren();
     if (offerForm) offerForm.hidden = true;
+    const courseForm = doc.getElementById('admin-course-create');
+    if (courseForm) courseForm.hidden = true;
     doc.getElementById('admin-content').hidden = true;
   };
   doc.defaultView?.addEventListener('pagehide', clear);
@@ -1529,6 +1752,33 @@ export function bindAdmin(fetcher, doc) {
         ? error.message : '초안을 저장하지 못했습니다.';
     } finally { draftSaving = false; button.disabled = false; }
   });
+  const courseForm = doc.getElementById('admin-course-create');
+  courseForm?.querySelector('[name="stepCount"]')?.addEventListener('change', () => {
+    const FormDataOf = doc.defaultView?.FormData ?? FormData;
+    const previous = new FormDataOf(courseForm);
+    renderCourseSteps(doc, courseMerchants.get(doc) ?? []);
+    for (const control of doc.getElementById('admin-course-steps')?.querySelectorAll('[name]') ?? []) {
+      if (previous.has(control.name)) control.value = previous.get(control.name);
+    }
+  });
+  let courseSaving = false;
+  courseForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (courseSaving) return;
+    const requestId = adminRequests.get(doc);
+    const button = courseForm.querySelector('button[type="submit"]');
+    courseSaving = true; button.disabled = true;
+    try {
+      const FormDataOf = doc.defaultView?.FormData ?? FormData;
+      await jsonRequest(fetcher, courseEndpoint, 'POST', courseDraftPayload(new FormDataOf(courseForm)));
+      if (adminRequests.get(doc) !== requestId) return;
+      courseForm.reset();
+      await loadAdmin(fetcher, doc);
+      if (!doc.getElementById('admin-content').hidden) status.textContent = '비공개 코스를 저장했습니다.';
+    } catch (error) {
+      if (adminRequests.get(doc) === requestId) status.textContent = error.local ? error.message : '코스를 저장하지 못했습니다.';
+    } finally { courseSaving = false; button.disabled = false; }
+  });
   const offerForm = doc.getElementById('admin-offer-form');
   let offerSaving = false;
   offerForm?.addEventListener('submit', async event => {
@@ -1554,7 +1804,41 @@ export function bindAdmin(fetcher, doc) {
       }
     } finally { offerSaving = false; button.disabled = false; }
   });
+  bindAdminBenefits(fetcher, doc);
   return loadAdmin(fetcher, doc);
+}
+
+export function bindAdminBenefits(fetcher, doc) {
+  const benefitSelect = doc.getElementById('admin-benefit-campaign');
+  benefitSelect?.addEventListener('change', () => { void loadAdminBenefit(fetcher, doc); });
+  const benefitForm = doc.getElementById('admin-benefit-form');
+  let benefitSaving = false;
+  benefitForm?.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (benefitSaving || !benefitSelect?.value) return;
+    const button = benefitForm.querySelector('button[type="submit"]');
+    benefitSaving = true;
+    button.disabled = true;
+    try {
+      const FormDataOf = doc.defaultView?.FormData ?? FormData;
+      await jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(benefitSelect.value)}/benefit`, 'POST',
+        campaignBenefitPayload(new FormDataOf(benefitForm)));
+      benefitForm.reset();
+      await loadAdminBenefit(fetcher, doc);
+    } catch (error) {
+      doc.getElementById('admin-benefit-status').textContent = error.local === true ? error.message : '캠페인 혜택을 등록하지 못했습니다.';
+    } finally { benefitSaving = false; button.disabled = false; }
+  });
+  const benefitPause = doc.getElementById('admin-benefit-pause');
+  benefitPause?.addEventListener('click', async () => {
+    if (!benefitSelect?.value || !confirmed(doc, '새 캠페인 혜택 쿠폰 발급을 중지할까요? 이미 발급한 쿠폰은 그대로 쓸 수 있어요.')) return;
+    benefitPause.disabled = true;
+    try {
+      await jsonRequest(fetcher, `${campaignEndpoint}/${encodeURIComponent(benefitSelect.value)}/benefit/pause`, 'POST', {});
+      await loadAdminBenefit(fetcher, doc);
+    } catch { doc.getElementById('admin-benefit-status').textContent = '혜택 발급을 중지하지 못했습니다.'; }
+    finally { benefitPause.disabled = false; }
+  });
 }
 
 if (typeof document !== 'undefined') void bindAdmin(fetch, document);

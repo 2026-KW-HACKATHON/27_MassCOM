@@ -1,3 +1,4 @@
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
 import { Alert, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
@@ -73,7 +74,7 @@ export function PinSheet({ pin, bottom, onClose, onMeasure, selectionAction }: P
         <ScrollView style={{ maxHeight: Math.round(height * 0.55) }} contentContainerStyle={styles.sheetBody} bounces={false} nestedScrollEnabled>
           <View accessibilityLiveRegion="polite" style={styles.sheetBody}>
             <View style={styles.sheetTop}>
-              <Text ref={title} accessibilityRole="header" maxFontSizeMultiplier={1.6} style={styles.sheetName}>{pin.name}</Text>
+              <Text ref={title} accessibilityRole="header" maxFontSizeMultiplier={1.6} style={styles.sheetName}>{publicDataDemoStoreName(pin.merchantId, pin.name)}</Text>
               <Pressable accessibilityRole="button" accessibilityLabel="가게 카드 닫기" onPress={onClose} style={styles.closeButton}>
                 <Text maxFontSizeMultiplier={1.3} style={styles.closeText}>닫기</Text>
               </Pressable>

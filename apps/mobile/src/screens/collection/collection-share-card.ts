@@ -1,4 +1,5 @@
 import type { MedalKind, MedalTier } from '@/gamification/badge-api';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { medalCopy, showcaseRecordNote, tierName, type ShareVariant } from '@/gamification/badge-rules';
 
 // "인스타에 자랑하기" 도감 카드(Issue #332)가 그릴 값만 모은 모델. 이 카드는 SNS에 그대로 올라가므로, 도감 응답에서
@@ -85,7 +86,7 @@ export function buildCollectionShareCard(input: CollectionShareCardInput, varian
     }
     items.push({
       title: item.artwork?.name ?? item.displayName,
-      storeName: item.merchantName,
+      storeName: publicDataDemoStoreName(item.merchantId, item.merchantName),
       grade: gradeByGoal[item.targetVisitCount],
       imageUri: item.artwork?.thumbnailDataUrl ?? null,
     });

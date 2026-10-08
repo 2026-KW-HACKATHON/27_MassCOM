@@ -111,7 +111,7 @@ export function EnvelopeCard({ collectible, merchantName, isNew, motionAllowed, 
         ) : null}
         <View style={styles.captionBar}>
           <Text numberOfLines={1} style={styles.name}>{collectible.name}</Text>
-          <Text numberOfLines={1} style={styles.meta}>{merchantName} · {collectible.gradeName}</Text>
+          <Text style={styles.meta}>{merchantName} · {collectible.gradeName}</Text>
         </View>
       </Animated.View>
     </View>
