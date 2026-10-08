@@ -30,9 +30,12 @@ case "$1" in
       pg_dump)
         [[ ! -t 0 && ! -t 1 ]] || exit 2
         [[ "${FAKE_DUMP_EMPTY:-}" != 1 ]] || exit 0
+        # FAKE_DUMP_SLEEP=<s>은 덤프가 오래 걸리는 것처럼 그동안 잠금을 쥐게 하고, FAKE_DUMP_PAD=<n>은 기본 25바이트 덤프에 n바이트를 더한다.
+        [[ -z "${FAKE_DUMP_SLEEP:-}" ]] || sleep "$FAKE_DUMP_SLEEP"
         printf 'PGDMP'
         [[ "${FAKE_DUMP_FAIL:-}" != 1 ]] || { echo 'pg_dump: error: connection failed' >&2; exit 1; }
         printf ' fake dump contents\n'
+        [[ "${FAKE_DUMP_PAD:-0}" == 0 ]] || head -c "$FAKE_DUMP_PAD" /dev/zero
         ;;
       pg_restore)
         cat > "$FAKE_RESTORE_STDIN"
@@ -52,10 +55,16 @@ case "$1" in
     ;;
 esac
 DOCKER
-# 가짜 flock: 호출 인자를 남기고 FAKE_FLOCK_FAIL=1이면 시간 초과처럼 실패한다. 가짜 df: FAKE_DF_AVAIL_KB(기본은 아주 큼)만큼 남았다고 답한다.
+# 가짜 flock: 호출 인자와, 잠그는 파일 기술자 9가 백업 폴더 자체인지(`backup-dir`, 아니면 `other`)를 남기고 FAKE_FLOCK_FAIL=1이면 시간 초과처럼 실패한다.
+# 가짜 df: FAKE_DF_AVAIL_KB(기본은 아주 큼)만큼 남았다고 답한다.
 cat > "$scratch/bin/flock" <<'FLOCK'
 #!/usr/bin/env bash
 echo "$*" >> "${FAKE_FLOCK_LOG:-/dev/null}"
+python3 - "$MASSCOM_BACKUP_DIR" >> "${FAKE_FLOCK_FD_LOG:-/dev/null}" <<'PY'
+import os, stat, sys
+locked, folder = os.fstat(9), os.stat(sys.argv[1])
+print('backup-dir' if stat.S_ISDIR(locked.st_mode) and (locked.st_dev, locked.st_ino) == (folder.st_dev, folder.st_ino) else 'other')
+PY
 [[ "${FAKE_FLOCK_FAIL:-}" != 1 ]]
 FLOCK
 cat > "$scratch/bin/df" <<'DF'
@@ -80,17 +89,18 @@ PY
 mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
 hash_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum <"$1" | cut -d' ' -f1; else shasum -a 256 <"$1" | cut -d' ' -f1; fi; }
 day=1440
+real_flock="$(command -v flock || true)"   # 가짜는 run_job 안에서만 PATH 앞에 붙으므로 여기서는 진짜(없으면 빈 값)
 
 run_job() {
   local script="$1"; shift
   # 재정의(가짜 docker·임시 백업 폴더)는 MASSCOM_BACKUP_TEST=1을 명시할 때만 받아들여진다. umask 022는 보통 셸의 값이고 스크립트가 이에 기대면 안 된다.
   ( umask 022
     PATH="$scratch/bin:$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" FAKE_RESTORE_STDIN="$scratch/restore-stdin" FAKE_READY_STATE="$scratch/ready-state" \
-      FAKE_FLOCK_LOG="$scratch/flock.log" FAKE_DF_LOG="$scratch/df.log" MASSCOM_DOCKER="$scratch/bin/docker" MASSCOM_DF="$scratch/bin/df" \
-      MASSCOM_LOCK_FILE="$scratch/maintenance.lock" MASSCOM_READY_TRIES=3 MASSCOM_READY_WAIT=0 \
+      FAKE_FLOCK_LOG="$scratch/flock.log" FAKE_FLOCK_FD_LOG="$scratch/flock-fd.log" FAKE_DF_LOG="$scratch/df.log" \
+      MASSCOM_DOCKER="$scratch/bin/docker" MASSCOM_DF="$scratch/bin/df" MASSCOM_READY_TRIES=3 MASSCOM_READY_WAIT=0 \
       MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_BACKUP_TEST=1 "$@" bash "$script" )
 }
-reset() { rm -rf "$scratch/backups" "$scratch/ready-state"; mkdir -p "$scratch/backups"; : > "$scratch/docker.log"; : > "$scratch/restore-stdin"; : > "$scratch/flock.log"; : > "$scratch/df.log"; }
+reset() { rm -rf "$scratch/backups" "$scratch/ready-state"; mkdir -p "$scratch/backups"; : > "$scratch/docker.log"; : > "$scratch/restore-stdin"; : > "$scratch/flock.log"; : > "$scratch/flock-fd.log"; : > "$scratch/df.log"; }
 files_in() { (cd "$scratch/backups" && find . -mindepth 1 | sed 's|^\./||' | sort); }
 
 for variant in 'lightsail|infra/lightsail/host-jobs|masscom|postgres|masscom-backup|masscom-retention|/opt/masscom/backups|masscom|masscom|18:50' \
@@ -112,7 +122,8 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|postgres|masscom-bac
     || fail "$label: pg_dump is not run inside the database container with the stack's user and database"
   [[ "$(sed -n 4p "$scratch/docker.log")" == 'exec -i container-abc pg_restore -f /dev/null' ]] || fail "$label: the whole archive is not read back with pg_restore -f /dev/null"
   [[ "$(wc -l < "$scratch/docker.log" | tr -d ' ')" == 4 ]] || fail "$label: unexpected extra docker calls"
-  [[ "$(cat "$scratch/flock.log")" == '-w 1800 9' ]] || fail "$label: the job did not take the shared maintenance lock first: $(cat "$scratch/flock.log")"
+  [[ "$(cat "$scratch/flock.log")" == '-w 1200 9' ]] || fail "$label: the job did not take the shared maintenance lock first, waiting less than the unit's 30 minutes: $(cat "$scratch/flock.log")"
+  [[ "$(cat "$scratch/flock-fd.log")" == backup-dir ]] || fail "$label: the lock is not taken on the backup folder itself: $(cat "$scratch/flock-fd.log")"
   [[ ! -s "$scratch/df.log" ]] || fail "$label: the free-space check ran although there was no earlier daily backup"
   dump="$(cd "$scratch/backups" && ls daily-*.dump 2>/dev/null)"
   [[ "$dump" =~ ^daily-[0-9]{8}T[0-9]{6}Z\.dump$ ]] || fail "$label: dump name is not daily-<UTC>.dump: $dump"
@@ -147,7 +158,7 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|postgres|masscom-bac
     age "$scratch/backups/$old" $((31 * day))
   done
   retention_out="$(PATH="$scratch/bin:$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" FAKE_RESTORE_STDIN="$scratch/restore-stdin" MASSCOM_DOCKER="$scratch/bin/docker" \
-    MASSCOM_LOCK_FILE="$scratch/maintenance.lock" MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_RETENTION_TEST=1 bash "$retention_script")" || fail "$label: retention run failed"
+    MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_RETENTION_TEST=1 bash "$retention_script")" || fail "$label: retention run failed"
   grep -q $'^BACKUPS_DELETED\t3$' <<<"$retention_out" || fail "$label: retention did not delete exactly the oldest dump, its sidecar and the leftover part (the newest three stay): $retention_out"
   [[ "$(files_in)" == $'daily-20261005T185000Z.dump\ndaily-20261005T185000Z.dump.sha256\ndaily-20261006T185000Z.dump\ndaily-20261006T185000Z.dump.sha256\ndaily-20261007T185000Z.dump\ndaily-20261007T185000Z.dump.sha256' ]] \
     || fail "$label: retention left the wrong backups: $(files_in | tr '\n' ' ')"
@@ -188,9 +199,58 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|postgres|masscom-bac
   [[ "$(files_in)" == "$expected_files" ]] || fail "$label: low free space left a partial file"
   grep -q -- '-Pk' "$scratch/df.log" || fail "$label: free space is not read with df -Pk"
   # 정확히 2배(2000바이트)는 통과한다: 2KB 여유는 2048바이트.
-  run_job "$script" env FAKE_DATE=20261008T185000Z FAKE_DF_AVAIL_KB=2 >/dev/null || fail "$label: exactly twice the last dump size must be enough"
+  run_job "$script" env FAKE_DATE=20261008T185000Z FAKE_DF_AVAIL_KB=2 FAKE_DUMP_PAD=1000 >/dev/null || fail "$label: exactly twice the last dump size must be enough"
   reset
   if ! run_job "$script" env FAKE_DF_AVAIL_KB=1 >/dev/null 2>&1; then fail "$label: the free-space check ran with no earlier daily backup"; fi
+
+  # 크기 급감: 새 백업이 직전 일일 백업(1000바이트)의 50% 미만이면 두 파일을 모두 두고 BACKUP_SIZE_DROP, 종료 코드 3(유닛은 이 코드를 다시 시도하지 않는다).
+  # 정확히 50%(500바이트)는 통과한다. 새 덤프는 기본 25바이트이고 FAKE_DUMP_PAD가 더한다.
+  size_run() {
+    reset
+    run_job "$script" env FAKE_DATE=20261007T185000Z >/dev/null || fail "$label: setup run for the size check failed"
+    head -c 1000 /dev/zero > "$scratch/backups/daily-20261007T185000Z.dump"
+    status=0
+    run_job "$script" env FAKE_DATE=20261008T185000Z FAKE_DUMP_PAD="$1" >"$scratch/out" 2>"$scratch/err" || status=$?
+  }
+  for pad in 0 474; do
+    size_run "$pad"
+    [[ "$status" == 3 ]] || fail "$label: a backup of $((25 + pad)) bytes after 1000 did not exit 3 (exit $status): $(cat "$scratch/err")"
+    [[ "$(cat "$scratch/err")" == "BACKUP_SIZE_DROP"$'\t'"$((25 + pad))"$'\t'"1000" ]] || fail "$label: size drop is not named with both sizes: $(cat "$scratch/err")"
+    [[ ! -s "$scratch/out" ]] || fail "$label: a size drop printed to stdout"
+    [[ "$(files_in)" == $'daily-20261007T185000Z.dump\ndaily-20261007T185000Z.dump.sha256\ndaily-20261008T185000Z.dump\ndaily-20261008T185000Z.dump.sha256' ]] \
+      || fail "$label: a size drop deleted or left the wrong files: $(files_in | tr '\n' ' ')"
+    [[ "$(wc -c < "$scratch/backups/daily-20261007T185000Z.dump" | tr -d ' ')" == 1000 ]] || fail "$label: the previous backup was changed"
+    [[ "$(wc -c < "$scratch/backups/daily-20261008T185000Z.dump" | tr -d ' ')" == $((25 + pad)) ]] || fail "$label: the new backup was not kept as it was"
+    [[ "$(cat "$scratch/backups/daily-20261008T185000Z.dump.sha256")" == "$(hash_of "$scratch/backups/daily-20261008T185000Z.dump")  daily-20261008T185000Z.dump" ]] \
+      || fail "$label: the kept backup's sha256 does not match"
+  done
+  size_run 475
+  [[ "$status" == 0 && "$(cat "$scratch/out")" == "BACKUP_OK"$'\t'"500" && ! -s "$scratch/err" ]] || fail "$label: exactly 50% of the previous backup must pass (exit $status): $(cat "$scratch/err")"
+  size_run 1000
+  [[ "$status" == 0 ]] || fail "$label: a larger backup than the previous one failed (exit $status)"
+  grep -qx 'RestartPreventExitStatus=3' "$repo_root/$directory/$unit.service" || fail "$label: the unit would retry a size drop and hide it behind the retry's success"
+
+  # 공유 잠금은 백업 폴더 자체에 건다: 정리 작업과 서로 겹치지 않는다. 진짜 flock이 있을 때만(이 시험 PC에 없으면 건너뛴다) 백업이 덤프하는 동안 잠금을 쥔 채
+  # 다른 백업과 정리 작업이 1초 기다리고 포기하는지, 쥔 쪽은 끝까지 성공하는지 본다.
+  if [[ -n "$real_flock" ]]; then
+    reset
+    run_job "$script" env PATH="$PATH" FAKE_DUMP_SLEEP=4 >"$scratch/holder.out" 2>&1 &
+    holder=$!
+    for _ in $(seq 1 100); do if grep -q ' pg_dump ' "$scratch/docker.log"; then break; fi; sleep 0.1; done
+    grep -q ' pg_dump ' "$scratch/docker.log" || fail "$label: the lock holder never started its dump"
+    if run_job "$script" env PATH="$PATH" MASSCOM_LOCK_WAIT=1 FAKE_DATE=20261008T185000Z >"$scratch/out" 2>"$scratch/err"; then fail "$label: a second backup ran while the first held the lock"; fi
+    grep -qx BACKUP_LOCK_TIMEOUT "$scratch/err" || fail "$label: the second backup did not give up on the lock: $(cat "$scratch/err")"
+    if PATH="$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" MASSCOM_DOCKER="$scratch/bin/docker" MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_LOCK_WAIT=1 \
+        MASSCOM_RETENTION_TEST=1 bash "$retention_script" >"$scratch/out" 2>"$scratch/err"; then fail "$label: retention deleted files while a backup held the lock"; fi
+    grep -qx RETENTION_LOCK_TIMEOUT "$scratch/err" || fail "$label: retention did not give up on the lock: $(cat "$scratch/err")"
+    wait "$holder" || fail "$label: the lock holder's backup failed: $(cat "$scratch/holder.out")"
+    [[ "$(files_in | grep -c '\.dump$')" == 1 ]] || fail "$label: the lock holder did not leave exactly one backup: $(files_in | tr '\n' ' ')"
+    # 잠금이 풀린 뒤에는 정리 작업도 잡는다.
+    PATH="$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" MASSCOM_DOCKER="$scratch/bin/docker" MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_LOCK_WAIT=1 \
+      MASSCOM_RETENTION_TEST=1 bash "$retention_script" >/dev/null 2>&1 || fail "$label: retention could not take the lock after the backup released it"
+  else
+    echo "note: no real flock on this machine; the backup/retention exclusion run is skipped (CI runs it)"
+  fi
 
   # 공유 잠금을 못 잡으면(정리 작업이 오래 돎) 컨테이너에도 닿지 않고 실패로 알린다.
   reset
@@ -233,7 +293,9 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|postgres|masscom-bac
   grep -q 'MASSCOM_BACKUP_TEST:-}" == 1' "$script" || fail "$label: overrides are not gated behind the test flag"
   grep -q '^umask 077$' "$script" || fail "$label: the job does not set umask 077"
   grep -q '^set -o noclobber$' "$script" || fail "$label: the job does not refuse to clobber existing files"
-  grep -q "^lock_file='/run/lock/masscom-db-maintenance.lock'\$" "$script" || fail "$label: wrong shared lock file"
+  grep -q '^lock_wait_seconds=1200$' "$script" || fail "$label: the lock wait is not shorter than the unit's 30 minutes"
+  grep -q 'exec 9<"\$backup_dir"' "$script" || fail "$label: the lock is not taken on the backup folder itself"
+  if grep -Eq 'lock_file|LOCK_FILE|/run/lock' "$script"; then fail "$label: the job still uses a lock file"; fi
   grep -q 'pg_restore -f /dev/null' "$script" && ! grep -q 'pg_restore --list' "$script" || fail "$label: the archive check is not a full read"
   compose="$repo_root/${directory%/host-jobs}/compose.yml"
   grep -q "^name: $project\$" "$compose" || fail "$label: compose project name differs from the job's"
@@ -255,10 +317,11 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|postgres|masscom-bac
   for directive in UMask=0077 NoNewPrivileges=yes PrivateTmp=yes PrivateDevices=yes ProtectSystem=strict ProtectHome=read-only \
       ProtectKernelTunables=yes ProtectKernelModules=yes ProtectControlGroups=yes RestrictSUIDSGID=yes LockPersonality=yes \
       RestrictAddressFamilies=AF_UNIX ProtectClock=yes ProtectHostname=yes ProtectKernelLogs=yes RestrictNamespaces=yes \
-      SystemCallArchitectures=native "ReadWritePaths=$default_backup /run/lock" Restart=on-failure RestartSec=10min; do
+      SystemCallArchitectures=native "ReadWritePaths=$default_backup" Restart=on-failure RestartSec=10min RestartPreventExitStatus=3 TimeoutStartSec=30min; do
     grep -qx "$directive" "$service_file" || fail "$label: service is missing $directive"
   done
   [[ "$(grep -c '^ReadWritePaths=' "$service_file")" == 1 ]] || fail "$label: service may write to more than one place"
+  if grep -q '/run/lock' "$service_file"; then fail "$label: service still opens /run/lock for writing"; fi
   grep -qx 'StartLimitIntervalSec=2h' "$service_file" && grep -qx 'StartLimitBurst=3' "$service_file" || fail "$label: retries are not limited to three starts in two hours"
   if grep -Eq '^(ProtectSystem=(full|true)|InaccessiblePaths|TemporaryFileSystem|PrivateNetwork|RuntimeDirectory|ProtectProc|ProcSubset)' "$service_file"; then
     fail "$label: a sandbox setting could block the docker socket"

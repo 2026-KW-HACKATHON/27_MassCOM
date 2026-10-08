@@ -38,10 +38,16 @@ case "$1" in
 esac
 DOCKER
 chmod +x "$scratch/bin/docker"
-# 가짜 flock(Issue #412): 백업 작업과 나누는 잠금. 호출 인자를 남기고 FAKE_FLOCK_FAIL=1이면 시간 초과처럼 실패한다.
+# 가짜 flock(Issue #412): 백업 작업과 나누는 잠금. 호출 인자와, 잠그는 파일 기술자 9가 백업 폴더 자체인지(`backup-dir`, 아니면 `other`)를 남기고
+# FAKE_FLOCK_FAIL=1이면 시간 초과처럼 실패한다.
 cat > "$scratch/bin/flock" <<'FLOCK'
 #!/usr/bin/env bash
 echo "$*" >> "${FAKE_FLOCK_LOG:-/dev/null}"
+python3 - "$MASSCOM_BACKUP_DIR" >> "${FAKE_FLOCK_FD_LOG:-/dev/null}" <<'PY'
+import os, stat, sys
+locked, folder = os.fstat(9), os.stat(sys.argv[1])
+print('backup-dir' if stat.S_ISDIR(locked.st_mode) and (locked.st_dev, locked.st_ino) == (folder.st_dev, folder.st_ino) else 'other')
+PY
 [[ "${FAKE_FLOCK_FAIL:-}" != 1 ]]
 FLOCK
 chmod +x "$scratch/bin/flock"
@@ -92,7 +98,7 @@ run_job() {
   local script="$1"; shift
   # 재정의(가짜 docker·임시 백업 폴더·기간)는 MASSCOM_RETENTION_TEST=1을 명시할 때만 받아들여진다.
   PATH="$scratch/bin:$PATH" FAKE_DOCKER_LOG="$scratch/docker.log" MASSCOM_DOCKER="$scratch/bin/docker" FAKE_FLOCK_LOG="$scratch/flock.log" \
-    MASSCOM_LOCK_FILE="$scratch/maintenance.lock" MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_RETENTION_TEST=1 "$@" bash "$script"
+    FAKE_FLOCK_FD_LOG="$scratch/flock-fd.log" MASSCOM_BACKUP_DIR="$scratch/backups" MASSCOM_RETENTION_TEST=1 "$@" bash "$script"
 }
 
 for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retention|/opt/masscom/backups' \
@@ -100,6 +106,8 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   IFS='|' read -r label directory project service unit default_backup <<<"$variant"
   script="$repo_root/$directory/masscom-retention.sh"
   bash -n "$script" "$repo_root/$directory/install.sh"
+  # 이 PC에 진짜 백업 폴더가 있으면 아래 실행이 건드릴 수 있으므로 무엇보다 먼저 멈춘다.
+  if [[ -d "$default_backup" && -w "$default_backup" ]]; then fail "$label: this machine has the real backup folder; test would touch it"; fi
 
   # 정상 실행: 컨테이너를 레이블로 골라 그 안에서 정리 명령을 실행하고 오래된 백업만 지운다.
   make_backups "$scratch/backups"; : > "$scratch/docker.log"
@@ -160,7 +168,7 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   fi
 
   # 일일 백업 보관 하한(Issue #412): 나이와 상관없이 가장 최근 daily-*.dump 3개와 sha256은 남기고, 더 오래된 일일 백업·.part·다른 오래된 덤프는 지운다.
-  rm -rf "$scratch/backups"; mkdir -p "$scratch/backups"; : > "$scratch/docker.log"; : > "$scratch/flock.log"
+  rm -rf "$scratch/backups"; mkdir -p "$scratch/backups"; : > "$scratch/docker.log"; : > "$scratch/flock.log"; : > "$scratch/flock-fd.log"
   for ts in 20260701 20260702 20260703 20260704 20260705; do
     : > "$scratch/backups/daily-${ts}T185000Z.dump";        age "$scratch/backups/daily-${ts}T185000Z.dump" $((90 * day))
     : > "$scratch/backups/daily-${ts}T185000Z.dump.sha256"; age "$scratch/backups/daily-${ts}T185000Z.dump.sha256" $((90 * day))
@@ -186,6 +194,7 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   expect_files "$scratch/backups" "$label floor by name" daily-20260702T185000Z.dump daily-20260703T185000Z.dump daily-20260704T185000Z.dump
   # 파일을 지우는 단계는 백업 작업과 나누는 잠금을 잡는다. 잠금을 못 잡으면 아무것도 지우지 않고 실패로 알리지만 DB 정리는 한다.
   grep -qx -- '-w 600 9' "$scratch/flock.log" || fail "$label: the file step did not take the shared maintenance lock"
+  [[ "$(sort -u "$scratch/flock-fd.log")" == backup-dir ]] || fail "$label: the lock is not taken on the backup folder itself: $(sort -u "$scratch/flock-fd.log" | tr '\n' ' ')"
   make_backups "$scratch/backups"; : > "$scratch/docker.log"
   if run_job "$script" env FAKE_FLOCK_FAIL=1 >"$scratch/out" 2>"$scratch/err"; then fail "$label: a lock timeout must fail the job"; fi
   grep -q RETENTION_LOCK_TIMEOUT "$scratch/err" || fail "$label: lock timeout is not named"
@@ -224,7 +233,6 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   set -e
   expect_files "$scratch/backups" "$label without test flag" "${kept_after_run[@]}" pre-edge-over.dump database-before-aaaaaaaaaaaa.dump.AbC123 pre-old-20260801.dump
   grep -q "project=$project " "$scratch/docker.log" || fail "$label: an override changed the compose project without the test flag"
-  if [[ -d "$default_backup" && -w "$default_backup" ]]; then fail "$label: this machine has the real backup folder; test would touch it"; fi
   grep -q RETENTION_BACKUP_DIR_MISSING "$scratch/err" || fail "$label: the default backup folder was not used without the test flag"
 
   # 저장소의 기본값이 실제 서버 경로와 compose 이름을 가리킨다.
@@ -233,7 +241,9 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   grep -q "^backup_dir='$default_backup'\$" "$script" || fail "$label: wrong default backup folder"
   grep -q '^retention_days=30$' "$script" || fail "$label: wrong default retention days"
   grep -q 'MASSCOM_RETENTION_TEST:-}" == 1' "$script" || fail "$label: overrides are not gated behind the test flag"
-  grep -q "^lock_file='/run/lock/masscom-db-maintenance.lock'\$" "$script" || fail "$label: wrong shared lock file"
+  grep -q '^lock_wait_seconds=600$' "$script" || fail "$label: wrong lock wait"
+  grep -q 'exec 9<"\$backup_dir"' "$script" || fail "$label: the lock is not taken on the backup folder itself"
+  if grep -Eq 'lock_file|LOCK_FILE|/run/lock' "$script"; then fail "$label: the job still uses a lock file"; fi
   # 지우는 일은 find 한 명령이다: 골라 둔 이름을 나중에 rm에 넘기지 않는다.
   grep -q -- '-mmin "+\$((retention_days \* 1440))" -delete' "$script" || fail "$label: backups are not deleted by find itself"
   if grep -Eq '(^|[^a-z])rm( |$)|xargs' "$script"; then fail "$label: the job deletes through a separate rm/xargs step"; fi
@@ -253,10 +263,11 @@ for variant in 'lightsail|infra/lightsail/host-jobs|masscom|api|masscom-retentio
   for directive in UMask=0077 NoNewPrivileges=yes PrivateTmp=yes PrivateDevices=yes ProtectSystem=strict ProtectHome=read-only \
       ProtectKernelTunables=yes ProtectKernelModules=yes ProtectControlGroups=yes RestrictSUIDSGID=yes LockPersonality=yes \
       RestrictAddressFamilies=AF_UNIX ProtectClock=yes ProtectHostname=yes ProtectKernelLogs=yes RestrictNamespaces=yes \
-      SystemCallArchitectures=native "ReadWritePaths=$default_backup /run/lock"; do
+      SystemCallArchitectures=native "ReadWritePaths=$default_backup"; do
     grep -qx "$directive" "$service_file" || fail "$label: service is missing $directive"
   done
   [[ "$(grep -c '^ReadWritePaths=' "$service_file")" == 1 ]] || fail "$label: service may write to more than one place"
+  if grep -q '/run/lock' "$service_file"; then fail "$label: service still opens /run/lock for writing"; fi
   if grep -Eq '^(ProtectSystem=(full|true)|InaccessiblePaths|TemporaryFileSystem|PrivateNetwork|RuntimeDirectory|ProtectProc|ProcSubset)' "$service_file"; then
     fail "$label: a sandbox setting could block the docker socket"
   fi

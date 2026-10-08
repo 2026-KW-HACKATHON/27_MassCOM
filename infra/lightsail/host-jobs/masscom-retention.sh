@@ -7,7 +7,7 @@
 #
 # 지우는 백업은 백업 폴더 바로 아래의 일반 파일 중 이름이 `*.dump` 또는 `*.dump.*`인 것뿐이다. 하위 폴더·심볼릭 링크는 건드리지 않는다.
 # 단, 일일 백업(masscom-backup)의 가장 최근 3개(`daily-*.dump`)와 그 sha256 파일은 나이와 상관없이 남긴다: 백업이 한동안 실패해도 마지막 좋은 백업이 30일 정리에 지워지지 않게 하는 하한이다.
-# 파일을 지우는 단계는 백업 작업과 나누는 잠금(/run/lock/masscom-db-maintenance.lock)을 잡고 한다.
+# 파일을 지우는 단계는 백업 작업과 나누는 잠금을 잡고 한다: 백업 폴더 자체를 읽기로 열어 그 위에 flock을 건다(백업 작업도 같은 폴더에 건다).
 # 환경 백업(runtime-before-*.env.*)·Caddyfile 백업(caddyfile-before-*·caddy-rollback-*)은 지우지 않는다: 이름이 `*.dump`·`*.dump.*`가 아니고,
 # 롤백 뒤 실행 중인 Caddy가 그 파일을 마운트로 물고 있을 수 있어 지우면 다음 배포의 사전 검사가 깨진다.
 #
@@ -18,7 +18,6 @@ set -uo pipefail
 project='masscom'
 service='api'
 backup_dir='/opt/masscom/backups'
-lock_file='/run/lock/masscom-db-maintenance.lock'
 lock_wait_seconds=600
 keep_newest_daily=3
 retention_days=30
@@ -28,7 +27,6 @@ if [[ "${MASSCOM_RETENTION_TEST:-}" == 1 ]]; then
   service="${MASSCOM_API_SERVICE:-$service}"
   backup_dir="${MASSCOM_BACKUP_DIR:-$backup_dir}"
   retention_days="${MASSCOM_BACKUP_RETENTION_DAYS:-$retention_days}"
-  lock_file="${MASSCOM_LOCK_FILE:-$lock_file}"
   lock_wait_seconds="${MASSCOM_LOCK_WAIT:-$lock_wait_seconds}"
   docker_bin="${MASSCOM_DOCKER:-$docker_bin}"
 fi
@@ -55,7 +53,7 @@ fi
 # 2) 30일 지난 DB 백업 삭제 -------------------------------------------------------------------------------------------
 if [[ -d "$backup_dir" && ! -L "$backup_dir" ]]; then
   # 백업 작업이 파일을 쓰는 동안에는 기다린다(잠금은 이 스크립트가 끝날 때 풀린다).
-  if ! exec 9>>"$lock_file" || ! flock -w "$lock_wait_seconds" 9; then
+  if ! exec 9<"$backup_dir" || ! flock -w "$lock_wait_seconds" 9; then
     echo 'RETENTION_LOCK_TIMEOUT' >&2
     status=1
   else

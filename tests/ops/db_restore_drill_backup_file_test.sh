@@ -26,6 +26,12 @@ FAKE
 # 조회 명령에만 실패·빈 결과·불일치를 주입한다. 생성·삭제·버전 조회는 정상 동작한다.
 cat >"$fakebin/psql" <<'FAKE'
 #!/usr/bin/env bash
+# Free-space probe of --restore-only (Issue #412 review): answered before the URL log so the admin-connection counts stay "create + drop".
+if [[ "$*" == *'SHOW data_directory'* ]]; then
+  if [[ -n "${FAKE_SHOW_LOG:-}" ]]; then printf '%s\n' "$1" >>"$FAKE_SHOW_LOG"; fi
+  [[ "${FAKE_DATADIR_FAIL:-}" != 1 ]] || { echo 'ERROR:  must be superuser or have privileges of pg_read_all_settings' >&2; exit 1; }
+  echo "${FAKE_DATADIR-/var/lib/postgresql/data}"; exit 0
+fi
 if [[ -n "${FAKE_PG_URL_LOG:-}" ]]; then printf '%s\n' "$1" >>"$FAKE_PG_URL_LOG"; fi
 if [[ -n "${FAKE_PG_SQL_LOG:-}" ]]; then printf '%s\n' "$*" >>"$FAKE_PG_SQL_LOG"; fi
 # The scratch name is taken (Issue #412 review): CREATE DATABASE fails, so nothing of this drill exists to clean up.
@@ -71,7 +77,19 @@ fi
 cat >/dev/null
 if [[ "${FAKE_PG_RESTORE_FAIL:-}" == 1 ]]; then echo 'pg_restore: error: could not execute query' >&2; exit 1; fi
 FAKE
-chmod +x "$fakebin/pg_dump" "$fakebin/psql" "$fakebin/pg_restore"
+# df and a PG_EXEC wrapper: FAKE_DF_AVAIL_KB (default: plenty) is what df reports as available, FAKE_DF_FAIL=1 makes df fail; the wrapper logs what it is asked to run.
+cat >"$fakebin/df" <<'FAKE'
+#!/usr/bin/env bash
+if [[ -n "${FAKE_DF_LOG:-}" ]]; then printf '%s\n' "$*" >>"$FAKE_DF_LOG"; fi
+[[ "${FAKE_DF_FAIL:-}" != 1 ]] || { echo 'df: no such file or directory' >&2; exit 1; }
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/fake 999999999 1 %s 1%% /\n' "${FAKE_DF_AVAIL_KB:-900000000}"
+FAKE
+cat >"$fakebin/pgwrap" <<'FAKE'
+#!/usr/bin/env bash
+if [[ -n "${FAKE_WRAP_LOG:-}" ]]; then printf '%s\n' "$*" >>"$FAKE_WRAP_LOG"; fi
+exec "$@"
+FAKE
+chmod +x "$fakebin/pg_dump" "$fakebin/psql" "$fakebin/pg_restore" "$fakebin/df" "$fakebin/pgwrap"
 
 # Mode in octal, GNU (Linux CI) and BSD (macOS) stat.
 mode_of() { stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"; }
@@ -282,6 +300,54 @@ status=0
 out="$(FAKE_PG_URL_LOG="$url_log" DRILL_DATABASE_URL='postgresql://drill@127.0.0.1:1/masscom_test?dbname=masscom' run_drill --restore-only "$work/ro.dump" 2>&1)" || status=$?
 [[ "$status" != 0 ]] && grep -q 'database-selecting query key is not allowed' <<<"$out" && [[ ! -s "$url_log" ]] || { echo 'restore-only accepted a database-selecting query key' >&2; exit 1; }
 ro_intact query-key
+
+# Issue #412 리뷰: --restore-only 는 scratch DB를 만들기 전에, 서버 데이터 디렉터리가 있는 곳에 백업 크기의 3배 이상 여유가 있는지 본다.
+# 서버가 알려 준 data_directory(SHOW data_directory)를 PostgreSQL 도구가 도는 곳에서 df -Pk 로 잰다. 잴 수 없으면 알리고 건너뛴다.
+df_log="$scratch/df.log"; show_log="$scratch/show.log"; wrap_log="$scratch/wrap.log"
+head -c 1024 /dev/zero >"$work/ro-1k.dump"   # 3배 = 3072바이트 = 정확히 3 KiB
+space_run() {   # 인자: 백업 파일, 그다음 환경 변수 낱말들. 종료 코드는 status, 출력은 out.
+  local file="$1"; shift
+  : >"$url_log"; : >"$df_log"; : >"$show_log"; : >"$wrap_log"; status=0
+  out="$( export FAKE_PG_URL_LOG="$url_log" FAKE_DF_LOG="$df_log" FAKE_SHOW_LOG="$show_log" FAKE_WRAP_LOG="$wrap_log"; for kv in "$@"; do export "$kv"; done
+          run_drill --restore-only "$file" 2>&1 )" || status=$?
+}
+# 경계: 정확히 3배는 통과한다. df 는 서버가 알려 준 경로를 -Pk 로 재고, 데이터 디렉터리 질의는 admin 연결로 간다.
+space_run "$work/ro-1k.dump" FAKE_DF_AVAIL_KB=3
+[[ "$status" == 0 ]] || { echo "exactly 3x free space was refused ($status): $out" >&2; exit 1; }
+[[ "$(cat "$df_log")" == '-Pk /var/lib/postgresql/data' ]] || { echo "df was not run on the server's data directory: $(cat "$df_log")" >&2; exit 1; }
+[[ "$(cat "$show_log")" == 'postgresql://drill@127.0.0.1:1/postgres' ]] || { echo "data directory was not asked over the admin connection: $(cat "$show_log")" >&2; exit 1; }
+if grep -q 'free-space check skipped' <<<"$out"; then echo 'a measurable free-space check was skipped' >&2; exit 1; fi
+scratch_dropped free-space-boundary
+# 3배에 1KiB 모자라면 거절하고, scratch DB는 만들지 않는다(DB 연결 기록이 비어 있다): 파일은 그대로다.
+space_run "$work/ro-1k.dump" FAKE_DF_AVAIL_KB=2
+[[ "$status" == 1 ]] || { echo "less than 3x free space was not refused ($status): $out" >&2; exit 1; }
+grep -q 'not enough free space for --restore-only' <<<"$out" || { echo "low free space was not reported: $out" >&2; exit 1; }
+grep -q 'need at least 3x the backup size (3072 bytes)' <<<"$out" || { echo "the needed size is not reported: $out" >&2; exit 1; }
+[[ ! -s "$url_log" ]] || { echo "the scratch database was created although free space was short: $(cat "$url_log")" >&2; exit 1; }
+if grep -q 'restore-only drill passed' <<<"$out"; then echo 'low free space still printed success' >&2; exit 1; fi
+space_run "$work/ro.dump" FAKE_DF_AVAIL_KB=0
+[[ "$status" == 1 && ! -s "$url_log" ]] && grep -q 'not enough free space' <<<"$out" || { echo "no free space at all was not refused before CREATE: $out" >&2; exit 1; }
+ro_intact low-free-space
+# 잴 수 없으면(권한 없음, df 실패, 절대 경로가 아님) 알리고 건너뛴다: 복원은 계속된다.
+for unmeasurable in FAKE_DATADIR_FAIL=1 FAKE_DF_FAIL=1 FAKE_DATADIR=relative/path; do
+  space_run "$work/ro.dump" "$unmeasurable" FAKE_DF_AVAIL_KB=0
+  [[ "$status" == 0 ]] || { echo "an unmeasurable data directory ($unmeasurable) stopped the drill ($status): $out" >&2; exit 1; }
+  grep -q 'free-space check skipped' <<<"$out" || { echo "skipped check was not announced ($unmeasurable): $out" >&2; exit 1; }
+  grep -q 'restore-only drill passed' <<<"$out" || { echo "drill did not finish after skipping ($unmeasurable): $out" >&2; exit 1; }
+done
+# 원격 서버(URL 호스트가 이 PC가 아님)는 PG_EXEC 없이 이 PC의 디스크를 재지 않는다. PG_EXEC 가 있으면 도구가 도는 곳에서 잰다. IPv6 루프백은 이 PC다.
+remote_url='postgresql://drill@db.example.com:5432/masscom_test'
+space_run "$work/ro.dump" DRILL_DATABASE_URL="$remote_url" FAKE_DF_AVAIL_KB=0
+[[ "$status" == 0 && ! -s "$df_log" && ! -s "$show_log" ]] && grep -q 'free-space check skipped' <<<"$out" || { echo "a remote server's data directory was measured on this machine: $out" >&2; exit 1; }
+space_run "$work/ro.dump" DRILL_DATABASE_URL="$remote_url" PG_EXEC="$fakebin/pgwrap" FAKE_DF_AVAIL_KB=0
+[[ "$status" == 1 ]] && grep -q 'not enough free space' <<<"$out" || { echo "PG_EXEC did not make a remote URL measurable: $out" >&2; exit 1; }
+grep -Fxq 'df -Pk /var/lib/postgresql/data' "$wrap_log" || { echo "df did not run through the PG_EXEC prefix: $(cat "$wrap_log")" >&2; exit 1; }
+grep -q '^psql ' "$wrap_log" || { echo "psql did not run through the PG_EXEC prefix" >&2; exit 1; }
+space_run "$work/ro.dump" DRILL_DATABASE_URL='postgresql://drill@[::1]:5432/masscom_test' FAKE_DF_AVAIL_KB=0
+[[ "$status" == 1 && -s "$df_log" ]] || { echo "an IPv6 loopback URL was not treated as this machine: $out" >&2; exit 1; }
+ro_intact free-space-variants
+echo "free-space tests passed (3x boundary; refused before CREATE; unmeasurable and remote cases skipped with a note; PG_EXEC prefix used)"
+
 echo "restore-only tests passed ($ro_cases failure cases rejected; the backup file and the source were left alone)"
 
 
@@ -316,10 +382,36 @@ for guard_case in \
   guard_intact "$guard_label"
   guard_cases=$((guard_cases + 1))
 done
-# --overwrite 로 명시하면 운영 백업 폴더 규칙은 통과한다(폴더가 없으므로 다른 이유로 멈춘다).
+# --overwrite 로 명시하면 새 *.dump 는 운영 백업 폴더 규칙을 통과한다(폴더가 없으므로 다른 이유로 멈춘다).
 status=0
 out="$(run_drill --overwrite /opt/masscom-t5/backups/daily-20261008T000000Z.dump 2>&1)" || status=$?
-[[ "$status" != 0 ]] && ! grep -q 'refusing to write a dump into a backup folder' <<<"$out" || { echo '--overwrite did not lift the backup-folder rule' >&2; exit 1; }
+[[ "$status" != 0 ]] && ! grep -q 'refusing to write a dump into a backup folder' <<<"$out" || { echo '--overwrite did not lift the backup-folder rule for a new file' >&2; exit 1; }
+# Issue #412 리뷰: 백업 폴더 안의 이미 있는 파일은 --overwrite 로도 바꾸지 않는다(이름과 상관없이, 상대 경로·심볼릭 링크 상위 폴더로 줘도). DB에는 닿지 않는다.
+folder="$work/opt/masscom-t5/backups"
+mkdir -p "$folder"
+printf 'REAL BACKUP' >"$folder/daily-20261008T000000Z.dump"
+printf 'REAL SIDECAR' >"$folder/daily-20261008T000000Z.dump.sha256"
+printf 'REAL NOTES' >"$folder/notes.txt"
+ln -s "$folder" "$work/folder-link"
+folder_cases=0
+for protected in "$folder/daily-20261008T000000Z.dump" "$folder/daily-20261008T000000Z.dump.sha256" "$folder/notes.txt"     "opt/masscom-t5/backups/daily-20261008T000000Z.dump" "$work/folder-link/daily-20261008T000000Z.dump"; do
+  : >"$url_log"
+  status=0
+  out="$(FAKE_PG_URL_LOG="$url_log" run_drill --overwrite "$protected" 2>&1)" || status=$?
+  [[ "$status" == 1 ]] || { echo "--overwrite replaced or mishandled an existing file in a backup folder ($protected): exit $status: $out" >&2; exit 1; }
+  grep -qF 'refusing to replace an existing file in a backup folder' <<<"$out" || { echo "backup-folder refusal missing for $protected: $out" >&2; exit 1; }
+  [[ ! -s "$url_log" ]] || { echo "the database was touched before the backup-folder refusal ($protected)" >&2; exit 1; }
+  [[ "$(<"$folder/daily-20261008T000000Z.dump")" == 'REAL BACKUP' && "$(<"$folder/daily-20261008T000000Z.dump.sha256")" == 'REAL SIDECAR' \
+     && "$(<"$folder/notes.txt")" == 'REAL NOTES' && "$(leftovers)" == 0 ]] || { echo "a backup-folder file changed ($protected)" >&2; exit 1; }
+  folder_cases=$((folder_cases + 1))
+done
+# 같은 폴더에 새 *.dump 를 쓰는 것은 --overwrite 가 있을 때만 된다(없으면 거절). 다른 경로의 --overwrite(위 5번)는 그대로 된다.
+status=0
+out="$(run_drill "$folder/new.dump" 2>&1)" || status=$?
+[[ "$status" == 1 && ! -e "$folder/new.dump" ]] && grep -qF 'refusing to write a dump into a backup folder' <<<"$out" || { echo "a new dump in a backup folder was written without --overwrite: $out" >&2; exit 1; }
+status=0
+out="$(run_drill --overwrite "$folder/new.dump" 2>&1)" || status=$?
+[[ "$status" == 0 && "$(<"$folder/new.dump")" == NEWDUMP ]] || { echo "--overwrite did not allow a new dump in a backup folder ($status): $out" >&2; exit 1; }
 # scratch DB 이름이 이미 쓰이고 있으면(CREATE DATABASE 실패) 아무것도 지우지 않는다: DROP 0번, 연결 종료 0번, 종료 코드 0이 아님, 파일 그대로.
 sql_log="$scratch/sql.log"
 : >"$sql_log"
@@ -345,7 +437,7 @@ drop_line="$(grep 'DROP DATABASE' "$sql_log")"
   || { echo "the connection-ending statement is not limited to the scratch database: $drop_line" >&2; exit 1; }
 [[ "$drop_line" == *'DROP DATABASE IF EXISTS "masscom_'*'_restore_test"'* && "$drop_line" == *pg_terminate_backend*DROP\ DATABASE* ]] || { echo "connections must be ended before the drop: $drop_line" >&2; exit 1; }
 if grep -q "datname = 'masscom_test'\|datname = 'postgres'" <<<"$drop_line"; then echo 'the statement mentions a database other than the scratch one' >&2; exit 1; fi
-echo "argument-safety tests passed ($guard_cases refused argument forms; no DROP when CREATE fails; scratch-only connection ending)"
+echo "argument-safety tests passed ($guard_cases refused argument forms; $folder_cases existing backup-folder files kept despite --overwrite; no DROP when CREATE fails; scratch-only connection ending)"
 
 
 echo "restore drill backup-file tests passed ($rejected_queries unsafe queries refused; TLS query preserved; $snapshot_cases invalid snapshot cases rejected)"

@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # MassCOM 시연 일일 DB 백업 작업(Issue #412). 서버의 systemd timer가 하루 한 번 실행한다. 시연은 배포 스크립트가 없어 손으로만 남던 백업을 매일로 줄인다.
-#   0) 정리 작업과 공유하는 잠금(/run/lock/masscom-db-maintenance.lock)을 잡는다: 백업이 쓰는 동안 정리가, 정리가 도는 동안 백업이 겹치지 않는다.
+#   0) 정리 작업과 공유하는 잠금을 잡는다: 백업 폴더 자체를 읽기로 열어 그 위에 flock을 건다(잠금 파일이 없다). 정리 작업도 같은 폴더에 걸므로 백업이 쓰는 동안
+#      정리가, 정리가 도는 동안 백업이 겹치지 않는다. 최대 20분(1200초) 기다리고, 못 잡으면 BACKUP_LOCK_TIMEOUT(유닛 제한 30분보다 짧아 다음 재시도가 가능하다).
 #   1) 실행 중인 Postgres 컨테이너가 연결을 받을 때까지 기다리고(pg_isready), 직전 일일 백업 크기의 2배 이상 디스크가 남았는지 본다.
 #   2) 컨테이너 안에서 pg_dump(custom 형식)로 `daily-<UTC 시각>.dump.part`에 받는다.
 #   3) 컨테이너의 `pg_restore -f /dev/null`로 아카이브를 끝까지 읽는다(목차와 모든 데이터 블록을 풀어 보므로 깨진·잘린 덤프는 여기서 걸린다).
 #      이것은 "읽을 수 있다"는 확인이지 "복원된다"는 보증이 아니다: 실제 복원은 scripts/db-restore-drill.sh --restore-only로 따로 시험한다.
 #   4) sha256 파일(`daily-<UTC 시각>.dump.sha256`)을 쓰고, 마지막에 `.part`를 `daily-<UTC 시각>.dump`로 한 번에 바꾼다(mv, 같은 폴더라 원자적).
+#   5) 새 파일이 직전 일일 백업(새로 만들기 전의 가장 최근 `daily-*.dump`)의 50% 미만이면 두 파일을 모두 그대로 두고(지우지 않는다) BACKUP_SIZE_DROP을 stderr에 쓰고
+#      종료 코드 3으로 끝낸다: 데이터가 갑자기 빠진 백업이 조용히 성공으로 보이지 않게 한다. 유닛은 RestartPreventExitStatus=3이라 다시 시도하지 않는다
+#      (다시 받으면 방금의 작은 파일과 비교되어 통과하고 실패가 가려진다). 첫 실행처럼 직전 백업이 없으면 건너뛴다.
 # 완성된 `daily-*.dump`만 백업이다. 실패하면 `.part`를 지우고 종료 코드 1로 알린다(유닛은 10분 뒤 두 번까지 다시 시도한다). 이름이 `*.dump`·`*.dump.*`라서
 # masscom-retention.sh가 30일 뒤 함께 지운다(가장 최근 일일 백업 3개와 그 sha256은 나이와 상관없이 남긴다). 같은 디스크의 백업이라 서버를 잃으면 함께
 # 사라진다: 서버 밖 사본은 소유자 결정 사항이다.
@@ -22,8 +26,7 @@ service='postgres'
 db_user='masscom_showcase'
 db_name='masscom_showcase'
 backup_dir='/opt/masscom-showcase/backups'
-lock_file='/run/lock/masscom-db-maintenance.lock'
-lock_wait_seconds=1800
+lock_wait_seconds=1200
 ready_tries=12
 ready_wait_seconds=5
 min_free_factor=2
@@ -35,7 +38,6 @@ if [[ "${MASSCOM_BACKUP_TEST:-}" == 1 ]]; then
   db_user="${MASSCOM_DB_USER:-$db_user}"
   db_name="${MASSCOM_DB_NAME:-$db_name}"
   backup_dir="${MASSCOM_BACKUP_DIR:-$backup_dir}"
-  lock_file="${MASSCOM_LOCK_FILE:-$lock_file}"
   lock_wait_seconds="${MASSCOM_LOCK_WAIT:-$lock_wait_seconds}"
   ready_tries="${MASSCOM_READY_TRIES:-$ready_tries}"
   ready_wait_seconds="${MASSCOM_READY_WAIT:-$ready_wait_seconds}"
@@ -45,8 +47,8 @@ fi
 
 if [[ ! -d "$backup_dir" || -L "$backup_dir" ]]; then echo 'BACKUP_DIR_MISSING' >&2; exit 1; fi
 
-# 0) 정리 작업과 공유하는 잠금. 잠금 파일은 덮어쓰지 않고 이어 붙여 연다(noclobber는 `>`만 막는다).
-if ! exec 9>>"$lock_file" || ! flock -w "$lock_wait_seconds" 9; then
+# 0) 정리 작업과 공유하는 잠금: 백업 폴더 자체에 건다(읽기로 열기만 하므로 잠금 파일을 둘 쓰기 가능한 곳이 필요 없다). 프로세스가 끝나면 풀린다.
+if ! exec 9<"$backup_dir" || ! flock -w "$lock_wait_seconds" 9; then
   echo 'BACKUP_LOCK_TIMEOUT' >&2
   exit 1
 fi
@@ -110,4 +112,10 @@ hash="${hash%% *}"
 printf '%s  %s\n' "$hash" "${final##*/}" >"$final.sha256" || { echo 'BACKUP_CHECKSUM_FAILED' >&2; exit 1; }
 mv "$part" "$final" || { echo 'BACKUP_RENAME_FAILED' >&2; exit 1; }
 trap - EXIT
-echo "BACKUP_OK	$(wc -c <"$final" | tr -d ' ')"
+new_size="$(wc -c <"$final" | tr -d ' ')"
+# 5) 크기 급감: 직전 백업의 50% 미만(새 크기 x 2 < 직전 크기)이면 파일은 둘 다 두고 눈에 띄게 실패한다. 정확히 50%는 통과한다.
+if [[ -n "$last_daily" ]] && (( new_size * 2 < last_size )); then
+  printf 'BACKUP_SIZE_DROP\t%s\t%s\n' "$new_size" "$last_size" >&2
+  exit 3
+fi
+echo "BACKUP_OK	$new_size"

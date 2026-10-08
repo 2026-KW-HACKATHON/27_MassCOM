@@ -10,11 +10,17 @@
 #        DRILL_DATABASE_URL=...                                  scripts/db-restore-drill.sh --restore-only <backup-file>
 #   Options go first and are matched exactly (`--restore-only=FILE`, an unknown `-x`, or anything after the single file argument is refused).
 #   A dump never replaces an existing path, and never lands in a /opt/masscom*/backups folder as *.dump, unless --overwrite is given: a forgotten
-#   --restore-only must not overwrite a real backup with a fresh dump.
+#   --restore-only must not overwrite a real backup with a fresh dump. An existing file inside such a backups folder is never replaced, not even
+#   with --overwrite (dump to another path).
 #   --restore-only  restores an existing backup (e.g. a daily-*.dump from masscom-backup) into a scratch database, without dumping the source or
 #                   writing anything to the file: pg_restore must exit 0, schema_migrations must not be empty, and the set of tables must equal the live
 #                   database's. It prints the elapsed seconds (the restore time to expect in a real recovery). Row counts are not compared, since a
 #                   backup is older than the live data; a deploy that adds a table makes the previous backup fail the table-set check until the next backup.
+#                   Before the scratch database is created it requires free space of at least 3x the backup file size on the filesystem that holds the
+#                   server's data directory (the server reports it via SHOW data_directory; df runs where the PostgreSQL tools run: inside the container
+#                   with PG_EXEC, otherwise on this machine when the URL points at it; a container behind a published local port needs PG_EXEC, or df
+#                   measures this machine's path of the same name). When that cannot be measured (remote server without PG_EXEC, SHOW or df not
+#                   permitted) the check is skipped with a note on stderr instead of guessed.
 #   PGPASSWORD   pass the password this way, not inside the URL (URLs show up in `ps`).
 #   PG_EXEC      prefix for the PostgreSQL client tools when they are not on PATH, e.g.
 #                PG_EXEC='docker exec -i -e PGPASSWORD masscom-postgres-test'
@@ -119,14 +125,20 @@ snapshot() {
     --command "$counts_sql" --command 'SELECT filename FROM schema_migrations ORDER BY filename'
 }
 
-if [[ -z "$restore_only" && -z "$own_backup" && -z "$overwrite" ]]; then
-  # Before any database is touched: a path that already exists, or a *.dump inside a production backup folder, is only written with --overwrite.
-  [[ ! -e "$backup" ]] || { echo "refusing to overwrite existing path: $backup (did you forget --restore-only? pass --overwrite to replace it)" >&2; exit 1; }
+if [[ -z "$restore_only" && -z "$own_backup" ]]; then
+  # Before any database is touched. A path that already exists is only replaced with --overwrite, and an existing file inside a production backup
+  # folder is never replaced (--overwrite does not lift that); a new *.dump there is only written with --overwrite. The leading * accepts any prefix before
+  # /opt, so the match also holds for the resolved path of a symlinked parent.
+  [[ -n "$overwrite" || ! -e "$backup" ]] || { echo "refusing to overwrite existing path: $backup (did you forget --restore-only? pass --overwrite to replace it)" >&2; exit 1; }
   backup_dir_real="$(cd "$(dirname "$backup")" 2>/dev/null && pwd -P || true)"
   for backup_candidate in "$backup" "${backup_dir_real:+$backup_dir_real/${backup##*/}}"; do
     case "$backup_candidate" in
-      /opt/masscom*/backups/*.dump|/opt/masscom*/backups/*.dump.*)
-        echo "refusing to write a dump into a backup folder: $backup_candidate (pass --overwrite if this is intended)" >&2; exit 1 ;;
+      */opt/masscom*/backups/*)
+        [[ ! -e "$backup" ]] || { echo "refusing to replace an existing file in a backup folder: $backup_candidate (--overwrite does not apply there; dump to another path)" >&2; exit 1; }
+        case "${backup_candidate##*/}" in
+          *.dump|*.dump.*)
+            [[ -n "$overwrite" ]] || { echo "refusing to write a dump into a backup folder: $backup_candidate (pass --overwrite if this is intended)" >&2; exit 1; } ;;
+        esac ;;
     esac
   done
 fi
@@ -141,6 +153,29 @@ if [[ -z "$restore_only" ]]; then
   echo "server: $(pg psql "$url" --no-psqlrc --tuples-only --no-align --command 'SHOW server_version')"
 else
   echo "backup: $backup ($(wc -c <"$backup" | tr -d ' ') bytes, restore only)"
+fi
+
+if [[ -n "$restore_only" ]]; then
+  # Free space (see the header): the restore writes a full copy of the dump's contents plus indexes and WAL, so 3x the file size must be free where the server keeps its data.
+  hostport="${server#*://}"; hostport="${hostport##*@}"
+  if [[ "$hostport" == \[* ]]; then host="${hostport#\[}"; host="${host%%\]*}"; else host="${hostport%%:*}"; fi
+  measurable=""
+  if [[ -n "${PG_EXEC:-}" ]]; then measurable=1; else case "$host" in ''|localhost|127.0.0.1|::1) measurable=1 ;; esac; fi
+  free_kb=""
+  if [[ -n "$measurable" ]] \
+      && datadir="$(pg psql "$admin_url" --no-psqlrc --tuples-only --no-align --set ON_ERROR_STOP=1 --command 'SHOW data_directory' 2>/dev/null)" \
+      && [[ "$datadir" == /* ]]; then
+    free_kb="$(pg df -Pk "$datadir" 2>/dev/null | awk 'NR == 2 { print $4 }')" || free_kb=""
+  fi
+  need_bytes=$(( $(wc -c <"$backup" | tr -d ' ') * 3 ))
+  if [[ "$free_kb" =~ ^[0-9]+$ ]]; then
+    if (( free_kb * 1024 < need_bytes )); then
+      echo "restore drill FAILED: not enough free space for --restore-only: $((free_kb * 1024)) bytes free where the server keeps its data, need at least 3x the backup size ($need_bytes bytes)" >&2
+      exit 1
+    fi
+  else
+    echo "free-space check skipped: the server's data directory cannot be measured from here (remote server without PG_EXEC, or SHOW data_directory / df not permitted)" >&2
+  fi
 fi
 
 restore_started=$SECONDS
