@@ -39,6 +39,10 @@ done
   echo 'project portal is missing the public wallet mark' >&2
   exit 1
 }
+grep -qF 'href="https://demo-api.masscom.kr/play/">시연 웹 보기' "$repo_root/docs/index.html" || {
+  echo 'project portal "시연 웹 보기" must open the showcase web trial (/play/), not the read-only preview' >&2
+  exit 1
+}
 grep -q 'href="https://masscom.kr/open"' "$repo_root/docs/index.html" || {
   echo 'project portal is missing the Android App Link entry' >&2
   exit 1
@@ -55,7 +59,7 @@ for file in README.md apps/production-web/README.md; do
     exit 1
   }
 done
-for entry in 'app/|운영 웹 보기' 'preview/|시연 웹 보기'; do
+for entry in 'app/|운영 웹 보기' 'preview/|도감 미리보기'; do
   path="${entry%%|*}"
   label="${entry#*|}"
   grep -qF "href=\"https://www.masscom.kr/$path\">$label" "$repo_root/docs/index.html" || {

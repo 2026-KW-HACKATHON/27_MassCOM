@@ -16,7 +16,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.masscom.kr/preview/">시연 웹 보기</a> ·
+  <a href="https://demo-api.masscom.kr/play/">시연 웹 보기</a> ·
+  <a href="https://www.masscom.kr/preview/">도감 미리보기</a> ·
   <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22">시연 APK 받기</a> ·
   <a href="https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13">운영 테스트 APK 받기</a> ·
   <a href="https://www.masscom.kr/app/">운영 웹 보기</a> ·
