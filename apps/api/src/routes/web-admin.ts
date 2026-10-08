@@ -13,9 +13,9 @@ import type { RouteContext } from './context.js';
 export async function handleWebAdmin(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
   const { webAuth, admin, authLoginLimiter, staffRegistration, deletionProcessing, adminFunnel, play } = deps;
-  const trustProxyClientIp = deps.trustProxyClientIp ?? false;
-  const webWwwEnabled = deps.webWwwEnabled ?? false;
-  const { realWorld, coinEconomy, roomCommunity } = deps.experienceServices ?? {};
+  const { trustProxyClientIp } = deps;
+  const { webWwwEnabled } = deps;
+  const { realWorld, coinEconomy, roomCommunity } = deps.experienceServices;
   const { roomWriteLimiter, coinWriteLimiter } = runtime;
   if (path.startsWith('/api/web/admin/')) {
     const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);

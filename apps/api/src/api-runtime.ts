@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from './account-consent.js';
-import { developmentHeaderAccountResolver, type AccountResolver, type ApiDeps } from './api-deps.js';
+import { developmentHeaderAccountResolver, type AccountResolver, type ResolvedApiDeps } from './api-deps.js';
 import { FixedWindowAuthLoginLimiter } from './http/login-limiter.js';
 import { authLoginClientKey, requireBearerToken } from './http/request-auth.js';
 import { RequestError } from './http/request-error.js';
@@ -10,9 +10,9 @@ import { MerchantAccessError } from './merchant-access.js';
 import { SHOWCASE_TEST_VISIT_LIMIT_PER_HOUR } from './showcase/all-access.js';
 
 // 서버 인스턴스마다 한 번 만든다. 제한기·계정 해석 래퍼·동의/스캔 확인은 인스턴스 안에서만 공유하고 모듈 전역에 두지 않는다.
-export function createApiRuntime(deps: ApiDeps) {
+export function createApiRuntime(deps: ResolvedApiDeps) {
   const { merchantAccess, baseAccountResolver, guestTrials, consent } = deps;
-  const trustProxyClientIp = deps.trustProxyClientIp ?? false;
+  const { trustProxyClientIp } = deps;
   const requireCustomerScan = async (accountId: string, merchantId: string): Promise<void> => {
     if (!merchantAccess) throw new RequestError(503, 'MERCHANT_ACCESS_NOT_CONFIGURED');
     try { await merchantAccess.requirePermission({ accountId, merchantId, permission: 'CONFIRM_VISIT' }); }

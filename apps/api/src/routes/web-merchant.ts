@@ -21,9 +21,9 @@ export async function handleWebMerchant(ctx: RouteContext): Promise<boolean> {
     merchantAccess, claimSlots, customerIdentities, badges, reversals, merchantOverview, visitorFeedback,
     webAuth, staffRegistration, authLoginLimiter, collectibleProjects, merchantProfile,
   } = deps;
-  const trustProxyClientIp = deps.trustProxyClientIp ?? false;
-  const webWwwEnabled = deps.webWwwEnabled ?? false;
-  const { merchantOperations } = deps.experienceServices ?? {};
+  const { trustProxyClientIp } = deps;
+  const { webWwwEnabled } = deps;
+  const { merchantOperations } = deps.experienceServices;
   const { requireCustomerScan, merchantProfileWriteLimiter, merchantOperationLimiter, collectibleWriteLimiter } = runtime;
   if (path.startsWith('/api/web/merchant/')) {
     const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);

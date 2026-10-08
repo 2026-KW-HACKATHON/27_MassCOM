@@ -8,8 +8,8 @@ import type { RouteContext } from './context.js';
 export async function handleWebAuth(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps } = ctx;
   const { webAuth, authLoginLimiter } = deps;
-  const trustProxyClientIp = deps.trustProxyClientIp ?? false;
-  const webWwwEnabled = deps.webWwwEnabled ?? false;
+  const { trustProxyClientIp } = deps;
+  const { webWwwEnabled } = deps;
   if (path === '/api/web/auth/start' && request.method === 'GET') {
     const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);
     if (!webAuth) throw new RequestError(503, 'WEB_AUTH_NOT_CONFIGURED');

@@ -8,7 +8,7 @@ import type { RouteContext } from './context.js';
 export async function handleWebCustomer(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
   const { webAuth, collection, collectibleProjects, badges, consent } = deps;
-  const webWwwEnabled = deps.webWwwEnabled ?? false;
+  const { webWwwEnabled } = deps;
   const { resolveAccountId } = runtime;
   if (path === '/api/web/collection' && request.method === 'GET') {
     const origin = resolveWebOrigin(request.headers.host, webWwwEnabled);

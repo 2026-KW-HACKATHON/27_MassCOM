@@ -8,7 +8,7 @@ import type { RouteContext } from './context.js';
 export async function handleDiscovery(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
   const { merchantCatalog, collection, collectiblePreview, merchantDetailViews } = deps;
-  const trustProxyClientIp = deps.trustProxyClientIp ?? false;
+  const { trustProxyClientIp } = deps;
   const { resolveAccountId, merchantDetailViewLimiter } = runtime;
   const collectiblePreviewMatch = path.match(/^\/merchants\/([^/]+)\/collectible-preview$/);
   if (request.method === 'GET' && collectiblePreviewMatch) {

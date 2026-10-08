@@ -9,7 +9,7 @@ import type { RouteContext } from './context.js';
 export async function handleCoinsRooms(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
   const { friends } = deps;
-  const { furniture, gradeDraw, coinEconomy, roomCommunity } = deps.experienceServices ?? {};
+  const { furniture, gradeDraw, coinEconomy, roomCommunity } = deps.experienceServices;
   const { resolveAccountId, requireCurrentPlayConsent, coinWriteLimiter, roomWriteLimiter } = runtime;
   if (path === '/me/furniture' || path === '/me/furniture/purchases') {
     if (!furniture) throw new RequestError(503, 'FURNITURE_NOT_CONFIGURED');

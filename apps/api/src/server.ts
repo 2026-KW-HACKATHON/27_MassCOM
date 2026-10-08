@@ -78,7 +78,7 @@ import { PostgresRecommendationSource } from './postgres/recommendation.js';
 import { PostgresChallengeStore } from './postgres/wallet-challenge-store.js';
 import { PostgresWalletBindingStore } from './postgres/wallet-binding.js';
 import { InMemoryWalletBindingStore, type WalletBindingStore } from './wallet-binding.js';
-import { developmentHeaderAccountResolver, type AccountResolver, type ApiDeps, type ExperienceServices, type ReauthenticationGuard } from './api-deps.js';
+import { developmentHeaderAccountResolver, type AccountResolver, type ApiDeps, type ExperienceServices, type ReauthenticationGuard, type ResolvedApiDeps } from './api-deps.js';
 import { createApiRuntime } from './api-runtime.js';
 import { renderClaimQr } from './http/claim-qr.js';
 import { FixedWindowAuthLoginLimiter, type AuthLoginLimiter } from './http/login-limiter.js';
@@ -142,12 +142,16 @@ export function realWorldAdminCheck(accountLifecycle: PostgresAccountLifecycle):
   };
 }
 
-export function createApiServer(deps: ApiDeps) {
-  const { webAuth, admin, social } = deps;
-  const trustProxyClientIp = deps.trustProxyClientIp ?? false;
-  const webWwwEnabled = deps.webWwwEnabled ?? false;
-  const experienceServices = deps.experienceServices ?? {};
-  const { realWorld, tmap, mapProvider } = experienceServices;
+export function createApiServer(input: ApiDeps) {
+  // 호출자 객체를 복사해 한 번만 얼리고 기본값도 여기서만 정한다. 런타임과 경로 처리기는 같은 이 객체를 읽는다.
+  const deps: ResolvedApiDeps = Object.freeze({
+    ...input,
+    trustProxyClientIp: input.trustProxyClientIp ?? false,
+    webWwwEnabled: input.webWwwEnabled ?? false,
+    experienceServices: input.experienceServices ?? {},
+  });
+  const { webAuth, admin, social, trustProxyClientIp, webWwwEnabled } = deps;
+  const { realWorld, tmap, mapProvider } = deps.experienceServices;
   const runtime = createApiRuntime(deps);
   const {
     resolveAccountId, requireCurrentPlayConsent,
@@ -580,6 +584,20 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     searchId: process.env.NAVER_SEARCH_CLIENT_ID ?? '', searchSecret: process.env.NAVER_SEARCH_CLIENT_SECRET ?? '',
   }) : undefined;
   const play = pool && accountLifecycle ? new PostgresPlayService(pool, accountLifecycle) : undefined;
+  // Required<>라서 키 하나라도 빠지면 컴파일되지 않는다(exactOptionalPropertyTypes: 값은 undefined여도 키는 반드시 적는다).
+  const experienceServicesDeps: Required<ExperienceServices> = {
+    gradeDraw: pool && accountLifecycle ? new PostgresGradeDrawService(pool, accountLifecycle, { ...allAccess.mileageShop }) : undefined,
+    coinEconomy: pool && accountLifecycle ? new PostgresCoinEconomyService(pool, { accountLifecycle, ...allAccess.mileageShop }) : undefined,
+    roomCommunity: pool && accountLifecycle && play ? new PostgresRoomCommunityService(pool, { accountLifecycle, play }) : undefined,
+    furniture: pool && accountLifecycle ? new PostgresFurnitureService(pool, accountLifecycle,
+      { ...allAccess.mileageShop }) : undefined,
+    collectionExperience: pool && accountLifecycle ? new PostgresCollectionExperienceService(pool, accountLifecycle) : undefined,
+    merchantOperations: pool && accountLifecycle ? new PostgresMerchantOperations(pool, { accountLifecycle }) : undefined,
+    notifications,
+    realWorld,
+    tmap,
+    mapProvider: tmap && naver ? new MapProvider(tmap, naver) : undefined,
+  };
   const deps: Required<ApiDeps> = {
     service: configuredService(bindingStore, challengeStore),
     baseAccountResolver: accountResolver,
@@ -637,19 +655,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       staffMayManageArt: aiArtConfig.staffMayManage,
       ...(accountLifecycle ? { accountLifecycle } : {}),
     }) : undefined,
-    experienceServices: {
-      gradeDraw: pool && accountLifecycle ? new PostgresGradeDrawService(pool, accountLifecycle, { ...allAccess.mileageShop }) : undefined,
-      coinEconomy: pool && accountLifecycle ? new PostgresCoinEconomyService(pool, { accountLifecycle, ...allAccess.mileageShop }) : undefined,
-      roomCommunity: pool && accountLifecycle && play ? new PostgresRoomCommunityService(pool, { accountLifecycle, play }) : undefined,
-      furniture: pool && accountLifecycle ? new PostgresFurnitureService(pool, accountLifecycle,
-        { ...allAccess.mileageShop }) : undefined,
-      collectionExperience: pool && accountLifecycle ? new PostgresCollectionExperienceService(pool, accountLifecycle) : undefined,
-      merchantOperations: pool && accountLifecycle ? new PostgresMerchantOperations(pool, { accountLifecycle }) : undefined,
-      notifications,
-      realWorld,
-      tmap,
-      mapProvider: tmap && naver ? new MapProvider(tmap, naver) : undefined,
-    },
+    experienceServices: experienceServicesDeps,
     storeTickets: pool && accountLifecycle && collection
       ? new PostgresStoreTicketService(pool, collection, accountLifecycle) : undefined,
     social,

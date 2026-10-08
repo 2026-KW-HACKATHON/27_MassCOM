@@ -121,3 +121,10 @@ export type ApiDeps = {
   storeTickets?: StoreTicketService | undefined;
   social?: SocialService | undefined;
 };
+
+/** createApiServer가 기본값(꺼짐·빈 객체)을 한 번 채우고 얼린 deps. 런타임과 경로 처리기는 이 값을 `??` 없이 그대로 읽는다. */
+export type ResolvedApiDeps = ApiDeps & {
+  trustProxyClientIp: boolean;
+  webWwwEnabled: boolean;
+  experienceServices: ExperienceServices;
+};

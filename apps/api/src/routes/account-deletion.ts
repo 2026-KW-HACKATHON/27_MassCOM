@@ -9,7 +9,7 @@ import type { RouteContext } from './context.js';
 export async function handleAccountDeletion(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
   const { webAuth, deletionIntake, showcaseDeletionIntake } = deps;
-  const webWwwEnabled = deps.webWwwEnabled ?? false;
+  const { webWwwEnabled } = deps;
   const { resolveAccountId, consumeDeletionStatus } = runtime;
   if (path === '/api/web/account-deletion-intake' || path === '/api/web/account-deletion-intake/cancel' ||
       path === '/api/web/account-deletion-status') {

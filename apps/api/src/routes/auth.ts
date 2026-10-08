@@ -6,7 +6,7 @@ import type { RouteContext } from './context.js';
 export async function handleAuth(ctx: RouteContext): Promise<boolean> {
   const { request, response, deps, runtime } = ctx;
   const { authSessions, authLoginLimiter, guestTrials } = deps;
-  const trustProxyClientIp = deps.trustProxyClientIp ?? false;
+  const { trustProxyClientIp } = deps;
   const { guestTrialLimiter } = runtime;
   if (request.method === 'POST' && request.url === '/auth/google') {
     if (authLoginLimiter) {

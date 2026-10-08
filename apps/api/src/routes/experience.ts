@@ -8,7 +8,7 @@ import type { RouteContext } from './context.js';
 
 export async function handleExperience(ctx: RouteContext): Promise<boolean> {
   const { request, response, path, deps, runtime } = ctx;
-  const { collectionExperience, notifications } = deps.experienceServices ?? {};
+  const { collectionExperience, notifications } = deps.experienceServices;
   const { resolveAccountId, requireCurrentPlayConsent, experienceWriteLimiter } = runtime;
   const friendExperienceMatch = path.match(/^\/me\/friends\/([^/]+)\/experience$/);
   if (path.startsWith('/me/experience') || friendExperienceMatch) {

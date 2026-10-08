@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-import type { ApiDeps } from '../api-deps.js';
+import type { ResolvedApiDeps } from '../api-deps.js';
 import type { ApiRuntime } from '../api-runtime.js';
 
 /**
@@ -11,6 +11,6 @@ export type RouteContext = {
   request: IncomingMessage;
   response: ServerResponse;
   path: string;
-  deps: ApiDeps;
+  deps: ResolvedApiDeps;
   runtime: ApiRuntime;
 };
