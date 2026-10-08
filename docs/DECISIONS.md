@@ -40,7 +40,7 @@
 | D-020 | 외부 실행 범위 승인 | 외부 HTTPS·Base Sepolia 배포·release AAB·Google Play 준비 진행 | `USER_CONFIRMED` | 2026-09-20 사용자 ‘전부 동의할께’. 개인키·keystore 생성, faucet, 계정 로그인, Console 약관 동의와 제출은 소유자가 직접 수행. mainnet·사용자 자산 이동·저장소 공개·대회 최종 제출은 포함하지 않음 |
 | D-021 | 기기 세션 저장 정책 | WalletConnect 세션은 AsyncStorage 유지, 인증 token 도입 시 SecureStore 전용, 계정 삭제 때 기기 세션 제거 | `USER_CONFIRMED` | 2026-09-20 사용자가 정책 결정을 위임. 기기에 비밀이 없고 세션이 SecureStore 한도를 넘어 새 의존성을 추가하지 않음 |
 | D-022 | 운영 package ID | 운영 `kr.masscom.wolgye`, 개발 `kr.masscom.wolgye.dev`, URL scheme은 각각 `masscom`·`masscom-dev` | `USER_CONFIRMED` | 2026-09-20 사용자 지정. Play package 이름 등록과 domain 소유 확인은 소유자가 Console에서 수행 |
-| D-023 | 캠페인 참여 자리 반환과 수령 조건 | 방문 보상에는 캠페인 참여 등록이 필요 없다(방문한 사람은 누구나 받는다). `enrollment_capacity`는 화면에 보이는 참여자 수일 뿐이고 비용 상한은 쿠폰 발급 상한과 NFT 시리즈 상한이다. 취소·삭제는 자리를 돌려주지 않는다 | `USER_CONFIRMED` | 2026-09-30 소유자 결정([Issue #246](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/246), D-054). 처음에는 2026-09-20 Issue #73 구현 중 `PROPOSED`(자리 미반환은 v3 6.2절 ‘약속한 상한 초과 금지’의 보수적 적용, 수령 시 등록 요구는 미정)였다. 방문 수령(`PostgresClaimSlotService.redeem`)이 `campaign_enrollments`·`enrolled_count`를 읽지 않음을 확인해 코드는 바꾸지 않고, 참여 등록 없이 정원이 가득 찬 캠페인에서도 방문이 권리를 만든다는 통합 시험(`admin-store-go-live.postgres.integration.ts`)으로 고정했다 |
+| D-023 | 캠페인 참여 자리 반환과 수령 조건 | 방문 보상에는 캠페인 참여 등록이 필요 없다(방문한 사람은 누구나 받는다). `enrollment_capacity`는 화면에 보이는 참여자 수일 뿐이고 비용 상한은 쿠폰 발급 상한과 NFT 시리즈 상한(NFT 쪽은 D-092로 해제)이다. 취소·삭제는 자리를 돌려주지 않는다 | `USER_CONFIRMED` | 2026-09-30 소유자 결정([Issue #246](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/246), D-054). 처음에는 2026-09-20 Issue #73 구현 중 `PROPOSED`(자리 미반환은 v3 6.2절 ‘약속한 상한 초과 금지’의 보수적 적용, 수령 시 등록 요구는 미정)였다. 방문 수령(`PostgresClaimSlotService.redeem`)이 `campaign_enrollments`·`enrolled_count`를 읽지 않음을 확인해 코드는 바꾸지 않고, 참여 등록 없이 정원이 가득 찬 캠페인에서도 방문이 권리를 만든다는 통합 시험(`admin-store-go-live.postgres.integration.ts`)으로 고정했다 |
 | D-024 | 운영 로그인 방식 | Google 로그인(OIDC ID token을 서버에서 서명·`aud`·`exp` 검증, `sub`를 계정 식별자로) | `USER_CONFIRMED` | 2026-09-21 사용자 ‘다 승인’. `docs/HOSTING_LOGIN_PROPOSAL.md` 후보 1. Google Cloud OAuth client 생성·동의 화면은 소유자가 직접 수행 |
 | D-025 | 서버 세션 형태 | 서버 저장 세션 + 불투명 토큰(해시로 저장, 만료·로그아웃·계정 삭제 시 즉시 폐기) | `USER_CONFIRMED` | 2026-09-21 사용자 승인. JWT 단독 방식은 즉시 폐기가 어려워 채택하지 않음 |
 | D-026 | 재인증 기준 | 계정 삭제 직전 5분 이내 재로그인 요구 | `USER_CONFIRMED` | 2026-09-21 사용자 승인. DEMO `x-demo-reauthenticated` 경로는 loopback 개발 전용으로 유지 |
@@ -84,7 +84,7 @@
 
 ## 2026-09-30 실제 점포 운영 시작 (Issue #246)
 
-소유자가 실제 점포를 SQL 없이 운영 관리자 웹에서 운영 시작하도록 정했습니다(D-054). 점포 공개는 메뉴·영업시간·주소와 가게 이름·사진 사용 동의서의 참조 번호가 있어야 하고, 점주는 직원 등록 뒤 사업자등록증 원본과 점포 전화로 확인한 사람만 확인 기록 참조 번호와 함께 올립니다(점포당 2명, 본인 불가). 보상 혜택은 점주 동의 5항목·동의서 참조 번호·발급 상한이 있어야 만들고, 캠페인은 관리자가 공개·중지합니다. 서비스에는 참조 번호만 남기고 사업자등록번호·이름·전화번호는 남기지 않습니다. D-023은 "방문 보상에 참여 등록 불필요, 정원은 표시용, 비용 상한은 쿠폰·NFT 시리즈 상한, 자리 미반환"으로 확정됐습니다. 운영 NFT는 권리만 기록하고 고객 화면에 "발행 준비 중"을 보이며 시연 발행은 그대로입니다. 구현 선택은 D-055(`PROPOSED`)에 적었습니다.
+소유자가 실제 점포를 SQL 없이 운영 관리자 웹에서 운영 시작하도록 정했습니다(D-054). 점포 공개는 메뉴·영업시간·주소와 가게 이름·사진 사용 동의서의 참조 번호가 있어야 하고, 점주는 직원 등록 뒤 사업자등록증 원본과 점포 전화로 확인한 사람만 확인 기록 참조 번호와 함께 올립니다(점포당 2명, 본인 불가). 보상 혜택은 점주 동의 5항목·동의서 참조 번호·발급 상한이 있어야 만들고, 캠페인은 관리자가 공개·중지합니다. 서비스에는 참조 번호만 남기고 사업자등록번호·이름·전화번호는 남기지 않습니다. D-023은 "방문 보상에 참여 등록 불필요, 정원은 표시용, 비용 상한은 쿠폰·NFT 시리즈 상한(NFT 쪽은 D-092로 해제), 자리 미반환"으로 확정됐습니다. 운영 NFT는 권리만 기록하고 고객 화면에 "발행 준비 중"을 보이며 시연 발행은 그대로입니다. 구현 선택은 D-055(`PROPOSED`)에 적었습니다.
 
 ## 2026-09-30 계정 삭제 요청 처리 (Issue #194)
 
