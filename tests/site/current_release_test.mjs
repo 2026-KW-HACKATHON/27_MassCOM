@@ -49,7 +49,7 @@ test('생성 블록은 JSON에서 다시 만들어도 그대로이고, 옛 Previ
 
 test('JSON을 고치면 --check는 open.html이 낡았다고 하고 렌더가 고친다', () => {
   const root = fixture();
-  edit(root, 'docs/CURRENT_RELEASE.json', (text) => text.replace('324041973', '400000000'));
+  edit(root, 'docs/CURRENT_RELEASE.json', (text) => text.replace(String(release.operating.bytes), '400000000'));
   assert.ok(withProblem(check(root), '생성 블록이 CURRENT_RELEASE.json과 다르다'));
   const stale = spawnSync(process.execPath, [script, '--check', root], { encoding: 'utf8' });
   assert.equal(stale.status, 1);
@@ -66,11 +66,11 @@ test('JSON이 evidence 파일의 태그·APK·SHA-256과 다르면 잡는다', (
 
 test('README 바로 체험의 옛 버전 번호와 태그를 잡고, 그 절 밖은 보지 않는다', () => {
   const root = fixture();
-  edit(root, 'README.md', (text) => text.replace('[Preview 22 APK]', '[Preview 21 APK]'));
+  edit(root, 'README.md', (text) => text.replace('[Preview 24 APK]', '[Preview 23 APK]'));
   assert.ok(withProblem(check(root), 'README.md:'));
   const second = fixture();
-  edit(second, 'README.md', (text) => text.replace('[test.13 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13)', '[test.13 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.12)'));
-  assert.ok(withProblem(check(second), 'android-v0.1.0-test.12'));
+  edit(second, 'README.md', (text) => text.replace('[test.14 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.14)', '[test.14 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13)'));
+  assert.ok(withProblem(check(second), 'android-v0.1.0-test.13'));
   const outside = fixture();
   edit(outside, 'README.md', (text) => `${text}\n## 다른 절\n\n옛 설치본이 아닌 문장: Preview 3과 test.5와 \`1234567\` 설치본.\n`);
   assert.deepEqual(check(outside), []);
@@ -78,7 +78,7 @@ test('README 바로 체험의 옛 버전 번호와 태그를 잡고, 그 절 밖
 
 test('DEMO_RUNBOOK의 옛 시연 API 해시와 APK 이름을 잡는다', () => {
   const root = fixture();
-  edit(root, 'docs/DEMO_RUNBOOK.md', (text) => text.replace('시연 API는 `2d483ed`', '시연 API는 `1234567`'));
+  edit(root, 'docs/DEMO_RUNBOOK.md', (text) => text.replace('시연 API는 `dbcc4403`', '시연 API는 `1234567`'));
   assert.ok(withProblem(check(root), '해시 1234567'));
   const apk = fixture();
   edit(apk, 'docs/DEMO_RUNBOOK.md', (text) => `${text}\n설치본은 MassCOM-showcase-android-9f5ebfa.apk 입니다.\n`);
@@ -105,16 +105,13 @@ test('같은 문장에 이전·옛이 있어도 그 바로 뒤가 아닌 낡은 
   assert.ok(withProblem(check(then), 'Preview 21'), '당시는 더 이상 면제가 아니다');
 });
 
-test('SUBMISSION_CHECKLIST도 본다: 낡은 태그·해시는 잡고, 정당한 옛 언급 두 개만 허용한다', () => {
+test('SUBMISSION_CHECKLIST도 본다: 낡은 태그·해시는 잡고, 정해 둔 이전 해시만 허용한다', () => {
   const stale = fixture();
-  edit(stale, 'docs/SUBMISSION_CHECKLIST.md', (text) => text.replace('showcase-android-v0.1.0-preview.22', 'showcase-android-v0.1.0-preview.21'));
+  edit(stale, 'docs/SUBMISSION_CHECKLIST.md', (text) => text.replace('showcase-android-v0.1.0-preview.24', 'showcase-android-v0.1.0-preview.23'));
   assert.ok(withProblem(check(stale), 'docs/SUBMISSION_CHECKLIST.md:'));
   const hash = fixture();
   edit(hash, 'docs/SUBMISSION_CHECKLIST.md', (text) => `${text}\n공개 운영 API는 \`1234567\` 입니다.\n`);
   assert.ok(withProblem(check(hash), '해시 1234567'));
-  // 정당한 옛 언급: 운영 배포 09dfceb0의 증거 링크 이름(체크리스트에만 정확히 이 토큰)
-  const checklist = readFileSync(join(repo, 'docs/SUBMISSION_CHECKLIST.md'), 'utf8');
-  assert.ok(checklist.includes('`09dfceb0`'), '체크리스트에 허용된 09dfceb0 언급이 있어야 한다');
   assert.deepEqual(check(fixture()), []);
   const other = fixture();
   edit(other, 'docs/SUBMISSION_CHECKLIST.md', (text) => `${text}\n운영 API 배포 \`09dfceb1\` 도 있었습니다.\n`);

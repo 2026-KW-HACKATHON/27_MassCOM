@@ -1,0 +1,33 @@
+{
+  "verifiedAt": "2026-10-09",
+  "sourceCommit": "dbcc44037264344dc79c92766bc2681fb5386837",
+  "mainCommit": "ff6d7d71257a72312ef1857aecd85fc1433ea842",
+  "treeMatchesMain": "PASS",
+  "production": {
+    "apiImage": "masscom-api:dbcc44037264",
+    "sourceMarker": "dbcc4403",
+    "health": "HTTP 200",
+    "web": "HTTP 200",
+    "privacyVersion": "privacy-2026-10-09",
+    "migrationFilesApplied": 76,
+    "lastMigration": "0077_ai_art_account_limits.sql",
+    "retentionJob": "success"
+  },
+  "showcase": {
+    "apiImage": "masscom-showcase-api:dbcc440",
+    "sourceMarker": "dbcc4403",
+    "health": "HTTP 200",
+    "playBundleSource": "dbcc4403",
+    "privacyVersion": "privacy-2026-10-09",
+    "migrationFilesApplied": 76,
+    "lastMigration": "0077_ai_art_account_limits.sql",
+    "retentionJob": "success"
+  },
+  "notVerified": [
+    "이 문서 커밋의 공개 /open 링크 반영",
+    "신규 운영 test.14·시연 Preview 24 APK 실제 기기 설치·로그인·지도·지갑·QR 수용",
+    "신규 /play/ 전체 5분 브라우저 시연",
+    "Google Play 게시"
+  ],
+  "recordBasis": "배포 담당의 서버·원장·HTTP 관측. 비밀·계정·지갑 주소는 기록하지 않는다."
+}

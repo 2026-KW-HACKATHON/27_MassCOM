@@ -55,8 +55,8 @@ grep -q 'href="account-deletion.html"' "$html" || fail "account deletion page is
 grep -q 'href="terms.html"' "$html" || fail "terms of service are not linked"
 grep -q '양도할 수 없습니다' "$terms_html" || fail "terms do not say the NFT cannot be transferred"
 grep -q 'href="privacy.html"' "$terms_html" || fail "terms do not link the privacy policy"
-grep -q 'android-v0.1.0-test.13' "$open_html" || fail "current operating Android release is not linked"
-grep -q 'showcase-android-v0.1.0-preview.22' "$open_html" || fail "latest showcase Android release is not linked"
+grep -q 'android-v0.1.0-test.14' "$open_html" || fail "current operating Android release is not linked"
+grep -q 'showcase-android-v0.1.0-preview.24' "$open_html" || fail "latest showcase Android release is not linked"
 if grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다' "$open_html"; then
   fail "public Android install page still describes private or unavailable releases"
 fi

@@ -2,22 +2,22 @@
 
 이 문서는 준비용입니다. 제출 버전 고정·최종 제출은 사용자 승인 전 실행하지 않습니다.
 
-2026-10-08 KST 현재 운영 API·웹은 main `687427c2`(PR #408 병합)로 배포됐고 시연 API는 `2d483ed`입니다. 운영 test.13과 시연 Preview 22는 앱 코드 `5ca98955`로 게시됐고 시연 `/play/`도 같은 소스로 전환됐습니다. 라이브 `/open`은 test.13·Preview 22를 가리킵니다([운영 test.13](evidence/operating-android-test13-2026-10-08.json), [시연 Preview 22](evidence/showcase-preview22-release-2026-10-08.json), [시연 배포](evidence/showcase-deployment-2d483ed-2026-10-08.json), [`09dfceb0` 운영 배포](evidence/production-deployment-09dfceb-2026-10-08.json)). `687427c2` 재배포의 별도 증거 JSON은 아직 없습니다. 두 APK의 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산)입니다. 이전 수정본 `/play/`(`9f5ebfa6`)의 [재측정](evidence/submission-2026-10-08-recheck/README.md)에서는 이전 [17단계 실측](evidence/submission-2026-10-08/README.md)의 결함 4건이 모두 FIXED였고 5분 시연 15단계가 PASS였습니다. 그때 새로 본 낮은 결함 4건과 PR #402(상점 동의 오류 단추·문구)는 `5ca98955`에 담겼고, 새 `/play/` 번들의 공개 측정은 [측정 기록](evidence/next-build-2026-10-08/README.md)을 따릅니다. Issue #409·#410의 수정(접근성·CI 연결·문서 정리)은 배포하지 않았습니다(배포 동결). 공개 설치본과 `/play/`는 소스 `5ca98955` 그대로이고, 이 수정은 다음 빌드부터 반영됩니다. **최종 제출은 소유자 승인이 필요합니다.**
+2026-10-09 KST 현재 운영 API·웹, 시연 API, `/play/` 번들의 소스는 `dbcc4403`입니다. 두 DB는 migration 76건(마지막 `0077_ai_art_account_limits.sql`)이며 운영 test.14와 시연 Preview 24 APK가 공개 사전 릴리스로 게시됐습니다([운영 증거](evidence/operating-android-test14-2026-10-09.json), [시연 증거](evidence/showcase-preview24-release-2026-10-09.json)). 공개 `/open` 링크는 이 문서 커밋의 웹 전용 재배포 뒤 확인해야 합니다. 새 APK의 실제 설치·로그인·QR·지갑·지도 수용과 최종 제출은 아직 수행하지 않았습니다.
 
-## 제출 후보 묶음 (2026-10-08 기록, 최종 아님)
+## 제출 후보 묶음 (2026-10-09 기록, 최종 아님)
 
 아래는 현재 공개 상태를 모은 후보입니다. 제출 버전 고정과 최종 제출은 승인 뒤에 합니다.
 
 | 항목 | 값 | 비고 |
 | --- | --- | --- |
-| 제출 기준선 | 마감 시점의 최신 `main` | 2026-10-08 KST에 기록한 main은 `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합)입니다. Issue #409·#410 코드는 main에 있고 배포하지 않았습니다. 최신 main은 `git log -1 origin/main`으로 확인합니다. 제출 SHA는 최종 제출 승인 뒤 정해 이 표와 `docs/SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록합니다(현재 `baselineCommit`은 2026-10-01 기준선). PR #402는 `a742e32d`로 이미 main에 병합됨 |
-| main CI | `687427c2` run [37684316219](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/37684316219) SUCCESS(2026-10-08 조회) | 최신 main의 run은 `gh run list --branch main --workflow CI --limit 1`로 확인. 제출 직전에 제출 SHA의 run 결과를 다시 확인 |
-| 공개 URL | [설치 링크 선택](https://www.masscom.kr/open) · [로그인 없는 시연 체험](https://demo-api.masscom.kr/play/) · [체험 도감 미리보기](https://www.masscom.kr/preview/) · [운영 웹](https://www.masscom.kr/app/) | 운영 API·웹 main `687427c2`, 시연 API `2d483ed`, `/play/` 소스 `5ca98955`(entry `entry-858be2c61591f08ea88654ceed5f67ec.js`). `/open`은 test.13·Preview 22(2026-10-08 확인) |
-| 운영 설치본 | 태그 `android-v0.1.0-test.13`, `MassCOM-operating-android-5ca9895.apk`, SHA-256 `45dc8a37d56b545bf4ef2da133bde48795dfadb2d965d122151d4310aeb5c53b` | 소스 `5ca98955`. 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산). 실기 `NOT_RUN` |
-| 시연 설치본 | 태그 `showcase-android-v0.1.0-preview.22`, `MassCOM-showcase-android-5ca9895.apk`, SHA-256 `a384cfee5b1fdacd0c7128d2232c2673f6bb422a1047e223acc1397cceff932f` | 소스 `5ca98955`. 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산). 실기 `NOT_RUN` |
-| 대체 시연 영상 | [demo-flow-390.webm](evidence/submission-2026-10-08-recheck/demo-flow-390.webm), 10,053,739바이트, 4분 8초, 390×844, SHA-256 `d05301abb9857a9f330d4fa440f323228851109f14417781df95719d29a095ae` | **이전 `/play/`(소스 `9f5ebfa6`)의 15단계 녹화이며 새 번들 `5ca98955` 기준이 아님.** 설치본 실기 영상 아님 |
+| 제출 기준선 | 마감 시점의 최신 `main` | 현재 소스 기준 `dbcc44037264344dc79c92766bc2681fb5386837`은 main `ff6d7d71`과 트리가 같습니다. 제출 SHA는 최종 승인 뒤 `docs/SUBMISSION_EVIDENCE.json`에 기록합니다 |
+| main CI | 최종 제출 전 재확인 | `gh run list --branch main --workflow CI --limit 1`로 제출 SHA의 결과를 확인합니다 |
+| 공개 URL | [설치 링크 선택](https://www.masscom.kr/open) · [로그인 없는 시연 체험](https://demo-api.masscom.kr/play/) · [운영 웹](https://www.masscom.kr/app/) | API·웹·`/play/` 소스 `dbcc4403`. 공개 `/open`의 test.14·Preview 24 링크는 문서 웹 재배포 후 확인 필요 |
+| 운영 설치본 | 태그 `android-v0.1.0-test.14`, `MassCOM-operating-android-dbcc440.apk`, SHA-256 `2a2e852b925985f6ad3aa9f69fe6724be4e1085b2a421de011e2193ef3305a87` | 소스 `dbcc4403`. GitHub asset digest 일치·서명·내장 설정 PASS, 익명 재다운로드·실기 `NOT_RUN` |
+| 시연 설치본 | 태그 `showcase-android-v0.1.0-preview.24`, `MassCOM-showcase-android-dbcc440.apk`, SHA-256 `3e104f883203fa25ec66f1acb3246996759b1a279af8952bd83457844704b93b` | 소스 `dbcc4403`. GitHub asset digest 일치·서명·내장 설정 PASS, 익명 재다운로드·실기 `NOT_RUN` |
+| 대체 시연 영상 | [demo-flow-390.webm](evidence/submission-2026-10-08-recheck/demo-flow-390.webm), 10,053,739바이트, 4분 8초, 390×844, SHA-256 `d05301abb9857a9f330d4fa440f323228851109f14417781df95719d29a095ae` | **이전 `/play/`(소스 `9f5ebfa6`)의 15단계 녹화이며 새 번들 `dbcc4403` 기준이 아님.** 설치본 실기 영상 아님 |
 
-설치본·`/play/`는 소스 `5ca98955` 기준이고 대체 시연 영상만 이전 `9f5ebfa6` 기준입니다. #402는 `5ca98955`에 포함돼 코드 기준 차이는 영상 하나입니다. 영상을 새 번들로 다시 만들지, 이전 기준의 대체안으로 쓸지 제출 전에 정하고 같은 commit 기준인지 다시 확인합니다.
+설치본·`/play/`는 소스 `dbcc4403` 기준입니다. 대체 시연 영상은 이전 `9f5ebfa6` 기준이므로 새 화면의 증거로 사용하지 않습니다. 최종 제출 전 새 번들로 시연을 다시 확인합니다.
 
 ## 코드·저장소
 

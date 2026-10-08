@@ -19,14 +19,14 @@ test('포털 첫 행동은 시연 체험과 Android 설치이며 검증 기록�
   assert.match(hero, /앱 수집품은 NFT가 아닙니다/);
 });
 
-test('설치 화면은 경고보다 앞에 기존 릴리스로 가는 APK 버튼을 둔다', () => {
+test('설치 화면은 경고보다 앞에 현재 릴리스로 가는 APK 버튼을 둔다', () => {
   const html = read('open.html');
-  const button = /<a class="(?:primary-action|secondary-action)" href="https:\/\/github\.com\/2026-KW-HACKATHON\/27_MassCOM\/releases\/tag\/(android-v0\.1\.0-test\.13|showcase-android-v0\.1\.0-preview\.22)">(?:운영|시연) APK 받기<\/a>/g;
+  const button = /<a class="(?:primary-action|secondary-action)" href="https:\/\/github\.com\/2026-KW-HACKATHON\/27_MassCOM\/releases\/tag\/(android-v0\.1\.0-test\.14|showcase-android-v0\.1\.0-preview\.24)">(?:운영|시연) APK 받기<\/a>/g;
   const matches = [...html.matchAll(button)];
   assert.equal(matches.length, 2);
-  assert.deepEqual(matches.map((match) => match[1]), ['android-v0.1.0-test.13', 'showcase-android-v0.1.0-preview.22']);
+  assert.deepEqual(matches.map((match) => match[1]), ['android-v0.1.0-test.14', 'showcase-android-v0.1.0-preview.24']);
   assert.ok(matches[1].index < html.indexOf('<details'));
-  assert.match(html, /<details[\s\S]*?앱이 열리지 않나요\?[\s\S]*?SHA256SUMS\.txt[\s\S]*?versionCode 2[\s\S]*?<\/details>/);
+  assert.match(html, /<details[\s\S]*?앱이 열리지 않나요\?[\s\S]*?SHA-256 digest[\s\S]*?<\/details>/);
 });
 
 test('공개 페이지의 버튼과 상세 열기 대상은 44px 이상이다', () => {

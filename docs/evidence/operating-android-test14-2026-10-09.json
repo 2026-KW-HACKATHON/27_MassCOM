@@ -1,0 +1,48 @@
+{
+  "status": "PASS",
+  "releaseReadiness": "BLOCKED; 이 신규 APK의 실제 휴대전화 설치·로그인·Google Play는 NOT_RUN이다.",
+  "verifiedAt": "2026-10-09",
+  "sourceCommit": "dbcc44037264344dc79c92766bc2681fb5386837",
+  "issues": [
+    446,
+    448
+  ],
+  "checks": {
+    "apkSignature": "PASS; 서명 검사",
+    "embeddedApi": "PASS; 운영 API 주소",
+    "embeddedMaps": "PASS; 지도 공개 설정 내장",
+    "secretAbsence": "PASS; 서버 비밀 미포함"
+  },
+  "anonymousDownloadSha256Match": "NOT_RUN; GitHub Release asset digest와 빌드 해시만 일치 확인",
+  "acceptedArtifact": {
+    "apk": "MassCOM-operating-android-dbcc440.apk",
+    "apkSha256": "2a2e852b925985f6ad3aa9f69fe6724be4e1085b2a421de011e2193ef3305a87",
+    "apkSize": "약 328MB",
+    "package": "kr.masscom.wolgye",
+    "bytes": 328456142
+  },
+  "githubRelease": {
+    "tag": "android-v0.1.0-test.14",
+    "url": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.14",
+    "assets": [
+      {
+        "name": "MassCOM-operating-android-dbcc440.apk",
+        "sha256": "2a2e852b925985f6ad3aa9f69fe6724be4e1085b2a421de011e2193ef3305a87",
+        "bytes": 328456142
+      }
+    ]
+  },
+  "physicalAndroid": {
+    "device": "NOT_RUN",
+    "apkInstall": "NOT_RUN",
+    "launch": "NOT_RUN",
+    "login": "NOT_RUN"
+  },
+  "notRun": [
+    "신규 운영 APK 실제 휴대전화 설치·로그인",
+    "실제 QR·지갑·지도 수용",
+    "TalkBack·글자 200%",
+    "Google Play 업로드·심사·배포"
+  ],
+  "recordBasis": "2026-10-09 GitHub Release 공개 자산 metadata와 배포 담당의 빌드·서명·내장 설정 검사. 익명 재다운로드 및 실기 수용은 별도다."
+}

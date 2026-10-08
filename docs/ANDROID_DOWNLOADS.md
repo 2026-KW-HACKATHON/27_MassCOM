@@ -1,10 +1,11 @@
 # Android 설치본과 GitHub 배포 상태
 
-상태 확인일: 2026-10-08. 대회 조직 저장소는 `PUBLIC`·활성 상태이고 운영 test.13·시연 Preview 22 Release를 게시했습니다. 개인 당시 개발 저장소 `choijunhuk/MassCOM`은 `PRIVATE`로 보존합니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다. 이 문서는 날짜별 이력 표라 옛 태그가 정상이고, 현재 배포 일치 검사(`node scripts/render-current-release.mjs --check`, 기준 파일 [CURRENT_RELEASE.json](CURRENT_RELEASE.json)) 밖입니다. 새 설치본이 나오면 "최신" 행을 사람이 고칩니다.
+상태 확인일: 2026-10-09. 대회 조직 저장소는 `PUBLIC`·활성 상태이고 운영 test.14·시연 Preview 24 Release를 게시했습니다. 개인 당시 개발 저장소 `choijunhuk/MassCOM`은 `PRIVATE`로 보존합니다. GitHub 소스 ZIP은 설치용 APK가 아닙니다. 이 문서는 날짜별 이력 표라 옛 태그가 정상이고, 현재 배포 일치 검사(`node scripts/render-current-release.mjs --check`, 기준 파일 [CURRENT_RELEASE.json](CURRENT_RELEASE.json)) 밖입니다. 새 설치본이 나오면 "최신" 행을 사람이 고칩니다.
 
 | 구분 | package | GitHub 다운로드 | 실제 상태 |
 | --- | --- | --- | --- |
-| 운영 테스트 앱 최신 | `kr.masscom.wolgye` | [test.13 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13) | `VERIFIED` — source `5ca9895`, 약 324MB, [AAB 서명·지갑 표면·업로드 인증서·`RECORD_AUDIO` 없음](evidence/operating-android-test13-2026-10-08.json) PASS. 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산). 실제 휴대전화 설치·실행·로그인·QR·지갑·TalkBack·글자 200%·Google Play는 `NOT_RUN` |
+| 운영 테스트 앱 최신 | `kr.masscom.wolgye` | [test.14 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.14) | `VERIFIED` — source `dbcc4403`, 328456142바이트, [게시 asset digest·서명·운영 API/지도 내장·비밀 없음](evidence/operating-android-test14-2026-10-09.json) PASS. 익명 재다운로드·신규 APK 실제 설치·로그인·QR·지갑·TalkBack·Play는 `NOT_RUN` |
+| 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.13 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13) | `VERIFIED` — source `5ca9895`, 약 324MB, [AAB 서명·지갑 표면·업로드 인증서·`RECORD_AUDIO` 없음](evidence/operating-android-test13-2026-10-08.json) PASS. 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산). 실제 휴대전화 설치·실행·로그인·QR·지갑·TalkBack·글자 200%·Google Play는 `NOT_RUN` |
 | 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.12 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.12) | `VERIFIED` — source `9f5ebfa`, 약 324MB, [AAB 서명·지갑 표면·업로드 인증서·`RECORD_AUDIO` 없음](evidence/operating-android-test12-2026-10-08.json) PASS. 실제 휴대전화 설치·실행·로그인·QR·지갑·TalkBack·글자 200%·Google Play는 `NOT_RUN` |
 | 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.10 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.10) | `VERIFIED` — source `db28003`, [업로드 인증서·지갑 표면·익명 다운로드 재해시·`RECORD_AUDIO` 없음](evidence/operating-android-test10-2026-10-05.json) PASS. 연결된 휴대전화가 없어 실제 설치·실행·로그인·지갑·실제 QR·TalkBack·글자 200%·Google Play는 `NOT_RUN` |
 | 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.9 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.9) | `VERIFIED` — 당시 source `cb8030a`, [서명·지갑 표면·익명 다운로드 재해시·`RECORD_AUDIO` 없음·Samsung의 test.8 위 설치·실행](evidence/operating-android-test9-2026-10-04.json) PASS. 운영 점포 0곳이어서 읽기 전용으로 사용했고 로그인·실제 QR·방문·NFT·지갑·TalkBack·글자 200%·Play 업로드는 `NOT_RUN` |
@@ -15,7 +16,8 @@
 | 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.4 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.4) | `VERIFIED` — (당시 최신) source `1e6bb37`, [서명 인증서(test.3과 같음)·GitHub digest·JS 번들의 운영 API 주소·Samsung 기존 test.3 위 설치·세션 복원·첫 로그인 동의 화면과 `동의하고 시작` 글자 전체 표시(Issue #271 수정의 운영 앱(test.4) 기준 실기 확인)](evidence/operating-android-test4-2026-10-01.json) 확인. 동의는 실제 계정이라 제출하지 않았고 **제출 뒤 흐름·지갑·QR·방문·NFT·TalkBack·다크·글자 200%·Play 업로드는 `NOT_RUN`**. 새 처리방침(`privacy-2026-10-01`)에 동의하지 않은 계정은 이 설치본에서 '앱을 업데이트해 주세요' 안내에 막힌다(test.5로 업데이트) |
 | 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.3 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.3) | `VERIFIED` — source `c5cba68`, [서명·GitHub digest·Samsung Google 로그인/복원·16KB 설치](evidence/operating-android-test3-2026-09-28.json) 확인. Play 승인·현장 QR·운영 지갑 실기는 아님. 당시 최신이었으나 지금은 아님 |
 | 운영 테스트 앱 이전 | `kr.masscom.wolgye` | [test.2 Release의 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.2) | `VERIFIED` — 당시 APK 재다운로드 해시·Samsung/AVD 설치·App Link 확인. 최신 코드가 아님 |
-| 시연 앱 최신 | `kr.masscom.wolgye.demo` | [공개 Preview 22 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22) | `VERIFIED` — source `5ca9895`, 약 330MB, [시연 API 내장·시연 인증서·`RECORD_AUDIO` 없음](evidence/showcase-preview22-release-2026-10-08.json) PASS. 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산). 실제 휴대전화·에뮬레이터·로그인·방문·QR·지갑·TalkBack·글자 200%는 `NOT_RUN` |
+| 시연 앱 최신 | `kr.masscom.wolgye.demo` | [공개 Preview 24 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.24) | `VERIFIED` — source `dbcc4403`, 334224983바이트, [게시 asset digest·서명·시연 API/지도/Reown 내장·비밀 없음](evidence/showcase-preview24-release-2026-10-09.json) PASS. 익명 재다운로드·신규 APK 실제 설치·로그인·QR·지갑·TalkBack·Play는 `NOT_RUN` |
+| 시연 앱 이전 | `kr.masscom.wolgye.demo` | [공개 Preview 22 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22) | `VERIFIED` — source `5ca9895`, 약 330MB, [시연 API 내장·시연 인증서·`RECORD_AUDIO` 없음](evidence/showcase-preview22-release-2026-10-08.json) PASS. 익명 다운로드 해시는 일치(PASS, 2026-10-08 공개 Release에서 로그인 없이 다시 내려받아 SHA-256 재계산). 실제 휴대전화·에뮬레이터·로그인·방문·QR·지갑·TalkBack·글자 200%는 `NOT_RUN` |
 | 시연 앱 이전 | `kr.masscom.wolgye.demo` | [공개 Preview 21 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.21) | `VERIFIED` — source `9f5ebfa`, 약 330MB, [시연 API 내장·시연 인증서·`RECORD_AUDIO` 없음](evidence/showcase-preview21-release-2026-10-08.json) PASS. 실제 휴대전화·에뮬레이터·로그인·방문·QR·지갑·TalkBack·글자 200%는 `NOT_RUN` |
 | 시연 앱 이전 | `kr.masscom.wolgye.demo` | [공개 Preview 19 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.19) | `VERIFIED` — source `db28003`, [전용 API(APK·AAB)·인증서·익명 다운로드 APK 재해시](evidence/showcase-preview19-release-2026-10-05.json) PASS. 공개 서버에서 에뮬레이터 설치·로그인 없이 바로 체험·사용자 선택 뒤 필수 동의 화면·동의 거절 후 정상 로그아웃 PASS. 동의를 수락하지 않아 홈·테스트 방문·점포 C 프리즘·체험 처음부터 다시·체험 점포 점주 화면은 `NOT_RUN`. 실제 휴대전화·TalkBack·글자 200%·실제 QR·지갑도 `NOT_RUN` |
 | 시연 앱 이전 | `kr.masscom.wolgye.demo` | [공개 Preview 18 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.18) | `VERIFIED` — 당시 source `cb8030a`, [시연 전용 package·서명·지갑 표면·시연 API 주소·`RECORD_AUDIO` 없음·익명 다운로드 APK 재해시](evidence/showcase-preview18-release-2026-10-04.json) PASS. Samsung SM-S928N에서 기존 세션·가상 점포 C 테스트 방문 5회→브론즈·실버·골드·봉투·시리즈 3/3·골드 상세 움직이는 빛띠·상점 골드 뽑기 PASS. 점주 앱 권한·물리적 기울임·TalkBack·글자 200%·실제 QR·지갑은 `NOT_RUN` |
@@ -47,7 +49,11 @@
 
 시연 앱을 운영 API에 연결하거나, 운영 APK를 시연용으로 이름만 바꾸어 게시하지 않습니다. 로컬 개발 앱 `kr.masscom.wolgye.dev`에서 가상 점포의 수동 코드 흐름을 확인한 결과도 시연 APK 완성과 다릅니다.
 
-## 2026-10-08 최신 설치본
+## 2026-10-09 최신 설치본
+
+운영 test.14와 시연 Preview 24는 소스 `dbcc44037264344dc79c92766bc2681fb5386837`에서 제작한 공개 사전 릴리스다. GitHub 자산 digest는 빌드 해시와 같고, 신규 APK의 실제 휴대전화 수용은 아직 하지 않았다. 공개 `/open`의 새 링크는 이 문서 커밋을 웹에 배포한 뒤 확인한다.
+
+## 2026-10-08 이전 설치본
 
 운영 test.13: `MassCOM-operating-android-5ca9895.apk`, 약 324MB, SHA-256 `45dc8a37d56b545bf4ef2da133bde48795dfadb2d965d122151d4310aeb5c53b`. 내부 버전은 `0.1.0-test.2`·versionCode `2`, 업로드 인증서 SHA-256 `5E5ED3C31971E5A88EA752B3A2AE50772FEA1C956B9D97A82DD5CA7130CFA395`입니다. AAB 서명·릴리스 지갑 표면 PASS, `RECORD_AUDIO` 없음입니다.
 
@@ -55,14 +61,14 @@
 
 이전 최신이던 운영 test.12(`MassCOM-operating-android-9f5ebfa.apk`, SHA-256 `266c64795ace1e1bbf0ba2bac4224e3638d88a9e6a1633e343ed309a9f4febd3`)와 시연 Preview 21(`MassCOM-showcase-android-9f5ebfa.apk`, SHA-256 `f8c484a60e06084d64e7fe913091ec3901b53c1ce715e932fb9af0b78a807cc4`)은 소스 `9f5ebfa6f6e4259142f8a1834d3b1ccb26fc3e49` 기준의 이전 설치본입니다.
 
-개인정보 처리방침 `privacy-2026-10-07`에 맞게 업데이트하세요. 시연 서버·설치본에는 TMAP/NAVER 지도 키가 없어 목록 기반 탐색으로 동작합니다. test.10(약 163MB)보다 APK가 커진 이유는 지도 SDK 네이티브 라이브러리(navermap·TMAP vsmsdk) 4개 ABI입니다. 운영 API·DB·웹은 main `09dfceb0`으로 배포 완료했고 이후 `08f125b4` 웹 재배포(API 변경·migration 없음)를 했습니다([`09dfceb0` 배포 증거](evidence/production-deployment-09dfceb-2026-10-08.json)). 이번 test.13·Preview 22에는 서버 API·DB 변경이 없습니다(운영 `08f125b4`, 시연 API `2d483ed`, migration 68건 유지). 라이브 `/open`은 이 PR 병합 전까지 test.12·Preview 21 링크를 가리키며, test.13·Preview 22 링크는 이 PR 병합 커밋의 운영 웹 재배포 뒤 확인합니다. 시연 웹 `/play/`는 같은 소스 `5ca98955`로 전환했습니다. 이전 test.12의 첫 운영 AAB 빌드는 `signReleaseBundle` 일시 오류로 실패했고 데몬 정리 후 재시도 PASS였습니다(당시 기록). 두 APK 내부 버전은 `0.1.0-test.2`·versionCode `2`입니다.
+당시 개인정보 처리방침은 `privacy-2026-10-07`이었다. 현재는 `privacy-2026-10-09`에 맞게 업데이트한다. 시연 서버·설치본에는 TMAP/NAVER 지도 키가 없어 목록 기반 탐색으로 동작합니다. test.10(약 163MB)보다 APK가 커진 이유는 지도 SDK 네이티브 라이브러리(navermap·TMAP vsmsdk) 4개 ABI입니다. 운영 API·DB·웹은 main `09dfceb0`으로 배포 완료했고 이후 `08f125b4` 웹 재배포(API 변경·migration 없음)를 했습니다([`09dfceb0` 배포 증거](evidence/production-deployment-09dfceb-2026-10-08.json)). 이번 test.13·Preview 22에는 서버 API·DB 변경이 없습니다(운영 `08f125b4`, 시연 API `2d483ed`, migration 68건 유지). 라이브 `/open`은 이 PR 병합 전까지 test.12·Preview 21 링크를 가리키며, test.13·Preview 22 링크는 이 PR 병합 커밋의 운영 웹 재배포 뒤 확인합니다. 시연 웹 `/play/`는 같은 소스 `5ca98955`로 전환했습니다. 이전 test.12의 첫 운영 AAB 빌드는 `signReleaseBundle` 일시 오류로 실패했고 데몬 정리 후 재시도 PASS였습니다(당시 기록). 두 APK 내부 버전은 `0.1.0-test.2`·versionCode `2`입니다.
 
 아래 test.12·Preview 21 및 이전 설치·실기 결과는 해당 버전의 이력이며 최신 설치본의 검증이 아닙니다.
 
 ## 설치 방법
 
 1. 공개 GitHub Release에서 원하는 앱의 `.apk`를 내려받습니다. 운영 테스트 앱과 시연 앱은 이름·package·데이터가 다릅니다. `.aab` 또는 소스 ZIP은 직접 설치 파일이 아닙니다.
-2. APK의 SHA-256을 Release의 `SHA256SUMS.txt`와 비교합니다. 파일과 체크섬을 모두 신뢰할 수 있는 같은 Release에서 받습니다.
+2. APK의 SHA-256을 해당 Release 자산의 digest 및 [현재 배포 기록](CURRENT_RELEASE.json)과 비교합니다.
 3. Android에서 브라우저의 ‘알 수 없는 앱 설치’ 권한을 이 설치에만 허용하고 설치합니다. 필요하지 않으면 권한을 다시 끕니다.
 
 시연 APK `MassCOM-showcase-android-c53c199.apk`의 SHA-256은 `9e645198fd955602bdb25beedf8411f81e9be11280488af11d32f4da169bd063`이며, 앱 소스는 `c53c199`, 서명 인증서는 시연 전용입니다. APK 내부 버전 이름은 `0.1.0-test.2`이고 Release의 `Preview 1`은 배포 단계 표시입니다. 이 설치본은 Google Play 승인본이 아니고, (당시) 최신 운영 코드의 QA 결과를 대신하지 않습니다. 기기에서 지갑 비밀번호·복구 문구를 GitHub 페이지나 이 프로젝트 웹에 입력하지 마세요.

@@ -1,5 +1,9 @@
 # HANDOFF
 
+## 2026-10-09 PR #446·#448 통합 배포와 Android 사전 릴리스
+
+PR #448은 main `76e56cc2`, PR #446은 main `ff6d7d71`에 병합됐다. 배포한 소스 `dbcc44037264344dc79c92766bc2681fb5386837`의 트리는 main `ff6d7d71`과 같다. 운영 API·웹과 시연 API·`/play/`가 이 소스로 동작하며 두 DB 원장은 76개, 마지막 `0077_ai_art_account_limits.sql`이다([배포 근거](evidence/release-dbcc440-2026-10-09.json)). 운영 test.14와 시연 Preview 24 APK가 공개 사전 릴리스로 게시됐고 자산 digest가 빌드 SHA-256과 일치한다([현재 릴리스](CURRENT_RELEASE.json)). `/open`의 새 설치 링크는 이 문서 커밋을 운영 웹에 배포한 뒤 확인한다. 신규 두 APK의 기기 설치·로그인·지도·지갑·QR·TalkBack과 최종 제출은 아직 수용하지 않았다.
+
 2026-10-09 PR #445 우표형 뽑기 영상과 효과음은 main `97d351bd`에 병합됐다. 이번 통합은 영상 준비 뒤 재생·효과음 설정 대기·움직임 줄이기 조건을 유지하며, 공유 재고·일반 상자·재뽑기 보상과 등록 앨범도 함께 보존한다. 당시 시험 결과는 [TEST_STATUS](TEST_STATUS.md)에 남긴다.
 
 ## 2026-10-09 시연 지갑·지도 설정 복구 (Issue #447)

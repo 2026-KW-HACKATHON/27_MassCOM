@@ -1,0 +1,41 @@
+{
+  "status": "PASS",
+  "verifiedAt": "2026-10-09",
+  "sourceCommit": "dbcc44037264344dc79c92766bc2681fb5386837",
+  "issues": [
+    446,
+    447,
+    448
+  ],
+  "release": "https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.24",
+  "artifact": {
+    "name": "MassCOM-showcase-android-dbcc440.apk",
+    "apiOrigin": "https://demo-api.masscom.kr",
+    "sha256": "3e104f883203fa25ec66f1acb3246996759b1a279af8952bd83457844704b93b",
+    "size": "약 334MB",
+    "bytes": 334224983,
+    "package": "kr.masscom.wolgye.demo"
+  },
+  "checks": {
+    "apkSignature": "PASS; 시연 서명 검사",
+    "embeddedApi": "PASS; 시연 API 주소",
+    "embeddedMaps": "PASS; 지도 공개 설정 내장",
+    "reownProject": "PASS; 승인된 기존 프로젝트의 공개 ID 내장",
+    "secretAbsence": "PASS; 서버 비밀 미포함"
+  },
+  "anonymousDownloadSha256Match": "NOT_RUN; GitHub Release asset digest와 빌드 해시만 일치 확인",
+  "physicalAndroid": {
+    "device": "NOT_RUN",
+    "apkInstall": "NOT_RUN",
+    "launch": "NOT_RUN",
+    "wallet": "NOT_RUN"
+  },
+  "notRun": [
+    "신규 Preview 24 실제 휴대전화 설치·로그인",
+    "이 APK의 지도·지갑 연결·주소 확인 서명",
+    "실제 QR·TalkBack·글자 200%",
+    "Google Play 업로드·심사·배포"
+  ],
+  "limitations": "이전 Preview 설치본의 Samsung 실기 결과는 신규 Preview 24의 수용 결과가 아니다.",
+  "recordBasis": "2026-10-09 GitHub Release 공개 자산 metadata와 배포 담당의 빌드·서명·내장 설정 검사. 익명 재다운로드 및 실기 수용은 별도다."
+}
