@@ -47,6 +47,7 @@ CREATE TABLE course_steps (
   owner_optin_at timestamptz,
   PRIMARY KEY (course_id, position),
   UNIQUE (course_id, merchant_id),
+  UNIQUE (course_id, piece_key),
   CHECK ((owner_optin_ref IS NULL) = (owner_optin_at IS NULL))
 );
 CREATE INDEX course_steps_merchant ON course_steps (merchant_id);

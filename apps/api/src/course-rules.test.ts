@@ -40,6 +40,8 @@ test('a draft needs 2 to 4 distinct stores', () => {
   invalid({ ...draft(), steps: many });
   assert.equal(parseCourseDraft({ ...draft(), steps: many.slice(0, 4) }).steps.length, 4);
   invalid({ ...draft(), steps: [{ merchantId: 'same', pieceLabel: 'a' }, { merchantId: 'same', pieceLabel: 'b' }] });
+  invalid({ ...draft(), steps: [{ merchantId: 'a', pieceKey: 'same', pieceLabel: 'a' },
+    { merchantId: 'b', pieceKey: 'same', pieceLabel: 'b' }] });
 });
 
 test('situation, scene key, goals, labels and unknown keys are validated', () => {
@@ -66,6 +68,8 @@ test('owner opt-in references keep the document-reference shape and refuse perso
   invalid(withRef('ab'));
   invalid(withRef(5));
   assert.equal(parseCourseDraft(withRef(' OPTIN-1 ')).steps[0]!.ownerOptinRef, 'OPTIN-1');
+  invalid({ ...draft(), steps: [draft().steps[0],
+    { merchantId: 'm-cup', pieceLabel: '컵', ownerOptinRef: 'OPTIN-2026-A1' }] });
 });
 
 test('dates are normalised and the window must run forward', () => {

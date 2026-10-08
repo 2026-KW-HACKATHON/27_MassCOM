@@ -32,7 +32,7 @@ import { playUiSound } from '@/sound/ui-sounds';
 import { Celebration, type CelebrationContent } from '@/gamification/celebration';
 import { createMerchantApiClient, type PublicMerchant } from '@/merchant/merchant-api';
 import { createRecommendationApiClient, type Recommendation } from '@/recommendation/recommendation-api';
-import { createCourseApiClient, type Course } from '@/courses/course-api';
+import { courseListIsNotConfigured, createCourseApiClient, type Course } from '@/courses/course-api';
 import { courseChipText } from '@/courses/course-copy';
 import { createVisitorFeedbackApiClient, VisitorFeedbackApiError, type VisitorFeedbackSelection } from '@/merchant/visitor-feedback-api';
 import { VisitorFeedbackForm } from '../merchant-detail/visitor-feedback-form';
@@ -278,7 +278,13 @@ export function ClaimRedeemScreen({
         setNextCourse(course ? { claimSlotId, course } : undefined);
         setCourseReadError(undefined);
       }
-    }).catch(() => { if (current && !controller.signal.aborted) setCourseReadError(claimSlotId); });
+    }).catch((cause) => {
+      if (!current || controller.signal.aborted) return;
+      if (courseListIsNotConfigured(cause)) {
+        setNextCourse(undefined);
+        setCourseReadError(undefined);
+      } else setCourseReadError(claimSlotId);
+    });
     return () => { current = false; controller.abort(); };
   }, [apiUrl, credential, onSessionInvalid, redeemed, courseRetry]);
 

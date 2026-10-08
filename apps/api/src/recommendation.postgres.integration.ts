@@ -92,9 +92,9 @@ test('recommendation candidates combine active campaigns with account progress',
   await t.test('only the next incomplete course store receives a recommendation hint', async () => {
     const course = { id: 'course-1', title: '식사와 커피', situation: 'AFTER_MEAL',
       done: 1, total: 3, startsAt: '2026-09-01T00:00:00Z', steps: [
-        { merchantId: 'merchant-visited', done: true },
-        { merchantId: 'merchant-new', done: false },
-        { merchantId: 'merchant-full', done: false },
+        { merchantId: 'merchant-visited', targetVisitCount: 1, state: 'AVAILABLE', done: true },
+        { merchantId: 'merchant-new', targetVisitCount: 1, state: 'AVAILABLE', done: false },
+        { merchantId: 'merchant-full', targetVisitCount: 1, state: 'AVAILABLE', done: false },
       ] } as CourseView;
     const reader = new PostgresRecommendationSource(pool, () => new Date('2026-09-19T04:00:00Z'),
       { list: async accountId => { assert.equal(accountId, 'customer-1'); return [course]; } });

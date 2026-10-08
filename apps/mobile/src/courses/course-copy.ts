@@ -10,6 +10,11 @@ export function courseChipText(course: { situation: CourseSituation; done: numbe
   return `'${situations[course.situation]}' 코스 ${course.done}/${course.total}`;
 }
 
+export function merchantCourseChip(courses: Course[], merchantId: string): string | undefined {
+  const course = courses.find(item => item.status === 'ACTIVE' && item.steps.some(step => step.merchantId === merchantId));
+  return course ? `'${course.situationLabel}' 코스의 한 곳이에요` : undefined;
+}
+
 export function courseStateText(course: Pick<Course, 'state' | 'done' | 'total'>): string {
   if (course.state === 'STALE') return '방문 취소 등으로 단계가 다시 미완료예요. 장면을 열 수 없어요.';
   if (course.state === 'UNLOCKED') return '장면을 열었어요.';

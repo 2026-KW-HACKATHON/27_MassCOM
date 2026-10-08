@@ -98,6 +98,9 @@ export function parseCourseDraft(raw: unknown): CourseDraftInput {
       pieceKey: pieceKey as string, pieceLabel: text(step.pieceLabel, 1, 20), ownerOptinRef };
   });
   if (new Set(steps.map(step => step.merchantId)).size !== steps.length) bad();
+  if (new Set(steps.map(step => step.pieceKey)).size !== steps.length) bad();
+  const refs = steps.flatMap(step => step.ownerOptinRef ? [step.ownerOptinRef] : []);
+  if (new Set(refs).size !== refs.length) bad();
   const startsAt = instant(body.startsAt), endsAt = instant(body.endsAt), countsFrom = instant(body.countsFrom);
   if (startsAt && endsAt && Date.parse(endsAt) <= Date.parse(startsAt)) bad();
   return { title: text(body.title, 1, 40), situation: body.situation as CourseSituation, sceneKey,
@@ -331,6 +334,7 @@ export type CourseStepView = {
   targetVisitCount: CourseGoal;
   pieceKey: string;
   pieceLabel: string;
+  state: 'AVAILABLE' | 'UNAVAILABLE';
   done: boolean;
   earnedAt: string | null;
   // 이 가게의 진행 중인 캠페인에서 센 방문 일수(없으면 null). 단계 완료 판정에는 쓰지 않는다.

@@ -34,3 +34,10 @@ test('leaving during goal save releases the disabled button while stale save com
   assert.match(source,/\[refresh,foreground\]\)/);
   assert.match(source,/finally\{if\(goalGeneration\.current===current\)setGoalBusy\(false\);\}/);
 });
+
+test('authenticated detail adds an optional ACTIVE-course merchant chip without surfacing course failures',()=>{
+  assert.match(source,/createCourseApiClient\(\{apiUrl,credential,onSessionInvalid\}\)\.list\(controller\.signal\)/);
+  assert.match(source,/merchantCourseChip\(courses,merchantId\)/);
+  assert.match(source,/\.catch\(\(\)=>undefined\)/);
+  assert.match(source,/courseChip\?<Text style=\{ds\.courseChip\}>\{courseChip\}<\/Text>/);
+});

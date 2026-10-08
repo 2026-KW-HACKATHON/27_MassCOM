@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCourseApiClient, type Course } from '@/courses/course-api';
+import { clearedCourseDetail } from '@/courses/course-detail-state';
 import { courseChipText, courseStateText } from '@/courses/course-copy';
 import { consentRecheckLabel, consentRequiredMessage, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
@@ -32,8 +33,12 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
     try {
       const next = courseId ? [await api.get(courseId, signal)] : await api.list(signal);
       if (!signal?.aborted) { setCourses(next); setError(undefined); setErrorNeedsConsent(false); }
-    } catch {
-      if (!signal?.aborted) setError('코스를 불러오지 못했어요. 다시 시도해 주세요.');
+    } catch (cause) {
+      if (!signal?.aborted) {
+        const cleared = courseId && clearedCourseDetail(cause);
+        if (cleared) { setCourses(cleared.courses); setSceneOpen(cleared.sceneOpen); }
+        setError('코스를 불러오지 못했어요. 다시 시도해 주세요.');
+      }
     }
   }, [api, courseId]);
   useFocusEffect(useCallback(() => {
@@ -84,7 +89,7 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
         <View style={styles.stepCopy}>
           <Text selectable style={{ color: palette.label, fontWeight: '800' }}>{step.position}. {step.merchantName}</Text>
           <Text style={{ color: palette.secondaryLabel }}>{step.targetVisitCount}회 방문 · {step.pieceLabel}</Text>
-          <Text style={{ color: step.done ? palette.primary : palette.secondaryLabel }}>{step.done ? '완료' : step.full ? '자리 없음' : '미완료'}</Text>
+          <Text style={{ color: step.done ? palette.primary : palette.secondaryLabel }}>{step.state === 'UNAVAILABLE' ? '지금은 이용할 수 없는 가게예요' : step.done ? '완료' : step.full ? '자리 없음' : '미완료'}</Text>
         </View>
         {step.done && step.artwork ? <Image source={{ uri: step.artwork.thumbnailDataUrl }} resizeMode="contain" accessible
           accessibilityLabel={`${step.merchantName} 코인`} style={styles.coin} /> : null}

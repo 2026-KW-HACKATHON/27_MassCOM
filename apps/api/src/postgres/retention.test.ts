@@ -391,6 +391,39 @@ test('deleted-account repair discovers and deletes orphaned course unlocks withi
   assert.ok(seen.some(sql => sql.includes('SELECT account_id FROM course_unlocks')));
 });
 
+test('deleted-account repair pages and pseudonymizes old curator ids without changing live ids', async () => {
+  const deleted = 'deleted-curator';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  const hash = lifecycle.referenceHash(deleted);
+  const alias = `deleted:${hash.toString('hex')}`;
+  let rawRows = 2;
+  const seen: string[] = [];
+  const query = async (sql: string, values?: unknown[]) => {
+    seen.push(sql);
+    if (sql.startsWith('SELECT position FROM retention_scan_progress')) return { rows: [{ position: '0' }] };
+    if (sql.includes(') candidates ORDER BY account_id')) return { rows: rawRows ? [{ account_id: deleted }] : [] };
+    if (sql.includes('FROM account_deletion_requests')) return { rows: [{ account_reference_hash: hash, deleted_account_alias: alias }] };
+    if (sql.includes('UPDATE courses AS course')) {
+      assert.deepEqual(values?.slice(0, 2), [[deleted], [alias]]);
+      assert.equal(values?.[2], 1);
+      rawRows--;
+      return { rowCount: 1, rows: [] };
+    }
+    if (sql.startsWith('SELECT account_id FROM play_runs')) return { rows: rawRows ? [{ account_id: deleted }] : [] };
+    if (sql.startsWith('SELECT DISTINCT target_account_id')) return { rows: [] };
+    return { rows: [], rowCount: 0 };
+  };
+  const pool = { query, connect: async () => ({ query, release: () => undefined }) } as unknown as Pool;
+  const service = new PostgresRetentionService(pool, { now: () => now, playBatchSize: 1, playMaxBatches: 1 });
+  for (const expected of [1, 1, 0]) {
+    const result = await service.run({ hmacSecret: secret });
+    assert.equal(result.counts.find(({ step }) => step === 'deleted_play_data')?.count, expected);
+  }
+  assert.equal(rawRows, 0);
+  assert.ok(seen.some(sql => sql.includes('SELECT DISTINCT curated_by_account_id AS account_id FROM courses')));
+  assert.ok(seen.some(sql => sql.includes('UNION SELECT curated_by_account_id AS account_id FROM courses')));
+});
+
 test('invalid play retention limits fail before a database connection', () => {
   const pool = { connect: () => { throw new Error('database accessed'); } } as unknown as Pool;
   for (const options of [{ playBatchSize: 0 }, { playMaxBatches: 0 },

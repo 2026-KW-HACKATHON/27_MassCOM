@@ -4,10 +4,13 @@ import { test } from 'node:test';
 import { Pool } from 'pg';
 
 import { CourseError } from './course-rules.js';
+import { AdminError } from './postgres/admin.js';
 import { PostgresAccountDeletionService } from './postgres/account-deletion.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresClaimSlotService } from './postgres/claim-slot-service.js';
 import { PostgresCourseService } from './postgres/courses.js';
+import { PostgresRecommendationSource } from './postgres/recommendation.js';
+import { RecommendationService } from './recommendation-service.js';
 import { runMigrations } from './postgres/migrate.js';
 import { PostgresReversalService } from './postgres/reversal.js';
 import { PostgresRetentionService } from './postgres/retention.js';
@@ -17,7 +20,7 @@ const secret = 'course-test-account-lifecycle-secret-32-bytes';
 const draft = (merchantIds: string[], countsFrom: string | null = null) => ({
   title: '식사 후 모으는 장면', situation: 'AFTER_MEAL', sceneKey: 'test-picnic', countsFrom,
   steps: merchantIds.map((merchantId, index) => ({ merchantId, targetVisitCount: 1,
-    pieceKey: `piece-${index + 1}`, pieceLabel: ['그릇', '컵', '봉투'][index] ?? '조각', ownerOptinRef: 'COURSE-OPTIN-REF' })),
+    pieceKey: `piece-${index + 1}`, pieceLabel: ['그릇', '컵', '봉투'][index] ?? '조각', ownerOptinRef: `COURSE-OPTIN-REF-${index + 1}` })),
 });
 
 test('courses: server progress, publish eligibility, concurrent unlock, stale reversal and deletion', async t => {
@@ -27,7 +30,11 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
   const pool = new Pool({ connectionString });
   t.after(() => pool.end());
   await runMigrations(pool);
-  await pool.query('TRUNCATE merchants, account_deletion_requests CASCADE');
+  await pool.query('TRUNCATE merchants, account_deletion_requests, platform_admins, auth_identities CASCADE');
+  await pool.query(`INSERT INTO auth_identities(provider,subject,account_id,created_at)
+    VALUES ('google','course-curator-subject','curator',now()),
+      ('google','course-revoked-subject','revoked-curator',now())`);
+  await pool.query("INSERT INTO platform_admins(account_id) VALUES ('curator'),('revoked-curator')");
   await pool.query(`INSERT INTO merchants(id,name,story,road_address,minimum_spend_won,status,is_demo,category,published_at)
     VALUES ('course-a','가게 A','','서울',0,'ACTIVE',false,'한식',$1),
       ('course-b','가게 B','','서울',0,'ACTIVE',false,'카페',$1),
@@ -66,7 +73,8 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     await assert.rejects(service.adminPublish('curator', missingCheck.id),
       (error: unknown) => error instanceof CourseError && error.reasons.includes('COURSE_CHECK_MISSING'));
     await service.adminCheck('curator', missingCheck.id, null);
-    const late = new PostgresCourseService(pool, { now: () => new Date(now.getTime() + 3600001) });
+    const late = new PostgresCourseService(pool, { now: () => new Date(now.getTime() + 3600001),
+      accountLifecycle: lifecycle });
     await assert.rejects(late.adminPublish('curator', missingCheck.id),
       (error: unknown) => error instanceof CourseError && error.reasons.includes('COURSE_CHECK_STALE'));
     const noOptin = draft(['course-a', 'course-b']);
@@ -95,6 +103,29 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
   assert.equal(checked.checkSummary?.ok, true);
   const published = await service.adminPublish('curator', created.id);
   assert.equal(published.status, 'ACTIVE');
+
+  await t.test('revoked admin cannot create, check, publish or pause courses', async () => {
+    const candidate = await service.adminCreate('revoked-curator', draft(['course-a', 'course-b']));
+    await pool.query("UPDATE platform_admins SET revoked_at=now() WHERE account_id='revoked-curator'");
+    for (const mutation of [
+      () => service.adminCreate('revoked-curator', draft(['course-a', 'course-b'])),
+      () => service.adminCheck('revoked-curator', candidate.id, null),
+      () => service.adminPublish('revoked-curator', candidate.id),
+      () => service.adminPause('revoked-curator', published.id),
+    ]) await assert.rejects(mutation(),
+      (error: unknown) => error instanceof AdminError && error.code === 'ADMIN_FORBIDDEN');
+    assert.equal((await pool.query('SELECT status FROM courses WHERE id=$1', [published.id])).rows[0]?.status, 'ACTIVE');
+  });
+
+  await t.test('an ended or non-public step campaign fails the campaign-goal check', async () => {
+    for (const change of ["status='ENDED'", 'is_public=false']) {
+      await pool.query(`UPDATE campaigns SET ${change} WHERE id='campaign-course-b'`);
+      const candidate = await service.adminCreate('curator', draft(['course-a', 'course-b']));
+      const checked = await service.adminCheck('curator', candidate.id, null);
+      assert.equal(checked.checkSummary?.items.find(item => item.key === 'CAMPAIGN_GOAL')?.status, 'FAIL');
+      await pool.query("UPDATE campaigns SET status='ACTIVE', is_public=true WHERE id='campaign-course-b'");
+    }
+  });
 
   const visitAndEntitle = async (merchantId: string, accountId: string, earnedAt: string) => {
     const slot = randomUUID(), visit = randomUUID(), entitlement = randomUUID();
@@ -131,6 +162,53 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
       (error: unknown) => error instanceof CourseError && error.code === 'COURSE_INCOMPLETE');
   });
 
+  await t.test('a real course puts a goal-1-only next campaign in recommendation tier zero', async () => {
+    await visitAndEntitle('course-a', 'course-reco', '2026-10-07T02:00:00Z');
+    const reader = new RecommendationService(
+      new PostgresRecommendationSource(pool, () => now, service), () => now);
+    const recommendations = await reader.listRecommendations('course-reco');
+    assert.equal(recommendations[0]?.merchantId, 'course-b');
+    assert.equal(recommendations[0]?.course?.courseId, published.id);
+    assert.equal(recommendations[0]?.nextGoal?.targetVisitCount, 1);
+  });
+
+  await t.test('course listing uses bounded batched reads and hints omit artwork', async () => {
+    const queries: string[] = [];
+    const trackedPool = new Proxy(pool, { get(target, key) {
+      if (key === 'query') return (...args: unknown[]) => {
+        queries.push(String(args[0]));
+        return Reflect.apply(target.query, target, args);
+      };
+      return Reflect.get(target, key);
+    } });
+    const tracked = new PostgresCourseService(trackedPool, { now: () => now, accountLifecycle: lifecycle });
+    await tracked.list('course-reco');
+    assert.equal(queries.length, 5);
+    assert.match(queries[0]!, /LIMIT 50/);
+    assert.match(queries[1]!, /step\.course_id = ANY\(\$1::uuid\[\]\)/);
+    assert.match(queries[2]!, /c\.merchant_id = ANY\(\$2::text\[\]\)/);
+    queries.length = 0;
+    await tracked.listHints('course-reco');
+    assert.equal(queries.length, 3);
+    assert.ok(queries.every(query => !query.includes('collectible_')));
+  });
+
+  await t.test('recommendations survive a course hint read failure', async () => {
+    await pool.query(`INSERT INTO campaign_goals(campaign_id,target_visit_count,display_name)
+      VALUES ('campaign-course-a',3,'세 번째 방문'),('campaign-course-a',5,'다섯 번째 방문')`);
+    const source = new PostgresRecommendationSource(pool, () => now, {
+      list: async () => [], listHints: async () => { throw new Error('COURSE_HINT_TEST_FAILURE'); },
+    });
+    const previousError = console.error;
+    let logged = false;
+    console.error = () => { logged = true; };
+    try {
+      const candidates = await source.listCandidates('course-reco');
+      assert.equal(candidates.some(candidate => candidate.merchantId === 'course-a'), true);
+      assert.equal(logged, true);
+    } finally { console.error = previousError; }
+  });
+
   await t.test('concurrent unlocks create one row, then replay is idempotent', async () => {
     await visitAndEntitle('course-a', 'course-customer', '2026-10-07T01:00:00Z');
     const second = await visitAndEntitle('course-b', 'course-customer', '2026-10-08T01:00:00Z');
@@ -159,6 +237,17 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     assert.equal((await service.get('course-customer', later.id)).done, 0);
   });
 
+  await t.test('counts_from includes entitlements earned at and after its instant', async () => {
+    const boundary = '2026-10-08T02:00:00Z';
+    await visitAndEntitle('course-a', 'course-boundary', boundary);
+    await visitAndEntitle('course-b', 'course-boundary', '2026-10-08T02:01:00Z');
+    const candidate = await service.adminCreate('curator', draft(['course-a', 'course-b'], boundary));
+    await service.adminCheck('curator', candidate.id, null);
+    await service.adminPublish('curator', candidate.id);
+    assert.equal((await service.get('course-boundary', candidate.id)).done, 2);
+    assert.equal((await service.unlock('course-boundary', candidate.id)).course.state, 'UNLOCKED');
+  });
+
   await t.test('without counts_from, a visit earned before publication still completes its step', async () => {
     const backfilled = await service.adminCreate('curator', draft(['course-a', 'course-b']));
     await service.adminCheck('curator', backfilled.id, null);
@@ -184,7 +273,44 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     await pool.query("UPDATE campaigns SET status='ENDED' WHERE id='campaign-course-a'");
     const detail = await service.get('course-customer', published.id);
     assert.equal(detail.steps[0]?.artwork?.thumbnailDataUrl, artwork.thumbnailDataUrl);
+    assert.equal(detail.steps[0]?.state, 'UNAVAILABLE');
+    assert.equal(detail.steps[0]?.done, false);
     await pool.query("UPDATE campaigns SET status='ACTIVE' WHERE id='campaign-course-a'");
+  });
+
+  await t.test('hidden merchants and changed campaigns make steps unavailable and block new unlocks', async () => {
+    await service.unlock('course-boundary', published.id);
+    for (const [change, restore] of ([
+      ["UPDATE merchants SET status='PAUSED' WHERE id='course-b'", "UPDATE merchants SET status='ACTIVE' WHERE id='course-b'"],
+      ["UPDATE merchants SET published_at=NULL WHERE id='course-b'", "UPDATE merchants SET published_at='2026-10-08T03:00:00Z' WHERE id='course-b'"],
+      ["UPDATE campaigns SET is_public=false WHERE id='campaign-course-b'", "UPDATE campaigns SET is_public=true WHERE id='campaign-course-b'"],
+    ] as const)) {
+      await pool.query(change);
+      const detail = await service.get('course-reco', published.id);
+      assert.equal(detail.steps[1]?.state, 'UNAVAILABLE');
+      assert.equal(detail.steps[1]?.done, false);
+      assert.equal((await service.list('course-reco')).find(course => course.id === published.id)?.steps[1]?.state,
+        'UNAVAILABLE');
+      assert.equal((await service.get('course-boundary', published.id)).state, 'UNLOCKED');
+      assert.equal((await service.unlock('course-boundary', published.id)).replayed, true);
+      assert.deepEqual(await service.listHints('course-reco'), []);
+      await assert.rejects(service.unlock('course-reco', published.id),
+        (error: unknown) => error instanceof CourseError && error.code === 'COURSE_UNAVAILABLE');
+      await pool.query(restore);
+    }
+  });
+
+  await t.test('a removed campaign goal makes its published step unavailable', async () => {
+    await pool.query("INSERT INTO campaign_goals(campaign_id,target_visit_count,display_name) VALUES ('campaign-course-b',3,'세 번째 방문')");
+    const input = draft(['course-a', 'course-b']);
+    input.steps[1]!.targetVisitCount = 3;
+    const candidate = await service.adminCreate('curator', input);
+    await service.adminCheck('curator', candidate.id, null);
+    await service.adminPublish('curator', candidate.id);
+    await pool.query("DELETE FROM campaign_goals WHERE campaign_id='campaign-course-b' AND target_visit_count=3");
+    assert.equal((await service.get('course-reco', candidate.id)).steps[1]?.state, 'UNAVAILABLE');
+    await assert.rejects(service.unlock('course-reco', candidate.id),
+      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_UNAVAILABLE');
   });
 
   await t.test('ACTIVE step terms cannot be changed, added, or deleted', async () => {
@@ -201,6 +327,8 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     assert.equal((await service.adminPause('curator', published.id)).status, 'PAUSED');
     await assert.rejects(service.get('course-customer', published.id),
       (error: unknown) => error instanceof CourseError && error.code === 'COURSE_NOT_FOUND');
+    await assert.rejects(service.unlock('course-reco', published.id),
+      (error: unknown) => error instanceof CourseError && error.code === 'COURSE_UNAVAILABLE');
   });
 
   await t.test('account deletion removes unlock rows and curator identity', async () => {
@@ -208,8 +336,17 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
       accountLifecycle: lifecycle });
     await deletion.requestDeletion({ accountId: 'course-customer', confirmation: 'DELETE MY ACCOUNT' });
     assert.equal((await pool.query('SELECT 1 FROM course_unlocks WHERE account_id=$1', ['course-customer'])).rowCount, 0);
+    await assert.rejects(service.unlock('course-customer', published.id),
+      (error: unknown) => error instanceof CourseError && error.code === 'ACCOUNT_DELETED');
     await deletion.requestDeletion({ accountId: 'curator', confirmation: 'DELETE MY ACCOUNT' });
     assert.equal((await pool.query("SELECT 1 FROM courses WHERE curated_by_account_id='curator'")).rowCount, 0);
+    for (const mutation of [
+      () => service.adminCreate('curator', draft(['course-a', 'course-b'])),
+      () => service.adminCheck('curator', created.id, null),
+      () => service.adminPublish('curator', created.id),
+      () => service.adminPause('curator', published.id),
+    ]) await assert.rejects(mutation(),
+      (error: unknown) => error instanceof AdminError && error.code === 'ADMIN_FORBIDDEN');
   });
 
   await t.test('retention repair respects its row cap for multiple orphan unlocks of one deleted account', async () => {
@@ -228,5 +365,24 @@ test('courses: server progress, publish eligibility, concurrent unlock, stale re
     assert.equal(second.counts.find(entry => entry.step === 'deleted_play_data')?.count, 1);
     assert.equal((await pool.query("SELECT count(*)::int AS n FROM course_unlocks WHERE account_id='course-customer'"))
       .rows[0]?.n, 0);
+  });
+
+  await t.test('the active course cap returns only 50 of 51 new eligible courses', async () => {
+    const ids: string[] = Array.from({ length: 51 }, () => randomUUID());
+    try {
+      await pool.query(`INSERT INTO courses(id,title,situation,scene_key,curated_by_account_id,checked_at,check_summary,created_at)
+        SELECT id::uuid,'목록 상한','AFTER_MEAL','test-picnic','load-test-curator',now(),'{}',now() + interval '1 minute'
+        FROM unnest($1::text[]) AS ids(id)`, [ids]);
+      await pool.query(`INSERT INTO course_steps(course_id,position,merchant_id,target_visit_count,piece_key,piece_label,owner_optin_ref,owner_optin_at)
+        SELECT ids.id::uuid, step.position, step.merchant_id, 1, step.piece_key, step.piece_label,
+          step.owner_optin_ref, now() FROM unnest($1::text[]) AS ids(id)
+        CROSS JOIN (VALUES (1,'course-a','piece-1','그릇','COURSE-OPTIN-REF-1'),
+          (2,'course-b','piece-2','컵','COURSE-OPTIN-REF-2'))
+          AS step(position,merchant_id,piece_key,piece_label,owner_optin_ref)`, [ids]);
+      await pool.query("UPDATE courses SET status='ACTIVE' WHERE id = ANY($1::uuid[])", [ids]);
+      const listed = await service.list('course-reco');
+      assert.equal(listed.length, 50);
+      assert.equal(listed.every(course => ids.includes(course.id)), true);
+    } finally { await pool.query('TRUNCATE courses CASCADE'); }
   });
 });

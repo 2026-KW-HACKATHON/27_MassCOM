@@ -6,7 +6,7 @@ export type CourseSituation = 'AFTER_MEAL' | 'TAKEOUT' | 'OTHER';
 export type CourseStep = {
   position: number; merchantId: string; merchantName: string; targetVisitCount: 1 | 3 | 5;
   pieceKey: string; pieceLabel: string; done: boolean; earnedAt: string | null;
-  progressVisitCount: number | null; full: boolean; artwork?: CollectibleArtwork;
+  progressVisitCount: number | null; full: boolean; state: 'AVAILABLE' | 'UNAVAILABLE'; artwork?: CollectibleArtwork;
 };
 export type Course = {
   id: string; title: string; situation: CourseSituation; situationLabel: string; sceneKey: string;
@@ -18,6 +18,9 @@ export type Course = {
 type Options = { apiUrl: string; credential: AccountCredential; onSessionInvalid?: () => void | Promise<void>; fetcher?: typeof fetch };
 export class CourseApiError extends Error {
   constructor(readonly status: number, readonly code: string) { super(code); this.name = 'CourseApiError'; }
+}
+export function courseListIsNotConfigured(error: unknown): boolean {
+  return error instanceof CourseApiError && (error.status === 404 || (error.status === 503 && error.code === 'COURSES_NOT_CONFIGURED'));
 }
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 const str = (value: unknown): value is string => typeof value === 'string' && value.trim().length > 0;
@@ -39,13 +42,14 @@ export function parseCourse(value: unknown): Course {
       (item.targetVisitCount !== 1 && item.targetVisitCount !== 3 && item.targetVisitCount !== 5) ||
       !str(item.pieceKey) || !str(item.pieceLabel) || typeof item.done !== 'boolean' ||
       !dateOrNull(item.earnedAt) || (item.progressVisitCount !== null && !int(item.progressVisitCount)) ||
-      typeof item.full !== 'boolean') invalid();
+      typeof item.full !== 'boolean' || !['AVAILABLE', 'UNAVAILABLE'].includes(String(item.state)) ||
+      (item.state === 'UNAVAILABLE' && item.done)) invalid();
     const artwork = item.artwork === undefined ? undefined : parseCollectibleArtwork(item.artwork);
     if (item.artwork !== undefined && !artwork) invalid();
     return { position: item.position, merchantId: item.merchantId, merchantName: item.merchantName,
       targetVisitCount: item.targetVisitCount, pieceKey: item.pieceKey, pieceLabel: item.pieceLabel,
       done: item.done, earnedAt: item.earnedAt, progressVisitCount: item.progressVisitCount,
-      full: item.full, ...(artwork ? { artwork } : {}) };
+      full: item.full, state: item.state as CourseStep['state'], ...(artwork ? { artwork } : {}) };
   });
   if (new Set(steps.map(step => step.position)).size !== steps.length ||
     steps.filter(step => step.done).length !== value.done || value.stale !== (value.state === 'STALE')) invalid();
@@ -65,7 +69,7 @@ export function createCourseApiClient(options: Options) {
     const response = await fetcher(`${base}/me/courses${path}`, {
       method, headers, signal, ...(method === 'POST' ? { body: '{}' } : {}),
     });
-    const payload = await response.json();
+    const payload = response.ok ? await response.json() : await response.json().catch(() => null);
     if (!response.ok) {
       const code = record(payload) && str(payload.code) ? payload.code : `HTTP_${response.status}`;
       if (shouldInvalidateSession(options.credential, response.status, code)) await options.onSessionInvalid?.();

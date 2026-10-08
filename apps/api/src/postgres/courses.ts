@@ -11,6 +11,8 @@ import {
 } from '../course-rules.js';
 import type { RealWorldProfile } from '../real-world-contract.js';
 import { businessStateAt } from '../real-world-hours.js';
+import { AdminError, assertPlatformAdmin } from './admin.js';
+import { AccountLifecycleError } from './account-lifecycle.js';
 import type { PostgresAccountLifecycle } from './account-lifecycle.js';
 
 type Db = Pool | PoolClient;
@@ -20,7 +22,8 @@ type CourseRow = {
   checked_at: Date | null; check_summary: CourseCheckSummary | null; created_at: Date;
 };
 type StepRow = {
-  position: number; merchant_id: string; merchant_name: string; target_visit_count: CourseGoal;
+  course_id: string; position: number; merchant_id: string; merchant_name: string; target_visit_count: CourseGoal;
+  is_demo: boolean; available: boolean;
   piece_key: string; piece_label: string; owner_optin_ref: string | null; owner_optin_at: Date | null;
   campaign_id: string | null; enrollment_open: boolean | null; progress_visit_count: number | null;
   artwork: CollectibleArtwork | null;
@@ -38,6 +41,10 @@ type EntitlementRow = {
 
 const validId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 const iso = (date: Date | null) => date?.toISOString() ?? null;
+export type CourseNextHint = {
+  id: string; title: string; situation: CourseSituation; done: number; total: number;
+  startsAt: string | null; nextMerchantId: string; nextGoal: CourseGoal;
+};
 
 export class PostgresCourseService implements CourseService {
   private readonly now: () => Date;
@@ -72,16 +79,20 @@ export class PostgresCourseService implements CourseService {
     return result.rows[0];
   }
 
-  private async steps(db: Db, id: string, at: Date, accountId: string | null = null): Promise<StepRow[]> {
+  private async steps(db: Db, ids: string[], at: Date, accountId: string | null = null,
+    withArtwork = true): Promise<StepRow[]> {
+    if (ids.length === 0) return [];
     const result = await db.query<StepRow>(
-      `SELECT step.position, step.merchant_id, merchant.name AS merchant_name, step.target_visit_count,
+      `SELECT step.course_id, step.position, step.merchant_id, merchant.name AS merchant_name, step.target_visit_count,
+              merchant.is_demo, (merchant.status = 'ACTIVE' AND merchant.published_at IS NOT NULL
+                AND campaign.id IS NOT NULL) AS available,
               step.piece_key, step.piece_label, step.owner_optin_ref, step.owner_optin_at,
               campaign.id AS campaign_id,
               campaign.enrolled_count < campaign.enrollment_capacity AS enrollment_open,
               (SELECT count(DISTINCT visit.business_date)::integer FROM visit_events visit
                 WHERE visit.campaign_id = campaign.id AND visit.status = 'VALID'
                   AND visit.progress_counted AND visit.customer_account_id = $3) AS progress_visit_count,
-              grade.summary AS artwork
+              ${withArtwork ? 'grade.summary' : 'NULL::jsonb'} AS artwork
        FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id
        LEFT JOIN LATERAL (
          SELECT c.id, c.enrolled_count, c.enrollment_capacity
@@ -91,19 +102,19 @@ export class PostgresCourseService implements CourseService {
              AND g.target_visit_count = step.target_visit_count)
          ORDER BY c.ends_at DESC, c.id LIMIT 1
        ) campaign ON true
-       LEFT JOIN campaign_collectible_publications link ON link.campaign_id = campaign.id
+       ${withArtwork ? `LEFT JOIN campaign_collectible_publications link ON link.campaign_id = campaign.id
        LEFT JOIN collectible_publications publication ON publication.id = link.publication_id
          AND publication.media_removed_at IS NULL
        LEFT JOIN collectible_publication_grades grade ON grade.publication_id = publication.id
-         AND grade.grade_id = publication.reward_grades->>step.target_visit_count::text
-       WHERE step.course_id = $1 ORDER BY step.position`,
-      [id, at, accountId],
+         AND grade.grade_id = publication.reward_grades->>step.target_visit_count::text` : ''}
+       WHERE step.course_id = ANY($1::uuid[]) ORDER BY step.course_id, step.position`,
+      [ids, at, accountId],
     );
     return result.rows;
   }
 
   private async adminView(db: Db, row: CourseRow): Promise<AdminCourse> {
-    const steps = await this.steps(db, row.id, this.now());
+    const steps = await this.steps(db, [row.id], this.now());
     return { id: row.id, title: row.title, situation: row.situation, sceneKey: row.scene_key,
       status: row.status, startsAt: iso(row.starts_at), endsAt: iso(row.ends_at), countsFrom: iso(row.counts_from),
       checkedAt: iso(row.checked_at), checkSummary: row.check_summary, createdAt: row.created_at.toISOString(),
@@ -127,9 +138,15 @@ export class PostgresCourseService implements CourseService {
     );
   }
 
+  private async admin(db: PoolClient, actorAccountId: string): Promise<void> {
+    if (!this.accountLifecycle) throw new AdminError('ADMIN_FORBIDDEN');
+    await assertPlatformAdmin(db, this.accountLifecycle, actorAccountId);
+  }
+
   async adminCreate(actorAccountId: string, raw: unknown): Promise<AdminCourse> {
     const input: CourseDraftInput = parseCourseDraft(raw);
     return this.transaction(async db => {
+      await this.admin(db, actorAccountId);
       const existing = await db.query<{ id: string }>('SELECT id FROM merchants WHERE id = ANY($1::text[])',
         [input.steps.map(step => step.merchantId)]);
       if (existing.rows.length !== input.steps.length) throw new CourseError('COURSE_INVALID_INPUT');
@@ -204,6 +221,7 @@ export class PostgresCourseService implements CourseService {
     if (suggestedHour !== null && (!Number.isInteger(suggestedHour) || suggestedHour < 0 || suggestedHour > 23))
       throw new CourseError('COURSE_INVALID_INPUT');
     return this.transaction(async db => {
+      await this.admin(db, actorAccountId);
       const row = await this.course(db, id, 'UPDATE');
       if (row.status !== 'DRAFT' && row.status !== 'PAUSED') throw new CourseError('COURSE_STATE_CONFLICT');
       const now = this.now();
@@ -218,9 +236,10 @@ export class PostgresCourseService implements CourseService {
 
   async adminPublish(actorAccountId: string, id: string): Promise<AdminCourse> {
     return this.transaction(async db => {
+      await this.admin(db, actorAccountId);
       const row = await this.course(db, id, 'UPDATE');
       const now = this.now();
-      const steps = await this.steps(db, id, now);
+      const steps = await this.steps(db, [id], now);
       const live = await this.checkFacts(db, row, row.check_summary?.suggestedHour ?? null, now);
       const reasons = publishBlockers({ status: row.status, stepCount: steps.length,
         stepsWithoutOptin: steps.filter(step => !step.owner_optin_ref).length, endsAt: row.ends_at,
@@ -235,6 +254,7 @@ export class PostgresCourseService implements CourseService {
 
   async adminPause(actorAccountId: string, id: string): Promise<AdminCourse> {
     return this.transaction(async db => {
+      await this.admin(db, actorAccountId);
       const row = await this.course(db, id, 'UPDATE');
       if (row.status !== 'ACTIVE') throw new CourseError('COURSE_STATE_CONFLICT');
       await db.query("UPDATE courses SET status = 'PAUSED' WHERE id = $1", [id]);
@@ -254,13 +274,16 @@ export class PostgresCourseService implements CourseService {
       targetVisitCount: item.target_visit_count, earnedAt: item.earned_at, status: item.status }));
   }
 
-  private async customerView(db: Db, accountId: string, row: CourseRow, lock = false): Promise<CourseView> {
-    const now = this.now();
-    const steps = await this.steps(db, row.id, now, accountId);
-    const entitlements = await this.entitlements(db, accountId, steps.map(step => step.merchant_id), lock);
-    const progress = evaluateSteps(steps.map(step => ({ position: step.position, merchantId: step.merchant_id,
-      targetVisitCount: step.target_visit_count })), entitlements, row.counts_from);
-    const summary = summarizeProgress(progress);
+  private async customerViews(db: Db, accountId: string, rows: CourseRow[], lock = false): Promise<CourseView[]> {
+    if (rows.length === 0) return [];
+    const steps = await this.steps(db, rows.map(row => row.id), this.now(), accountId);
+    const entitlements = await this.entitlements(db, accountId, [...new Set(steps.map(step => step.merchant_id))], lock);
+    const progressByCourse = new Map(rows.map(row => {
+      const courseSteps = steps.filter(step => step.course_id === row.id);
+      const progress = evaluateSteps(courseSteps.map(step => ({ position: step.position,
+        merchantId: step.merchant_id, targetVisitCount: step.target_visit_count })), entitlements, row.counts_from);
+      return [row.id, progress] as const;
+    }));
     const earnedArtwork = await db.query<{ entitlement_id: string; artwork: CollectibleArtwork }>(
       `SELECT acquisition.entitlement_id, grade.summary AS artwork
        FROM collectible_acquisitions acquisition
@@ -269,25 +292,39 @@ export class PostgresCourseService implements CourseService {
        JOIN collectible_publication_grades grade ON grade.publication_id = acquisition.publication_id
          AND grade.grade_id = acquisition.grade_id
        WHERE acquisition.entitlement_id = ANY($1::uuid[])`,
-      [progress.flatMap(step => step.entitlementId ? [step.entitlementId] : [])]);
+      [[...new Set([...progressByCourse.values()].flatMap(progress =>
+        progress.flatMap(step => step.entitlementId ? [step.entitlementId] : [])))]]);
     const artworkByEntitlement = new Map(earnedArtwork.rows.map(item => [item.entitlement_id, item.artwork]));
-    const unlocked = await db.query<{ unlocked_at: Date }>(
-      'SELECT unlocked_at FROM course_unlocks WHERE account_id = $1 AND course_id = $2 AND revoked_at IS NULL',
-      [accountId, row.id]);
-    const unlockedAt = iso(unlocked.rows[0]?.unlocked_at ?? null);
-    const state = courseUserState(summary, unlockedAt !== null);
-    return { id: row.id, title: row.title, situation: row.situation,
+    const unlocked = await db.query<{ course_id: string; unlocked_at: Date }>(
+      'SELECT course_id, unlocked_at FROM course_unlocks WHERE account_id = $1 AND course_id = ANY($2::uuid[]) AND revoked_at IS NULL',
+      [accountId, rows.map(row => row.id)]);
+    const unlockByCourse = new Map(unlocked.rows.map(item => [item.course_id, item.unlocked_at]));
+    return rows.map(row => {
+      const courseSteps = steps.filter(step => step.course_id === row.id);
+      const progress = progressByCourse.get(row.id)!;
+      const visibleProgress = progress.map((item, index) => courseSteps[index]!.available ? item : { ...item, done: false });
+      const summary = summarizeProgress(visibleProgress);
+      const unlockedAt = iso(unlockByCourse.get(row.id) ?? null);
+      const state = unlockedAt && summarizeProgress(progress).complete
+        ? 'UNLOCKED' : courseUserState(summary, unlockedAt !== null);
+      return { id: row.id, title: row.title, situation: row.situation,
       situationLabel: COURSE_SITUATION_LABEL[row.situation], sceneKey: row.scene_key, status: row.status,
       startsAt: iso(row.starts_at), endsAt: iso(row.ends_at), done: summary.done, total: summary.total,
       state, stale: state === 'STALE', unlockedAt,
-      steps: steps.map((step, index) => {
+      steps: courseSteps.map((step, index) => {
         const artwork = artworkByEntitlement.get(progress[index]!.entitlementId ?? '') ?? step.artwork;
         return { position: step.position, merchantId: step.merchant_id, merchantName: step.merchant_name,
           targetVisitCount: step.target_visit_count, pieceKey: step.piece_key, pieceLabel: step.piece_label,
-          done: progress[index]!.done, earnedAt: progress[index]!.earnedAt,
+          state: step.available ? 'AVAILABLE' as const : 'UNAVAILABLE' as const,
+          done: visibleProgress[index]!.done, earnedAt: progress[index]!.earnedAt,
           progressVisitCount: step.progress_visit_count, full: step.enrollment_open === false,
           ...(artwork ? { artwork } : {}) };
       }) };
+    });
+  }
+
+  private async customerView(db: Db, accountId: string, row: CourseRow, lock = false): Promise<CourseView> {
+    return (await this.customerViews(db, accountId, [row], lock))[0]!;
   }
 
   private visible(row: CourseRow, now: Date): boolean {
@@ -295,20 +332,38 @@ export class PostgresCourseService implements CourseService {
       (row.ends_at === null || row.ends_at > now);
   }
 
-  async list(accountId: string): Promise<CourseView[]> {
+  private async activeCourses(): Promise<CourseRow[]> {
     const now = this.now();
+    // Cap active courses before joining their steps so this endpoint has a predictable maximum read size.
     const result = await this.pool.query<CourseRow>(
       `SELECT * FROM courses WHERE status = 'ACTIVE' AND (starts_at IS NULL OR starts_at <= $1)
-       AND (ends_at IS NULL OR ends_at > $1) ORDER BY created_at DESC, id`, [now]);
-    const views: CourseView[] = [];
-    for (const row of result.rows) {
-      const steps = await this.pool.query<{ is_demo: boolean }>(
-        'SELECT merchant.is_demo FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1',
-        [row.id]);
-      if (!this.includeDemo && steps.rows.some(step => step.is_demo)) continue;
-      views.push(await this.customerView(this.pool, accountId, row));
-    }
-    return views;
+       AND (ends_at IS NULL OR ends_at > $1)
+       AND ($2::boolean OR NOT EXISTS (SELECT 1 FROM course_steps step
+         JOIN merchants merchant ON merchant.id = step.merchant_id
+         WHERE step.course_id = courses.id AND merchant.is_demo))
+       ORDER BY created_at DESC, id LIMIT 50`, [now, this.includeDemo]);
+    return result.rows;
+  }
+
+  async list(accountId: string): Promise<CourseView[]> {
+    return this.customerViews(this.pool, accountId, await this.activeCourses());
+  }
+
+  async listHints(accountId: string): Promise<CourseNextHint[]> {
+    const rows = await this.activeCourses();
+    const steps = await this.steps(this.pool, rows.map(row => row.id), this.now(), accountId, false);
+    const entitlements = await this.entitlements(this.pool, accountId,
+      [...new Set(steps.map(step => step.merchant_id))]);
+    return rows.flatMap(row => {
+      const courseSteps = steps.filter(step => step.course_id === row.id);
+      const progress = evaluateSteps(courseSteps.map(step => ({ position: step.position,
+        merchantId: step.merchant_id, targetVisitCount: step.target_visit_count })), entitlements, row.counts_from);
+      const done = progress.filter((item, index) => item.done && courseSteps[index]!.available).length;
+      const next = courseSteps.find((step, index) => !step.available || !progress[index]!.done);
+      if (!next?.available || done === 0 || done === courseSteps.length) return [];
+      return [{ id: row.id, title: row.title, situation: row.situation, done, total: courseSteps.length,
+        startsAt: iso(row.starts_at), nextMerchantId: next.merchant_id, nextGoal: next.target_visit_count }];
+    });
   }
 
   async get(accountId: string, id: string): Promise<CourseView> {
@@ -322,7 +377,11 @@ export class PostgresCourseService implements CourseService {
 
   async unlock(accountId: string, id: string): Promise<{ course: CourseView; replayed: boolean }> {
     return this.transaction(async db => {
-      if (this.accountLifecycle) await this.accountLifecycle.assertActive(db, accountId);
+      try { if (this.accountLifecycle) await this.accountLifecycle.assertActive(db, accountId); }
+      catch (error) {
+        if (error instanceof AccountLifecycleError) throw new CourseError('ACCOUNT_DELETED');
+        throw error;
+      }
       await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`course:${accountId}:${id}`]);
       const row = await this.course(db, id, 'SHARE');
       if (!this.visible(row, this.now())) throw new CourseError('COURSE_UNAVAILABLE');
@@ -330,6 +389,10 @@ export class PostgresCourseService implements CourseService {
         'SELECT merchant.is_demo FROM course_steps step JOIN merchants merchant ON merchant.id = step.merchant_id WHERE step.course_id = $1', [id]);
       if (!this.includeDemo && demo.rows.some(step => step.is_demo)) throw new CourseError('COURSE_UNAVAILABLE');
       const course = await this.customerView(db, accountId, row, true);
+      if (course.steps.some(step => step.state === 'UNAVAILABLE')) {
+        if (course.unlockedAt) return { course, replayed: true };
+        throw new CourseError('COURSE_UNAVAILABLE');
+      }
       if (course.state === 'STALE' || course.state === 'IN_PROGRESS' || course.state === 'NOT_STARTED')
         throw new CourseError('COURSE_INCOMPLETE');
       const current = await this.entitlements(db, accountId, course.steps.map(step => step.merchantId), true);

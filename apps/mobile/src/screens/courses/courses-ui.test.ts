@@ -23,3 +23,12 @@ test('consent refusal leads to the shared recheck flow and changing detail ids h
   assert.match(source, /errorNeedsConsent \? recheckConsent/);
   assert.match(source, /courses\?\.\[0\]\?\.id === courseId/);
 });
+
+test('404 or 410 on refreshed detail clears cached detail and any open scene', () => {
+  assert.match(source, /const cleared = courseId && clearedCourseDetail\(cause\);\s*if \(cleared\) \{ setCourses\(cleared\.courses\); setSceneOpen\(cleared\.sceneOpen\); \}/);
+  assert.match(source, /step\.state === 'UNAVAILABLE' \? '지금은 이용할 수 없는 가게예요'/);
+});
+
+test('older APIs without courses leave claim success free of course error banner', () => {
+  assert.match(claim, /if \(courseListIsNotConfigured\(cause\)\) \{\s*setNextCourse\(undefined\);\s*setCourseReadError\(undefined\);/);
+});

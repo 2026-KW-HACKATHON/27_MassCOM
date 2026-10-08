@@ -1,10 +1,10 @@
 # HANDOFF
 
-기준 시각: 2026-10-08 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
+기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
 ## 1. 기준 커밋과 작업 위치
 
-- 이번 작업: Issue #412 T4 A, `.worktrees/t4-courses`, 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 로컬 커밋만 허용하고 push·stash·rebase·배포는 하지 않는다. 결정 D-093, 추가 전용 migration 0072. 검증은 TEST_STATUS 최상단과 실제 git 이력을 따른다.
+- 이번 작업: Issue #412 T4 A, `.worktrees/t4-courses`, 브랜치 `feat/cross-store-courses`, 기준 main `8841efea`. 검토 시작 HEAD는 `29644366`(기준 위 4개 커밋)이며 후속 커밋은 오케스트레이터가 담당한다. 이번 세션은 add·commit·stash·rebase·push·배포를 실행하지 않는다. 결정 D-093, 추가 전용 migration 0072. 검증은 TEST_STATUS 최상단과 실제 git 이력을 따른다.
 
 - 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
 - PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
@@ -73,7 +73,7 @@
 
 ## 9. 자동 검증 상태
 
-- T4 A 이번 실행: API 633/633, PG 541건 중 538 PASS/0 FAIL/3 SKIP, 모바일 2086/2086, 관련 사이트 168/168; typecheck·lint·build·CI 연결·접근성·문서·gate PASS. 전체 사이트의 기존 Chrome theme 검사는 시작 SIGABRT로 BLOCKED다. HEAD `8841efea`; git index.lock 쓰기 차단으로 커밋/PR/push는 없다. [변경 파일과 검증](evidence/t4-courses-2026-10-08.md)을 전달하며 오케스트레이터가 커밋한다.
+- T4 A 리뷰 수정 실행(2026-10-09): API 634/634, PG 553건 중 550 PASS/0 FAIL/3 SKIP, 모바일 2094/2094, 요청된 사이트 139/139; typecheck·모바일 lint·CI 연결·접근성·문서·gate PASS. PG SKIP은 별도 disposable hosted-showcase 55435 컨테이너가 필요한 기존 3건이다. 검토 시작 HEAD `29644366`(기준 위 4개 커밋); 후속 커밋은 오케스트레이터가 담당한다. 이번 세션은 Git 쓰기를 실행하지 않는다. [검증과 전달](evidence/t4-courses-2026-10-08.md)을 따른다. 전체 사이트·실제 브라우저/기기·설치·배포는 이번 실행에서 NOT_RUN이다.
 
 - 필수 36개 상태: `31 PASS / 2 BLOCKED / 3 NOT_RUN` ([시험 원장](TEST_STATUS.md), [제출 증거](SUBMISSION_EVIDENCE.json)).
 - Issue #401 구현 브랜치 `fix/submission-readiness`의 당시 검사: API 단위 567/567·PostgreSQL 524 PASS/3 SKIP(전용 55435 hosted seed 컨테이너 조건), API typecheck·build, 모바일 1,872/1,872·typecheck·lint·운영/시연 Android export·variant 자산·접근성 의미 PASS. `9f5ebfa6` 수정은 독립 Codex 리뷰 APPROVE, 모바일 1,876/1,876·typecheck·lint·접근성·gate PASS다.
