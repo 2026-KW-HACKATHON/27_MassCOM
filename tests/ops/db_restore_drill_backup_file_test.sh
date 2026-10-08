@@ -40,6 +40,20 @@ if [[ "$*" == *'SELECT filename FROM schema_migrations ORDER BY filename'* ]]; t
     esac
   fi
 fi
+# --restore-only queries (Issue #412): migration count of the restored database and the table list of both databases.
+if [[ "$*" == *'SELECT count(*) FROM schema_migrations'* ]]; then echo "${FAKE_RO_MIGRATIONS-3}"; exit 0; fi
+if [[ "$*" == *'SELECT table_name FROM information_schema.tables'* ]]; then
+  side=source
+  if [[ "${1%%\?*}" == *_restore_test ]]; then side=scratch; fi
+  if [[ "${FAKE_RO_TABLES_SIDE:-}" == "$side" || "${FAKE_RO_TABLES_SIDE:-}" == both ]]; then
+    case "${FAKE_RO_TABLES_MODE:-}" in
+      fail) echo accounts; echo 'psql: table list query failed' >&2; exit 9 ;;
+      empty) exit 0 ;;
+      extra) printf 'accounts\nextra_table\nschema_migrations\n'; exit 0 ;;
+    esac
+  fi
+  printf 'accounts\nschema_migrations\n'; exit 0
+fi
 echo fake
 FAKE
 cat >"$fakebin/pg_restore" <<'FAKE'
@@ -52,6 +66,7 @@ if [[ -n "${FAKE_PG_URL_LOG:-}" ]]; then
   done
 fi
 cat >/dev/null
+if [[ "${FAKE_PG_RESTORE_FAIL:-}" == 1 ]]; then echo 'pg_restore: error: could not execute query' >&2; exit 1; fi
 FAKE
 chmod +x "$fakebin/pg_dump" "$fakebin/psql" "$fakebin/pg_restore"
 
@@ -195,5 +210,76 @@ snapshot_log="$scratch/snapshots.log"
 out="$(FAKE_PG_SNAPSHOT_LOG="$snapshot_log" run_drill "$work/verified.dump" 2>&1)"
 grep -q 'restore drill passed: 1 table counts and migration versions match' <<<"$out"
 [[ "$(cat "$snapshot_log")" == $'source\nscratch' ]] || { echo 'success message queried an unverified snapshot again' >&2; exit 1; }
+
+# Issue #412: --restore-only 는 있는 백업 파일만 읽어 scratch DB에 복원한다. 원본 DB는 읽기만 하고(덤프 없음) 파일은 건드리지 않으며,
+# pg_restore 종료 0, 비어 있지 않은 schema_migrations, 원본과 같은 테이블 집합을 모두 요구하고, 끝나면 scratch DB를 지우고 걸린 초를 출력한다.
+printf 'EXISTING BACKUP' >"$work/ro.dump"
+chmod 644 "$work/ro.dump"
+ro_before="$(cksum <"$work/ro.dump")"
+ro_intact() {
+  [[ "$(<"$work/ro.dump")" == 'EXISTING BACKUP' && "$(cksum <"$work/ro.dump")" == "$ro_before" && "$(mode_of "$work/ro.dump")" == 644 && "$(leftovers)" == 0 ]] \
+    || { echo "--restore-only changed, replaced or removed the backup file ($1)" >&2; exit 1; }
+}
+scratch_dropped() {
+  [[ "$(grep -Fxc 'postgresql://drill@127.0.0.1:1/postgres' "$url_log" || true)" -eq 2 ]] || { echo "scratch database was not created and dropped exactly once ($1)" >&2; exit 1; }
+}
+
+: >"$url_log"
+status=0
+out="$(FAKE_PG_URL_LOG="$url_log" run_drill --restore-only "$work/ro.dump" 2>&1)" || status=$?
+[[ "$status" == 0 ]] || { echo "restore-only drill failed ($status): $out" >&2; exit 1; }
+grep -Eq '^restore-only drill passed: 2 tables match the live database, 3 migrations, restored in [0-9]+ seconds$' <<<"$out" || { echo "restore-only success line is wrong: $out" >&2; exit 1; }
+if grep -q 'restore drill passed' <<<"$out"; then echo 'restore-only printed the full-drill success line' >&2; exit 1; fi
+if grep -q '^pg_dump:' "$url_log"; then echo 'restore-only dumped the source database' >&2; exit 1; fi
+grep -q '^pg_restore:postgresql://drill@127.0.0.1:1/masscom_[0-9]*_restore_test$' "$url_log" || { echo 'restore-only did not restore into a scratch database' >&2; exit 1; }
+scratch_dropped success
+ro_intact success
+
+# 파일이 없거나 디렉터리이거나 인자가 없으면 DB를 건드리기 전에 거절한다.
+for ro_bad in "$work/does-not-exist.dump" "$work/adir" ''; do
+  : >"$url_log"
+  status=0
+  if [[ -n "$ro_bad" ]]; then out="$(FAKE_PG_URL_LOG="$url_log" run_drill --restore-only "$ro_bad" 2>&1)" || status=$?
+  else out="$(FAKE_PG_URL_LOG="$url_log" run_drill --restore-only 2>&1)" || status=$?; fi
+  [[ "$status" != 0 ]] || { echo "restore-only accepted '$ro_bad' as a backup file" >&2; exit 1; }
+  grep -q -- '--restore-only needs the path of an existing backup file' <<<"$out" || { echo "restore-only refusal was not reported for '$ro_bad': $out" >&2; exit 1; }
+  [[ ! -s "$url_log" ]] || { echo "restore-only touched the database before refusing '$ro_bad'" >&2; exit 1; }
+done
+ro_intact refusals
+
+# 복원 실패, 빈 schema_migrations(0건·숫자 아님), 테이블 집합 불일치·조회 실패·빈 목록은 모두 실패이고 scratch DB는 지워지며 파일은 그대로다.
+ro_cases=0
+for ro_case in \
+    'FAKE_PG_RESTORE_FAIL=1|could not execute query|pg_restore' \
+    'FAKE_RO_MIGRATIONS=0|schema_migrations is missing or empty|migrations' \
+    'FAKE_RO_MIGRATIONS=|schema_migrations is missing or empty|migrations' \
+    'FAKE_RO_MIGRATIONS=fake|schema_migrations is missing or empty|migrations' \
+    'FAKE_RO_TABLES_MODE=extra FAKE_RO_TABLES_SIDE=scratch|restored tables differ from the live database|tables' \
+    'FAKE_RO_TABLES_MODE=extra FAKE_RO_TABLES_SIDE=source|restored tables differ from the live database|tables' \
+    'FAKE_RO_TABLES_MODE=fail FAKE_RO_TABLES_SIDE=source|live table list query failed or is empty|tables' \
+    'FAKE_RO_TABLES_MODE=empty FAKE_RO_TABLES_SIDE=source|live table list query failed or is empty|tables' \
+    'FAKE_RO_TABLES_MODE=fail FAKE_RO_TABLES_SIDE=scratch|restored table list query failed or is empty|tables' \
+    'FAKE_RO_TABLES_MODE=empty FAKE_RO_TABLES_SIDE=scratch|restored table list query failed or is empty|tables'; do
+  IFS='|' read -r ro_env ro_message ro_name <<<"$ro_case"
+  : >"$url_log"
+  status=0
+  # shellcheck disable=SC2086 # ro_env holds one or two NAME=value words
+  out="$( export FAKE_PG_URL_LOG="$url_log" $ro_env; run_drill --restore-only "$work/ro.dump" 2>&1 )" || status=$?
+  [[ "$status" != 0 ]] || { echo "restore-only passed although $ro_env: $out" >&2; exit 1; }
+  grep -q "$ro_message" <<<"$out" || { echo "restore-only failure for $ro_env was not reported as '$ro_message': $out" >&2; exit 1; }
+  if grep -q 'restore-only drill passed' <<<"$out"; then echo "restore-only printed success although $ro_env" >&2; exit 1; fi
+  scratch_dropped "$ro_env"
+  ro_intact "$ro_env"
+  ro_cases=$((ro_cases + 1))
+done
+
+# 데이터베이스를 고르는 URL 쿼리 키는 --restore-only에서도 첫 DB 호출 전에 거절한다.
+: >"$url_log"
+status=0
+out="$(FAKE_PG_URL_LOG="$url_log" DRILL_DATABASE_URL='postgresql://drill@127.0.0.1:1/masscom_test?dbname=masscom' run_drill --restore-only "$work/ro.dump" 2>&1)" || status=$?
+[[ "$status" != 0 ]] && grep -q 'database-selecting query key is not allowed' <<<"$out" && [[ ! -s "$url_log" ]] || { echo 'restore-only accepted a database-selecting query key' >&2; exit 1; }
+ro_intact query-key
+echo "restore-only tests passed ($ro_cases failure cases rejected; the backup file and the source were left alone)"
+
 
 echo "restore drill backup-file tests passed ($rejected_queries unsafe queries refused; TLS query preserved; $snapshot_cases invalid snapshot cases rejected)"

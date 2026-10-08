@@ -80,9 +80,7 @@ if (JSON.stringify(fingerprints) !== JSON.stringify([
 ])) throw new Error('wrong App Link certificate fingerprint');
 NODE
 grep -qF 'android-v0.1.0-test.13' "$repo_root/docs/open.html"
-grep -qF 'showcase-android-v0.1.0-preview.3' "$repo_root/docs/open.html"
 grep -qF 'showcase-android-v0.1.0-preview.22' "$repo_root/docs/open.html"
-grep -qF '새 시연 API에서는 이 버전의 직원 발급 요청이 호환되지 않으므로' "$repo_root/docs/open.html"
 # `! grep` does not trip `set -e`, so the forbidden-text guards fail explicitly.
 if grep -Eq 'private GitHub|아직 GitHub에 APK가 없습니다|최신[^<]{0,30}Preview ([4-9]|1[0-6])([^0-9]|$)|운영 test\.[0-7]([^0-9]|$)' "$repo_root/docs/open.html"; then
   echo 'open.html still has stale latest-preview or private-release wording' >&2

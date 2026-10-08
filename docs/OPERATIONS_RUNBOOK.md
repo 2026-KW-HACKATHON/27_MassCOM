@@ -133,6 +133,53 @@ DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-re
 | 전송 응답 유실 | 새 키 발급 금지 | reward key·기존 transaction·event 대조 |
 | 확정 전 재조직 | 완료 처리 금지 | 필요한 confirmation과 canonical block hash 확인 |
 
+## 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 원본 (Issue #412)
+
+이 절의 변경은 배포하지 않았습니다(소유자 결정 A). 공개 서버·설치본은 그대로이고, 호스트에는 아무것도 설치하지 않았습니다.
+
+### 가동 점검 (`.github/workflows/uptime.yml`, `scripts/uptime-probe.sh`)
+
+- 15분마다(cron `*/15 * * * *`, GitHub 최선 노력이라 몇 분 밀리거나 건너뛸 수 있음)와 수동 실행으로 돕니다. 예약 실행은 기본 브랜치(main)에 있는 이 파일로만 돕니다. 서드파티 액션 없이 러너의 `curl`·`jq`·`openssl`·`gh`만 쓰고 권한은 `contents: read`·`issues: write`, 실행은 하나씩(`concurrency: uptime`), 제한 5분입니다.
+- 1단계(읽기 전용, 매번): 운영 `api.masscom.kr`의 `/health`·`/merchants`, 시연 `demo-api.masscom.kr`의 `/health`·`/merchants`(가상 점포 3곳 이상, 전부 `demo:true`), 첫 시연 점포의 `/v1/discovery/merchants/<id>`·`/merchants/<id>/collectible-preview`, 시연 `/play/` HTML이 이름을 부른 진입 JS가 200과 JavaScript content-type으로 오는지, 운영 `masscom.kr/app/`·`/merchant/`의 `<title>`. 운영 `/merchants`는 지금 빈 목록이라 `merchants` 배열이 있는지만 봅니다.
+- 경고(이슈 없음): TLS 인증서 만료까지 14일 미만, 응답 3초 초과. 실행 로그의 주석과 요약에만 남습니다.
+- 상태는 `uptime` 라벨이 붙은 열린 이슈 하나입니다. 실패가 있고 열린 이슈가 없으면 한국어 제목 `[장애 감지] …`와 실패 항목 목록으로 이슈를 만들고(라벨이 없으면 만듭니다), 열린 이슈가 있으면 중복해서 만들지 않으며, 모두 통과하면 복구 댓글과 함께 닫습니다. 실패한 실행은 빨갛게 끝나 GitHub 기본 알림도 함께 갑니다.
+- 2단계 쓰기 점검(시연 게스트 체험 시작 → `/me/consent` → `/collection` → 로그아웃)은 **수동 전용**입니다. Actions의 Uptime에서 Run workflow의 `write_probe`를 켜야 돌고 예약되지 않습니다(체험 자리를 잠시 씁니다. 상한 300, 24시간). 예약 여부는 소유자가 정합니다. 이 단계의 실패는 이슈를 열지 않고 실행만 빨갛게 만듭니다. 이 단계는 실제 시연 서버에 대해 아직 한 번도 돌리지 않았습니다(`NOT_RUN`, 가짜 curl 시험만 통과).
+
+### 매일 DB 백업 (`masscom-backup`, 호스트에 아직 설치하지 않음)
+
+- 파일: `infra/lightsail/host-jobs/masscom-backup.{sh,service,timer}`(운영, 매일 18:50 UTC), `infra/showcase-host/host-jobs/masscom-backup.sh`와 `masscom-showcase-backup.{service,timer}`(시연, 매일 19:05 UTC). 정리 작업(`masscom-retention`)과 같은 방식으로 compose 레이블로 Postgres 컨테이너를 고르고 같은 유닛 보안 설정을 씁니다.
+- 동작: `umask 077`로 `daily-<UTC 시각>.dump.part`에 `pg_dump --format=custom`으로 받고, `pg_restore --list`로 읽을 수 있는지 확인하고, `daily-<UTC 시각>.dump.sha256`을 쓴 뒤 `daily-<UTC 시각>.dump`로 한 번에 `mv`합니다. 실패하면 절반짜리 파일을 남기지 않고 종료 코드 1입니다. 이름이 정리 작업의 삭제 범위(`*.dump`·`*.dump.*`)에 들어가 30일 뒤 함께 지워집니다.
+- 설치는 소유자 승인 뒤에 합니다. 운영: `sudo bash infra/lightsail/host-jobs/install.sh masscom-backup`, 시연: `sudo bash infra/showcase-host/host-jobs/install.sh masscom-showcase-backup`. 이어서 `sudo systemctl start masscom-backup.service`(시연은 `masscom-showcase-backup.service`)로 한 번 돌리고 같은 install.sh에 같은 이름과 `--verify`를 붙여 확인합니다. 인자 없는 `install.sh`는 지금처럼 정리 작업만 설치합니다(운영 배포 스크립트가 인자 없이 부릅니다).
+- 후속: `scripts/deploy-lightsail.sh`의 배포 후 관문은 아직 백업 작업의 첫 실행 성공을 요구하지 않습니다(위험이 크고 시험이 무거워 이 변경에서 바꾸지 않았습니다).
+- 한계: 같은 디스크의 백업이라 서버를 잃으면 함께 사라집니다. 서버 밖 사본(암호화 후 보관 위치·비용)은 소유자 결정 사항입니다.
+
+### 복원 전용 드릴 (`scripts/db-restore-drill.sh --restore-only`)
+
+```bash
+read -s PGPASSWORD && export PGPASSWORD
+DRILL_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom' scripts/db-restore-drill.sh --restore-only /opt/masscom/backups/daily-<시각>.dump
+```
+
+- 있는 백업 파일만 읽습니다(원본 DB는 덤프하지 않고 파일은 건드리지 않음). scratch DB에 복원하고 `pg_restore` 종료 0, 비어 있지 않은 `schema_migrations`, 원본과 같은 테이블 집합을 확인한 뒤 scratch DB를 지웁니다. 출력의 마지막 줄이 걸린 시간(RTO 측정값)입니다: `restore-only drill passed: <N> tables match the live database, <M> migrations, restored in <S> seconds`.
+- 행 수는 비교하지 않습니다(백업은 원본보다 오래됐습니다). 배포로 테이블이 늘면 다음 백업이 생길 때까지 직전 백업은 테이블 집합 확인에서 실패합니다.
+- 일회용 로컬 Postgres 16.10 컨테이너에서만 실행했습니다(`S`는 0초, 작은 데이터). 서버의 실제 백업으로 잰 RTO는 없습니다(`NOT_RUN`).
+
+### 큰 파일 가드 (`scripts/check-large-files.sh`)
+
+- `<base-ref>...HEAD`에서 추가·수정된 파일만 봅니다. `docs/evidence/**` 바이너리가 1 MiB 초과이거나 어떤 파일이든 3 MiB 초과이면 실패합니다. CI(비밀값 검사 바로 뒤, PR 기준 커밋이나 push 직전 커밋과 비교)와 `tools/gate.sh`(`origin/main` 기준)가 실행합니다. 커밋하지 않은 파일은 보지 않습니다.
+- 증거 영상·원본 크기 이미지는 저장소가 아니라 GitHub Release의 자산(`evidence-YYYY-MM-DD-<주제>`)에 올리고, 증거 JSON에 자산 이름과 SHA-256을 적습니다. Git LFS와 이력 다시 쓰기는 쓰지 않습니다.
+- 예외는 `scripts/large-files-allowlist.txt`에 `경로<TAB>이유`로 한 줄씩 적습니다(경로는 정확히 일치, 이유는 필수). 지금은 가드 도입 전부터 있던 `demo-flow-390.webm`과 `draw-loop.mp3` 두 개뿐입니다.
+
+### 현재 배포 상태의 단일 원본 (`docs/CURRENT_RELEASE.json`)
+
+- 설치본 태그·날짜·APK 이름·SHA-256·크기·소스 커밋과 운영 API·시연 API·`/play/` 번들 커밋의 유일한 손 편집 원본입니다. `docs/open.html`의 생성 블록은 여기서 만듭니다.
+- 갱신 순서: 새 evidence JSON을 두고 `docs/CURRENT_RELEASE.json`을 고친다 → `node scripts/render-current-release.mjs` → `node scripts/render-current-release.mjs --check`. `--check`는 JSON이 evidence 파일과 같은지, `open.html` 생성 블록이 JSON과 같은지, `open.html`·README "바로 체험"·`docs/DEMO_RUNBOOK.md`가 JSON에 없는 태그·APK 이름·해시를 현재처럼 적지 않았는지 봅니다. `tools/gate.sh`와 CI(`tests/site/current_release_test.mjs`)가 실행합니다.
+
+### 커버리지와 설치본 용량
+
+- CI는 API 단위 시험(`npm run test:cov --prefix apps/api`)의 커버리지를 실행 요약에 보고합니다(보고용, 기준선 없음). 실측은 줄 약 58.5%·분기 88.4%·함수 60.1%입니다(실행마다 줄 비율이 0.1%p 안팎으로 달라집니다). PostgreSQL 통합 시험의 커버리지는 로컬에서 한 번 쟀습니다(`npm run test:postgres:cov --prefix apps/api`, 줄 91.3%·분기 81.9%·함수 86.6%, 약 24분). CI의 제한 25분에 맞지 않아 CI에는 넣지 않았습니다.
+- Android 설치본 용량(운영 약 324MB, 시연 약 330MB)은 [APK 용량 분석](APK_SIZE_ANALYSIS.md)에 측정값과 가설을 나눠 적었습니다. 원인은 단정하지 않았고 공개 APK를 직접 열어 보는 일은 남아 있습니다.
+
 ## 목표와 실제
 
 RPO 1시간·RTO 4시간은 v3 제안값일 뿐 실제 백업/복원 시간 측정 전에는 보장하지 않습니다. 외부 저장소 비용·암호화 키·복원 담당자·알림 채널은 운영 승인 뒤 확정합니다.

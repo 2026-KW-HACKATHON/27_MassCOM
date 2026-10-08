@@ -26,6 +26,10 @@
 
 `www.masscom.kr/api/web/v1/*`가 `infra/lightsail/Caddyfile`의 `@webSession`에 빠져 404였고(가게 실세계 프로필 편집기 장애), `@privateSurface`에도 없어 캐시 방지 헤더가 붙지 않았다. 설정과 시험(`tests/ops/verify_web_session_proxy_test.mjs` 등)은 `fix/caddy-web-v1-routes`에서 고쳤고, 배포하지 않아 웹/Caddy를 배포하기 전까지 라이브는 계속 404다(소유자 결정 A). 후속인 `real-world-http.ts` 쓰기의 계정별 제한은 트랙 T6, [Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)이다. 검사 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
 
+## 2026-10-08 기능 수준 감시·매일 백업·복원 드릴·큰 파일 가드·현재 배포 단일 원본 (Issue #412, 배포 동결)
+
+브랜치 `chore/ops-quality-t5`(main `b572184e` 기준)에 15분 가동 점검(`.github/workflows/uptime.yml`, 쓰기 점검은 수동 전용), 운영·시연 매일 백업 유닛(호스트에 미설치), `db-restore-drill.sh --restore-only`, 큰 파일 가드, `docs/CURRENT_RELEASE.json`(현재 배포 단일 원본), CI의 API 단위 커버리지 요약(줄 약 58.5%, 보고용), [APK 용량 분석](APK_SIZE_ANALYSIS.md)을 더했다. 배포·호스트 설치는 하지 않았다(소유자 결정 A). 절차는 [운영 절차](OPERATIONS_RUNBOOK.md), 결과는 [TEST_STATUS](TEST_STATUS.md)에 있다.
+
 ## 2026-10-08 전면 평가 후속: 접근성·CI 연결·저장소 정리·심사자 문서 (Issue #409·#410, 배포 동결)
 
 기준 main `687427c2`(PR #408 병합) 위의 작업이다. 브랜치 `fix/eval-followup-1008`에 Issue #409의 앱 코드 `a3033a80`과 Issue #410의 후속 변경이 들어 있다. 웹 history 패치(`apps/mobile/patches/expo-router+57.0.23.patch`, 웹 전용)는 `a3033a80`의 해시 진입·헛누름 수정 위에 popstate 때 인덱스를 다시 맞추는 처리를 더했다. 꾸미기(스튜디오) 칩의 접근성 이름에서 ✓ 글리프를 뺐다. 6개 화면의 라디오·체크박스 역할 16개 모두에 `aria-checked`와 웹 Space 키 토글을 붙였다. 공유 도우미는 `apps/mobile/src/ui/space-toggles.ts`이고 `tests/mobile/check_accessibility_semantics_test.sh`에 가드를 더했다.
