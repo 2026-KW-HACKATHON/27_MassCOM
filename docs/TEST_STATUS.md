@@ -1,5 +1,21 @@
 # 테스트 상태
 
+## 2026-10-09 PR #424 검토 지적 수정 (D-095, 미배포)
+
+브랜치 `feat/remove-nft-series-cap`, 기준 HEAD `a2ce4ae5`(main `055d0523` 병합 완료). 소유자가 지정한 8개 검토 지적을 고쳤다. 기존 계약의 `SeriesSupplyExceeded`는 `SERIES_SUPPLY_EXCEEDED` 영구 오류로 분류해 재시도 없이 `MANUAL_REVIEW`로 보낸다. Foundry의 시리즈 간 발행 키 일회성 검증을 복구하고 존재·빈 URI·0 ID 오류를 추가했다. 수량 상한은 다시 넣지 않았다.
+
+| 검증 | 환경 | 결과 |
+| --- | --- | --- |
+| API `npm run typecheck`·`npm test` | macOS, 현재 worktree | PASS, 단위 615/615 |
+| Worker `npm test`·`npm run typecheck` | macOS, 현재 worktree | PASS, 단위 85/85(새 시험 3개), 대상 gateway·worker 41/41 |
+| 모바일 `npm run typecheck` | macOS, 현재 worktree | PASS |
+| `bash scripts/forge.sh test` | 저장소 wrapper | PASS, 10/10, 상한 없는 발행 fuzz 128회 |
+| 운영 제출 준비·운영 문서·bootstrap·CI 연결 | 지정 shell 검사 | PASS, bootstrap 36 ID 동기화, CI 시험 파일 93개 연결 |
+| `bash tools/gate.sh` | macOS Bash 3.2 | 기본 C.UTF-8에서 기존 `$checked` 뒤 한글의 변수 파싱 오류로 FAIL; `LC_ALL=C bash tools/gate.sh` PASS |
+| PostgreSQL·Anvil 통합, 운영·시연 배포·설치본 | 오케스트레이터 범위 | NOT_RUN |
+
+새 회귀를 고치기 전 대상 시험은 2개 실패했다(영구 오류 코드가 interface mismatch, gas estimate가 retryable RPC 오류). 수정 뒤 기존 단언을 유지한 채 통과했다. 롤백 SQL은 옛 `integer` 열을 `numeric(20,0)`으로 넓힌 뒤 NULL을 uint64 최댓값으로 채우고 NOT NULL을 복구한다. 실제 DB 실행은 이 세션에서 하지 않았다.
+
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 
 기준 main `cd01c0d6`에서 시작해 main `8841efea`(PR #420·#423)를 병합한 브랜치 `feat/purpose-campaigns`. 점주가 캠페인 목적(처음 확인되는 방문·다시 방문·한산한 시간대)을 고르게 하는 migration `0068_campaign_purposes.sql`, 시간대 판정 순수 규칙, 방문 확정 경로(`claim-slot-service.ts`, 민감 경로)의 시간대 상태 필드 추가, 관리자 웹 목적 선택, 모바일·점포 웹 안내 문구, 점주 화면의 "첫 방문/재방문" 표기 정정을 담았다([D-092](DECISIONS.md)). 방문 삽입·진행 계산·`grantReachedGoals`·잠금·취소는 바꾸지 않았다. 배포·게시는 하지 않았다(소유자 결정 A).
@@ -1042,7 +1058,7 @@ PR #164 독립 검토에서 비정규 OAuth 환경변수 형식의 덮어쓰기 
 | M07 | DB·Worker | PASS | 민팅 도중 프로필 지갑 변경 | 이미 고정한 수령인 유지 | binding 해제/새 버전과 무관하게 job recipient·실제 owner 동일 |
 | M08 | 복원 | PASS | DB 백업 복원 후 재처리 | 기존 NFT를 다시 발행하지 않음 | 로컬 asset/event 행 제거 뒤 기존 reward key/token #1을 조회해 attempt 0으로 자산·이벤트 복원 |
 | C01 | Foundry 계약 | PASS | 비민터 발행·민터 권한 상승 | 계약에서 거절 | 비민터 mint와 MINTER의 admin grant 모두 `AccessControlUnauthorizedAccount` |
-| C02 | Foundry 속성 | PASS | 누적 상한 경계·중복 발행 키 | 상한·일회성 유지 | cap+1·중복 rewardKey 거절, 128회 fuzz에서 `everMinted ≤ maxEverMinted` |
+| C02 | Foundry 속성 | PASS | 상한 없음·중복 발행 키 | 상한은 해제(D-095), 일회성 유지 | 같은 rewardKey 재사용 거절, 128회 fuzz로 상한 없이 1~64개를 연속 발행해 `everMinted`가 발행 수와 같음. 2026-10-08 `forge test` 8개 통과(고정 이미지 foundry sha256:2e428727…) |
 | C03 | Foundry 계약 | PASS | 모든 전송·우회 경로 | 잠긴 NFT는 이전 불가 | approve·setApprovalForAll·transferFrom·safeTransferFrom 2종과 내부 `_update` 거절 |
 | C04 | Foundry 계약 | PASS | 시리즈 활성화 후 조건 변경 | 동결된 값 변경 불가 | 비활성 mint 거절, 중복 생성·재활성화 거절, 설정 변경 함수 없음 |
 | D01 | API·Worker | PASS | 발급 중 탈퇴 | 미전송·제출됨을 구분 | 동시 10요청 하나로 수렴, 미전송 1건 `CANCELLED`, 제출 1건 결과 대기, 확정 NFT 1건 보존, 원 account ID 참조 0 |

@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   FeeData,
+  Interface,
   Transaction,
   Wallet,
   makeError,
@@ -56,6 +57,17 @@ test('O02 a real revert or undecodable return data is a contract interface misma
   }
 });
 
+const legacyErrors = new Interface(['error SeriesSupplyExceeded(bytes32 seriesId,uint64 maxEverMinted)']);
+const supplyExceeded = () => callException(legacyErrors.encodeErrorResult('SeriesSupplyExceeded', [
+  item.seriesKey, 1n,
+]));
+
+test('an exhausted legacy series is a permanent configuration error', () => {
+  const classified = contractCallError(supplyExceeded());
+  assert.ok(classified instanceof ChainConfigurationError);
+  assert.equal(classified.code, 'SERIES_SUPPLY_EXCEEDED');
+});
+
 function internalProvider(gateway: EthersMintChainGateway): JsonRpcApiProvider & {
   getTransactionCount: (address: string, blockTag?: string) => Promise<number>;
   getFeeData: () => Promise<FeeData>;
@@ -83,6 +95,27 @@ const item: MintWorkItem = {
   contractAddress: '0x7000000000000000000000000000000000000007',
   seriesKey: `0x${'33'.repeat(32)}`,
 };
+
+test('gas estimation fails fast for legacy supply exhaustion and keeps outages retryable', async (t) => {
+  const signer = Wallet.createRandom();
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: 'http://127.0.0.1:1', chainId: item.chainId, contractAddress: item.contractAddress,
+    minterAddress: signer.address, confirmations: 1, fromBlock: 0, signer,
+  });
+  t.after(() => gateway.close());
+  const provider = internalProvider(gateway);
+  provider.getTransactionCount = async () => 0;
+  provider.getFeeData = async () => new FeeData(null, 2n, 1n);
+  let persisted = false;
+  for (const error of [supplyExceeded(), callException(null), callException('0x08c379a0')]) {
+    provider.estimateGas = async () => { throw error; };
+    await assert.rejects(gateway.submitMint(item, async () => { persisted = true; }),
+      (actual: unknown) => error.data === supplyExceeded().data
+        ? actual instanceof ChainConfigurationError && actual.code === 'SERIES_SUPPLY_EXCEEDED'
+        : actual instanceof RetryableChainError && actual.code === 'RPC_UNAVAILABLE');
+  }
+  assert.equal(persisted, false);
+});
 
 test('a reorged mint event is retried instead of finalizing against a different canonical block', async () => {
   const gateway = new EthersMintChainGateway({

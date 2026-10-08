@@ -47,7 +47,6 @@ type EntitlementSeriesRow = {
   contract_address: string;
   contract_address_normalized: string;
   series_key: Buffer;
-  max_ever_minted: number;
 };
 
 type BindingRow = {
@@ -125,8 +124,7 @@ export class PostgresMintRequestService implements MintRequestService {
              series.chain_id,
              series.contract_address,
              series.contract_address_normalized,
-             series.series_key,
-             series.max_ever_minted
+             series.series_key
            FROM reward_entitlements AS entitlement
            JOIN nft_series AS series
              ON series.campaign_id = entitlement.campaign_id
@@ -169,19 +167,7 @@ export class PostgresMintRequestService implements MintRequestService {
         throw new MintRequestError('CHAIN_MISMATCH');
       }
 
-      // 취소된(CANCELLED) 작업은 체인에 나간 적이 없어 발행 여유를 차지하지 않는다(방문 취소·계정 삭제로 생긴다).
-      const reserved = (
-        await client.query<{ count: number }>(
-          `SELECT count(*)::integer AS count
-           FROM mint_jobs
-           WHERE nft_series_id = $1 AND status <> 'CANCELLED'`,
-          [entitlement.nft_series_id],
-        )
-      ).rows[0]!.count;
-      if (reserved >= entitlement.max_ever_minted) {
-        throw new MintRequestError('CAPACITY_UNAVAILABLE');
-      }
-
+      // NFT 시리즈에는 발행 수량 상한이 없다(2026-10-08 소유자 결정). 중복 발행은 보상권 1회·reward key로만 막는다.
       const rewardKey = this.options.nextRewardKey();
       if (rewardKey.byteLength !== 32) throw new Error('reward key must be 32 bytes');
       const jobId = this.options.nextJobId();

@@ -38,8 +38,11 @@ const abi = [
   'function seriesByToken(uint256 tokenId) view returns (bytes32)',
   'function locked(uint256 tokenId) view returns (bool)',
   'function paused() view returns (bool)',
+  'error SeriesSupplyExceeded(bytes32 seriesId,uint64 maxEverMinted)',
   'event MascotMinted(bytes32 indexed rewardKey,uint256 indexed tokenId,address indexed recipient,bytes32 seriesId)',
 ] as const;
+
+const abiInterface = new Interface(abi);
 
 type GatewayOptions = {
   rpcUrl: string;
@@ -70,7 +73,7 @@ export class EthersMintChainGateway implements MintChainGateway {
   private readonly contractAddress: string;
   readonly minterAddress: string;
   private readonly contract: Contract;
-  private readonly contractInterface = new Interface(abi);
+  private readonly contractInterface = abiInterface;
   private readonly minMinterBalanceWei: bigint;
   private readonly maxTransactionFeeWei: bigint;
   // 기록된 커서에서 다시 계산한 이벤트 조회 시작 블록. 상시 실행 Worker는 반복마다 갱신해 조회 범위가 시작 시점부터 계속 늘지 않게 한다.
@@ -284,6 +287,8 @@ export class EthersMintChainGateway implements MintChainGateway {
       ) {
         throw new SubmissionOutcomeUnknownError('MINT_SUBMISSION_RESPONSE_LOST');
       }
+      const classified = contractCallError(error);
+      if (classified.code === 'SERIES_SUPPLY_EXCEEDED') throw classified;
       throw new RetryableChainError('MINT_SUBMISSION_FAILED');
     }
   }
@@ -317,6 +322,8 @@ export class EthersMintChainGateway implements MintChainGateway {
         from: this.minterAddress,
       });
     } catch (error) {
+      const classified = contractCallError(error);
+      if (classified.code === 'SERIES_SUPPLY_EXCEEDED') throw classified;
       throw new RetryableChainError('RPC_UNAVAILABLE', { cause: error });
     }
     // A further floor: one past the highest nonce among this chain's own recorded-but-unconfirmed
@@ -584,6 +591,15 @@ export class EthersMintChainGateway implements MintChainGateway {
 // limits and node timeouts, so only a CALL_EXCEPTION that carries EVM return data is a real revert.
 export function contractCallError(error: unknown): ChainConfigurationError | RetryableChainError {
   const reverted = isError(error, 'CALL_EXCEPTION') && error.data != null;
+  if (reverted) {
+    try {
+      if (abiInterface.parseError(error.data!)?.name === 'SeriesSupplyExceeded') {
+        return new ChainConfigurationError('SERIES_SUPPLY_EXCEEDED');
+      }
+    } catch {
+      // Malformed revert data still follows the existing interface-mismatch classification.
+    }
+  }
   // The provider also raises BAD_DATA for a missing entry in a batched response; only a decode
   // failure carries the returned hex data as its value.
   const undecodable = isError(error, 'BAD_DATA') && isHexString(error.value);

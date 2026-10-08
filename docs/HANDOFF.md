@@ -1,10 +1,10 @@
 # HANDOFF
 
-기준 시각: 2026-10-08 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
+기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
 ## 1. 기준 커밋과 작업 위치
 
-- 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
+- 기준 main 커밋 SHA: `055d0523`(PR #425 병합, 2026-10-09 KST). PR #424 작업 브랜치 `feat/remove-nft-series-cap`에는 이 main이 병합돼 있다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
 - PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
 - 병합 순서: PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결, `a742e32d`) → #406(재측정·대체 시연 영상·제출 후보 기록, `6ce8ad03`) → #408(Issue #407의 낮은 화면 결함 4건 수정과 #402를 다음 설치본·웹 체험에 반영, `687427c2`). Issue #401은 #403 병합으로 닫혔다.
 - 운영·시연 서버 배포와 수정본 `/play/` 재측정은 끝났다. Issue #407의 코드(`5ca98955`)로 운영 test.13·시연 Preview 22를 게시했고 시연 `/play/`를 같은 소스로 전환했다. #402의 변경도 이 설치본과 `/play/`에 들어 있다. 라이브 `/open`은 test.13·Preview 22를 가리킨다(2026-10-08 확인).
@@ -18,8 +18,11 @@
 
 - PR #398·#400·#402·#403·#404·#405·#406·#408·#413·#414·#415·#420·#421·#422·#423은 병합됐다. #398을 열린 PR로 적은 과거 전달은 [당시 기록](HANDOFF_HISTORY.md#2026-10-07-pr이슈-점검-전달-결과)이다.
 - NFT 발행 Worker 상시 실행([D-089](DECISIONS.md))의 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)은 병합돼 main `48a14811`에 있고 서버 배포·운영 활성화는 하지 않았다.
+- NFT 시리즈 발행 수량 상한 해제([D-095](DECISIONS.md)): [PR #424](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/424)의 브랜치 `feat/remove-nft-series-cap`에 main `055d0523`(PR #425)이 병합됐다(현재 HEAD `a2ce4ae5`). 컨트랙트 `createSeries`가 2인자로 바뀌고(`series()` getter는 `(string,uint64,bool)`) API 수량 검사·`CAPACITY_UNAVAILABLE`을 없앴으며 migration 0075이 `nft_series.max_ever_minted`의 NOT NULL만 푼다. 배포하지 않았다. Base Sepolia의 기존 상한 1 실증 시리즈에는 운영 발행을 보내지 않는다. 기존 계약에 새 시리즈를 만들 때는 `createSeries(bytes32,string,uint64)`의 세 번째 인자에 `18446744073709551615`를 넣고, 새 계약에서는 2인자 `createSeries(bytes32,string)`을 쓴다. NULL 상한 행은 새 API가 모든 인스턴스에 배포된 뒤에만 넣는다. 다음 명령: `git status -sb`, `git log -1 --oneline`, PR #424 검사 상태를 확인한다.
 - PR #396은 닫혔으나 main에 병합되지 않았다. 미병합 초안을 공개본 기능으로 계산하지 않는다.
 - 재개 시 `git status -sb`, `git log -1 --oneline`, `gh pr list --state all`로 다시 대조한다.
+
+검토 지적 8개 수정은 이 worktree의 미커밋 변경이며 staging·commit·stash·rebase·push를 실행하지 않았다(오케스트레이터가 커밋). API 615/615·Worker 85/85·Foundry 10/10(fuzz 128회), API·Worker·모바일 typecheck, 운영 제출 준비·운영 문서·bootstrap·CI 연결 PASS. 기본 locale의 gate는 기존 Bash 변수 파싱 오류이고 `LC_ALL=C bash tools/gate.sh` PASS. PostgreSQL·Anvil은 오케스트레이터 실행 범위다. 재개 명령: `git diff --check`, `git diff`, PR #424와 [TEST_STATUS](TEST_STATUS.md)의 이번 검증 기록 확인.
 
 ## 3. 공개 서버와 설치본
 

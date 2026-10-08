@@ -294,7 +294,7 @@ sequenceDiagram
 | 캠페인 참여 등록 API | `IMPLEMENTED` | Issue #73, `POST /campaigns/:id/enrollments` 정원 원자 예약·멱등 재요청, R02 PostgreSQL 동시 20요청 PASS. Android 참여 화면과 수령 시 등록 요구는 미구현(`PLANNED`) |
 | 주소 확인 API | `IMPLEMENTED` | ERC-4361 challenge·실제 서명 복구·nonce 소비 15 tests PASS |
 | PostgreSQL | `IN_PROGRESS` | 점포·캠페인·멤버십·claim slot·방문·보상권·지갑 challenge·Google session migration 구현. Lightsail 사설 Compose DB에서 migration·session 발급 확인, 운영 DB 백업으로 복제본 복원 리허설 PASS([증거](docs/evidence/production-restore-rehearsal-2026-10-08.json)), 서버 밖 보관·복원의 실행 기록은 없음(`NOT_RUN`) |
-| NFT 계약 | `VERIFIED` | Foundry 8/8·fuzz 128·Anvil 발행과 Base Sepolia 계약·role·cap 1 proof series·Worker token #1 PASS |
+| NFT 계약 | `VERIFIED` | Foundry 8/8·fuzz 128·Anvil 발행과 Base Sepolia 계약·role·cap 1 proof series·Worker token #1 PASS. 상한 1 시리즈는 실증 전용이며 운영 발행에는 쓰지 않음([D-095](docs/DECISIONS.md)) |
 | wallet binding·mint job·Outbox | `IMPLEMENTED` | PR #50, SIWE 영속화·동시 20요청 job/Outbox 하나·고정 수령인 PostgreSQL 통합 PASS |
 | Worker | `VERIFIED` | PR #51, PostgreSQL lease heartbeat·시도·이벤트·자산, 체인 설정 사전 검사, receipt/event/state 대조, 응답 유실·lease·재조직 전 확정 복구를 로컬 Anvil에서 검증 |
 | Reown 외부 지갑 코드 | `IMPLEMENTED` | AppKit 2.0.6, 외부 지갑 전용 기능 플래그·메서드 allowlist |
@@ -317,7 +317,7 @@ sequenceDiagram
 | 운영자 캠페인 연장 | `IMPLEMENTED`(운영 배포, [배포 증거](docs/evidence/deployment-db28003-2026-10-05.json)) | 남은 일수·30/90일 연장, 종료 시각 비교 후 갱신·365일 상한·감사 기록(migration 0043). 로컬 mock API 30일 연장 확인 PASS, 실제 Google 웹 세션 `NOT_RUN` |
 | 쿠폰 만료·캠페인 종료 앱 안내 | `IMPLEMENTED`(test.10·Preview 19 게시) | 홈 쿠폰 만료 3일 이내 안내·쿠폰 칩, 점주 현황 캠페인 종료 14일 이내 안내, push 없음. 쿠폰 안내 에뮬레이터 PASS, 기기 점주 현황 안내 `NOT_RUN` |
 
-상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN`입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
+상태 정의는 `PLANNED / IN_PROGRESS / IMPLEMENTED / VERIFIED / BLOCKED / NOT_RUN / RETIRED`입니다. `RETIRED`는 이후 소유자 결정으로 폐기된 요구사항입니다. 구현 코드가 있어도 필요한 환경에서 검증하지 않았다면 `VERIFIED`로 올리지 않습니다.
 
 ## 보안·제품 경계
 
@@ -429,7 +429,7 @@ TEST_DATABASE_URL='postgresql://사용자@127.0.0.1:5432/masscom_test' npm run t
 
 `npm run test:anvil --prefix apps/worker`는 별도 로컬 Anvil과 `_test` 데이터베이스가 필요합니다. Worker 실행 entrypoint는 `CHAIN_ID=31337`과 `ALLOW_UNLOCKED_LOCAL_MINTER=true`를 동시에 요구해 운영 키나 공개 체인에 사용할 수 없도록 제한했습니다. `CHAIN_REORG_MARGIN`은 cursor보다 다시 확인할 블록 수이며 현재 로컬 기본값은 12입니다. `MINTER_MIN_BALANCE_WEI`(기본 0) 이하로 민터 잔액이 내려가면 신규 전송을 미루고 재시도합니다.
 
-Base Sepolia에는 계약 `0x1edca95bb453d8456cfe28c6e24c4e51172e36c4`를 암호화 Foundry keystore로 배포했고, cap 1 proof series에서 실제 Worker job/Outbox→service minter→receipt/event/owner/locked/metadata→DB FINALIZED를 PASS했습니다. mainnet 배포는 하지 않았습니다.
+Base Sepolia에는 계약 `0x1edca95bb453d8456cfe28c6e24c4e51172e36c4`를 암호화 Foundry keystore로 배포했고, cap 1 proof series에서 실제 Worker job/Outbox→service minter→receipt/event/owner/locked/metadata→DB FINALIZED를 PASS했습니다. 이 실증 시리즈에는 운영 발행을 보내지 않습니다. mainnet 배포는 하지 않았습니다.
 
 ```bash
 scripts/deploy-base-sepolia.sh <keystore-account>          # 시뮬레이션

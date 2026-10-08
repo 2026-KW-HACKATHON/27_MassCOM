@@ -415,15 +415,13 @@ test('unsent mint jobs are cancelled with their entitlement and the goal can be 
   const reissued = await entitlementsOf(db.pool, 'cust-1');
   assert.deepEqual(reissued.filter((row) => row.target_visit_count === 3).map((row) => row.status).sort(), ['CANCELED', 'GRANTED']);
 
-  // 새 권리는 같은 계정으로 다시 발행 요청할 수 있다. 취소된 작업은 발행 상한(1)에서 빠진다.
-  await db.pool.query(`UPDATE nft_series SET max_ever_minted = 1 WHERE id = 's-00000000000000000000000000000003'`);
+  // 새 권리는 같은 계정으로 다시 발행 요청할 수 있다.
   const bindingId = (await rows<{ id: string }>(db.pool, `SELECT id FROM wallet_bindings WHERE account_id = 'cust-1'`))[0]!.id;
   const requested = await db.mints.requestMint({
     accountId: 'cust-1', entitlementId: again.grantedRewards[0]!.entitlementId, walletBindingId: bindingId,
     bindingVersion: 1, consentVersion: 'nft-mint-v1', idempotencyKey: 'reissue-after-cancel-1',
   });
   assert.equal(requested.status, 'QUEUED');
-  await db.pool.query(`UPDATE nft_series SET max_ever_minted = 1 WHERE id = 's-00000000000000000000000000000003'`);
   await assert.rejects(
     db.mints.requestMint({
       accountId: 'cust-1', entitlementId: goalThree.id, walletBindingId: bindingId,
