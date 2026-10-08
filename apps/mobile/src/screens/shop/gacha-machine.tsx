@@ -7,6 +7,7 @@ import Svg, { Circle, Defs, Ellipse, G, Line, LinearGradient, Path, Rect, Stop }
 
 import { ThemeOutfitPreview } from '@/experience/theme-pack-board';
 import type { DisplayExperienceProfile, ExperienceProfile } from '@/experience/experience-api';
+import { RegistrationAlbum, type RegistrationItem } from '@/acquisition/registration-album';
 import { CosmeticArt, PackArt } from '@/illustration/artwork';
 import { AvatarPortrait } from '@/illustration/avatar-portrait';
 import { ConfettiBurst } from '@/gamification/confetti';
@@ -29,6 +30,7 @@ type Props = {
   onEquipBonus?: () => void;
   onRecoverPending?: () => void;
   result?: ShopRerollResult;
+  receiptId?: string;
   selectedGrade: MileageGrade;
   ownedBefore: readonly string[];
   busy: boolean;
@@ -55,7 +57,7 @@ const stages: GachaStage[] = ['crank', 'shake', 'drop', 'wobble', 'split', 'burs
 
 /** The same full-screen purchase experience opens from the shop and the visit reward reel. */
 export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEquipBonus, result, selectedGrade, ownedBefore, busy, error, refreshing, avatarBusy, avatarError, isAvatar,
-  wishId, onWish, onRecoverPending, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
+  receiptId, wishId, onWish, onRecoverPending, onDraw, onSetAvatar, onClose, onRefresh, onOpenStudio }: Props) {
   const insets = useSafeAreaInsets();
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
@@ -64,6 +66,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   const consumedResult = useRef<ShopRerollResult | undefined>(undefined);
   const activeResult = useRef<ShopRerollResult | undefined>(undefined);
   const skipRequested = useRef(false);
+  const [registeredReceiptId, setRegisteredReceiptId] = useState<string>();
   const [drawing, setDrawing] = useState<ShopGradeView>();
   const [pendingCloseMessage, setPendingCloseMessage] = useState<string>();
   const timelineTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -97,6 +100,9 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     equipped: result.rewards.clothing.item.id, draw: { probability: result.rewards.clothing.probability },
     items: [{ ...result.rewards.clothing.item, owned: true, equipped: false }],
   } }) : currentClothing;
+  const currentReceiptId = receiptId ?? (result ? `${selectedGrade}:${result.item.id}` : selectedGrade);
+  const alreadyRegistered = !!result && registeredReceiptId === currentReceiptId;
+  const registrationItems = useMemo(() => result ? legacyRegistrationItems(result, ownedBefore, snapshot.clothing.items, alreadyRegistered) : [], [result, ownedBefore, snapshot.clothing.items, alreadyRegistered]);
 
   const startRewardReveal = useCallback((next: GachaRewardPhase | 'result' = 'reward-mileage') => {
     activeResult.current = undefined;
@@ -259,9 +265,18 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
               <Text accessibilityLiveRegion="polite" style={styles.description}>뽑기 결과를 확인하고 있어요.</Text>
               {pendingCloseMessage ? <Text accessibilityLiveRegion="polite" style={styles.error}>{pendingCloseMessage}</Text> : null}
             </>
+          ) : result && displayPhase === 'album-registration' ? (
+            <RegistrationAlbum
+              receiptId={currentReceiptId}
+              sourceLabel={`${tone.name} 재뽑기권`}
+              items={registrationItems}
+              onDone={() => { setRegisteredReceiptId(currentReceiptId); advancePhase('result'); }}
+              onOpenCollection={onOpenStudio}
+              collectionLabel="내 공간에서 보기"
+            />
           ) : result ? (
             <>
-              <Text accessibilityRole="header" style={styles.heading}>{rewardPhase ? '보상을 하나씩 열어요' : showResult ? '새 친구를 만났어요!' : '두근두근, 누가 나올까요?'}</Text>
+              <Text accessibilityRole="header" style={styles.heading}>{rewardPhase ? '보상을 하나씩 열어요' : showResult ? result.replayed ? '이전 결과를 확인했어요' : '새 친구를 만났어요!' : '두근두근, 누가 나올까요?'}</Text>
               {!showResult ? (
                 <View style={styles.machineArea}>
                   <Machine tone={tone} machineStyle={machineStyle} crankStyle={crankStyle} jiggle={jiggle} />
@@ -273,8 +288,8 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
                   {displayPhase === 'burst' ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={140} originY={160} width={280} height={280} count={grade === 'GOLD' ? 34 : grade === 'SILVER' ? 22 : 12} /> : null}
                 </View>
               ) : <View style={styles.resultWrap}>
-                {motionAllowed && !result.replayed ? <Animated.View pointerEvents="none" style={[styles.resultRays, burstStyle]}><BurstRays color={tone.color} /></Animated.View> : null}
-                {motionAllowed && !result.replayed ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={150} originY={140} width={300} height={360} count={grade === 'GOLD' ? 34 : grade === 'SILVER' ? 22 : 12} /> : null}
+                {motionAllowed && !result.replayed && !alreadyRegistered ? <Animated.View pointerEvents="none" style={[styles.resultRays, burstStyle]}><BurstRays color={tone.color} /></Animated.View> : null}
+                {motionAllowed && !result.replayed && !alreadyRegistered ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={150} originY={140} width={300} height={360} count={grade === 'GOLD' ? 34 : grade === 'SILVER' ? 22 : 12} /> : null}
                 <Animated.View style={[styles.resultCard, { borderColor: tone.color }, resultStyle]} accessible accessibilityLabel={resultAccessibilityLabel(result, rewardPhase)}>
                   <Text style={[styles.gradePill, { backgroundColor: tone.color }]}>{tone.name}</Text>
                   {isNewDraw(result.item, ownedBefore) && (displayPhase === 'reward-character' || displayPhase === 'result') ? <Text style={styles.newBadge}>NEW</Text> : null}
@@ -296,6 +311,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
                 </View> : null}
                 {bonusError ? <Text accessibilityLiveRegion="polite" style={styles.error}>{bonusError}</Text> : null}
                 {result.bonus && onEquipBonus ? <Control label={bonusSaving ? '꾸미기 저장 중…' : bonusEquipped ? result.bonus?.slot === 'decor' ? '장식 배치 완료' : '꾸미기 장착 완료' : result.bonus?.slot === 'decor' ? '내 공간에 이 장식 배치' : '지금 동행에게 꾸미기 장착'} disabled={avatarBusy || bonusSaving || bonusEquipped} onPress={onEquipBonus} /> : null}
+                <Control label={alreadyRegistered ? '등록 결과 다시 보기' : '도감 등록 확인'} primary disabled={avatarBusy || bonusSaving} onPress={() => advancePhase('album-registration')} />
                 <Control label={isAvatar ? '대표 캐릭터예요' : avatarBusy ? '설정 중…' : '대표 캐릭터로'} primary disabled={isAvatar || avatarBusy || bonusSaving} onPress={onSetAvatar} />
                 {onOpenStudio ? <Control label={result.bonus?.slot === 'decor' ? '내 공간에 놓으러 가기' : '내 공간에서 만나기'} disabled={avatarBusy || bonusSaving} onPress={onOpenStudio} /> : null}
                 {canRepeat ? <Control label="한 번 더 뽑기" disabled={avatarBusy || bonusSaving} onPress={() => { activeResult.current = undefined; advancePhase('detail'); }} /> : null}
@@ -311,6 +327,33 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
       </View>
     </FullScreenModal>
   );
+}
+
+function legacyRegistrationItems(result: ShopRerollResult, ownedBefore: readonly string[], clothingBefore: readonly { id: string; owned: boolean }[], alreadyRegistered: boolean): RegistrationItem[] {
+  const clothing = result.rewards.clothing.item ? [{
+    id: `clothing:${result.rewards.clothing.item.id}`,
+    name: result.rewards.clothing.item.name,
+    kindLabel: '아바타 옷',
+    status: registrationStatus(result.replayed || alreadyRegistered, result.rewards.clothing.duplicate || clothingBefore.some((item) => item.id === result.rewards.clothing.item?.id && item.owned)),
+    detail: alreadyRegistered ? '이번 결과에서 등록 확인을 마쳤어요' : result.rewards.clothing.duplicate ? '이미 가지고 있어요' : undefined,
+    artwork: <CosmeticArt id={result.rewards.clothing.item.id} size={86} />,
+  } satisfies RegistrationItem] : [];
+  return [
+    ...clothing,
+    {
+      id: `character:${result.item.id}`,
+      name: result.item.name,
+      kindLabel: '캐릭터',
+      status: registrationStatus(result.replayed || alreadyRegistered, ownedBefore.includes(result.item.id)),
+      detail: alreadyRegistered ? '이번 결과에서 등록 확인을 마쳤어요' : result.replayed || ownedBefore.includes(result.item.id) ? '이미 가지고 있어요' : undefined,
+      artwork: <CharacterArt avatar={result.item.id} frame="cheer" size={92} />,
+    },
+  ];
+}
+
+function registrationStatus(replayed: boolean, alreadyOwned: boolean): RegistrationItem['status'] {
+  if (replayed) return 'owned';
+  return alreadyOwned ? 'duplicate' : 'new';
 }
 
 
