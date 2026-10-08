@@ -21,7 +21,7 @@
 
 ### migration 파일·원장 대조
 
-`apps/api/src/postgres/migrate.ts`는 파일명 전체를 정렬하고 `schema_migrations.filename`을 기본키로 사용한다. 다음은 실제 디렉터리에서 계산한 29개 추가 파일의 적용 순서다. `0050_quality_game_records.sql`과 `0050_social_mail.sql` 모두 적용하며 번호를 바꾸지 않는다.
+`apps/api/src/postgres/migrate.ts`는 파일명 전체를 정렬하고 `schema_migrations.filename`을 기본키로 사용한다. 다음은 실제 디렉터리에서 계산한 30개 추가 파일의 적용 순서다. `0050_quality_game_records.sql`과 `0050_social_mail.sql` 모두 적용하며 번호를 바꾸지 않는다.
 
 1. `0044_collection_experience.sql`
 2. `0045_notifications.sql`
@@ -52,8 +52,11 @@
 27. `0069_campaign_benefits.sql`(D-094, 새 API 이미지보다 먼저 적용)
 28. `0072_courses.sql`(D-093, 0069의 혜택 감사 action 보존)
 29. `0075_nft_series_uncapped.sql`
+30. `0076_room_guestbook_actions.sql`(D-104, 새 API 이미지보다 먼저 적용)
 
-적용 후 예상 원장 수는 **43 + 29 = 72건**이다(최대 번호 0075과 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 72건·마지막 `0075_nft_series_uncapped.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다. 2026-10-08에 배포한 운영·시연 DB는 0067까지 68건이며, 0068·0069·0072·0075는 아직 적용 전이다.
+적용 후 예상 원장 수는 **43 + 30 = 73건**이다(최대 번호 0076과 파일 수는 다름). 실행 전후 `SELECT count(*), max(filename) FROM schema_migrations;`와 `SELECT filename FROM schema_migrations ORDER BY filename;`를 기록하고 73건·마지막 `0076_room_guestbook_actions.sql`·두 0050을 확인한다. 소스 변경으로 파일 목록이 달라지면 이 예상값도 다시 계산한다. migrator는 파일마다 트랜잭션을 사용하므로 중간 실패 때 앞선 파일은 이미 commit될 수 있다. 원장 확인 없이 전체 실패로 판단하거나 적용 파일을 수정하지 않는다. 2026-10-08에 배포한 운영·시연 DB는 0067까지 68건이며, 0068·0069·0072·0075·0076의 적용 여부는 새 배포 전에 실제 원장으로 확인한다. 위 43→68건 복원·배포 증거는 당시 기록이며 이번 예상값으로 바꾸지 않는다.
+
+**글 방명록 0076 호환·전환(D-104):** `0076_room_guestbook_actions.sql`을 새 API보다 먼저 적용한다. `PUBLIC` 방 공개·글 방명록·별도 마일리지 원장을 쓰는 API와 `privacy-2026-10-09` 안내를 담은 앱·운영 웹·`/play/`·공개 처리방침을 같은 배포 창에서 맞추고 재동의를 확인한다. 구 설치본의 `outdated` 차단을 새 안내로 검증하기 전 입구를 열지 않는다. 되돌림이 필요해도 새 방명록·보상 이력과 중복 방지 키를 삭제하거나 migration을 역실행하지 않는다. 쓰기를 멈추고 새 값을 이해하는 호환 API로 전진 복구하며, 기존 `NEIGHBORS`를 자동 `PUBLIC` 전환하거나 동의 버전을 강제로 낮추지 않는다. 이번 PR의 로컬 검증은 실제 배포 완료를 뜻하지 않는다.
 
 **NFT 시리즈 0075 호환·전환(D-095):** 새 API는 `max_ever_minted`를 읽지 않아 옛 스키마에서도 동작한다. 0075는 옛 API를 위해 열을 남기고 NOT NULL만 푼다. 옛 API는 NULL 상한 행을 `CAPACITY_UNAVAILABLE`로 거절하므로 **새 API를 모든 인스턴스에 배포한 뒤에만 NULL 상한 시리즈를 삽입**한다. 옛 API로 롤백해야 한다면 원래 `integer`인 열을 `numeric(20,0)`으로 넓히고 모든 NULL 행의 `max_ever_minted`를 uint64 최댓값 `18446744073709551615`로 채운 뒤 `SET NOT NULL`을 적용한다. Base Sepolia에 배포된 기존 계약에서는 새 시리즈를 `createSeries(bytes32 seriesId, string baseTokenURI, uint64 maxEverMinted)`로 만들고 세 번째 인자에 `18446744073709551615`를 넣는다. 기존 상한 1 실증 시리즈에는 운영 발행을 보내지 않는다. 새 계약에서는 2인자 `createSeries(bytes32 seriesId, string baseTokenURI)`를 쓴다. 두 계약의 `series(bytes32)` getter 반환값도 각각 `(string,uint64,uint64,bool)`과 `(string,uint64,bool)`로 다르다. 배포·발행 전 계약 주소와 시리즈 ID가 가리키는 버전을 확인한다.
 
@@ -76,7 +79,7 @@ Preview 20과 test.11은 게시됐다. `/open`의 두 링크는 환경별로 독
 ### 같은 배포 창의 순서
 
 1. **사전 준비:** 최종 선택 SHA에서 API 이미지·`/play/` export·Preview 20·test.11·공개 안내·`/open` 후보를 준비한다. 현재 공개 SHA/원장/링크/해시와 rollback 포인터를 기록한다. 시연·운영의 비밀·DB·OAuth·package·서명·가상 데이터 격리를 확인한다. 이 worktree 수정 중에는 배포하지 않고 메인 스레드 통합 후 선택 SHA를 고정한다.
-2. **시연 먼저:** 시연 DB 백업과 실제 scratch 복원을 수행하고, 고객·점주 변경 요청과 seed/retention 작업을 잠시 중단한다. API 쓰기와 신규 웹 체험을 차단한 유지보수 창 안에서 29 migration을 적용해 원장 72건을 대조한다. 시연 API를 새 이미지로 교체하고 아직 입구를 열지 않는다.
+2. **시연 먼저:** 시연 DB 백업과 실제 scratch 복원을 수행하고, 고객·점주 변경 요청과 seed/retention 작업을 잠시 중단한다. API 쓰기와 신규 웹 체험을 차단한 유지보수 창 안에서 원장에 없는 migration을 위 30개 목록과 대조해 적용하고 전체 원장 73건을 확인한다. 시연 API를 새 이미지로 교체하고 아직 입구를 열지 않는다.
 3. **시연 묶음 전환:** 같은 소스의 `/play/` 번들을 새 불변 release 디렉터리에 두고 웹 포인터·edge mount를 갱신한다. 새 개인정보 안내·Preview 20 APK·시연 `/open` 링크를 전환한다. 운영 API·운영 APK 링크·운영 동의 안내는 기존 조합을 유지한다. 구 캐시가 새 API를 호출하지 않도록 웹 entry/자산 해시와 정책 버전을 대조한다. 구 시연 설치본에는 새 APK로 업데이트하도록 안내한다.
 4. **시연 재개 관문:** 유지보수 접근에서 새 임시 체험, 개인정보04 동의 기존 계정의 재동의 수락, 거절/철회 뒤 보호 API 차단, 로그아웃·재로그인 후 동의 상태, 테스트 방문·봉투·도감·뽑기·마이룸·이웃·점주 역할의 실제 서버 권한을 확인한다. `health` 200만으로 이 관문을 통과시키지 않는다. 정확한 Preview 20 APK와 웹을 각각 확인한 후 시연 입구/쓰기를 열고 타이머를 재개한다([5분 정본](DEMO_RUNBOOK.md)).
 5. **운영 조건 — 리허설 PASS:** 운영 서버 안 실제 복원 리허설에서 107개 테이블 일치를 확인했다. 임시 dump 186,604바이트·SHA-256 `1360fdf8c3a5db62214b36f4541ad66e57515c093e46a9a7ff55a47a8c19cdd5`는 종료 시 삭제됐다. 같은 클러스터의 `masscom_rehearsal_test` 복제본에 같은 API 코드의 migration 43→68건을 1.8초에 적용했고 `account_consents` 5=5·공개 점포 0을 확인한 뒤 DB와 dump를 삭제했다. 이는 P03의 첫 실제 복원 증거다. 새 운영 배포와 배포 전 백업은 별도 관문이다.

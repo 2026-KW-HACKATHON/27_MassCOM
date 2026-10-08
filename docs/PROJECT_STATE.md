@@ -10,11 +10,11 @@
 
 ## 2026-10-09 Issue #436 친구 행동·글 방명록 (PR 준비·미배포)
 
-`feat/friend-actions-guestbook`은 PR #433 반영 `c7632b35`에서 시작했다. 후속 fetch에서 PR #434 반영 `origin/main` `3645c4c7`을 확인했으며 통합과 최종 PR 전달을 진행한다. 아래 기존 전체 합계와 제출·배포 기준은 이번 로컬 결과로 덮어쓰지 않는다.
+`feat/friend-actions-guestbook`은 PR #433 반영 `c7632b35`에서 시작했다. PR #434 반영 최신 `origin/main` `3645c4c7`을 `2a541d73`에 통합했고 [PR #440](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/440)을 열었다. 아래 기존 전체 합계와 제출·배포 기준은 이번 로컬 결과로 덮어쓰지 않는다.
 
 친구 오른쪽 그림 버튼4개, 분홍/회색/금색 하트와 원자 받기·답장, 날짜·시간 휠을 구현했다. 마이룸은 모두/친구/개인 공개를 선택하고, 접근 가능한 방에서 글 방명록과 작성자 달성도·업적·친구 추가를 작은 창으로 제공한다. 방명록 보상은 같은 방 하루 첫 글5P·전체 하루25P로 우정과 별도이며 추가 글은 계속 쓸 수 있다. 홈 꾸미기의 빨간 점은 실제 표시한 글만 읽음 처리한다([D-104](DECISIONS.md)).
 
-로컬 검증은 API 단위677/677·모바일2182/2182·관련 웹173/173, API/모바일 타입·API 빌드·모바일 lint·운영/시연 Android export·비밀 검사·CI 연결103개 파일 PASS다. 방 대상57/57·우정 PostgreSQL53/53 PASS, 전체 PostgreSQL과 최신 main 통합 후 최종 판정은 대기 중이다. 합성 브라우저의 폭320/360/390·밝은/어두운 테마 화면48장과 동작을 확인했다. [시험 상태](TEST_STATUS.md)와 [증거·제한](evidence/friend-actions-2026-10-09/README.md)을 따른다. 운영 배포·새 APK·실기·TalkBack은 NOT_RUN이다.
+로컬 검증은 API 단위679/679·모바일2196/2196·관련 웹173/173, API/모바일 타입·API 빌드·모바일 lint·운영/시연 Android export·비밀 검사·CI 연결103개 파일 PASS다. 방 대상57/57·우정 PostgreSQL53/53 PASS, 전체 PostgreSQL599건은596 PASS·0 FAIL·기존 hosted 전용3 SKIP이며 통합 후 독립 검토는 APPROVE다. 합성 브라우저의 폭320/360/390·밝은/어두운 테마 화면48장과 동작을 확인했다. [시험 상태](TEST_STATUS.md)와 [증거·제한](evidence/friend-actions-2026-10-09/README.md)을 따른다. 운영 배포·새 APK·실기·TalkBack은 NOT_RUN이다.
 
 **이하 이전 작업 이력 — 각 ‘현재’·합계·브랜치 상태는 당시 기준이며 Issue #436의 최신 판정을 뜻하지 않는다.**
 
