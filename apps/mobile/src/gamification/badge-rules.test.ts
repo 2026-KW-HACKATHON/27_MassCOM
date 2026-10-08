@@ -153,7 +153,7 @@ test('share copy carries only the medal and its count', () => {
   const showcase = shareMessage(gold, 'showcase');
   assert.match(production, /동네 탐험가 골드.*서로 다른 가게 3곳/s);
   assert.match(production, /https:\/\/www\.masscom\.kr\/app\/$/);
-  assert.match(showcase, /체험용 가상 기록.*https:\/\/www\.masscom\.kr\/preview\/$/s);
+  assert.match(showcase, /체험용 가상 기록.*https:\/\/demo-api\.masscom\.kr\/play\/$/s);
   assert.doesNotMatch(production, /체험용/);
   for (const text of [production, showcase, JSON.stringify(card)]) {
     assert.doesNotMatch(text, /customer|account|계정|wallet|지갑|0x[0-9a-f]|QR|쿠폰|가상 점포|\d{4}-\d{2}-\d{2}|merchant/i);
