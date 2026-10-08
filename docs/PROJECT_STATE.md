@@ -1,8 +1,16 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-08 KST, Issue #412 T3 브랜치 `feat/purpose-campaigns`에 PR #420·#423 반영 main `8841efea`를 병합한 기준): API 단위 615/615 · 모바일 2093/2093. 두 수치 모두 병합 후 이 브랜치에서 측정했습니다(main 대비 API 18건·모바일 16건 증가, PostgreSQL 통합은 543건 중 540 pass / 0 fail / 3 skip). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(T8, 2026-10-09 KST, `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`): API 단위 615/615 · PostgreSQL 549건 중 546 PASS / 0 FAIL / 3 SKIP · 모바일 2094/2094 (PASS). SKIP 대상 hosted 전용 시험 3건은 전용 disposable runner에서 3/3 PASS. CI wiring·접근성·웹 export·문서 검사와 전체 gate PASS. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`(자세한 내용은 `docs/TEST_STATUS.md`). 이전 기준선·브랜치별 로컬 검증 수치는 `docs/HANDOFF_HISTORY.md`에 보존했습니다.
 
 README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
+
+## 2026-10-09 월계동 공공 상가정보 시연 점포 (T8, D-100)
+
+브랜치 `feat/showcase-wolgye-stores`의 시연 seed는 기존 가상 점포 A/B/C에 월계1·2·3동의 실제 상가정보 기반 점포 30곳을 더해 총 33곳을 구성한다. 공공 원본 487곳 중 월계역에서 가까운 순으로 선정했으며, 구내식당·유흥주점 제외, 중분류별 최대 6곳, 상호 중복 제거를 적용했다. 30곳의 분포는 중분류별 6/6/6/5/3/2/2곳이고 거리는 약 28–823m다. 이 값은 실제 MassCOM 참여를 뜻하지 않는다. 상세 `merchant.story`에는 [D-100](DECISIONS.md)의 고정 고지를 두고, 확인되지 않은 영업시간·메뉴·가격·소개는 비워 둔다. 원본은 2026-06-30 기준 소상공인시장진흥공단 상가(상권)정보이며 영업 여부 확인과 LOCALDATA 교차 확인은 하지 않았다.
+
+`is_demo = true`와 `showcase-wolgye-<SEMAS id>`로 식별하며, 기존 showcase DB 이름 가드가 있는 공통 로컬·hosted seed 트랜잭션에서 캠페인·공개 코인까지 만든다. A/B/C의 seed·스태프 권한·코스는 그대로다. 운영은 `is_demo` 점포를 제외한다. 앱 목록은 거리순(거리 미상은 뒤)이며 기존 필터를 유지한다. 화면 요청 크기 40 안에 33곳이 들어가며 `/play/`도 같은 API를 사용한다. 새 데이터와 코드는 미배포 상태다. 원본 충돌은 seed가 조용히 덮어쓰지 않고 트랜잭션 롤백한다.
+
+갱신은 현재 2026-06-30 날짜만 허용하는 selector guard, attribution, 상세의 날짜 고지를 새 자료에 맞게 함께 검토한 뒤 진행한다. 검토한 전체 JSON을 인자로 `node scripts/build-showcase-wolgye-stores.mjs <full JSON>`을 실행하고 빠진/추가된 상호와 ID별 변경 메타데이터를 확인한다. 선택 스크립트는 기존 seed를 자동 교체하지 않으며 기존 ID의 정규 데이터가 달라지면 seed가 덮어쓰지 않고 트랜잭션을 롤백한다. 스냅샷의 영업 여부 미확인도 유지한다([D-100](DECISIONS.md)).
 
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)
 

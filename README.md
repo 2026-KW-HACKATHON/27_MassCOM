@@ -24,7 +24,7 @@
   <a href="#설치검증">직접 실행</a>
 </p>
 
-> 배너는 콘셉트 일러스트입니다(시연 점포·방문은 가상 데이터이며 협약 점포, Google Play 승인, 매출 증가를 뜻하지 않습니다).
+> 배너는 콘셉트 일러스트입니다. 시연 점포 중 30곳의 이름·주소·위치는 2026-06-30 기준 공공 상가정보에서 가져왔지만, MassCOM에 참여한 가게가 아니며 방문·보상은 시연 데이터입니다. 협약 점포, Google Play 승인, 매출 증가를 뜻하지 않습니다.
 
 ## 무엇인가
 
@@ -49,19 +49,19 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 | 방법 | 열기 | 참고 |
 | --- | --- | --- |
-| 웹에서 로그인 없이 | [시연 체험 `/play/`](https://demo-api.masscom.kr/play/) | 가상 점포 3곳. 24시간 임시 계정이며 웹에서는 QR 촬영과 폰 기울임을 쓸 수 없습니다. |
+| 웹에서 로그인 없이 | [시연 체험 `/play/`](https://demo-api.masscom.kr/play/) | 공개 체험은 현재 3곳입니다. 이 브랜치의 시연 seed에는 월계동 공공 상가정보 기반 점포 30곳을 더해 총 33곳이 있습니다. 실제 가게의 참여를 뜻하지 않으며, 상세 소개에 시연 고지를 표시합니다. 24시간 임시 계정이며 웹에서는 QR 촬영과 폰 기울임을 쓸 수 없습니다. |
 | 설치 링크 고르기 | [masscom.kr/open](https://www.masscom.kr/open) | 운영과 시연 중 고릅니다. 지금 test.13과 Preview 22를 가리킵니다. |
 | 시연 Android 앱 | [Preview 22 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/showcase-android-v0.1.0-preview.22) | 가상 점포·가상 데이터. "로그인 없이 바로 체험"으로 시작합니다. |
 | 운영 Android 앱 | [test.13 APK](https://github.com/2026-KW-HACKATHON/27_MassCOM/releases/tag/android-v0.1.0-test.13) | 고객용. 실제 API·DB와 Google 로그인을 씁니다. 운영 점포는 0곳입니다. |
 | 설치 없이 보기 | [체험 도감 미리보기](https://www.masscom.kr/preview/) · [운영 웹](https://www.masscom.kr/app/) | 미리보기는 읽기 전용 예시입니다. |
 
-두 APK를 로그인 없이 다시 내려받아 SHA-256을 계산했고 게시 해시와 일치했습니다(PASS): [운영 test.13](docs/evidence/operating-android-test13-2026-10-08.json), [시연 Preview 22](docs/evidence/showcase-preview22-release-2026-10-08.json).
+두 APK를 로그인 없이 다시 내려받아 SHA-256을 계산했고 게시 해시와 일치했습니다(PASS): [운영 test.13](docs/evidence/operating-android-test13-2026-10-08.json), [시연 Preview 22](docs/evidence/showcase-preview22-release-2026-10-08.json). 이 T8 브랜치는 서버·웹·앱에 배포하지 않았으므로, 새 30곳은 공개 `/play/`에 아직 나타나지 않습니다.
 
 공개 설치본과 `/play/`는 소스 `5ca98955` 기준이고, 그 뒤 main에 들어간 수정은 다음 빌드부터 반영됩니다. 5분 시연 순서는 [DEMO_RUNBOOK](docs/DEMO_RUNBOOK.md)에 있습니다.
 
 ## 지금 한계
 
-- 실제 제휴 점포는 0곳입니다. 운영 점포도 0건이고 시연 점포 3곳은 가상입니다.
+- 실제 제휴 점포는 0곳입니다. 운영 점포도 0건입니다. 시연의 30곳은 공공 상가정보로 구성했지만 참여 점포가 아니며, 나머지 가상 점포 A/B/C는 그대로입니다.
 - 현장 실증(필드 검증)은 전체 `NOT_RUN`입니다. 재방문율과 매출 효과는 측정하지 않았습니다.
 - 최신 APK(test.13·Preview 22)의 실제 휴대전화 실행은 `NOT_RUN`입니다. 서명·해시·권한 검사만 PASS입니다.
 - Google Play에는 제출하지 않았습니다. 일반 공개나 심사 승인이 아닙니다.
@@ -103,7 +103,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(2026-10-08 KST, Issue #412 T3 브랜치 `feat/purpose-campaigns`에 PR #420·#423 반영 main `8841efea`를 병합한 기준): API 단위 615/615 · 모바일 2093/2093. 두 수치 모두 병합 후 이 브랜치에서 측정했습니다(main 대비 API 18건·모바일 16건 증가, PostgreSQL 통합은 543건 중 540 pass / 0 fail / 3 skip). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(T8, 2026-10-09 KST, `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`): API 단위 615/615 · PostgreSQL 549건 중 546 PASS / 0 FAIL / 3 SKIP · 모바일 2094/2094 (PASS). SKIP 대상 hosted 전용 시험 3건은 전용 disposable runner에서 3/3 PASS. CI wiring·접근성·웹 export·문서 검사와 전체 gate PASS. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`(자세한 내용은 `docs/TEST_STATUS.md`). 이전 기준선·브랜치별 로컬 검증 수치는 `docs/HANDOFF_HISTORY.md`에 보존했습니다.
 
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
 
