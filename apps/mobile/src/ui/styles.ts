@@ -60,7 +60,7 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     },
     // Caption on a store picture: it sits on a card-coloured pill because the picture is an opaque image.
     artNote: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: world.radius.chip, backgroundColor: world.card },
-    artNoteText: { color: world.cardMuted, fontSize: 11, fontWeight: '700' },
+    artNoteText: { color: world.cardMuted, fontSize: 12, fontWeight: '700' },
     backGlyph: { color: world.cardInk, fontSize: 26, fontWeight: '700', lineHeight: 32 },
     backTitle: { color: world.skyInk, fontSize: 22, fontWeight: '800', lineHeight: 30 },
     // Loading, error and empty scenes sit on the card surface (StateScene draws it), so these pairs are checked on world.card.
@@ -81,7 +81,7 @@ export function makeUiStyles(palette: AppColors, world: WorldTheme) {
     stampMystery: { color: world.paperInk, fontSize: 24, fontWeight: '900' },
     // paddingHorizontal is slack for the 800-weight glyphs: on a 411dp phone the name measured narrower than it painted and lost its second line.
     stampName: { color: world.paperInk, fontSize: 13, fontWeight: '800', lineHeight: 18, textAlign: 'center', paddingHorizontal: 2 },
-    stampStatus: { color: world.paperInk, fontSize: 11, lineHeight: 16, textAlign: 'center' },
+    stampStatus: { color: world.paperInk, fontSize: 12, lineHeight: 16, textAlign: 'center' },
     // Fold (#296): a FloatingCard header that expands a section in place (passport/medals, coupons·NFT, stamp board·visits).
     foldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
     foldTitleGroup: { flex: 1, gap: 2 },

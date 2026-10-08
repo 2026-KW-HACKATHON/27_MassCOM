@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { successHaptic } from '@/gamification/native-effects';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
+import { uiMetrics } from '@/theme/ui-metrics';
 import { Mascot } from '@/ui/mascot';
 
 import { reactionMessage, type ReactionEvent } from './mascot-reactions';
@@ -38,6 +39,6 @@ const styles = StyleSheet.create({
   host: { position: 'absolute', left: 16, right: 16, alignItems: 'center' },
   card: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 18, maxWidth: 420, width: '100%' },
   text: { flex: 1, fontSize: 13, fontWeight: '800', lineHeight: 18 },
-  closeButton: { minHeight: 32, minWidth: 32, alignItems: 'center', justifyContent: 'center' },
+  closeButton: { minHeight: uiMetrics.minTouchCompact, minWidth: uiMetrics.minTouchCompact, alignItems: 'center', justifyContent: 'center' },
   closeText: { fontSize: 12, fontWeight: '900' },
 });

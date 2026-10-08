@@ -76,6 +76,6 @@ const makeStyles = (palette: ReturnType<typeof colorsForScheme>, world: ReturnTy
   coinLine: { alignItems: 'center', gap: 4 },
   pack: { flexWrap: 'wrap', borderRadius: 11, padding: 11, backgroundColor: world.paper, borderWidth: 1, borderColor: world.paperLine, flexDirection: 'row', alignItems: 'center', gap: 8 },
   packCopy: { flex: 1 }, packTitle: { color: world.paperInk, fontWeight: '900', fontSize: 13 },
-  packHint: { color: world.paperInk, fontSize: 11, marginTop: 2 }, packArrow: { color: world.paperInk, fontSize: 11, fontWeight: '900' },
+  packHint: { color: world.paperInk, fontSize: 12, marginTop: 2 }, packArrow: { color: world.paperInk, fontSize: 12, fontWeight: '900' },
   inbox: { alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center', paddingVertical: 4 }, inboxText: { color: palette.primary, fontSize: 12, fontWeight: '800' },
 });

@@ -7,6 +7,7 @@ const home = read('./index.tsx');
 const status = read('./status.tsx');
 const staff = read('../merchant-claim/staff.tsx');
 const showcase = read('../showcase-merchant/index.tsx');
+const steps = read('./visit-step.ts');
 
 test('시연 권한 승인 분기에만 점주 셸을 연결하고 세 탭은 분리한다', () => {
   assert.match(showcase, /if \(state.status === 'allowed' && apiUrl\) \{\s+return <MerchantHomeScreen/);
@@ -87,4 +88,54 @@ test('현황은 독립 재시도·당겨서 새로 고침을 제공하고 의견
   assert.match(status, /<Text selectable[^>]*>\{note.text\}<\/Text>/);
   assert.match(status, /<StaffReversalCards/);
   assert.doesNotMatch(home + status + staff, /https?:\/\/[^'"\s]+\.(png|jpg|webp)|dangerouslySetInnerHTML|WebView/);
+});
+
+test('#412 점주 체험 단계 카드는 누를 수 없는 "단계 n/4" 안내이고 카메라 안내는 첫 단계에서만 나온다', () => {
+  assert.match(steps, /'① 내 체험 가게가 열렸어요', '② 손님이 되어 QR 보여주기', '③ 방문 코드 발급', '④ 오늘·현황에서 확인'/);
+  const card = staff.slice(staff.indexOf('단계 {cardStep}/4') - 120, staff.indexOf('<Text ref={heading}'));
+  assert.match(card, /단계 \{cardStep\}\/4/);
+  assert.match(card, /merchantDemoSteps\.map/);
+  assert.doesNotMatch(card, /Pressable|onPress/);
+  // 기본 탭은 그대로 방문 확인이다.
+  assert.match(home, /useState<Tab>\('visit'\)/);
+  // 카메라 안내는 step === 1 카드 안의 폴백이다.
+  const first = staff.slice(staff.indexOf('{step === 1 ? <View style={styles.formCard}>'), staff.indexOf('{token && !issued ?'));
+  assert.match(first, /canUseCamera \? <>/);
+  assert.match(first, /카메라가 필요해 Android 앱에서만/);
+});
+
+test('#412 시연 1인 2역: 단추는 시연·개발 빌드(웹 포함)에서만, 모두 실제 API와 기존 확인·발급 단계를 거친다', () => {
+  assert.match(staff, /const demoHandoff = canUseDemoHandoff\(getAppPackageId\(\)\);/);
+  const start = staff.slice(staff.indexOf('async function startDemoCustomer'), staff.indexOf('function handoffToCustomer'));
+  assert.match(start, /if \(busy \|\| !demoHandoff\) return;/);
+  assert.match(start, /await api\.createCustomerIdentity\(\)/);
+  assert.match(start, /scanned\(customer\.token, true\)/);
+  // 발급·수령을 대신 부르지 않는다: 확인·발급은 기존 단추로 이어진다.
+  assert.doesNotMatch(start, /issue\(|issueOrReissueIdentityClaim|redeemClaim/);
+  assert.match(staff, /\{demoHandoff \? <Button styles=\{styles\} label=\{busy \? '만드는 중…' : '시연: 내 손님 QR로 해 보기'\}/);
+  const handoff = staff.slice(staff.indexOf('function handoffToCustomer'), staff.indexOf('return <View style={{ flex: 1 }}>'));
+  assert.match(handoff, /if \(!demoHandoff \|\| !ownIdentity \|\| !onBrowseAsCustomer \|\| !issued/);
+  assert.match(handoff, /setDemoHandoff\(\{ kind: 'claim', accountId, token: issued\.token, expiresAt: issued\.expiresAt \}\);\s*rememberInternalAuthReturn\('\/claim', merchantId\);\s*onBrowseAsCustomer\(\);/);
+  const modal = staff.slice(staff.indexOf('<Modal'), staff.indexOf('</Modal>'));
+  assert.match(modal, /demoHandoff && ownIdentity && onBrowseAsCustomer && !issuedUncertain && seconds > 0 \? <Button styles=\{styles\} label="손님 화면에서 받기"/);
+  // 내 계정이 직접 만든 식별 QR일 때만 켜진다: 시연 손님 QR을 만들 때와 손님 화면이 넘긴 QR을 받을 때. 새 촬영·취소·완료에서는 꺼진다.
+  assert.match(staff, /if \(!handedOver \|\| restore === 'found'\) return;\s*scanned\(handedOver, true\);/);
+  // 카메라로 찍은 QR은 내 것이 아니다: scanned는 기본값 false로 플래그를 다시 쓴다.
+  assert.match(staff, /function scanned\(raw: string, own = false\) \{[\s\S]*?setOwnIdentity\(own\);/);
+  assert.match(staff, /onBarcodeScanned=\{\(\{ data \}\) => scanned\(data\)\}/);
+  assert.match(staff.slice(staff.indexOf('async function startScan'), staff.indexOf('async function resolve(')), /setOwnIdentity\(false\)[\s\S]*function cancel\(\) \{[\s\S]*?setOwnIdentity\(false\)/);
+  // 역할 전환은 기존 "고객으로 둘러보기" 경로(onBrowse)를 그대로 쓴다.
+  assert.match(home, /onBrowseAsCustomer=\{props\.onBrowseAsCustomer\}/);
+  assert.match(showcase, /onBrowseAsCustomer=\{onBrowse\}/);
+  // 점주 쪽은 열릴 때 손님 화면이 넘긴 식별 QR을 한 번만 받아 촬영 결과와 같은 길로 보낸다.
+  // 값은 넘긴 계정만 받고, 보관된 발급 복구를 다 읽은 뒤에만 받는다. 복구할 것이 있으면 넘어온 값은 버린다.
+  assert.match(staff, /if \(!demoHandoff \|\| restore === 'reading'\) return;\s*const handedOver = takeDemoHandoff\('identity', accountId\);/);
+  assert.match(staff, /\}, \[restore\]\);/);
+  assert.match(staff, /const \[restore, setRestore\] = useState<'reading' \| 'none' \| 'found'>\(securePending \? 'reading' : 'none'\);/);
+});
+
+test('#412 점주 탭 목록은 웹에서만 주요 메뉴 내비게이션 랜드마크 안에 있다', () => {
+  assert.match(home, /import \{ navigationLandmark \} from '@\/navigation\/floating-tab-bar';/);
+  assert.match(home, /<View \{\.\.\.navigationLandmark\}>\s*<View accessibilityRole="tablist"/);
+  assert.doesNotMatch(home, /role="navigation"|aria-label=/);
 });

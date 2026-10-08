@@ -1,5 +1,39 @@
 # 테스트 상태
 
+## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
+
+기준 main `cd01c0d6`(PR #422 병합) 위의 작업 브랜치 `feat/first-use-v2c`이며 앱 코드와 문서만 바뀌었다. API·DB·migration은 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행했다.
+
+| 대상 | 결과 | 증거·경계 |
+| --- | --- | --- |
+| 모바일 시험 | PASS | `npm test` 2074/2074(T2 기준 1992에서 82건 증가). 늘어난 시험은 점진적 공개(단계 기준·사람이 고른 선택이 늘 이김·친구가 있는 계정의 암묵 선택·저장 기록의 3값 처리·다른 계정 기록 삭제), 요청 수(탭 포커스는 세 요청, 단계 답은 홈과 방문 수령 뒤에만), 점주 1인 2역 넘김(계정에 묶임·한 번만·만료·로그아웃/전환/무효화에서 비움·복구와의 순서), 단계 카드 매핑, 홈 오류 문구, 리다이렉트 라우트, 마일리지 줄이 배지 조회에 막히지 않음이다 |
+| typecheck·lint | PASS | `npm run typecheck`, `npm run lint` 모두 exit 0 |
+| 접근성 의미 검사·지갑 표면 검사·CI 연결 | PASS | 세 스크립트 모두 exit 0. CI 연결 검사는 시험 파일 86개가 모두 실행됨을 확인한다 |
+| 운영 문서 검사·증거 정합 검사 | PASS | README·PROJECT_STATE의 "현재 자동 시험 합계" 줄을 모바일 2074/2074로 함께 고쳤다. 필수 36개 ID는 `31 PASS / 2 BLOCKED / 3 NOT_RUN` 그대로다 |
+| gate | PASS | `bash tools/gate.sh` exit 0 |
+| API 시험 | 변경 없음 | 597/597(main의 PR #422 값), T2c는 API 코드를 바꾸지 않았다 |
+| 독립 리뷰 | 지적 반영 | Claude Sonnet·Claude Opus 교차 리뷰는 🔴 없이 변경을 요청했다. 🟠 둘(넘김 값이 계정에 묶이지 않음, 친구가 있는 기존 사용자가 입구를 잃음)과 🟡들을 반영했다. 반영분은 이 기록의 시험으로 고정했고 다시 리뷰받지는 않았다 |
+| 공개 서버·설치본 | 변경 없음 | 운영 API·웹 `687427c2`, 운영 test.13, 시연 Preview 22, 시연 `/play/` 번들 `5ca98955`. 이 코드는 다음 빌드부터 사용자에게 닿는다 |
+| 단계별 입구·1인 2역·최소 크기의 실기 | NOT_RUN | 실제 휴대전화·시연 웹에서 단계에 따라 입구가 열리는 모습, 한 기기에서 점주↔손님 역할 전환과 단계 카드, 글자 12dp·터치 44dp 정리의 렌더링은 확인하지 않았다. 화면 구성은 타입 검사와 소스 시험까지만 확인했다 |
+
+### Issue #412 T2c 로컬 검사
+
+환경: macOS, `feat/first-use-v2c` worktree, 2026-10-08 KST.
+
+| 명령 | 결과 |
+| --- | --- |
+| `npm test` (`apps/mobile`) | PASS (2074/2074, exit 0) |
+| `npm run typecheck` (`apps/mobile`) | PASS (exit 0) |
+| `npm run lint` (`apps/mobile`) | PASS (exit 0) |
+| `bash tests/mobile/check_accessibility_semantics_test.sh` | PASS (exit 0) |
+| `bash tests/release/check_release_wallet_surface_test.sh` | PASS (exit 0) |
+| `bash tests/ci/ci_wiring_test.sh` | PASS (시험 파일 86개 모두 실행됨, exit 0) |
+| `bash tests/bootstrap/verify_operations_docs_test.sh` | PASS (exit 0) |
+| `bash tests/site/verify_evidence_consistency_test.sh` | PASS (31 PASS · 2 BLOCKED · 3 NOT_RUN, exit 0) |
+| `bash tools/gate.sh` | PASS (exit 0) |
+
+필수 36개 ID의 `31 PASS / 2 BLOCKED / 3 NOT_RUN`은 이 기록으로 바꾸지 않는다. README와 PROJECT_STATE는 "현재 자동 시험 합계" 줄만 고쳤다. 사용자 판정 필요: 단계 기준과 입구가 열리는 순서, 점주 단계 카드 문구는 실제 화면에서 정한다.
+
 ## 2026-10-08 API 서버 구조 정리 마무리: deps 고정·기본값 한곳·콜백 쿠키와 삭제 접수 배선 고정 (Issue #412 트랙 T1, 배포 동결)
 
 기준 main `b572184e`에서 시작한 작업 브랜치 `refactor/api-deps-routes`를 main `b707ed09`(PR #413·#414·#415·#421 병합) 위로 옮겼다. 그 네 PR은 `apps/api/src`를 건드리지 않아(#421은 `apps/api/package.json`에 `test:cov`·`test:postgres:cov` 스크립트만 더했다) API 시험 수는 그대로다. 코드는 `apps/api`만 바뀌었고 요청·응답 동작은 바뀌지 않았다. 교차 리뷰(Claude Sonnet·Claude Opus)가 승인(🔴 0·🟠 0)하며 남긴 🟡 5건을 반영했다. (1) `createApiServer`가 deps를 복사해 한 번만 얼린다. (2) `trustProxyClientIp`·`webWwwEnabled`·`experienceServices`의 기본값을 한곳에서 정하고 경로 처리기 13곳의 `??`를 지웠다. (3) 웹 로그인 콜백의 쿠키 응답을 시험으로 고정했다. (4) 계정 삭제 접수 서비스 두 개의 배선을 소스 시험으로 고정했다. (5) `experienceServices`를 `Required<ExperienceServices>`로 만들어 안쪽 키 누락도 컴파일에서 잡는다. 배포·게시는 하지 않았다(소유자 결정 A).
@@ -56,7 +90,7 @@
 
 ## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) (D-089)
 
-기준 main `e06c97cd` 위의 작업 브랜치 `feat/worker-continuous-loop`([PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420), 검토 중이며 CI 통과 뒤 병합한다, 처음 커밋 `418f8c57`). 이후 main `cd01c0d6`(PR #421·#422 병합)을 병합했고 그 뒤 검사는 아래 표 맨 앞 행에 적었다. 앱·API·DB 스키마는 바뀌지 않았고 Worker 코드, Worker 이미지, 운영 compose의 프로파일 서비스, 문서가 바뀌었다. 이 서비스는 어디에도 배포·활성화하지 않았다. 번호는 처음 D-080이었으나 main의 D-080과 겹쳐 D-089로 바꿨다. 독립 리뷰(Claude Sonnet + Opus)의 지적을 고친 뒤의 결과를 아래 표 앞부분("리뷰 반영" 행)에 적었고, 나머지 행은 리뷰 전 구현 커밋(`418f8c57`~`bddbb333`) 기준의 결과다.
+기준 main `e06c97cd` 위의 작업 브랜치 `feat/worker-continuous-loop`([PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420), main `48a14811`에 병합됨, 처음 커밋 `418f8c57`). 이후 main `cd01c0d6`(PR #421·#422 병합)을 병합했고 그 뒤 검사는 아래 표 맨 앞 행에 적었다. 앱·API·DB 스키마는 바뀌지 않았고 Worker 코드, Worker 이미지, 운영 compose의 프로파일 서비스, 문서가 바뀌었다. 이 서비스는 어디에도 배포·활성화하지 않았다. 번호는 처음 D-080이었으나 main의 D-080과 겹쳐 D-089로 바꿨다. 독립 리뷰(Claude Sonnet + Opus)의 지적을 고친 뒤의 결과를 아래 표 앞부분("리뷰 반영" 행)에 적었고, 나머지 행은 리뷰 전 구현 커밋(`418f8c57`~`bddbb333`) 기준의 결과다.
 
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |

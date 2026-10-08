@@ -6,13 +6,19 @@ import { fileURLToPath } from 'node:url';
 
 const app = fileURLToPath(new URL('../app/', import.meta.url));
 
-test('the primary route files keep the production root while the foundation preview stays separate', () => {
+test('the primary route files keep the production root; the dev preview, tour and duplicate shop route are gone', () => {
   // Five visible tab slots: 탐색 · 도감 · 홈 · 놀이 · 상점. Other routes retain their deep links.
-  for (const name of ['shop', 'collection', 'index', 'search', 'play-tab', 'shop-again', 'map', 'claim', 'friends', 'settings']) {
+  for (const name of ['shop', 'collection', 'index', 'search', 'play-tab', 'map', 'claim', 'friends', 'settings']) {
     assert.ok(existsSync(join(app, '(tabs)', name + '.tsx')), name);
     assert.equal(existsSync(join(app, name + '.tsx')), false, name);
   }
-  assert.ok(existsSync(join(app, 'foundation-preview.tsx')), 'isolated UI preview route');
+  // Issue #412: shop-again no longer renders a second shop; it only redirects, so old links keep working. The two preview routes were
+  // development and showcase-only duplicates and are gone.
+  const shopAgain = readFileSync(join(app, '(tabs)', 'shop-again.tsx'), 'utf8');
+  assert.match(shopAgain, /return <Redirect href="\/shop" \/>;/);
+  assert.doesNotMatch(shopAgain, /ShopScreen|from '\.\/shop'/, 'a redirect, not a second shop');
+  assert.equal(existsSync(join(app, 'foundation-preview.tsx')), false, 'no development UI preview route');
+  assert.equal(existsSync(join(app, 'showcase-tour.tsx')), false, 'no empty five-space tour route');
   assert.equal(existsSync(join(app, '(tabs)', 'explore.tsx')), false, 'no duplicate explore route');
   assert.ok(existsSync(join(app, 'open.tsx')), 'external app link route');
   const root = readFileSync(join(app, '_layout.tsx'), 'utf8');
@@ -26,6 +32,7 @@ test('floating tab bar shows explore, collection, a raised home, play and shop',
   for (const title of ['홈', '탐색', '도감', '놀이', '상점']) assert.ok(layout.includes(title), title);
   assert.match(layout, /name="shop" options=\{\{ title: '상점', tabBarAccessibilityLabel: '상점' \}\}/);
   assert.doesNotMatch(layout, /name="shop"[^\n]*href: null/, 'the shop tab is visible');
+  // The redirect route stays out of the tab bar.
   assert.match(layout, /name="shop-again" options=\{\{ title: '상점', href: null \}\}/);
   assert.match(layout, /name="play-tab" options=\{\{ title: '놀이', tabBarAccessibilityLabel: '놀이' \}\}/);
   assert.match(layout, /name="map" options=\{\{ title: '지도', href: null \}\}/);
@@ -49,7 +56,7 @@ test('floating tab bar shows explore, collection, a raised home, play and shop',
   assert.match(bar, /search: 'map'/);
   assert.match(bar, /'play-tab': 'play'/);
   assert.match(bar, /shop: 'shop'/);
-  assert.match(bar, /'shop-again': 'shop'/);
+  assert.doesNotMatch(bar, /shop-again/);
   assert.match(bar, /route\.name === 'index'/);
 });
 
@@ -89,22 +96,12 @@ test('every primary screen offers the account avatar', () => {
   }
 });
 
-test('the UI preview entry is development-only and cannot replace account tools', () => {
+test('Settings and the root stack no longer carry the removed preview routes, and account tools stay', () => {
   const settings = readFileSync(fileURLToPath(new URL('../screens/account-settings/index.tsx', import.meta.url)), 'utf8');
-  const preview = readFileSync(join(app, 'foundation-preview.tsx'), 'utf8');
-  assert.match(settings, /__DEV__\s*\?\s*\(/);
-  assert.match(settings, /href="\/foundation-preview"/);
-  assert.match(preview, /if \(!__DEV__\) return <Redirect href="\/" \/>/);
+  const root = readFileSync(join(app, '_layout.tsx'), 'utf8');
+  assert.doesNotMatch(settings, /foundation-preview|showcase-tour|canOpenShowcaseTour/);
+  assert.doesNotMatch(root, /foundation-preview|showcase-tour/);
   assert.match(settings, /계정 삭제 안내/);
-});
-
-test('the role preview Link child does not pass a style array to Expo Router Slot', () => {
-  const settings = readFileSync(join(app, '..', 'screens', 'account-settings', 'index.tsx'), 'utf8');
-  const link = settings.match(/<Link href="\/foundation-preview" asChild>([\s\S]*?)<\/Link>/)?.[1];
-  assert.ok(link, 'development preview Link');
-  const pressable = link.match(/<Pressable\b[^>]*>/)?.[0];
-  assert.ok(pressable, 'Link direct Pressable child');
-  assert.doesNotMatch(pressable, /style=\{\s*\[/, 'Expo Router Slot rejects array-valued child styles');
 });
 
 test('the home quick action Link children do not pass style arrays to Expo Router Slot', () => {

@@ -46,6 +46,6 @@ const makeStyles = (palette: ReturnType<typeof colorsForScheme>, world: ReturnTy
   rewards: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, reward: { alignItems: 'center', flex: 1, minWidth: 70 },
   pack: { borderTopWidth: 1, borderColor: world.paperLine, paddingTop: 8 },
   name: { color: world.paperInk, fontWeight: '800', fontSize: 13 },
-  description: { color: world.paperInk, fontSize: 11, marginTop: 3 },
-  progress: { color: world.paperInk, fontSize: 11, fontWeight: '700', marginTop: 3 },
+  description: { color: world.paperInk, fontSize: 12, marginTop: 3 },
+  progress: { color: world.paperInk, fontSize: 12, fontWeight: '700', marginTop: 3 },
 });

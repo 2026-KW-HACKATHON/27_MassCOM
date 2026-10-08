@@ -41,9 +41,13 @@ export function settleHomeSection<K extends HomeSection>(data: HomeData, section
   return outcome.ok ? { ...data, [fields[section]]: outcome.value, pending, errors } : { ...data, pending, errors: [...errors, section] };
 }
 
-/** "<마이룸·뽑기권> 조회 실패 · 다시 시도" text, or null when nothing failed. A failed recommendation is not reported: the catalog store replaces it. */
-export const homeErrorText = (errors: readonly HomeSection[]): string | null => {
-  const shown = errors.filter((section) => section !== 'recommendations');
+/**
+ * "<마이룸·뽑기권> 조회 실패 · 다시 시도" text, or null when nothing failed. A failed recommendation is not reported: the catalog store
+ * replaces it. Sections that are not on screen (the room before the first coin, 뽑기권 with no ticket in hand) are never named: the
+ * person cannot see what failed there, and naming it would reveal the door Home keeps closed.
+ */
+export const homeErrorText = (errors: readonly HomeSection[], hidden: readonly HomeSection[] = []): string | null => {
+  const shown = errors.filter((section) => section !== 'recommendations' && !hidden.includes(section));
   return shown.length ? `${shown.map((section) => homeSectionNames[section]).join('·')} 조회 실패 · 다시 시도` : null;
 };
 

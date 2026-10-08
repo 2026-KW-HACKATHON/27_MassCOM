@@ -7,14 +7,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { AccountCredential } from '@/auth/account-credential';
 import { platformSecureStore } from '@/auth/platform-secure-store';
 import { createClaimPendingStore } from '@/commerce/claim-pending';
+import { getAppPackageId } from '@/config/app-identity';
 import { createScanGate } from '@/commerce/claim-code';
 import { ClaimQr } from '@/commerce/claim-qr';
 import { CommerceApiError, createCommerceApiClient, type RecentCouponRedemption, type IssuedClaim, type ResolvedCustomerIdentity, type StaffCoupon } from '@/commerce/commerce-api';
 import { canIssueCustomerIdentity, createIdentityRequestGate, customerIdentityCode, isCustomerIdentityExpired, parseCustomerIdentityToken } from '@/commerce/customer-identity';
+import { canUseDemoHandoff, setDemoHandoff, takeDemoHandoff } from '@/navigation/demo-handoff';
+import { rememberInternalAuthReturn } from '@/navigation/showcase-entry';
 import { colorsForScheme } from '@/theme/palette';
 import { canUseCamera } from '@/ui/can-use-camera';
 import { focusMerchantHeading } from '../merchant-home/focus-heading';
-import { claimSecondsRemaining, merchantStepFor } from '../merchant-home/visit-step';
+import { claimSecondsRemaining, merchantCardStep, merchantDemoSteps, merchantStepFor } from '../merchant-home/visit-step';
 import { canUndoNow, createCouponMutationGate, redeemedCouponTarget } from './immediate-undo';
 import { undoConfirmText, undoFailureMessage, undoSuccessMessage } from './reversal-copy';
 import { makeMerchantClaimStyles } from './styles';
@@ -31,6 +34,8 @@ type StaffClaimProps = {
   merchantName: string;
   active?: boolean;
   onVisitReversal?: (visit: VisitSelection) => void;
+  /** 시연 1인 2역: 손님 역할로 바꾼다(없으면 "손님 화면에서 받기"는 보이지 않는다). */
+  onBrowseAsCustomer?: () => void;
 };
 
 export function StaffClaimScreen(props: StaffClaimProps) {
@@ -43,7 +48,7 @@ export function StaffClaimScreen(props: StaffClaimProps) {
   return <StaffClaimSession key={scope.version} {...props} />;
 }
 
-function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessionInvalid, merchantName, active = true, onVisitReversal }: StaffClaimProps) {
+function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessionInvalid, merchantName, active = true, onVisitReversal, onBrowseAsCustomer }: StaffClaimProps) {
   const palette = colorsForScheme(useColorScheme());
   const styles = StyleSheet.create(makeMerchantClaimStyles(palette, StyleSheet.hairlineWidth));
   const insets = useSafeAreaInsets();
@@ -78,12 +83,20 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
   const [couponOpen, setCouponOpen] = useState(false);
   const [couponLoading, setCouponLoading] = useState(false);
   const [qrArea, setQrArea] = useState({ width: 0, height: 0 });
+  // 보관된 발급 복구를 읽는 중인지(reading), 없는지(none), 있는지(found). 시연 넘김은 이 읽기가 끝난 뒤에만 받는다: 받으면 scanned()가
+  // 같은 요청 세대를 써서 진행 중인 복구를 무효화하기 때문이다.
+  const [restore, setRestore] = useState<'reading' | 'none' | 'found'>(securePending ? 'reading' : 'none');
+  // 시연 1인 2역: 이 식별 QR이 내 계정이 직접 만든 것일 때만 "손님 화면에서 받기"를 보인다. 다른 사람의 QR을 찍어 발급했다면 내 손님 화면이 받을 코드가 아니다.
+  const [ownIdentity, setOwnIdentity] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const step = merchantStepFor({ scanning, identified: Boolean(token), issued: Boolean(issued) });
   const seconds = issued ? claimSecondsRemaining(issued.expiresAt, now) : 0;
   const compact = width > height;
   const qrSize = claimQrSizeForArea(qrArea.width, qrArea.height);
   const visitNotice = issuedVisitNotice(issuedVisit, now);
+  const cardStep = merchantCardStep(step, scanning || (busy && !token), visitNotice?.kind === 'confirmed');
+  // 시연 1인 2역(#412): 웹과 시연·개발 빌드에서만 열린다. 운영 앱에는 단추도 넘김도 없다.
+  const demoHandoff = canUseDemoHandoff(getAppPackageId());
 
   useEffect(() => {
     if (!securePending) return;
@@ -91,6 +104,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
     const restoreRequest = requestGate.start();
     const isCurrent = () => current && requestGate.isCurrent(restoreRequest);
     void pendingStore.loadState(accountId, merchantId).then(async (saved) => {
+      if (current) setRestore(saved.state === 'none' ? 'none' : 'found');
       if (!isCurrent() || saved.state === 'none') return;
       if (saved.state === 'expired') setMessage('이전 고객 QR의 표시 시각이 지났지만 발급 결과를 서버에서 확인합니다.');
       const pending = saved.pending;
@@ -112,7 +126,10 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
           if (isCurrent()) setMessage('이전 고객 QR을 더 이상 사용할 수 없습니다. 새 QR을 받아 주세요.');
         } else setMessage('이전 발급 결과를 확인할 수 없습니다. 연결을 확인한 뒤 다시 열어 주세요.');
       }
-    }).catch(() => { if (isCurrent()) setMessage('발급 복구 정보를 읽지 못했습니다. 고객에게 새 QR을 요청해 주세요.'); });
+    }).catch(() => {
+      if (current) setRestore('none');
+      if (isCurrent()) setMessage('발급 복구 정보를 읽지 못했습니다. 고객에게 새 QR을 요청해 주세요.');
+    });
     return () => { current = false; requestGate.cancel(); };
   }, [accountId, merchantId, api, pendingStore, securePending, requestGate]);
 
@@ -160,6 +177,15 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
   // 점포·세션 변경과 화면 해제 시 이전 요청의 성공·실패·완료를 모두 무효화한다.
   useEffect(() => () => requestGate.cancel(), [api, merchantId, requestGate]);
   useEffect(() => () => undoGate.cancel(), [api, merchantId, undoGate]);
+  // 손님 화면의 "점주 화면에서 확인해 보기"로 넘어온 식별 QR을 한 번만 받아 촬영 결과와 같은 길(scanned → resolve)로 보낸다.
+  // 보관된 발급 복구를 다 읽은 뒤에 받고, 복구할 것이 있으면 넘어온 값은 버린다. 값은 넘긴 계정만 받는다.
+  useEffect(() => {
+    if (!demoHandoff || restore === 'reading') return;
+    const handedOver = takeDemoHandoff('identity', accountId);
+    if (!handedOver || restore === 'found') return;
+    scanned(handedOver, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 복구 읽기가 끝나는 때 한 번만 받는다.
+  }, [restore]);
 
   function done() {
     // 요청 중에도 닫고, 늦은 응답은 요청 세대로 무효화한다.
@@ -176,6 +202,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
     }
     requestGate.cancel();
     scanGate.reset();
+    setOwnIdentity(false);
     setToken(undefined);
     setResolved(undefined);
     setIssued(undefined);
@@ -191,6 +218,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
 
   function cancel() {
     requestGate.cancel();
+    setOwnIdentity(false);
     setQrVisible(false);
     setIssued(undefined);
     setIssueAttempted(false);
@@ -236,7 +264,8 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
     }
   }
 
-  function scanned(raw: string) {
+  // `own`: 시연에서 내 계정이 직접 만든 식별 QR이다(카메라로 찍은 QR은 아니다). "손님 화면에서 받기"는 그럴 때만 보인다.
+  function scanned(raw: string, own = false) {
     const nextToken = parseCustomerIdentityToken(raw);
     if (!nextToken) {
       setMessage('고객 식별 QR이 아닙니다. 고객 화면의 2분 QR을 비춰 주세요.');
@@ -244,6 +273,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
     }
     if (!scanGate.accept(nextToken)) return;
     setScanning(false);
+    setOwnIdentity(own);
     setToken(nextToken);
     void resolve(nextToken);
   }
@@ -451,10 +481,37 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
     }
   }
 
+  // 시연 1인 2역(#412): 내 손님 식별 QR을 서버에서 새로 받아 촬영 결과와 같은 길로 보낸다. 고객 확인·발급은 그대로 눌러서 한다.
+  async function startDemoCustomer() {
+    if (busy || !demoHandoff) return;
+    const current = requestGate.start();
+    setBusy(true);
+    setMessage(undefined);
+    try {
+      const customer = await api.createCustomerIdentity();
+      if (!requestGate.isCurrent(current)) return;
+      scanGate.reset();
+      scanned(customer.token, true);
+    } catch (error) {
+      if (requestGate.isCurrent(current)) setMessage(messageFor(error));
+    } finally {
+      if (requestGate.isCurrent(current)) setBusy(false);
+    }
+  }
+
+  // 발급한 방문 코드를 이 앱 안에서만 손님 화면에 넘기고 역할을 바꾼다. 손님 화면에서 "방문 수령 확정"은 직접 누른다.
+  function handoffToCustomer() {
+    if (!demoHandoff || !ownIdentity || !onBrowseAsCustomer || !issued || issuedUncertain || claimSecondsRemaining(issued.expiresAt) <= 0) return;
+    setDemoHandoff({ kind: 'claim', accountId, token: issued.token, expiresAt: issued.expiresAt });
+    rememberInternalAuthReturn('/claim', merchantId);
+    onBrowseAsCustomer();
+  }
+
   return <View style={{ flex: 1 }}>
     <ScrollView contentInsetAdjustmentBehavior="automatic" showsVerticalScrollIndicator={Platform.OS !== 'web'} contentContainerStyle={styles.content} refreshControl={<RefreshControl progressViewOffset={insets.top} refreshing={visitRefreshing} onRefresh={() => void refreshIssuedVisit()} />}>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        {['① 고객 QR 찍기', '② 고객 확인', '③ 방문 코드'].map((label, index) => <Text key={label} accessibilityLabel={`${label}${step === index + 1 ? ', 현재 단계' : ''}`} style={[styles.help, { flex: 1, color: step === index + 1 ? palette.primary : palette.secondaryLabel, fontWeight: '700' }]}>{label}</Text>)}
+      <View style={[styles.formCard, { gap: 6 }]}>
+        <Text style={styles.cardLabel}>단계 {cardStep}/4</Text>
+        {merchantDemoSteps.map((label, index) => <Text key={label} accessibilityLabel={`${label}${cardStep === index + 1 ? ', 현재 단계' : ''}`} style={[styles.help, { color: cardStep === index + 1 ? palette.primary : palette.secondaryLabel, fontWeight: cardStep === index + 1 ? '900' : '700' }]}>{label}</Text>)}
       </View>
       <Text ref={heading} accessible accessibilityRole="header" style={styles.cardLabel}>{step === 1 ? '고객 QR 찍기' : step === 2 ? '고객 확인' : '방문 코드'}</Text>
       <Text style={styles.help}>가상 점포의 체험용 방문 확인입니다. 실제 주문·방문 혜택이 아니며 서버가 점포 권한을 확인합니다.</Text>
@@ -464,7 +521,10 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
             <CameraView style={StyleSheet.absoluteFill} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => scanned(data)} />
           </View> : null}
           <Button styles={styles} label={scanning ? '촬영 취소' : '고객 QR 찍기'} disabled={busy} onPress={scanning ? cancel : () => void startScan()} />
-        </> : <Text style={styles.help}>고객 QR 촬영은 카메라가 필요해 Android 앱에서만 할 수 있어요. 이 화면은 미리보기만 확인할 수 있어요.</Text>}
+        </> : <>
+          <Text style={styles.help}>고객 QR 촬영은 카메라가 필요해 Android 앱에서만 할 수 있어요. 이 화면은 미리보기만 확인할 수 있어요.</Text>
+          {demoHandoff ? <Button styles={styles} label={busy ? '만드는 중…' : '시연: 내 손님 QR로 해 보기'} disabled={busy} onPress={() => void startDemoCustomer()} /> : null}
+        </>}
       </View> : null}
       {token && !issued ? <View style={styles.formCard}>
         <Text selectable style={[styles.cardLabel, { fontSize: 32, fontVariant: ['tabular-nums'] }]}>확인 코드 {customerIdentityCode(token)}</Text>
@@ -522,6 +582,7 @@ function StaffClaimSession({ apiUrl, accountId, merchantId, credential, onSessio
             {issuedUncertain ? <Text style={styles.help}>이전 QR이 폐기됐을 수 있습니다. 현재 코드를 복구한 뒤 고객에게 보여주세요.</Text> : null}
             <Text style={styles.help}>고객이 QR을 촬영하고 확정해야 방문이 기록됩니다.</Text>
             {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+            {demoHandoff && ownIdentity && onBrowseAsCustomer && !issuedUncertain && seconds > 0 ? <Button styles={styles} label="손님 화면에서 받기" disabled={busy} onPress={handoffToCustomer} /> : null}
             {issuedUncertain ? <Button styles={styles} label={busy ? '복구 중…' : '현재 코드 복구'} disabled={busy} onPress={() => void recoverCurrent()} /> : <Button styles={styles} label="코드 관리" variant="secondary" disabled={busy} onPress={() => {
               const current = requestGate.start();
               Alert.alert('방문 코드 관리', '공유하거나 이전 코드를 폐기하고 재발급할 수 있어요.', [

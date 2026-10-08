@@ -7,7 +7,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, RefreshControl, StyleS
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppHeader } from '@/ui/app-header';
 import { Fold } from '@/ui/fold';
-import { isLargeText } from '@/ui/large-text';
+import { isLargeText, isNarrow } from '@/ui/large-text';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { StatusBarScrim, useStatusBarScrim } from '@/ui/status-bar-scrim';
 import { colorsForScheme } from '@/theme/palette';
@@ -52,7 +52,8 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   const insets = useSafeAreaInsets();
   const clearance = useTabBarClearance();
   const scrim=useStatusBarScrim();
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
+  const narrow = isNarrow(width);
   const state = useSyncExternalStore(discoveryState.subscribe, discoveryState.snapshot, discoveryState.snapshot);
   const [camera, setCamera] = useState(initialCamera);
   const [bounds, setBounds] = useState(initialBounds);
@@ -246,7 +247,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
     </View></Pressable>;};
   const searchTools=<>
     <TextInput value={state.filters.query} onChangeText={query=>discoveryState.setFilters({query})} placeholder="가게 이름·주소 검색" placeholderTextColor={world.cardMuted} accessibilityLabel="가게 검색" style={[styles.input,styles.searchInput]} returnKeyType="search"/>
-    <ScrollView horizontal keyboardShouldPersistTaps="handled" style={styles.filters} contentContainerStyle={[styles.actions,styles.filterRow]}>
+    <ScrollView horizontal keyboardShouldPersistTaps="handled" style={styles.filters} contentContainerStyle={[styles.actions,styles.filterRow,narrow&&{flexWrap:'wrap',width}]}>
       {button('전체',()=>discoveryState.setFilters({category:null,campaignOnly:false,openOnly:false,unvisitedOnly:false,interestedOnly:false}))}
       {button('영업 중',()=>discoveryState.setFilters({openOnly:!state.filters.openOnly}),state.filters.openOnly)}
       {button('캠페인',()=>discoveryState.setFilters({campaignOnly:!state.filters.campaignOnly}),state.filters.campaignOnly)}

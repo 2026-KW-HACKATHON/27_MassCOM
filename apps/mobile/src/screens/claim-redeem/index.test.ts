@@ -126,3 +126,29 @@ test('late redemption A cannot clear a newer B pending token for the same accoun
   assert.match(redeem, /const result = await api.redeemClaim\(target\);\s*if \(!redeemGate.isCurrent\(request\)\) return;\s*if \(securePending\) void pendingStore.clearIfMatches\(accountId, pending\)/);
   assert.doesNotMatch(redeem, /pendingStore.clear\(accountId\)/);
 });
+
+test('#412 시연 1인 2역: 점주 화면이 넘긴 방문 코드는 열릴 때 한 번만 받아 코드 입력·상태 확인까지만 한다', () => {
+  assert.match(screen, /const demoHandoff = canUseDemoHandoff\(getAppPackageId\(\)\);/);
+  const consume = between('const demoHandoff = canUseDemoHandoff', '// 축하 화면이 열린 방문을 기억해');
+  // 값은 넘긴 계정만 받고, 보관된 수령 복구를 다 읽은 뒤에만 입력칸을 바꾼다. 복구할 것이 있으면 넘어온 값은 버린다.
+  assert.match(consume, /if \(!demoHandoff \|\| restore === 'reading'\) return;\s*const handedOver = takeDemoHandoff\('claim', accountId\);\s*if \(!handedOver \|\| restore === 'found'\) return;\s*changeToken\(handedOver\);\s*void inspect\(handedOver\);/);
+  assert.match(consume, /\}, \[restore\]\);/);
+  // 확정은 사용자가 "방문 수령 확정"을 눌러야 한다: 넘김 경로가 redeem을 부르지 않는다.
+  assert.doesNotMatch(consume, /redeem\(|redeemClaim/);
+});
+
+test('#412 시연 1인 2역: 식별 QR 카드의 역방향 시작은 살아 있는 QR만 점주 화면에 넘기고 시연 빌드에서만 보인다', () => {
+  const handoff = between('function handoffToMerchant', 'function changeToken');
+  assert.match(handoff, /if \(!demoHandoff \|\| !identity \|\| isCustomerIdentityExpired\(identity\.expiresAt\)\) return;/);
+  assert.match(handoff, /setDemoHandoff\(\{ kind: 'identity', accountId, token: identity\.token, expiresAt: identity\.expiresAt \}\);\s*queueMerchantNotificationRole\(accountId\);/);
+  assert.match(screen, /\{demoHandoff && identity && !isCustomerIdentityExpired\(identity\.expiresAt, now\) \? <Pressable[\s\S]*?시연: 점주 화면에서 이 QR 확인해 보기/);
+});
+
+test('#412 the demo handoff never cancels the secure pending restore: it waits for the read and yields to a pending item', () => {
+  assert.match(screen, /const \[restore, setRestore\] = useState<'reading' \| 'none' \| 'found'>\(securePending \? 'reading' : 'none'\);/);
+  const restore = between("void pendingStore.loadState(accountId, selectedMerchantId)", '}, [accountId, selectedMerchantId, api, pendingStore, securePending, redeemGate]);');
+  assert.match(restore, /if \(current\) setRestore\(saved\.state === 'none' \? 'none' : 'found'\);\s*if \(!isCurrent\(\) \|\| saved\.state === 'none'\) return;/);
+  assert.match(restore, /\.catch\(\(\) => \{\s*if \(current\) setRestore\('none'\);/);
+  // changeToken (which the handoff calls) is what cancels the restore's request generation.
+  assert.match(between('function changeToken', 'async function startScan'), /redeemGate\.cancel\(\);/);
+});

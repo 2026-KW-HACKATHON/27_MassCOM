@@ -46,7 +46,7 @@ export function makeFriendsStyles(palette: AppColors, world: WorldTheme) {
   rowName: { flexShrink: 1, color: world.cardInk, fontSize: 16, fontWeight: '800' },
   rowMeta: { color: world.cardMuted, fontSize: 13 },
   meChip: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: palette.primaryContainer },
-  meChipText: { color: palette.onPrimaryContainer, fontSize: 11, fontWeight: '900' },
+  meChipText: { color: palette.onPrimaryContainer, fontSize: 12, fontWeight: '900' },
   chevron: { color: world.cardMuted, fontSize: 24, fontWeight: '700' },
   dots: { flexDirection: 'row', gap: 4 },
   passportHero: { gap: 6, alignItems: 'center', padding: 18 },

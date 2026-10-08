@@ -47,6 +47,14 @@ test('a failed refresh keeps the older value and reports the failure', () => {
   assert.equal(homeErrorText(['studio', 'recommendations', 'coins']), '마이룸·뽑기권 조회 실패 · 다시 시도');
 });
 
+test('a failure is never reported for a section that is not on screen', () => {
+  // Before the first coin the room is closed; with no ticket in hand 보유 뽑기권 is not drawn either.
+  assert.equal(homeErrorText(['studio', 'coins'], ['studio', 'coins']), null);
+  assert.equal(homeErrorText(['studio', 'collection'], ['studio']), '도감 조회 실패 · 다시 시도', 'the visible failure is still named, without the hidden room');
+  assert.equal(homeErrorText(['studio', 'coins'], ['studio']), '뽑기권 조회 실패 · 다시 시도');
+  assert.equal(homeErrorText(['studio', 'coins'], []), '마이룸·뽑기권 조회 실패 · 다시 시도', 'everything shown: everything named');
+});
+
 test('the first store is highlighted only for someone with no visit, from the server recommendation first', () => {
   const goal = { merchantId: 'g', name: '카탈로그 가게' };
   const settled = (collection: CollectionSnapshot, recommendations?: readonly Recommendation[]): HomeData => {

@@ -3,10 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View, useColorScheme, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { createMerchantApiClient } from '@/merchant/merchant-api';
 import { createRecommendationApiClient } from '@/recommendation/recommendation-api';
-import { createCoinApiClient } from '@/shop/coin-api';
 import { createStudioApiClient, displayStudioItems } from '@/studio/studio-api';
 import { StudioScene } from '@/studio/studio-scene';
 import { homeErrorText, markHomePending, needsFirstStoreRecommendation, pickFirstStore, settleHomeSection, startHomeLoad, type HomeData, type HomeSection, type HomeValues } from './home-load';
@@ -18,10 +16,10 @@ import { shouldRefreshBadgesQuietly } from '@/gamification/badge-refresh';
 import { couponExpiryNotice } from '@/gamification/coupon-expiry';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
+import { useDiscovery } from '@/discovery/discovery-provider';
+import { atLeast, cheapestDrawPrice, shopEntryVisible } from '@/discovery/discovery-stage';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { TabGlyph } from '@/navigation/tab-glyph';
-import { createShopApiClient } from '@/shop/shop-api';
-import { useShop } from '@/shop/use-shop';
 import { useShopAvatarAppearance } from '@/shop/use-shop-avatar-art';
 import { equippedClothingArt } from '@/shop/wardrobe';
 import { createStoreTicketApiClient } from '@/store-tickets/store-ticket-api';
@@ -56,12 +54,14 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const clearance = useTabBarClearance();
   const scrim = useStatusBarScrim();
   const experience = useExperience(apiUrl, credential, onSessionInvalid);
-  const shopApi = useMemo(() => createShopApiClient({ apiUrl, credential, onSessionInvalid }), [apiUrl, credential, onSessionInvalid]);
-  const shop = useShop(shopApi);
+  // GET /collection, /coin-shop and /shop are asked once per focus by the discovery provider; Home reads the same answers.
+  const discovery = useDiscovery();
+  const { stage, optIn, loadCollection, loadCoinShop } = discovery;
+  const shop = discovery.strip.shop;
   const clients = useMemo(() => {
     const options = { apiUrl, credential, onSessionInvalid };
-    return { studio: createStudioApiClient(options), coins: createCoinApiClient(options), rewards: createStoreTicketApiClient(options),
-      collection: createCommerceApiClient(options), merchants: createMerchantApiClient(apiUrl), recommendations: createRecommendationApiClient(options) };
+    return { studio: createStudioApiClient(options), rewards: createStoreTicketApiClient(options),
+      merchants: createMerchantApiClient(apiUrl), recommendations: createRecommendationApiClient(options) };
   }, [apiUrl, credential, onSessionInvalid]);
   const [loaded, setLoaded] = useState<{ clients: typeof clients; value: HomeData }>();
   const [refreshing, setRefreshing] = useState(false);
@@ -83,9 +83,9 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
       () => apply((data) => settleHomeSection(data, section, { ok: false })));
     await Promise.all([
       track('studio', clients.studio.getMine()),
-      track('coins', clients.coins.getShop()),
+      track('coins', loadCoinShop()),
       track('rewards', clients.rewards.listStoreTickets().then((tickets) => tickets.length)),
-      track('collection', clients.collection.getCollection().then((collection) => {
+      track('collection', loadCollection().then((collection) => {
         // Only someone with no visit yet needs a first store, and a revisit keeps the one already shown; a superseded load asks for nothing.
         if (request === generation.current && needsFirstStoreRecommendation(collection.visits.length, hadRecommendations)) {
           apply((data) => markHomePending(data, 'recommendations'));
@@ -96,7 +96,7 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
       track('merchants', clients.merchants.listMerchants()),
     ]);
     if (request === generation.current) setRefreshing(false);
-  }, [clients]);
+  }, [clients, loadCollection, loadCoinShop]);
   useFocusEffect(useCallback(() => { void load(); return () => { generation.current++; }; }, [load]));
   const data = loaded?.clients === clients ? loaded.value : undefined;
   const ticketGroups = new Map<string, { name: string; count: number; grade: string }>();
@@ -115,9 +115,17 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const heading = { color: world.cardInk, fontSize: 21, fontWeight: '800' as const };
   const body = { color: world.cardMuted, fontSize: 13, lineHeight: 19 };
   const quick = { flex: 1, minHeight: 66, borderRadius: 20, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4, backgroundColor: world.card };
+  // Progressive disclosure (Issue #412): the room and exhibit open after the first coin, friends and neighbours only by opt-in.
+  const showRoom = atLeast(stage, 'after-first');
+  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 without a ticket.
+  const errorText = homeErrorText(data?.errors ?? [], [...(showRoom ? [] : ['studio' as const]), ...(ticketGroups.size ? [] : ['coins' as const])]);
+  const quickRow = <View style={{ flexDirection: 'row', gap: 12 }}>
+    {optIn.social ? <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link> : null}
+    <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>
+  </View>;
   return <SkyBackdrop>
     <ScrollView onScroll={scrim.onScroll} scrollEventThrottle={16}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void load(true); void shop.refreshQuietly(); void experience.refresh(); }}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void load(true); discovery.refresh(); void experience.refresh(); }}
         tintColor={palette.primary} colors={[palette.primary]} progressBackgroundColor={world.card} progressViewOffset={insets.top} />}
       contentContainerStyle={{ paddingBottom: clearance + 8 }}>
       <AppHeader title="홈" showFriendsEntry showMailEntry compact />
@@ -134,28 +142,25 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
             <Text style={{ color: palette.onPrimaryContainer, fontSize: 17, fontWeight: '900' }}>{firstStore.name}</Text>
             <Text style={{ color: palette.onPrimaryContainer, fontSize: 13 }}>{firstStore.reason} 첫 코인과 방문 조건 보기 ›</Text>
           </Pressable></Link> : null}
-        {compactHome ? <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link>
-          <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>
-        </View> : null}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        {compactHome ? quickRow : null}
+        {showRoom ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text accessibilityRole="header" style={heading}>마이룸</Text>
           <Link href="/studio" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ minHeight: 44, paddingHorizontal: 16, borderRadius: 22, justifyContent: 'center', backgroundColor: world.card })}>
             <Text style={{ color: palette.primary, fontWeight: '800' }}>꾸미기</Text>
           </Pressable></Link>
-        </View>
-        {data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={displayStudioItems(data.studio)}
-          furnitureItems={data.studio.furnitureItems} avatar={data.studio.avatar} clothing={equippedClothingArt(shop.snapshot)} apiUrl={apiUrl}
+        </View> : null}
+        {showRoom ? data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={displayStudioItems(data.studio)}
+          furnitureItems={data.studio.furnitureItems} avatar={data.studio.avatar} clothing={equippedClothingArt(shop)} apiUrl={apiUrl}
           width={sceneWidth} height={sceneHeight} experienceProfile={experience.snapshot?.profile}
           emptyAction={emptyRoom && collectedCount > 0 ? { label: `수집품 ${collectedCount}개 · 방에 놓기`, onPress: () => router.push('/studio') } : undefined} /></View>
           : <View style={{ height: sceneHeight, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
             <Text style={body}>{failed('studio') ? '마이룸을 불러오지 못했어요.' : '마이룸을 불러오고 있어요.'}</Text>
             {failed('studio') ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: palette.primary }}>다시 불러오기</Text></Pressable> : null}
-          </View>}
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          </View> : null}
+        {ticketGroups.size ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text accessibilityRole="header" style={heading}>보유 뽑기권</Text>
           <Link href="/coin-shop" asChild><Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: palette.primary, fontSize: 13 }}>모두 보기</Text></Pressable></Link>
-        </View>
+        </View> : null}
         {ticketGroups.size ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingBottom: 6 }}>
           {[...ticketGroups].map(([id, ticket]) => <Link key={id} href="/coin-shop" asChild><Pressable accessibilityRole="button"
             accessibilityLabel={`${ticket.name} 뽑기권 ${ticket.count}장`} style={{ backgroundColor: world.card, borderRadius: 20, width: 154, padding: 12, alignItems: 'center', gap: 6 }}>
@@ -165,7 +170,7 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
             <Text style={{ color: world.cardInk, fontWeight: '800' }}>{ticket.name}</Text>
             <Text style={{ color: palette.primary, fontWeight: '800' }}>{ticket.count}장</Text>
           </Pressable></Link>)}
-        </ScrollView> : <FloatingCard><Text style={body}>{data?.coinShop ? '아직 뽑기권이 없어요. 가게를 둘러보고 열려 있는 뽑기를 확인해 보세요.' : failed('coins') ? '뽑기권을 불러오지 못했어요.' : '뽑기권 확인 중'}</Text></FloatingCard>}
+        </ScrollView> : null}
         <Link href="/home/missions" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ backgroundColor: world.card, padding: 16, borderRadius: 20, gap: 10 })}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <View><Text style={{ ...heading, fontSize: 17 }}>방문 목표</Text><Text style={body}>{goal ? `${goal.name} · ${goal.count}회 방문` : goal === null ? '첫 가게에서 시작해 보세요' : failed('collection') || failed('merchants') ? '방문 목표를 불러오지 못했어요' : '방문 목표 확인 중'}</Text></View>
@@ -180,16 +185,19 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
         {data?.rewardCount ? <Link href="/home/tickets" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ backgroundColor: palette.primaryContainer, padding: 12, minHeight: 48, borderRadius: 16, justifyContent: 'center' })}>
           <Text style={{ color: palette.onPrimaryContainer, fontWeight: '800' }}>도착한 방문 보상 {data.rewardCount}개 열기</Text>
         </Pressable></Link> : null}
-        {!compactHome ? <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link>
-          <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>
+        {shopEntryVisible(stage, shop?.mileage.balance ?? 0, cheapestDrawPrice(shop)) ? <Link href="/shop" asChild><Pressable accessibilityRole="button"
+          accessibilityLabel={`마일리지 ${shop?.mileage.balance ?? 0}포인트로 상점에서 뽑기를 해 볼 수 있어요`}
+          style={StyleSheet.flatten({ backgroundColor: palette.primaryContainer, padding: 12, minHeight: 48, borderRadius: 16, justifyContent: 'center', gap: 2 })}>
+          <Text style={{ color: palette.onPrimaryContainer, fontWeight: '800' }}>마일리지로 뽑기를 해 볼 수 있어요</Text>
+          <Text style={{ color: palette.onPrimaryContainer, fontSize: 13 }}>Ⓟ {(shop?.mileage.balance ?? 0).toLocaleString('ko-KR')} 보유 · 상점 보기 ›</Text>
+        </Pressable></Link> : null}
+        {!compactHome ? quickRow : null}
+        {showRoom || optIn.social ? <View style={{ flexDirection: 'row', gap: 12 }}>
+          {showRoom ? <Link href="/home/exhibit" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>동행·코인 전시</Text></Pressable></Link> : null}
+          {optIn.social ? <Link href="/room-explore" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>가게 이웃 만나기</Text></Pressable></Link> : null}
         </View> : null}
-        <View style={{ flexDirection: 'row', gap: 12 }}>
-          <Link href="/home/exhibit" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>동행·코인 전시</Text></Pressable></Link>
-          <Link href="/room-explore" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>가게 이웃 만나기</Text></Pressable></Link>
-        </View>
-        {homeErrorText(data?.errors ?? []) ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}>
-          <Text accessibilityLiveRegion="polite" style={{ ...body, color: palette.error }}>{homeErrorText(data?.errors ?? [])}</Text>
+        {errorText ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}>
+          <Text accessibilityLiveRegion="polite" style={{ ...body, color: palette.error }}>{errorText}</Text>
         </Pressable> : null}
       </View>
     </ScrollView><StatusBarScrim scrollY={scrim.scrollY} />
@@ -310,6 +318,6 @@ function makeHomeStyles(palette: ReturnType<typeof colorsForScheme>, world: Retu
     goalRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
     goalPill: { flex: 1, alignItems: 'center', gap: 3, paddingVertical: 10, borderRadius: 12, backgroundColor: palette.primaryContainer },
     goalNumber: { color: palette.onPrimaryContainer, fontSize: 18, lineHeight: 24, fontWeight: '900' },
-    goalLabel: { color: palette.onPrimaryContainer, fontSize: 11, lineHeight: 15, fontWeight: '800' },
+    goalLabel: { color: palette.onPrimaryContainer, fontSize: 12, lineHeight: 16, fontWeight: '800' },
   } satisfies Record<string, TextStyle | ViewStyle>;
 }

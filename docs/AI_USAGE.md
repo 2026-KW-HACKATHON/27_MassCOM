@@ -11,6 +11,12 @@
 - PR 본문의 "독립 리뷰"는 AI 세션의 판정입니다. 사람이 코드를 따로 리뷰하는 일은 남아 있습니다.
 - 사람 검토가 남은 항목: 팀 전원의 핵심 흐름·AI 사용·한계 설명 확인, 사람의 발표 리허설, 최신 APK 실기·TalkBack(`NOT_RUN`), 현장 자료(`NOT_RUN`), 이용약관·개인정보처리방침 법률 검토, 대회 최종 제출 승인입니다.
 
+## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c)
+
+Claude Opus 5.5가 지휘와 통합을 맡았다. Claude Sonnet 5.5 서브에이전트가 앱 코드와 시험을 구현했다(점진적 공개 `src/discovery/*`와 홈·도감·설정의 입구 정리, 점주 단계 카드와 1인 2역 넘김, 방문 완료 뒤 마일리지 줄, 글자·터치 최소 크기, 죽은 코드·개발용 경로 정리). 교차 리뷰는 Claude Sonnet과 Claude Opus가 구현과 다른 세션에서 했고 둘 다 반드시 고칠 것(🔴) 없이 변경을 요청했다. 지적 가운데 🟠 둘(넘김 값이 계정에 묶이지 않음, 친구가 있는 기존 사용자가 입구를 잃음)과 🟡들을 Claude Sonnet 5.5 세션이 반영하고 문서를 썼다. Codex는 쓰지 않았다(2026-10-08 소유자 지시: 이미지 생성에만 사용). 자기 구현을 같은 세션에서 승인하지 않았다.
+
+사람의 결정은 소유자 2026-10-08 방향(첫 코인부터 보이고 나머지는 필요할 때, 친구·쪽지와 놀이는 새 사용자에게만 숨김, 점주 시연 "1인 2역")과 배포 동결(소유자 결정 A)이다([DECISIONS](DECISIONS.md) D-090·D-091). AI 판정의 "독립 리뷰"는 사람의 코드 리뷰를 대신하지 않는다. 실제 기기·시연 웹 확인은 사람 몫으로 남았다([HANDOFF](HANDOFF.md)). 실제 실행한 검사는 [TEST_STATUS](TEST_STATUS.md)에 있다.
+
 ## 2026-10-08 API 서버 구조 정리 (Issue #412 트랙 T1)
 
 Claude Opus 5.5가 지휘와 통합, 교차 평가를 맡았다. Claude Sonnet 5.5 서브에이전트가 세 세션에 걸쳐 구현했다. 앞의 두 세션은 `apps/api/src/server.ts`의 요청·응답 도우미(`http/`), 의존성·인스턴스 상태(`api-deps.ts`, `api-runtime.ts`)와 경로 처리기 17개(`routes/`)를 옮겼고, 마지막 세션은 교차 리뷰 지적 반영(deps 한 번 얼리기, 기본값 한곳, 콜백 쿠키·삭제 접수 배선 시험, `Required<ExperienceServices>` 깊은 완결 검사)과 이 문서 갱신을 맡았다. 교차 리뷰는 Claude Sonnet과 Claude Opus가 구현과 다른 세션에서 했고 둘 다 승인(🔴 0·🟠 0)했으며 🟡 5건을 마지막 세션에서 고쳤다. Codex는 쓰지 않았다(2026-10-08부터 소유자 지시로 이미지 생성 외에는 쓰지 않는다).
@@ -24,7 +30,7 @@ Claude Sonnet 5.5 서브에이전트 둘이 구현했다. 하나는 가동 점�
 ## 2026-10-08 NFT 발행 Worker 상시 실행(반복 루프) 구현 (D-089)
 
 - Claude Sonnet 5.5가 소유자 지시("B안대로 구현")에 따라 Worker 반복 루프(`worker-loop.ts`·`run-worker-loop.ts`), 실행기 분리(`createConfiguredWorker`), 게이트웨이 조회 시작 블록 갱신(`setScanFromBlock`), `worker.Dockerfile`, 운영 compose의 `nft-live` 프로파일 서비스, 시험, 문서를 작성했다. 설계 추천과 구현이 같은 세션이었으므로 구현 세션 밖에서 독립 리뷰를 받았다(아래).
-- 검증은 [TEST_STATUS](TEST_STATUS.md)의 같은 날짜 항목을 따른다. 브랜치 `feat/worker-continuous-loop`는 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이다. 일회용 컨테이너 리허설에 쓴 keystore는 그 실행에서만 만든 임의 키이며 저장하지 않았다. 사용자·운영 키와 DB는 쓰지 않았다.
+- 검증은 [TEST_STATUS](TEST_STATUS.md)의 같은 날짜 항목을 따른다. 브랜치 `feat/worker-continuous-loop`는 [PR #420](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/420)이며 main `48a14811`에 병합됐다. 일회용 컨테이너 리허설에 쓴 keystore는 그 실행에서만 만든 임의 키이며 저장하지 않았다. 사용자·운영 키와 DB는 쓰지 않았다.
 - **독립 리뷰(2026-10-08):** 구현과 다른 컨텍스트의 Claude Sonnet 리뷰와 Claude Opus 리뷰가 각각 PR #420을 검토했다. 둘 다 🔴는 없고 변경을 요청했으며, 지적은 같은 날 Claude Sonnet 5.5가 고쳤다: ethers `waitForTransaction`의 RPC 주소 로그 노출·프로세스 종료·타이머 누수(직접 만든 유한 조회로 대체), 잡히지 않은 오류 처리(`MINT_WORKER_CRASHED`), DB 풀 'error' 리스너, 결정 번호 충돌(D-080 → D-089), `CHAIN_FROM_BLOCK` 기본값, 임대 소유자 중복, 하트비트 서술, 배포 절차 문서와 시험 보강. Opus 재리뷰가 `e3c156fc`를 🔴 0·🟠 0으로 승인했고 그 🟡 지적은 이어진 커밋에서 같은 모델이 고쳤으며(재리뷰 없음) 자동 시험과 `tools/gate.sh`로 확인했다. 이 리뷰도 AI 세션의 판정이며 사람의 코드 리뷰는 남아 있다. 그 뒤 main `cd01c0d6`(PR #421·#422 병합)을 이 브랜치에 병합하고 문서 충돌을 정리하는 일은 Claude Sonnet 5.5 서브에이전트가 했다(재작성·force push 없이 병합 커밋으로).
 
 ## 2026-10-08 첫 사용 경험 (Issue #412)

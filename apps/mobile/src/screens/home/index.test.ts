@@ -10,8 +10,10 @@ const exhibit = read('./home-exhibit.tsx');
 const layout = read('../../app/_layout.tsx');
 
 test('home loads real room, ticket, reward, collection and merchant data', () => {
-  for (const request of ['clients.studio.getMine()', 'clients.coins.getShop()', 'clients.rewards.listStoreTickets()',
-    'clients.collection.getCollection()', 'clients.merchants.listMerchants()']) assert.ok(home.includes(request), request);
+  // Collection and coin shop come from the one discovery provider request per focus (also read by the profile strip), not a second copy here.
+  for (const request of ['clients.studio.getMine()', 'loadCoinShop()', 'clients.rewards.listStoreTickets()',
+    'loadCollection()', 'clients.merchants.listMerchants()']) assert.ok(home.includes(request), request);
+  assert.doesNotMatch(home, /createCommerceApiClient|createCoinApiClient|createShopApiClient|useShop\(/);
   // Each request settles into its own section (home-load.ts), so no single slow request holds the whole screen back.
   assert.doesNotMatch(home, /Promise\.allSettled\(/);
   for (const section of ['studio', 'coins', 'rewards', 'collection', 'merchants']) assert.match(home, new RegExp(`track\\('${section}', `), section);
@@ -96,11 +98,36 @@ test('a visitor with no visit gets one highlighted first store, and an empty roo
 
 test('each home section names its own loading or failure instead of waiting for the others', () => {
   assert.match(overview, /failed\('studio'\) \? '마이룸을 불러오지 못했어요\.' : '마이룸을 불러오고 있어요\.'/);
-  assert.match(overview, /failed\('coins'\) \? '뽑기권을 불러오지 못했어요\.' : '뽑기권 확인 중'/);
+  // 보유 뽑기권 has no empty heading or "none yet" card any more: it appears only with a ticket, and a failed read is still named below.
+  assert.doesNotMatch(overview, /뽑기권을 불러오지 못했어요|뽑기권 확인 중|아직 뽑기권이 없어요/);
+  assert.match(overview, /\{ticketGroups\.size \? <View[^>]*>\s*<Text accessibilityRole="header" style=\{heading\}>보유 뽑기권<\/Text>/);
+  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 without a ticket.
+  assert.match(overview, /const errorText = homeErrorText\(data\?\.errors \?\? \[\], \[\.\.\.\(showRoom \? \[\] : \['studio' as const\]\), \.\.\.\(ticketGroups\.size \? \[\] : \['coins' as const\]\)\]\);/);
+  assert.match(overview, /\{errorText \? <Pressable[\s\S]*?\{errorText\}<\/Text>/);
   assert.match(overview, /failed\('collection'\) \|\| failed\('merchants'\) \? '방문 목표를 불러오지 못했어요'/);
 });
 
 test('a superseded or revisited load never asks for a recommendation, so the first-store card does not flicker or swap', () => {
   assert.match(overview, /const hadRecommendations = loadedRef\.current\?\.clients === clients && loadedRef\.current\.value\.recommendations !== undefined;/);
   assert.match(overview, /request === generation\.current && needsFirstStoreRecommendation\(collection\.visits\.length, hadRecommendations\)/);
+});
+
+test('progressive disclosure: the room and exhibit open after the first coin; friends and neighbours only by opt-in', () => {
+  assert.match(overview, /const \{ stage, optIn, loadCollection, loadCoinShop \} = discovery;/);
+  assert.match(overview, /const showRoom = atLeast\(stage, 'after-first'\);/);
+  // Both room blocks (heading + scene) are behind showRoom; the first-coin empty-room action stays on the scene.
+  assert.match(overview, /\{showRoom \? <View[^>]*>\s*<Text accessibilityRole="header" style=\{heading\}>마이룸<\/Text>/);
+  assert.match(overview, /\{showRoom \? data\?\.studio \? <View[\s\S]*?<StudioScene/);
+  assert.match(overview, /emptyAction=\{emptyRoom && collectedCount > 0 \?/);
+  assert.match(overview, /\{showRoom \? <Link href="\/home\/exhibit" asChild>/);
+  assert.match(overview, /\{optIn\.social \? <Link href="\/friends" asChild>/);
+  assert.match(overview, /\{optIn\.social \? <Link href="\/room-explore" asChild>/);
+  // 방문 인증 stays the one always-on quick action; a row with nothing in it is not drawn.
+  assert.match(overview, /<Link href="\/claim" asChild>/);
+  assert.match(overview, /\{showRoom \|\| optIn\.social \? <View/);
+});
+
+test('the shop card appears right after the first coin once a draw is affordable, with the price from the server', () => {
+  assert.match(overview, /shopEntryVisible\(stage, shop\?\.mileage\.balance \?\? 0, cheapestDrawPrice\(shop\)\)/);
+  assert.match(overview, /<Link href="\/shop" asChild>/);
 });
