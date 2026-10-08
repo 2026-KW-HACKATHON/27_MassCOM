@@ -42,6 +42,10 @@ function animatedWebpUrl(width: number, height: number): string {
 // 모든 v2 신규 기능을 쓰는 "완전한" 프로젝트. publish=true까지 그대로 통과해야 하고, 각 시험은 이 기준에서 항목 하나만 어긋낸다.
 function richProject(): CollectibleProject {
   const project = photoProject();
+  // These schema tests exercise the generic v2 validation/snapshot contract, not the
+  // Postgres standard-visit publish normalization. Keep a custom linked grade so
+  // custom-scoped living/motion/effect requirements stay meaningful.
+  project.rewardGrades = { '1': 'bronze', '3': 'custom' };
   project.stickers = [
     { id: 'face-1', kind: 'mascot', text: 'wave', x: .5, y: .3, size: 40, rotation: 0, color: '#ffffff', order: 0, align: 'center', layouts: { custom: { x: .4, y: .3, size: 50, rotation: 10 } } },
     { id: 'label-1', kind: 'text', text: '어서오세요', x: .3, y: .7, size: 30, rotation: 0, color: '#ffffff', order: 1, align: 'left', layouts: {} },

@@ -50,3 +50,9 @@ B-028이 지적한 "시연 직원 부여는 감사 행이 없다"(`grant-staff.t
 
 - `BLOCKED` 환경: 이 sandbox에서 `cd apps/mobile && node ../../scripts/audit-ci.mjs`(종료 1, 결과를 읽지 못함)와 `npm audit --omit=dev --json`을 실행했지만 registry DNS 접근이 차단됐다(`ENOTFOUND registry.npmjs.org`; 재시도 0회·요청 상한 5초로 실행, 로그 `/private/tmp/343-round2-live-check.log`·`/private/tmp/343-round2-live-audit.json`). 네트워크가 가능한 환경에서 같은 명령으로 재검증한다.
 - 수정 1차의 전체 순회가 `expo`·`react-native` 이후 런타임 의존까지 검사하던 설계 문제는 두 단계 `levels` 검사로 해소했다. 제공된 실제 덤프(`/private/tmp/claude-501/audit-mobile.json`) 전체 재평가는 `PASS`(실패 0개·braces/node-forge 예외 2개), 관련 항목을 복사한 내장 fixture 회귀 시험도 `PASS`이며 실시간 audit 통과와는 구분한다.
+
+
+## 2026-10-09 PR #418 리뷰 수정 검증 제한
+
+- `BLOCKED`(현재 restricted macOS 환경): `node --test tests/site/verify_showcase_theme_test.mjs`는 Chrome이 DevTools 파일을 만들기 전에 `exit=null signal=SIGABRT`로 종료한다. 전체 사이트 시험과 단독 재실행에서 같은 환경 현상을 두 번 확인했다. 최소 재현은 위 단독 명령이며 로그는 `/private/tmp/pr418-site.log`·`/private/tmp/pr418-chrome-retry.log`다. 라이트·다크 계산 색/대비 assertion은 삭제하거나 건너뛰지 않았다. Chrome 기동이 가능한 환경에서 원래 명령을 다시 실행한다.
+- `BLOCKED`(미커밋 HEAD 검사의 한계): `bash scripts/check-large-files.sh origin/main`과 `bash tools/gate.sh`는 작업 트리에서 삭제한 v1 PNG 24장을 아직 남아 있는 HEAD blob으로 검사해 실패한다. 현재 작업 트리에는 두 v1 디렉터리가 없으며 24개 예외도 삭제했다. staging·commit 금지 지시를 지키기 위해 임의 커밋이나 가드 우회를 하지 않았다. 오케스트레이터가 삭제를 커밋한 뒤 두 명령을 다시 실행한다. 로그는 `/private/tmp/pr418-large-files.log`·`/private/tmp/pr418-gate.log`다.

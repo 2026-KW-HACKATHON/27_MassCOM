@@ -11,6 +11,7 @@ export type CollectibleLiving = {
 };
 export type PublishedCollectible = CollectibleArtwork & {
   imageDataUrl: string; thickness: number; angle: number; animation: string;
+  rotationSpeed?: number;
   greeting: string; audio: null | { dataUrl: string; mimeType: string; durationSeconds: number };
   story: { type: 'none' | 'zoom' | 'wide' | 'follow' | 'event'; frames: { dataUrl: string; width: number; height: number }[]; cartoon: number; strength: number };
   /** v2 (Issue #284); absent on holders published before WP1/WP2/WP3 or when the web editor hasn't generated them yet. */
@@ -81,7 +82,7 @@ export function parseCollectibleArtwork(value: unknown): CollectibleArtwork | un
 
 export function parsePublishedCollectible(value: unknown): PublishedCollectible | undefined {
   const artwork = parseCollectibleArtwork(value);
-  if (!artwork || !record(value) || !image(value.imageDataUrl) || !inRange(value.thickness, 1, 24)
+  if (!artwork || !record(value) || !image(value.imageDataUrl) || !inRange(value.thickness, 1, 48)
     || !inRange(value.angle, -180, 180) || typeof value.animation !== 'string' || !animations.includes(value.animation)
     || typeof value.greeting !== 'string' || value.greeting.length > 300
     || !record(value.story) || typeof value.story.type !== 'string' || !['none', 'zoom', 'wide', 'follow', 'event'].includes(value.story.type)
@@ -107,6 +108,7 @@ export function parsePublishedCollectible(value: unknown): PublishedCollectible 
   const motions = parseMotions(value.motions);
   return { ...artwork, imageDataUrl: value.imageDataUrl, thickness: value.thickness, angle: value.angle,
     animation: value.animation, greeting: value.greeting, audio,
+    ...(inRange(value.rotationSpeed, .25, 3) ? { rotationSpeed: value.rotationSpeed } : {}),
     story: { type: value.story.type as PublishedCollectible['story']['type'], frames, cartoon: value.story.cartoon, strength: value.story.strength },
     ...(backImageDataUrl !== undefined ? { backImageDataUrl } : {}),
     ...(angleFrames !== undefined ? { angleFrames } : {}),

@@ -32,12 +32,12 @@ export const gradeMaterialPresets: Readonly<Record<GradeMaterial, GradeMaterialP
     bandWidth: .22, baseOpacity: .10, intensity: .50, sweepPeriodMs: 3400, cardPeriodMs: 4000, glintCount: 0, glintFloor: 0, rainbowStops: [] },
   gold: { material: 'gold', tint: '#F5B82E', colors: ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C'],
     bandWidth: .22, baseOpacity: .22, intensity: .80, sweepPeriodMs: 3000, cardPeriodMs: 4000, glintCount: 5, glintFloor: .60, rainbowStops: [] },
-  prism: { material: 'prism', tint: '#B8E9FF', colors: ['#67E8F9', '#E8C5FF', '#FFFFFF'],
+  prism: { material: 'prism', tint: '#8B5CF6', colors: ['#00D5FF', '#8B5CF6', '#FF2DB8', '#FFFFFF'],
     bandWidth: .24, baseOpacity: .44, intensity: .85, sweepPeriodMs: 2800, cardPeriodMs: 4000, glintCount: 10, glintFloor: 0,
-    rainbowStops: ['#52E5EF', '#9B72FF', '#F68CCF', '#FFD66F', '#7EE7BB', '#52E5EF'] },
+    rainbowStops: ['#00D5FF', '#8B5CF6', '#FF2DB8', '#38F8C8', '#C026D3', '#00D5FF'] },
 };
 
-export const PRISM_FOIL_STOPS = ['#00E5FF', '#8E4DFF', '#FF4ABA', '#FFD447', '#39EDAC', '#00E5FF'] as const;
+export const PRISM_FOIL_STOPS = ['#00D5FF', '#8B5CF6', '#FF2DB8', '#38F8C8', '#C026D3', '#00D5FF'] as const;
 // 일반 알파 합성으로 흰 그림에도 샴페인 금빛과 유색 반사띠가 남게 한다.
 export const GOLD_WARM_STOPS = ['#FFB300', '#FFE08A', '#C98A00'] as const;
 export const GOLD_BAND_STOPS = [

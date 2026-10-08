@@ -1,0 +1,69 @@
+{
+  "platform": "android",
+  "command": "npx --no-install expo export --platform android",
+  "success": true,
+  "count": 12,
+  "assets": [
+    {
+      "file": "circle-bronze.png",
+      "bundlePath": "assets\\a91ba473dba9ab265501d00b0953ef3c",
+      "sha256": "c03e354a03854bf1e845c376eb4fd016298b5ced34489b8526f6b0970533e6ba"
+    },
+    {
+      "file": "circle-gold.png",
+      "bundlePath": "assets\\40467cee0b571d1c7f72e6a22c4b74d2",
+      "sha256": "5d6acd8623632e79e1e2188a82a1b383cb5b335c6cded40e9c5da859e82d2ba5"
+    },
+    {
+      "file": "circle-prism.png",
+      "bundlePath": "assets\\5a163b72f57c5bd88d32680f9e7c0c23",
+      "sha256": "24d004ba401d348cf9a5b011457b7a59d486a3358b00791269192d31777fdcd2"
+    },
+    {
+      "file": "circle-silver.png",
+      "bundlePath": "assets\\3f9bb6e1180640634f1500df68029c88",
+      "sha256": "7f192828bb842fe5cb40265fe73d292a67416fc0f34e6513dddaa3423595d227"
+    },
+    {
+      "file": "serrated-bronze.png",
+      "bundlePath": "assets\\2313042db423987ffdd52ebc3e54a52b",
+      "sha256": "fa3ee80ed767d37b7ef1c90e5e3d6579795c0823281285f203682020654f8131"
+    },
+    {
+      "file": "serrated-gold.png",
+      "bundlePath": "assets\\6e62f169c9079c0354f58180efdea8df",
+      "sha256": "792c8538b75d858ee3da2f704475a782c5fa70d8c1b798f094a1a1dd570b62ae"
+    },
+    {
+      "file": "serrated-prism.png",
+      "bundlePath": "assets\\2cc91692b516863cdee6f237d8e0581c",
+      "sha256": "e6bdb05457d2ca6591f59318f592379821beeba5a4a59a73c65b9451bb6f900b"
+    },
+    {
+      "file": "serrated-silver.png",
+      "bundlePath": "assets\\5ac04d8c279ad891ac87d3148d76b276",
+      "sha256": "565cd1d92fd591f89c8d5dc318c03446846fa223c9762258a353e8ed3e81cda6"
+    },
+    {
+      "file": "stamp-bronze.png",
+      "bundlePath": "assets\\52b8986868035854e848892918fde146",
+      "sha256": "431962007ad1144559b2c94dbce404f680684f39dc2e3743ed8cb86b188b3d28"
+    },
+    {
+      "file": "stamp-gold.png",
+      "bundlePath": "assets\\43bcf65be6749db132a4a0b0a5496dad",
+      "sha256": "33daf2284a49728d05db323bbe857ac9c8061ab83b274a5998681dfaa9916c8a"
+    },
+    {
+      "file": "stamp-prism.png",
+      "bundlePath": "assets\\5ad4a1c347834f5fe409a98b005453ba",
+      "sha256": "c1e9019f6b32398865dd12db950a593cf6ba3b099a257090dc4367e7bfc132dc"
+    },
+    {
+      "file": "stamp-silver.png",
+      "bundlePath": "assets\\fdf9d91a63486d5f4a39cd0328d3dfdc",
+      "sha256": "d73283dbc3f64de75772a9295d906c194769b0989ca8a25944f22403435cf03a"
+    }
+  ],
+  "limitation": "Bundle export only; APK and physical-device rendering not run"
+}

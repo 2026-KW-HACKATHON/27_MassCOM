@@ -2,6 +2,10 @@ import { createServer as createHttpServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  COLLECTIBLE_BACK_FILES,
+  COLLECTIBLE_BACK_VERSION,
+} from './assets/collectible-back-assets.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const files = new Map([
@@ -25,9 +29,14 @@ for (const prefix of ['/assets/', '/app/assets/', '/admin/assets/', '/merchant/a
   files.set(`${prefix}real-world-merchant.mjs`, ['assets/real-world-merchant.mjs', 'text/javascript; charset=utf-8']);
   files.set(`${prefix}real-world-merchant.css`, ['assets/real-world-merchant.css', 'text/css; charset=utf-8']);
 }
-for (const file of ['collectible-model.mjs', 'collectible-errors.mjs', 'collectible-assist.mjs', 'collectible-editor.mjs', 'collectible-studio.mjs', 'collectible-waveform.mjs', 'collectible-renderer.mjs', 'collectible-viewer.mjs', 'collectible-editor.css', 'collectible-viewer.css']) {
+for (const file of ['collectible-model.mjs', 'collectible-back-assets.mjs', 'collectible-errors.mjs', 'collectible-assist.mjs', 'collectible-editor.mjs', 'collectible-studio.mjs', 'collectible-waveform.mjs', 'collectible-renderer.mjs', 'collectible-viewer.mjs', 'collectible-editor.css', 'collectible-viewer.css']) {
   const mime = file.endsWith('.css') ? 'text/css; charset=utf-8' : 'text/javascript; charset=utf-8';
   for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) files.set(`${prefix}${file}`, [`assets/${file}`, mime]);
+}
+for (const file of COLLECTIBLE_BACK_FILES) {
+  for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) {
+    files.set(`${prefix}collectible-backs/${COLLECTIBLE_BACK_VERSION}/${file}`, [`assets/collectible-backs/${COLLECTIBLE_BACK_VERSION}/${file}`, 'image/webp']);
+  }
 }
 // 마스코트 스티커·뒷면 도장이 쓰는 얼굴 포즈. collectible-model.mjs MASCOT_POSES/MASCOT_BLINK와 파일 이름을 맞춘다.
 // HTTP 모듈 import 크롤 시험은 이미지 URL을 따라가지 않으므로, collectible-mascot-assets.test.mjs가 이 목록을 따로 확인한다.

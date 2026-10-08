@@ -4263,6 +4263,117 @@ test('art routes need customer auth and MANAGE_ART before touching the service',
   ]);
 });
 
+async function startWebArt(t: TestContext, merchantArt?: MerchantArtService) {
+  const calls: unknown[][] = [];
+  let allowed = true;
+  let member = true;
+  const webAuth: TestWebAuth = {
+    start: async () => { throw new Error('not used'); }, complete: async () => { throw new Error('not used'); },
+    resolveSession: async token => {
+      if (token !== 'owner-cookie') throw new WebAuthError('WEB_AUTH_STATE_INVALID');
+      return 'owner-web';
+    }, logout: async () => {},
+  };
+  const staff = { mine: async (accountId: string) => {
+    calls.push(['mine', accountId]);
+    return member ? [{ id: 'shop-1', name: '웹 점포', role: 'OWNER' as const }] : [];
+  } } as unknown as Pick<PostgresStaffRegistration, 'request' | 'approve' | 'revoke' | 'mine' | 'eligible' | 'list'>;
+  const access: MerchantAccessFixture = { requirePermission: async input => {
+    calls.push(['permission', input]);
+    if (!allowed) throw new MerchantAccessError('MERCHANT_ACCESS_DENIED');
+    return { merchantId: input.merchantId, role: 'OWNER', permissions: ['MANAGE_ART'] };
+  } };
+  const base = await startFixture(t, undefined, undefined, access, undefined, undefined,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, false,
+    webAuth, false, undefined, undefined, staff, undefined, undefined, undefined, merchantArt);
+  return {
+    base, calls,
+    denyAccess: () => { allowed = false; },
+    loseMembership: () => { member = false; },
+  };
+}
+
+test('web merchant art routes use the HttpOnly web session, MANAGE_ART and membership before the shared art contract', async (t) => {
+  const artCalls: unknown[][] = [];
+  const { base, calls, denyAccess, loseMembership } = await startWebArt(t, artFixture({
+    getState: async (merchantId) => { artCalls.push(['state', merchantId]); return { configured: true, current: null,
+      quota: { draftRoundsLeft: 3, finalsLeft: 3 }, round: null }; },
+    createRound: async (input) => { artCalls.push(['create', input]); return { ...sampleArtRound, status: 'DRAFTING', drafts: [] }; },
+    getRound: async (input) => { artCalls.push(['get', input]); return sampleArtRound; },
+    chooseDraft: async (input) => { artCalls.push(['choose', input]); return { ...sampleArtRound, chosenIndex: input.index }; },
+    apply: async (input) => { artCalls.push(['apply', input]); return { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` }; },
+    reset: async (input) => { artCalls.push(['reset', input]); },
+  }));
+  const cookie = 'web_session=owner-cookie';
+  const headers = { cookie, origin: 'https://masscom.kr', 'content-type': 'application/json' };
+  const prefix = '/api/web/merchant/merchants/shop-1/art';
+  const roundId = sampleArtRound.id;
+  const read = (path = prefix, customHeaders: Record<string, string> = { cookie }, host = 'masscom.kr') =>
+    webRequest(base, path, { headers: customHeaders, host });
+  const write = (path: string, method = 'POST', body = '{}', customHeaders: Record<string, string> = headers, host = 'masscom.kr') =>
+    webRequest(base, path, { method, headers: customHeaders, host, body });
+
+  assert.equal((await read(prefix, {})).status, 401);
+  assert.equal((await write(`${prefix}/rounds`, 'POST', '{}', { ...headers, origin: 'https://attacker.example' })).status, 403);
+  assert.equal((await write(`${prefix}/rounds`, 'POST', '{}', { ...headers, 'content-type': 'text/plain' })).status, 403);
+  assert.equal((await read(prefix, { cookie }, 'attacker.example')).status, 403);
+  assert.deepEqual(artCalls, []);
+
+  const state = await read();
+  assert.equal(state.status, 200);
+  assert.equal(state.headers.get('cache-control'), 'no-store');
+  assert.equal(state.headers.get('x-robots-tag'), 'noindex, nofollow');
+  const created = await write(`${prefix}/rounds`);
+  assert.equal(created.status, 202);
+  assert.equal((await created.json() as ArtRoundView).status, 'DRAFTING');
+  assert.equal((await read(`${prefix}/rounds/${roundId}`)).status, 200);
+  const chosen = await write(`${prefix}/rounds/${roundId}/choose`, 'POST', '{"index":2}');
+  assert.equal(chosen.status, 202);
+  assert.equal((await chosen.json() as ArtRoundView).chosenIndex, 2);
+  const applied = await write(`${prefix}/rounds/${roundId}/apply`);
+  assert.equal(applied.status, 200);
+  assert.deepEqual(await applied.json(), { artUrl: `/merchant-art/${'a'.repeat(64)}.webp` });
+  const reset = await write(prefix, 'DELETE');
+  assert.equal(reset.status, 200);
+  assert.deepEqual(await reset.json(), { status: 'RESET' });
+  assert.deepEqual(artCalls, [
+    ['state', 'shop-1'], ['create', { merchantId: 'shop-1', accountId: 'owner-web' }],
+    ['get', { merchantId: 'shop-1', roundId }],
+    ['choose', { merchantId: 'shop-1', roundId, index: 2, accountId: 'owner-web' }],
+    ['apply', { merchantId: 'shop-1', roundId, accountId: 'owner-web' }],
+    ['reset', { merchantId: 'shop-1', accountId: 'owner-web' }],
+  ]);
+  assert.ok(calls.filter(call => call[0] === 'permission')
+    .every(call => (call[1] as { permission: string }).permission === 'MANAGE_ART'));
+
+  const served = artCalls.length;
+  denyAccess();
+  const forbidden = await read();
+  assert.equal(forbidden.status, 403);
+  assert.deepEqual(await forbidden.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  assert.equal(artCalls.length, served);
+  loseMembership();
+  const outsider = await write(`${prefix}/rounds`);
+  assert.equal(outsider.status, 403);
+  assert.deepEqual(await outsider.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+  assert.equal(artCalls.length, served);
+});
+
+test('web merchant art routes report provider disabled only after the web access boundary passes', async (t) => {
+  const { base, denyAccess } = await startWebArt(t, undefined);
+  const cookie = 'web_session=owner-cookie';
+  const route = '/api/web/merchant/merchants/shop-1/art/rounds';
+  const okBoundary = await webRequest(base, route, { method: 'POST',
+    headers: { cookie, origin: 'https://masscom.kr', 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(okBoundary.status, 503);
+  assert.deepEqual(await okBoundary.json(), { code: 'AI_ART_NOT_CONFIGURED' });
+  denyAccess();
+  const forbidden = await webRequest(base, route, { method: 'POST',
+    headers: { cookie, origin: 'https://masscom.kr', 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(forbidden.status, 403);
+  assert.deepEqual(await forbidden.json(), { code: 'MERCHANT_ACCESS_DENIED' });
+});
+
 test('art routes reject malformed input before calling the service', async (t) => {
   const { base } = await startArt(t, artFixture());
   const owner = { 'x-account-id': 'owner-1', 'content-type': 'application/json' };
@@ -5438,7 +5549,7 @@ test('notification API binds token to the resolved account and bearer session; r
   assert.deepEqual(calls, [['player','device','session-token'], ['player','device','fcm-token','android','session-token']]);
 });
 
-test('merchant self-service uses web session and CSRF, forwards campaign CAS, and returns a downloadable UTF-8 CSV', async (t) => {
+test('merchant self-service uses web session and CSRF, rejects removed extension before rate limiting, and returns a downloadable UTF-8 CSV', async (t) => {
   const calls: unknown[] = [];
   const args: Parameters<typeof startFixture> = [t];
   args[14] = intakeWebAuth('owner');
@@ -5448,7 +5559,6 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   const campaign = { id: 'campaign', title: '점포 캠페인', status: 'ACTIVE' as const, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-11-01T00:00:00Z', isPublic: true };
   args[37] = { merchantOperations: {
     listCampaigns: async (...input) => { calls.push(input); return [campaign]; },
-    extendCampaign: async input => { calls.push(input); return { ...campaign, replayed: false }; },
     listStaff: async () => [staff], approveStaff: async () => staff,
     updateStaffPermissions: async input => { calls.push(input); return staff; },
     revokeStaff: async input => { calls.push(input); },
@@ -5461,7 +5571,10 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   const body = JSON.stringify({ days: 30, expectedEndsAt: campaign.endsAt, consentAccepted: true, requestId: 'same-request' });
   assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST',
     headers: { ...headers, origin: 'https://untrusted.example' }, body })).status, 403);
-  assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 200);
+  assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 404);
+  for (let attempt = 0; attempt < 120; attempt++) {
+    assert.equal((await webRequest(base, root + '/campaigns/campaign/extend', { method: 'POST', headers, body })).status, 404);
+  }
   assert.equal((await webRequest(base, root + '/staff/staff', { method: 'PATCH', headers,
     body: '{"confirmVisit":true,"redeemCoupon":false,"role":"OWNER"}' })).status, 400);
   const csv = await webRequest(base, root + '/visits.csv?from=2026-10-01&to=2026-10-05', { headers });
@@ -5471,9 +5584,8 @@ test('merchant self-service uses web session and CSRF, forwards campaign CAS, an
   assert.equal(csv.headers.get('x-visit-count'), '1');
   assert.deepEqual(new Uint8Array(await csv.arrayBuffer()).slice(0,3), new Uint8Array([239,187,191]));
   assert.equal((await webRequest(base, root + '/visits.csv?from=x&from=y&to=z', { headers })).status, 400);
-  assert.equal(calls.length, 3);
-  assert.deepEqual(calls[1], { accountId: 'owner', merchantId: 'shop', campaignId: 'campaign', days: 30,
-    expectedEndsAt: campaign.endsAt, consentAccepted: true, requestId: 'same-request' });
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1], { accountId: 'owner', merchantId: 'shop', fromDate: '2026-10-01', toDate: '2026-10-05' });
 });
 
 test('coupon-only staff can scan customer QR while visit issuance remains forbidden', async (t) => {

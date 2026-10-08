@@ -1,6 +1,12 @@
 import { CollectibleProjectError, type CollectibleDetail, type CollectibleProject } from './collectible-project.js';
 
 const mb = 1024 * 1024;
+export const collectiblePublicationGradeRowsLimit = 24 * mb;
+export function assertCollectiblePublicationGradeRowsSize(rows: readonly { summary: string; detail: string }[]): void {
+  if (rows.reduce((total, row) => total + Buffer.byteLength(row.summary) + Buffer.byteLength(row.detail), 0) > collectiblePublicationGradeRowsLimit) {
+    throw new CollectibleProjectError('COLLECTIBLE_PUBLICATION_SIZE_LIMIT');
+  }
+}
 const imageMimes = ['image/png', 'image/jpeg', 'image/webp'];
 // 뒷면·각도·living 스프라이트는 픽셀 좌표로 자르고 배치하므로 JPEG의 EXIF Orientation 회전을 허용하지 않는다.
 // 편집기도 이 셋은 WebP/PNG로만 만든다.
@@ -250,11 +256,12 @@ export function validateCollectibleProject(value: unknown, publish = false): Col
 
 function validateUpgradedProject(value: unknown, publish: boolean): CollectibleProject {
   const p = object(value, ['schemaVersion','name','campaignId','theme','photo','shape','crop','photoEdits','style','baseColor','photoColor','relief',
-    'stickers','back','grades','effects','motion','thickness','angle','greeting','greetingOverrides','audio','story','parallax','living','derived','rewardGrades']);
+    'stickers','back','grades','effects','motion','thickness','angle','greeting','greetingOverrides','audio','story','parallax','living','derived','rewardGrades'], ['rotationSpeed']);
   if (p.schemaVersion !== 2) invalid();
   string(p.name, 80); string(p.campaignId, 120, true); const theme = object(p.theme, ['name']); string(theme.name, 80);
   enumeration(p.shape, ['circle','stamp','serrated']); enumeration(p.style, ['original','incised','raised']);
-  color(p.baseColor); number(p.photoColor, 0, 100); number(p.relief, 0, 100); number(p.thickness, 1, 24); number(p.angle, -180, 180);
+  color(p.baseColor); number(p.photoColor, 0, 100); number(p.relief, 0, 100); number(p.thickness, 1, 48); number(p.angle, -180, 180);
+  if (p.rotationSpeed !== undefined) number(p.rotationSpeed, .25, 3);
   const photo = object(p.photo, ['originalDataUrl','width','height']);
   if (photo.originalDataUrl === '') { if (photo.width !== 0 || photo.height !== 0 || publish) throw new CollectibleProjectError(publish ? 'COLLECTIBLE_NOT_READY' : 'COLLECTIBLE_INVALID_PROJECT'); }
   else {
@@ -614,6 +621,7 @@ export function collectibleSnapshot(project: CollectibleProject, projectId: stri
   return {
     projectId, publicationId, gradeId, gradeName: grade.name, name: project.name, shape: project.shape,
     theme: { name: project.theme.name }, ...safeAsset, thickness: project.thickness, angle: project.angle,
+    ...(project.rotationSpeed !== undefined ? { rotationSpeed: project.rotationSpeed } : {}),
     animation: gradeMotions.find(m => (m.playback ?? 'loop') === 'loop')?.type ?? 'still',
     motions: gradeMotions.map(({ type, playback, particle }) => ({ type, playback: playback ?? 'loop', ...(particle !== undefined ? { particle } : {}) })),
     greeting: resolveGreeting(project, gradeId),

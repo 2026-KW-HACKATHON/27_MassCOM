@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import { test } from 'node:test';
 import { Pool } from 'pg';
 
+import { createApiServer } from './server.js';
+import { developmentHeaderAccountResolver } from './server-test-support.js';
 import { MerchantOperationError } from './merchant-operations.js';
 import { PostgresAccountLifecycle } from './postgres/account-lifecycle.js';
 import { PostgresMerchantAccessControl } from './postgres/merchant-access.js';
@@ -10,6 +13,9 @@ import { PostgresMerchantOperations } from './postgres/merchant-operations.js';
 import { requireActiveMerchantMember } from './postgres/merchant-membership.js';
 import { PostgresCustomerIdentityService } from './postgres/customer-identity.js';
 import { runMigrations } from './postgres/migrate.js';
+import { InMemoryChallengeStore, WalletChallengeService } from './wallet-challenge-service.js';
+import type { WebAuthHandler } from './web-auth.js';
+import type { ApiDeps } from './api-deps.js';
 
 const testUrl = process.env.TEST_DATABASE_URL;
 const safe = testUrl && decodeURIComponent(new URL(testUrl).pathname.slice(1)).endsWith('_test');
@@ -17,34 +23,46 @@ const skip = safe ? false : 'requires a disposable _merchant_test database';
 const NOW = new Date('2026-10-07T03:00:00.000Z');
 const lifecycle = new PostgresAccountLifecycle({ hmacSecret: 'merchant-operation-test-secret-32-bytes' });
 
-test('owner renewal is scoped, consented, compare-and-swap, idempotent and audited', { skip }, async t => {
+test('removed owner extension returns 404 without changing campaign or creating an audit row', { skip }, async t => {
   const pool = new Pool({ connectionString: testUrl });
   t.after(() => pool.end());
   await runMigrations(pool);
   await pool.query('TRUNCATE merchants CASCADE');
-  await pool.query('TRUNCATE auth_identities CASCADE');
   await pool.query(`INSERT INTO merchants (id, name, story, road_address, minimum_spend_won, status)
-    VALUES ('ops-a', '가게 A', '', '서울', 0, 'ACTIVE'), ('ops-b', '가게 B', '', '서울', 0, 'ACTIVE')`);
-  await pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status) VALUES
-    ('ops-a','owner-a','OWNER','ACTIVE'),('ops-a','staff-a','STAFF','ACTIVE'),
-    ('ops-b','owner-b','OWNER','ACTIVE')`);
+    VALUES ('ops-a', '가게 A', '', '서울', 0, 'ACTIVE')`);
+  await pool.query(`INSERT INTO merchant_members (merchant_id, account_id, role, status)
+    VALUES ('ops-a', 'owner-a', 'OWNER', 'ACTIVE')`);
   await pool.query(`INSERT INTO campaigns (id, merchant_id, title, starts_at, ends_at, status, is_public, enrollment_capacity)
-    VALUES ('ops-campaign','ops-a','=SUM(1,1)','2026-09-01T00:00:00Z','2026-10-31T00:00:00Z','ACTIVE',true,50)`);
-  const service = new PostgresMerchantOperations(pool, { accountLifecycle: lifecycle, now: () => NOW });
-  const input = { accountId: 'owner-a', merchantId: 'ops-a', campaignId: 'ops-campaign', days: 30 as const,
-    expectedEndsAt: '2026-10-31T00:00:00.000Z', consentAccepted: true, requestId: randomUUID() };
-  await assert.rejects(service.extendCampaign({ ...input, accountId: 'staff-a' }),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_FORBIDDEN');
-  await assert.rejects(service.extendCampaign({ ...input, merchantId: 'ops-b', accountId: 'owner-b' }),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_NOT_FOUND');
-  await assert.rejects(service.extendCampaign({ ...input, consentAccepted: false }),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_INVALID');
-  const [first, second] = await Promise.all([service.extendCampaign(input), service.extendCampaign(input)]);
-  assert.equal([first.replayed, second.replayed].filter(Boolean).length, 1);
-  assert.equal(first.endsAt, second.endsAt);
-  assert.equal((await pool.query(`SELECT count(*)::integer AS count FROM merchant_campaign_extension_audit`)).rows[0].count, 1);
-  await assert.rejects(service.extendCampaign({ ...input, requestId: randomUUID() }),
-    (error: unknown) => error instanceof MerchantOperationError && error.code === 'MERCHANT_OPERATION_CONFLICT');
+    VALUES ('ops-campaign', 'ops-a', '방문 보상', '2026-09-01T00:00:00Z', '2026-10-31T00:00:00Z', 'ACTIVE', true, 50)`);
+  const operations = new PostgresMerchantOperations(pool, { accountLifecycle: lifecycle, now: () => NOW });
+  const challenge = new WalletChallengeService({ store: new InMemoryChallengeStore(), domain: 'api.masscom.local',
+    uri: 'https://api.masscom.local/wallet/verify', chainId: 84532, ttlMs: 300_000 });
+  const server = createApiServer({ service: challenge, baseAccountResolver: developmentHeaderAccountResolver,
+    webAuth: { resolveSession: async () => 'owner-a' } as unknown as WebAuthHandler,
+    staffRegistration: {} as ApiDeps['staffRegistration'], experienceServices: { merchantOperations: operations } });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise<void>(resolve => server.close(() => resolve())));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('server did not bind');
+  const url = `http://127.0.0.1:${address.port}/api/web/merchant/merchants/ops-a/campaigns`;
+  const request = (method: string, path: string, body?: string) => new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    const call = httpRequest(path, { method, headers: { Host: 'masscom.kr', cookie: 'web_session=valid-cookie',
+      origin: 'https://masscom.kr', 'content-type': 'application/json' } }, response => {
+      const chunks: Buffer[] = [];
+      response.on('data', chunk => chunks.push(chunk));
+      response.on('end', () => resolve({ status: response.statusCode!, body: JSON.parse(Buffer.concat(chunks).toString()) }));
+    });
+    call.on('error', reject);
+    call.end(body);
+  });
+  assert.equal((await request('GET', url)).status, 200);
+  const response = await request('POST', `${url}/ops-campaign/extend`,
+    JSON.stringify({ days: 30, expectedEndsAt: '2026-10-31T00:00:00.000Z', consentAccepted: true, requestId: randomUUID() }));
+  assert.equal(response.status, 404);
+  assert.deepEqual(response.body, { code: 'NOT_FOUND' });
+  assert.equal((await pool.query(`SELECT ends_at FROM campaigns WHERE id = 'ops-campaign'`)).rows[0].ends_at.toISOString(),
+    '2026-10-31T00:00:00.000Z');
+  assert.equal((await pool.query(`SELECT count(*)::integer AS count FROM merchant_campaign_extension_audit`)).rows[0].count, 0);
 });
 
 test('owner approves a Google-bound request, narrows staff tasks and revokes old access', { skip }, async t => {
@@ -173,12 +191,6 @@ test('deletion lock wins over queued owner and target-staff writes without resto
     await assert.rejects(operation, (error: unknown) => error instanceof MerchantOperationError
       && error.code === 'MERCHANT_OPERATION_FORBIDDEN');
   }
-  await lock.query('BEGIN');
-  await lifecycle.lockForDeletion(lock, 'race-owner');
-  await deleteDuring('race-owner', service.extendCampaign({ accountId: 'race-owner', merchantId: 'race-shop',
-    campaignId: 'race-campaign', days: 30, expectedEndsAt: '2026-10-31T00:00:00.000Z',
-    consentAccepted: true, requestId: randomUUID() }));
-  assert.equal((await pool.query(`SELECT count(*)::integer AS count FROM merchant_campaign_extension_audit`)).rows[0].count, 0);
   await pool.query(`UPDATE merchant_members SET account_id = 'race-owner-2' WHERE merchant_id = 'race-shop' AND account_id = 'race-owner'`);
   await lock.query('BEGIN');
   await lifecycle.lockForDeletion(lock, 'race-staff');

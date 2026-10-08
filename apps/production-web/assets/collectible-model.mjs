@@ -17,17 +17,30 @@ export const PARTICLE_KINDS = Object.freeze(['confetti', 'snow', 'petals', 'spar
 export const BACK_MODES = Object.freeze(['default', 'custom']);
 export const PARALLAX_TOOLS = Object.freeze(['fg', 'bg']);
 export const LIVING_KINDS = Object.freeze(['sway', 'bob', 'steam', 'blink']);
-/** 두께 3단계(Issue #329). 저장 값은 그대로 1~24 정수이고, 이 표는 화면 이름만 정한다. */
-export const THICKNESS_PRESETS = Object.freeze([Object.freeze([4, '얇게']), Object.freeze([8, '보통']), Object.freeze([14, '두껍게'])]);
+/** 두께는 1~48 정수. 기존 프리셋 값은 보존하고 두꺼운 프리셋을 추가한다. */
+export const THICKNESS_PRESETS = Object.freeze([Object.freeze([4, '얇게']), Object.freeze([8, '보통']), Object.freeze([14, '두껍게']), Object.freeze([32, '아주 두껍게'])]);
 export function thicknessPresetLabel(value) { return THICKNESS_PRESETS.find(([preset]) => preset === value)?.[1] ?? null; }
 export const STORY_TYPES = Object.freeze(['none', 'zoom', 'wide', 'follow', 'event']);
 // 등급별 프레임 없이 각도만 재생하는 once 재생의 표시 시간(ms). 'still'은 재생이 없어 없다.
 export const ONCE_MS = Object.freeze({ rotate: 4000, shine: 3500, sparkle: 3500, stamp: 3500, float: 2400, pulse: 2400, confetti: 2000 });
+export function rotationSpeedValue(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(3, Math.max(.25, value)) : 1;
+}
+export function rotationAngleAt(angle, milliseconds, speed = 1) {
+  return angle + Math.max(0, milliseconds) / 75 * rotationSpeedValue(speed);
+}
 // 얼굴 스티커로 쓸 수 있는 마스코트 포즈(apps/mobile/assets/images/mascot/v2/*.png 파일 stem). 승인된 그림만 추가한다.
 export const MASCOT_POSES = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'sky-town-header', 'sleep', 'stamp', 'town-map', 'wave']);
 // 눈 감은 프레임(apps/production-web/assets/mascot/<pose>-blink.png)이 있는 포즈. 그림이 없으면 living의
 // blink 항목이 그 포즈를 쓸 수 없다. apps/api/src/collectible-project-rules.ts의 mascotBlink와 값을 맞춘다.
 export const MASCOT_BLINK = Object.freeze(['cheer', 'explore-map', 'friends', 'gift', 'logo-badge', 'puzzled', 'search', 'stamp', 'wave']);
+export const STANDARD_VISIT_GOALS = Object.freeze([1, 3, 5]);
+export const STANDARD_VISIT_REWARD_GRADES = Object.freeze({ 1: 'bronze', 3: 'silver', 5: 'gold' });
+export const STANDARD_VISIT_REWARD_LABELS = Object.freeze([
+  Object.freeze({ count: 1, gradeId: 'bronze', label: '1회', gradeName: '브론즈' }),
+  Object.freeze({ count: 3, gradeId: 'silver', label: '3회', gradeName: '실버' }),
+  Object.freeze({ count: 5, gradeId: 'gold', label: '5회', gradeName: '골드' }),
+]);
 
 export const DEFAULT_GRADES = Object.freeze([
   Object.freeze({ id: 'bronze', name: '브론즈', kind: 'basic', enabled: true }),
@@ -54,7 +67,7 @@ export function createGrade(name = '새 등급', { id = createId('grade'), kind 
 
 /**
  * 초안은 사진 없이도 저장할 수 있다. 게시에는 실제 사진과 파생 결과가 필요하다.
- * rewardGrades는 점주가 캠페인의 기존 1·3·5회 목표에 외형을 직접 연결하기 전까지 비어 있다.
+ * rewardGrades는 방문 보상 게시 때 표준 1·3·5회 보상 외형으로 고정된다.
  * 테마 변경·등급 추가는 보상 연결과 효과 적용을 자동 변경하지 않는다.
  */
 export function createProject({ name = '새 수집품', campaignId = '' } = {}) {
@@ -78,6 +91,7 @@ export function createProject({ name = '새 수집품', campaignId = '' } = {}) 
     motion: [],
     thickness: 8,
     angle: 0,
+    rotationSpeed: 1,
     greeting: '',
     greetingOverrides: [],
     audio: null,
@@ -89,23 +103,41 @@ export function createProject({ name = '새 수집품', campaignId = '' } = {}) 
   };
 }
 
-/** 새 점포 수집품은 기존 방문 목표의 외형을 미리 연결한다. 저장한 프로젝트에는 적용하지 않는다. */
-export function createMerchantStarterProject({ merchantName = '', menuName = '', suggested = false, campaigns = [], preferredCampaignId = '' } = {}) {
-  const eligible = campaigns.filter(campaign => campaign?.id &&
-    (!campaign.status || campaign.status === 'ACTIVE') &&
+export function standardVisitRewardGrades() {
+  return { ...STANDARD_VISIT_REWARD_GRADES };
+}
+
+export function isStandardVisitCampaign(campaign) {
+  return Boolean(campaign?.id) &&
+    campaign.status === 'ACTIVE' && campaign.isPublic !== false &&
+    (!campaign.startsAt || Date.parse(campaign.startsAt) <= Date.now()) &&
+    (!campaign.endsAt || Date.parse(campaign.endsAt) > Date.now()) &&
     Array.isArray(campaign.goals) &&
-    campaign.goals.length === 3 &&
-    [...campaign.goals].sort((a, b) => a - b).every((goal, index) => goal === [1, 3, 5][index]));
-  const campaignId = eligible.find(campaign => campaign.id === preferredCampaignId)?.id ??
-    (eligible.length === 1 ? eligible[0].id : '');
+    campaign.goals.length === STANDARD_VISIT_GOALS.length &&
+    [...campaign.goals].sort((a, b) => a - b).every((goal, index) => goal === STANDARD_VISIT_GOALS[index]);
+}
+
+export function applyStandardVisitRewards(project, { includeMissingDefaults = false } = {}) {
+  const missing = DEFAULT_GRADES.filter(({ id }) => !project.grades.some(grade => grade.id === id));
+  if (includeMissingDefaults && project.grades.length + missing.length <= 16) project.grades.push(...missing.map(grade => ({ ...grade })));
+  if (STANDARD_VISIT_REWARD_LABELS.every(({ gradeId }) => project.grades.some(grade => grade.id === gradeId))) project.rewardGrades = standardVisitRewardGrades();
+  // 기존 초안의 등급 집합은 보존하고 기본 등급의 비활성 상태만 복구한다.
+  for (const preset of DEFAULT_GRADES) {
+    const grade = project.grades.find(item => item.id === preset.id);
+    if (grade) grade.enabled = true;
+  }
+  return project;
+}
+
+/** 새 점포 수집품은 기존 방문 목표의 외형을 미리 연결한다. 저장한 프로젝트에는 적용하지 않는다. */
+export function createMerchantStarterProject({ merchantName = '', menuName = '', suggested = false, campaigns = [] } = {}) {
+  const eligible = campaigns.filter(isStandardVisitCampaign);
+  const campaignId = eligible.length === 1 ? eligible[0].id : '';
   const store = merchantName.trim() || '우리 가게';
   const menu = typeof menuName === 'string' ? menuName.trim().slice(0, 40) : '';
   const project = createProject({ name: `${menu || store} 방문 수집품`, campaignId });
-  project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
+  applyStandardVisitRewards(project);
   if (!suggested) return project;
-  project.back.mode = 'custom';
-  project.back.stickers.push({ id: createId('sticker'), kind: 'text', text: store.slice(0, 40), x: .5, y: .5, size: 42, rotation: 0, color: '#ffffff', order: 0, align: 'center' });
-  if (menu) project.back.stickers.push({ id: createId('sticker'), kind: 'text', text: menu, x: .5, y: .66, size: 28, rotation: 0, color: '#ffffff', order: 1, align: 'center' });
   const motifs = [
     { text: '⌂', color: '#58331f', layouts: { bronze: [.3, .29, 110], silver: [.2, .18, 20], gold: [.2, .18, 20] } },
     { text: '◯', color: '#173c50', layouts: { bronze: [.82, .82, 8], silver: [.72, .7, 110], gold: [.72, .7, 24] } },

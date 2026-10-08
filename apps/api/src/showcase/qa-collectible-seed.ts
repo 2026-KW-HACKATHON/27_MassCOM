@@ -1,6 +1,6 @@
 // #295 scripts/qa-local.sh 전용: 로컬 QA DB에 사진 수집품 하나를 만들고 바로 게시해, 방문·보상 흐름을 실제 수집품으로
-// 확인할 수 있게 한다. collectible-project-test-support.ts의 photoProject()를 그대로 쓴다(목표 1·3회에 연결된
-// 등급 표 rewardGrades: {1: 'bronze', 3: 'custom'}가 이미 그 모양이다). 운영·hosted DB에는 절대 연결하지 않는다.
+// 확인할 수 있게 한다. collectible-project-test-support.ts의 photoProject()를 그대로 쓴다(목표 1·3·5회에 연결된
+// 등급 표 rewardGrades는 게시 시 표준 방문보상 {1: 'bronze', 3: 'silver', 5: 'gold'}로 고정된다). 운영·hosted DB에는 절대 연결하지 않는다.
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';

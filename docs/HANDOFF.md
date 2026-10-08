@@ -1,9 +1,16 @@
 # HANDOFF
 
 기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
+**PR #418 리뷰 수정 전달 (2026-10-09, 커밋 `07efaccf`, 오케스트레이터 커밋)**
+
+- 위치: `.worktrees/pr418`, 브랜치 `feat/merchant-dual-studio`, 시작 HEAD `e119f55e`. main `055d0523` 병합을 확인했다. 결정 D-096·D-097과 고정 방문 보상 1→브론즈·3→실버·5→골드, 프리즘 포함 네 기본 등급, v2 뒷면, 점주 연장 제거·관리자 연장 유지는 그대로다. staging·commit·stash·rebase·push는 오케스트레이터가 맡는다.
+- **배포 필수 조건(D-096): API와 웹 편집기 자산을 같은 배포 창에 함께 전환하고 롤백도 함께 한다.** 새 API+구 편집기는 프리즘 누락을 거절하고 구 API+새 편집기는 방문 보상 연결 등급만 저장한다. 혼합 버전 게시를 허용하는 호환 코드로 우회하지 않는다. 기본 등급 누락의 `COLLECTIBLE_DEFAULT_GRADE_MISSING`은 "편집기를 새로고침한 뒤 다시 게시해 주세요"로 안내한다. 배포 전 구 편집기 탭 새로고침과 네 등급 게시본을 확인한다. 서버 배포·운영 DB·설치본 갱신은 이번 수정 범위 밖이다.
+- 검증: API 단위 623/623·typecheck·build, 모바일 2097/2097·typecheck·lint, 사이트 636건 중 635 PASS·Chrome 기동 1 BLOCKED(원래 assertion 유지), CI 연결·운영 문서·접근성·bootstrap·큰 파일 가드 회귀·증거 일관성 PASS. PostgreSQL 전체는 544건 중 541 PASS / 0 FAIL / 기존 3 SKIP (`npm run test:postgres`, 전용 hosted seed 컨테이너 127.0.0.1:55435가 필요한 세 시험). assertion 변경 이유와 명령별 로그는 `docs/TEST_STATUS.md`에 기록했다.
+- 확인: 커밋 뒤 `bash scripts/check-large-files.sh origin/main`(추가·수정 187개 통과)과 `bash tools/gate.sh` PASS. PostgreSQL 541 pass / 3 skip. Chrome 기동 시험 1건은 이 PC에서 BLOCKED(원래 assertion 유지).
 
 ## 1. 기준 커밋과 작업 위치
 
+- 현재 작업: `.worktrees/pr418`, 브랜치 `feat/merchant-dual-studio`, HEAD `b953ed03`에서 PR #424·#426 반영 main `0801c1ce`를 병합 중이다. D-095와 migration `0075_nft_series_uncapped.sql`, `/play/` 리다이렉트와 D-096~D-099를 함께 보존했다. 아래 `055d0523`와 PR #424 브랜치 설명은 병합 전 인수인계 기록이다. 충돌 문서만 편집하며 staging·commit·stash·rebase·push와 API·모바일 합계 재측정은 오케스트레이터가 맡는다.
 - 기준 main 커밋 SHA: `055d0523`(PR #425 병합, 2026-10-09 KST). PR #424 작업 브랜치 `feat/remove-nft-series-cap`에는 이 main이 병합돼 있다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
 - PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.
 - 병합 순서: PR #403(점검 결함 수정, `2d483ed8`) → #404(시연 배포·Preview 20·test.11 기록, `09dfceb0`) → #405(공개 체험 결함 4건 수정·운영 배포 기록·test.12/Preview 21, `08f125b4`) → #402(뽑기 `CONSENT_REQUIRED`의 "동의 확인하기" 연결, `a742e32d`) → #406(재측정·대체 시연 영상·제출 후보 기록, `6ce8ad03`) → #408(Issue #407의 낮은 화면 결함 4건 수정과 #402를 다음 설치본·웹 체험에 반영, `687427c2`). Issue #401은 #403 병합으로 닫혔다.
@@ -37,6 +44,26 @@
 - Issue #412 T1의 API 코드도 배포하지 않았다(소유자 결정 A). 서버에 올라간 API는 위 운영 `687427c2`·시연 `2d483ed` 그대로다.
 
 ## 4. 이번 작업의 범위
+
+**점주 웹 두 경로 전달 — PR #418 (2026-10-08)**
+
+최신 후속: 재생은 등급 동작 없이도 회전하고0.25~3배 속도를 초안·게시·획득 상세에 보존한다. 코인 이름·시즌은1단계, 애니메이션과 효과는3단계 맨 위에서 움직임 탭을 기본으로 펼친다.4단계는 결과·고정 방문 보상·게시만 남긴다. 두께24→48 및32 프리셋, API·앱 파서도48을 지원한다. 두께25~48 게시본은 업데이트한 고객 앱과 함께 배포해야 한다. 브라우저 실제2배 회전·게시·획득 상세의48 두께와 속도2를 합성 fixture에서 확인했다. [최신 화면·시험·호환 경계](evidence/rotation-playback-2026-10-08/README.md). 운영 배포·Android 실기는 별도다.
+
+최신 main `8841efea`(PR #420·#423) 통합 후 API601/601·웹609/609·모바일2077/2077·타입·lint·Android export를 재검증했다. 12종v2 SHA 일치·v1 번들0건, 네 등급 저장본2.45MiB·전체8MiB 제한을 확인했다. 실제 PostgreSQL29/29와 추가 ID 보존은 위 API 변경 후 검증했다. Windows 권한/심볼릭 링크 Worker5건·Docker8건·macOS Chrome 테마 한 파일과 운영/Android 실기는 별도 검증이다.
+
+첫 CI에서 R-333 재시드·실제 점주 게시 경합 시험의 과거 단일등급 입력이 새 네 등급 계약에 거절됐다. 서버 검증과 과거 시드 helper는 유지하고 해당 게시 fixture만 네 등급으로 바꿨다. 실제 발행행4개 assertion 추가 후 관련 PostgreSQL25/25·규칙/시드30/30·API typecheck 통과. CI 재실행은 별도로 확인한다.
+
+최신 후속: 기본 제작·발행 등급은 브론즈·실버·골드·프리즘 네 개다. 방문 지급은 1회 브론즈·3회 실버·5회 골드로 유지하며 프리즘 지급 조건을 임의로 추가하지 않는다. 게시할 때 네 기본 등급과 모든 활성 특수등급의 정면·뒷면·프레임을 저장한다. 추가 등급은 고유 ID와 이름을 보존하며 총16개(기본4+특수12) 상한을 유지한다. 프리즘은 기본 음각·양각에도 청록·분홍·보라의 각도별 색 이동과 같은 계열 테두리를 사용한다. 프리즘 후면3종은 음각 문양을 유지해 built-in 이미지 생성으로 색을 개선했다. 현재 웹·앱 뒷면12종은 동일한512px WebP767,082바이트(749.1KiB)로 원본41,909,062바이트보다98.17% 작다. v1PNG와 기존 게시본은 보존하고 모바일 번들은 v2만 사용한다. [최신 색감·용량·확장·검증](evidence/prism-collectibles-2026-10-08/README.md).
+
+추가 후속: 점주 캠페인 선택·보상 등급·기간 연장을 제거하고 1회 브론즈·3회 실버·5회 골드를 서버에서도 고정했다. 미준비 캠페인은 초안만 저장한다. 회전 깊이는 2.5D 조명·윤곽 변위로 보강하고 게시본에 기존 12/4/15 각도 스프라이트를 저장한다. 최신 main cd01c0d6 통합 후 API 601/601·사이트 416/416·현재 배포 시험 12/12·전용 PostgreSQL 통합 29/29, 합성 양각·음각의 새 게시본 저장/재읽기와 실제 자동 회전을 확인했다. [최신 캡처·회전 비교·저장 형식](evidence/fixed-visit-relief-2026-10-08/README.md). 운영 배포·Android 실기 재생은 아직 별도다.
+
+최신 후속: 방문 보상 제작·방문 확인·운영 결과를 별도 화면으로 정리하고 메뉴 등록을 제작 경로에서 제외했다. 1 사진 배치 → 2 사진 편집 → 3 코인 만들기 → 4 결과·방문 보상이며, 아이콘 도구·화살표 실행 취소/재실행·RGB/HEX·선택 등급의 음각/양각을 지원한다. 사용자 그림을 실제 마우스로 편집해 네 등급 PNG를 저장하고 합성 점주 fixture 캠페인에 1/3/5 목표로 게시 v6을 확인했다. 사이트 401/401·웹 모듈 문법 검사·독립 리뷰 PASS. [화면·PNG·재현](evidence/merchant-photo-editor-2026-10-08/README.md). 운영 배포·실계정 보상 지급은 검증하지 않았다.
+
+추가 범위: 모양(원형·우표형·톱니형) × 등급(브론즈·실버·골드·프리즘)의 고정 음각 뒷면 12종을 웹·앱에 연결했다. 새 게시본은 고정 이미지를 굽고 기존 발행본의 뒷면은 보존한다. 별도 뒷면 편집 UI를 제거했다. 사이트 390/390·모바일 LF 체크아웃 1992/1992·타입·lint, 브라우저 12종 512px WebP 제한 검수 PASS. [이미지·프롬프트·검수](evidence/fixed-collectible-backs-2026-10-08/README.md)를 읽는다. 이전 v1PNG 원본 한 벌 약40MiB는 현재 모바일 require에서 제외했고, 현재 v2WebP749.1KiB만 사용한다. 실제 APK설치·실기는 별도 검증이다. 신규 API·DB migration은 없다.
+
+[PR #418](https://github.com/2026-KW-HACKATHON/27_MassCOM/pull/418)은 main `e06c97cd`에서 분기한 AI 초안·준비 이미지 스튜디오 진입, 웹 업로드 정규화, 최신 사진 정렬과 세션 AI API 변경이다. API 569/569·typecheck·build, 사이트 384/384, PostgreSQL 최신 사진 통합 1/1이 통과했다. Docker 없는 Windows의 Caddy 컨테이너 두 시험은 실행하지 못했다. [화면 증거·재현·배포 조건](evidence/merchant-dual-studio-2026-10-08/WEB_QA.md)을 먼저 읽는다.
+
+고객 앱 개발 웹에서 로컬 DB의 `QA 가상 월계 달빛빵집` 이름·주소·최신 이미지·1/3/5 코인 캠페인 노출을 확인했다. 운영 계정은 점포 승인 부재로 저장·게시 종단 QA가 막혔다. 공개 서비스 배포, 실제 AI 생성, 계정 권한 부여는 하지 않았다. 배포 담당자는 PR #413의 `/api/web/v1/*` Caddy 수정과 이 PR의 API·웹을 함께 반영하고 승인된 점포 및 AI 예산으로 종단 검증해야 한다. 가상 가게는 시연 DB에만 넣는다. 신규 migration은 없다.
 
 - [Issue #401](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/401)은 제출 전 운영·문서·심사 대응 정리이며 #403 병합으로 닫혔다. PR #408은 [Issue #407](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/407)의 앱 수정 코드와 test.13·Preview 22 게시, `/play/` 전환, 현재 요약 문서 갱신을 함께 담아 병합됐다.
 - [수정본 재측정](evidence/submission-2026-10-08-recheck/README.md)(Playwright, 시연 서버 임시 계정만)에서 이전 [17단계 실측](evidence/submission-2026-10-08/README.md)의 결함 4건이 모두 FIXED였다. 5분 시연 15단계가 전부 PASS이고 `console.error`·`pageerror`·4xx/5xx·요청 실패는 0건이다. 대체 시연 영상 `demo-flow-390.webm`(10,053,739바이트·4분 8초·390×844)과 캡처 68장을 같은 폴더에 보존했다.

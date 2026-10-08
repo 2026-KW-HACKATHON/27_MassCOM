@@ -1,6 +1,7 @@
-import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel } from './collectible-model.mjs';
+import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel, DEFAULT_GRADES, STANDARD_VISIT_REWARD_LABELS, applyStandardVisitRewards, isStandardVisitCampaign, rotationSpeedValue, rotationAngleAt } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
+import { fixedCollectibleBack } from './collectible-back-assets.mjs';
 import { attachWaveform } from './collectible-waveform.mjs';
 import { collectibleErrorMessage, localError } from './collectible-errors.mjs';
 import { draftStorageKey, draftEditsOnly, applyDraftEdits, findMaterialConflict, findMaterialConflicts, materialConflictQuestion, materialSwapNotice, faceFitCrop, centerFillCrop } from './collectible-assist.mjs';
@@ -47,7 +48,7 @@ async function inspectAudio(dataUrl) {
 // campaigns를 넘기면 서버가 돌려준 "지금 게시할 수 있는 캠페인" 목록과도 맞춰 본다(목록 밖 캠페인·캠페인에 없는 방문 목표는 게시 API가 409로 거절한다).
 // 서버가 받는 크기 상한(docs/COLLECTIBLE_CREATOR.md "서버 계약"). 넘으면 보내기 전에 안내해 413을 받지 않게 한다.
 const MiB = 1024 * 1024;
-export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, living: 512 * 1024, body: 8 * MiB - 4096, stickers: 30, backStickers: 10 };
+export const mediaLimits = { image: MiB, thumbnail: 128 * 1024, back: 256 * 1024, mask: 256 * 1024, scene: 512 * 1024, living: 512 * 1024, body: 8 * MiB - 4096, stickers: 30 };
 // 크기 사다리(설계 문서 "서버 검증·스냅샷·상한·저장"): 프레임 한 변 448→384→320→256px, 화질 .85(앞 두 단계)→
 // .7(나머지)로 angleFrames·living 스프라이트를 다시 구워 publishSizeProblem을 통과할 때까지 시도한다.
 // 그래도 넘으면 가장 작은 단계 결과를 그대로 두고 기존 초과 안내로 넘어간다.
@@ -58,6 +59,39 @@ export const SPRITE_SIZE_LADDER = Object.freeze([
   Object.freeze({ side: 256, quality: .7 }),
 ]);
 const decodedBytes = dataUrl => { const data = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor(data.length * 3 / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0); };
+export const photoFileLimits = Object.freeze({ inputBytes: 20 * MiB, inputSide: 12000, inputPixels: 48_000_000, storedBytes: 3 * MiB, storedSide: 4096 });
+export function photoImportPlan(file, width, height) {
+  if (!file || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) throw new Error('JPG·PNG·WebP 사진을 선택해 주세요.');
+  if (!Number.isFinite(file.size) || file.size <= 0 || file.size > photoFileLimits.inputBytes) throw new Error('사진은 20 MB 이하로 선택해 주세요.');
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1 || Math.max(width, height) > photoFileLimits.inputSide || width * height > photoFileLimits.inputPixels) throw new Error('사진은 4,800만 픽셀·한 변 12,000픽셀 이하로 선택해 주세요.');
+  const scale = Math.min(1, photoFileLimits.storedSide / Math.max(width, height));
+  return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)), normalize: scale < 1 || file.size > photoFileLimits.storedBytes };
+}
+export async function preparePhotoFile(file) {
+  // Decode only after the bounded byte/type check, then reject oversized dimensions before canvas allocation.
+  photoImportPlan(file, 1, 1);
+  const dataUrl = await readFile(file), dimensions = await inspectImage(dataUrl);
+  const plan = photoImportPlan(file, dimensions.width, dimensions.height);
+  if (!plan.normalize) return { dataUrl, ...dimensions, normalized: false };
+  const image = await new Promise((resolve, reject) => {
+    const value = new Image(); value.onload = () => resolve(value); value.onerror = () => reject(new Error('사진을 읽지 못했어요. 다른 사진으로 다시 시도해 주세요.')); value.src = dataUrl;
+  });
+  const canvas = document.createElement('canvas');
+  try {
+    for (const scale of [1, .75, .5]) {
+      canvas.width = Math.max(1, Math.round(plan.width * scale)); canvas.height = Math.max(1, Math.round(plan.height * scale));
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('이 브라우저에서 사진을 줄이지 못했어요. 작은 사진을 선택해 주세요.');
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      for (const quality of [.92, .82, .7]) {
+        let encoded = canvas.toDataURL('image/webp', quality);
+        if (!encoded.startsWith('data:image/webp;base64,')) encoded = canvas.toDataURL('image/jpeg', quality);
+        if (/^data:image\/(?:webp|jpeg);base64,/.test(encoded) && decodedBytes(encoded) <= photoFileLimits.storedBytes) return { dataUrl: encoded, width: canvas.width, height: canvas.height, normalized: true };
+      }
+    }
+    throw new Error('사진을 저장 가능한 크기로 줄이지 못했어요. 작은 사진을 선택해 주세요. 기존 편집은 그대로 있어요.');
+  } finally { canvas.width = 0; canvas.height = 0; image.src = ''; }
+}
 export function publishSizeProblem(revision) {
   for (const assets of Object.values(revision.derived || {})) {
     for (const [name, max] of [['imageDataUrl', mediaLimits.image], ['baseDataUrl', mediaLimits.image], ['thumbnailDataUrl', mediaLimits.thumbnail], ['backImageDataUrl', mediaLimits.back]]) {
@@ -69,20 +103,20 @@ export function publishSizeProblem(revision) {
   }
   if ((revision.story?.frames || []).some(frame => frame.previewDataUrl && decodedBytes(frame.previewDataUrl) > mediaLimits.scene)) return '이야기 장면 미리보기가 너무 커요. 더 단순한 장면 사진으로 바꿔 다시 시도해 주세요. 입력은 유지했어요.';
   const body = new TextEncoder().encode(JSON.stringify({ project: revision })).length;
-  if (body > mediaLimits.body) return `수집품 전체가 ${(body / MiB).toFixed(1)} MB로 서버 한도 8 MB를 넘었어요. 작은 사진·음성으로 바꾸거나 쓰지 않는 장면 사진과 등급을 줄여 다시 저장해 주세요. 입력은 그대로 있어요.`;
+  if (body > mediaLimits.body) return `수집품 전체가 ${(body / MiB).toFixed(1)} MB로 서버 한도 8 MB를 넘었어요. 작은 사진·음성으로 바꾸거나 쓰지 않는 장면 사진과 특수등급을 줄여 다시 저장해 주세요. 입력은 그대로 있어요.`;
   return '';
 }
 
 export function validatePublish(project, campaigns) {
   if (!project.name.trim()) return '수집품 이름을 입력해 주세요.';
   if (!project.photo.originalDataUrl) return '대표 사진 한 장을 올려 주세요.';
-  if (!project.campaignId) return '수집품을 연결할 캠페인을 선택해 주세요.';
-  if (!Object.values(project.rewardGrades).some(value => project.grades.some(grade => grade.id === value && grade.enabled))) return '기존 방문 목표 중 한 개 이상에 수집품 등급을 연결해 주세요.';
+  if (!project.campaignId) return '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요';
+  if (project.grades.length + DEFAULT_GRADES.filter(({ id }) => !project.grades.some(grade => grade.id === id)).length > 16) return '기본 4등급을 위해 추가 등급을 하나 줄여 주세요';
+  if (Object.keys(project.rewardGrades).length !== 3 || STANDARD_VISIT_REWARD_LABELS.some(({ count, gradeId }) => project.rewardGrades[count] !== gradeId || !project.grades.some(grade => grade.id === gradeId && grade.enabled))) return '방문 보상은 1회 브론즈·3회 실버·5회 골드로 자동 지급돼요. 보상 정보를 다시 확인해 주세요.';
+  if (DEFAULT_GRADES.some(({ id }) => !project.grades.some(grade => grade.id === id && grade.enabled))) return '브론즈·실버·골드·프리즘 네 기본 등급을 모두 준비해 주세요.';
   if (Array.isArray(campaigns)) {
-    const campaign = campaigns.find(item => item.id === project.campaignId);
-    if (!campaign) return '선택한 캠페인은 지금 게시할 수 없어요. 저장 목록을 새로 보고 진행 중인 캠페인을 다시 골라 주세요.';
-    const missing = Object.keys(project.rewardGrades).filter(goal => Array.isArray(campaign.goals) && !campaign.goals.includes(Number(goal)));
-    if (missing.length) return `선택한 캠페인에 없는 방문 목표(${missing.join('·')}회)가 연결돼 있어요. 연결을 풀거나 다른 캠페인을 골라 주세요.`;
+    const eligible = campaigns.filter(isStandardVisitCampaign);
+    if (eligible.length !== 1 || eligible[0].id !== project.campaignId) return '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요';
   }
   return validateStory(project.story);
 }
@@ -93,6 +127,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   let campaigns = initialCampaigns;
   let campaignSequence = 0;
   const base = `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/collectible-projects`;
+  const aiBase = `/api/web/merchant/merchants/${encodeURIComponent(merchantId)}/art`;
+  let aiRound = null, aiSequence = 0, aiPollTimer = 0;
   // 기기 보관 자동 저장 키. 계정 구분값이 없으면(로그아웃 상태에 가까운 호출 등) 자동 저장·복원 자체를 하지 않는다.
   const draftsEnabled = Boolean(accountScope);
   const draftKey = draftsEnabled ? draftStorageKey(merchantId, accountScope) : '';
@@ -107,14 +143,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   const signal = controller.signal;
   const artUrl = /^\/merchant-art\/[0-9a-f]{64}\.webp$/.test(merchantArtUrl) ? merchantArtUrl : '';
   const menuNames = Array.isArray(merchantMenuItems) ? [...new Set(merchantMenuItems.map(item => typeof item?.name === 'string' ? item.name.trim() : '').filter(Boolean))].slice(0, 3) : [];
-  let campaignSelectionTouched = false;
   let project = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId });
-  let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate', stickerSide = 'front';
+  let wrapper = null, selectedGrade = project.grades[0].id, selectedSticker = '', selectedTemplate = 'rotate';
   // 자르기 캔버스의 붓이 지금 어디에 칠하는지: 'photo'(사진 보정, 기존), 'parallax'(패럴랙스 전경/배경),
   // 'living:<id>'(그 living 항목의 영역). 설계 문서 "패럴랙스" 항목: 사진 브러시 포인터 코드를 그대로 재사용한다.
   let brushTarget = 'photo', selectedLivingId = '';
   let active = true, playing = false, storyPlaying = false, frame = 0, renderSequence = 0, cropSequence = 0, previewQueued = false;
   let start = performance.now(), lastFrame = 0, recorder = null, recordingStream = null, recordingTimer = 0;
+  let previewRotation = 0, rotationTick = performance.now();
   // living 미리보기 전용 시계(PR #310 리뷰 P2). start는 재생·단계 이동마다 리셋되지만(카드 전체 동작용), living은
   // "지금 보는 등급" 선택이 바뀌어도 계속 흐르는 시간이 필요해 따로 둔다.
   const livingStart = performance.now();
@@ -135,9 +171,9 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     <label class="ce-field">저장한 프로젝트<select data-control="project-list"><option value="">초안을 골라 다시 편집할 수 있어요</option></select></label>
     <p data-view="notice" class="ce-notice" role="status" aria-live="polite"></p>
     <div class="ce-grid"><div class="ce-controls">
-      <label class="ce-field">수집품 이름<input data-control="name" maxlength="80" required></label>
-      <label class="ce-field">대표 사진 · JPG, PNG, WebP<input data-control="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
-      <p class="ce-help">가게·메뉴·간판·그림도 좋아요. 원본은 그대로 보관해 다시 자를 수 있어요. 사진은 3 MB, 한 변 4,096픽셀까지 지원해요. 게시한 사진·음성은 이미 받은 손님의 도감에 남을 수 있어요. 사용할 권한이 있는 자료를 골라 주세요.</p>
+      <label class="ce-field">코인 이름<input data-control="name" maxlength="80" aria-label="코인 이름" required></label>
+      <label class="ce-field">대표 사진 · JPG, PNG, WebP · 20 MB까지<input data-control="photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+      <p class="ce-help">가게·메뉴·간판·그림도 좋아요. 최근 사진을 골라 주세요. JPG·PNG·WebP, 20 MB·4,800만 픽셀·한 변 12,000픽셀까지 받아요. 큰 사진은 편집용으로 줄여 저장하며 기기의 원본 파일은 그대로예요. 편집용 사진으로 다시 자를 수 있어요. 게시한 사진·음성은 이미 받은 손님의 도감에 남을 수 있어요. 사용할 권한이 있는 자료를 골라 주세요.</p>
       <label class="ce-field">모양<select data-control="shape"><option value="circle">원형 동전</option><option value="stamp">우표</option><option value="serrated">뾰족한 톱니</option></select></label>
       <canvas data-view="crop" width="512" height="512" aria-label="사진 자르기와 붓 편집. 사진을 드래그해 옮기거나 아래 이동 조절을 이용하세요."></canvas>
       <label class="ce-field">사진 확대 <output data-value="zoom"></output><input data-control="zoom" type="range" min="1" max="8" step="0.05" value="1"></label>
@@ -166,12 +202,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         <label class="ce-field">사진 원본 색 반영<input data-control="photo-color" type="range" min="0" max="100" value="100"></label>
         <label class="ce-field">음각·양각 깊이<input data-control="relief" type="range" min="0" max="100" value="45"></label>
       </div></details>
-      <details><summary>앞면·뒷면 스티커</summary><div class="ce-detail">
-        <label class="ce-field">꾸밀 면<select data-control="sticker-side"><option value="front">앞면</option><option value="back">뒷면</option></select></label>
-        <div data-view="back-mode-row" hidden>
-          <label class="ce-field">뒷면 모드<select data-control="back-mode"><option value="default">기본 · 가게 이름과 등급을 자동으로 보여요</option><option value="custom">커스텀 · 직접 꾸며요</option></select></label>
-          <label class="ce-field">뒷면 바탕색<input data-control="back-color" type="color"></label>
-        </div>
+      <details><summary>앞면 스티커</summary><div class="ce-detail">
+        <p class="ce-help" data-view="fixed-back"></p>
         <div data-view="sticker-form">
           <div class="ce-row">
             <label class="ce-field">종류<select data-control="sticker-kind"><option value="text">텍스트</option><option value="emoji">이모티콘</option><option value="mascot">마스코트</option></select></label>
@@ -203,7 +235,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       <details><summary>움직임과 두께</summary><div class="ce-detail">
         <p class="ce-help">예시는 모두 같은 기본 동전이에요. 선택한 예시 한 개만 재생하고, 원하는 등급에 적용할 수 있어요.</p>
         <div data-view="templates" class="ce-templates"></div><div data-view="motion-grades"></div><div data-view="motion-settings"></div>
-        <label class="ce-field">두께 <output data-value="thickness"></output><input data-control="thickness" type="range" min="1" max="24" step="1" value="8"></label><button type="button" data-action="thickness-reset">기본 두께로</button>
+        <label class="ce-field">두께 <output data-value="thickness"></output><input data-control="thickness" type="range" min="1" max="48" step="1" value="8"></label><button type="button" data-action="thickness-reset">기본 두께로</button>
         <p class="ce-help">각도와 두께는 놓으면 완성 미리보기가 갱신돼요.</p>
       </div></details>
       <details><summary>살아 있는 그림</summary><div class="ce-detail">
@@ -238,8 +270,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       </div></details>
       <details><summary>시즌과 기존 방문 보상 연결</summary><div class="ce-detail">
         <label class="ce-field">시즌 테마<input data-control="theme" maxlength="80" placeholder="여름축제 또는 겨울방학"></label>
-        <p class="ce-help">테마를 바꿔도 등급이나 보상 조건이 자동으로 바뀌지 않아요.</p>
-        <label class="ce-field">연결할 캠페인<select data-control="campaign"><option value="">게시할 캠페인을 골라 주세요</option></select></label>
+        <p class="ce-help">테마를 바꿔도 1회·3회·5회 방문 보상은 바뀌지 않아요.</p>
+        <p class="ce-help" data-view="campaign-status"></p>
         <div data-view="reward-grades"></div>
         <button type="button" data-action="copy">현재 프로젝트를 시즌 초안으로 복사</button>
       </div></details>
@@ -248,6 +280,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       <canvas data-view="preview" width="512" height="512" aria-label="선택된 등급의 완성 수집품 미리보기"></canvas>
       <label class="ce-field">회전 각도 <output data-value="angle"></output><input data-control="angle" type="range" min="-180" max="180" value="0"></label>
       <div class="ce-actions"><button type="button" data-action="play">재생</button><button type="button" data-action="pause">정지</button><button type="button" data-action="replay">다시 보기</button><button type="button" data-action="angle-reset">정면 보기</button></div>
+      <label class="ce-field ce-rotation-speed">회전 속도 <output data-value="rotation-speed">1×</output><input data-control="rotation-speed" aria-label="회전 속도" type="range" min="0.25" max="3" step="0.25" value="1"></label>
       <label class="ce-check"><input data-control="reduce-motion" type="checkbox"> 움직임 줄이기</label>
       <p data-view="preview-caption" class="ce-help"></p><p data-view="greeting" class="ce-greeting"></p>
       <div class="ce-publish"><button type="button" data-action="draft">초안 저장</button><button type="button" data-action="publish" class="primary">이 결과 게시</button><button type="button" data-action="unpublish">게시 중지</button><button type="button" data-action="delete" class="ce-danger">삭제</button><p class="ce-help">게시한 버전은 보존하고, 다음 편집은 새 버전으로 게시해요. 이미 얻은 수집품은 기존 모습과 음성을 유지해요.</p><p data-view="distribution" class="ce-distribution" role="status"></p><p data-view="save-state" class="ce-help"></p></div>
@@ -330,12 +363,16 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
   }
   function syncValues() {
+    previewRotation = 0; rotationTick = performance.now();
     renderCampaignOptions();
-    const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, campaign: project.campaignId, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
+    const values = { name: project.name, shape: project.shape, style: project.style, zoom: project.crop.zoom, 'crop-x': project.crop.x, 'crop-y': project.crop.y, 'base-color': project.baseColor, 'photo-color': project.photoColor, relief: project.relief, angle: project.angle, thickness: project.thickness, greeting: project.greeting, theme: project.theme.name, 'story-type': project.story.type, 'story-cartoon': project.story.cartoon, 'parallax-strength': project.parallax.strength, 'living-period': project.living.periodMs };
     for (const [name, value] of Object.entries(values)) control(name).value = value;
     for (const input of container.querySelectorAll('[data-edit]')) input.value = project.photoEdits[input.dataset.edit];
     output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`;
     output('angle').textContent = `${project.angle}°`; output('thickness').textContent = `${project.thickness}`;
+    control('rotation-speed').value = rotationSpeedValue(project.rotationSpeed);
+    output('rotation-speed').textContent = `${rotationSpeedValue(project.rotationSpeed)}×`;
+    output('rotation-speed').setAttribute('aria-label', `회전 속도 ${rotationSpeedValue(project.rotationSpeed)}배`);
     output('living-period').textContent = `${project.living.periodMs}ms`;
     syncGreetingPreview();
     const audio = view('audio'); audio.pause(); audio.src = project.audio?.dataUrl || ''; audio.hidden = !project.audio; waveform.refresh();
@@ -344,6 +381,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function option(select, text, value) { select.append(element('option', text, { value })); }
   function renderGrades() {
+    studio.setPreviewGrade(selectedGrade, project.grades.find(grade => grade.id === selectedGrade)?.name);
     view('grade-tabs').replaceChildren(); view('grade-manager').replaceChildren();
     control('grade-copy').replaceChildren(element('option', '효과 없이 새로 시작', { value: '' }));
     for (const grade of project.grades) {
@@ -356,21 +394,16 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const row = element('div', undefined, { className: 'ce-grade-row' });
       const name = element('input', undefined, { value: grade.name, maxlength: 40, 'aria-label': `${grade.name} 표시 이름`, 'data-grade-name': grade.id });
       const enabled = element('input', undefined, { type: 'checkbox', 'data-grade-enabled': grade.id }); enabled.checked = grade.enabled;
+      enabled.disabled = DEFAULT_GRADES.some(preset => preset.id === grade.id);
       const label = element('label', undefined, { className: 'ce-check' }); label.append(enabled, document.createTextNode(' 사용')); row.append(name, label); view('grade-manager').append(row);
     }
     renderRewardGrades();
   }
-  // 선택한 캠페인에 실제로 있는 방문 목표만 보여 준다(없는 목표를 연결하면 게시가 409로 거절된다). 캠페인을 아직 모르면 기존 1·3·5를 모두 보인다.
-  const goalsFor = campaignId => campaigns.find(item => item.id === campaignId)?.goals ?? [1, 3, 5];
-  function campaignLabel(campaign) {
-    const other = campaign.publication && campaign.publication.projectId !== wrapper?.id;
-    return `${campaign.title || campaign.id}${other ? ' · 지금 다른 수집품이 나가는 중 (게시하면 교체돼요)' : ''}`;
-  }
+  // 운영자가 준비한 표준 방문 보상에만 자동 연결한다. 점주는 지급 조건과 등급을 편집하지 않는다.
   function renderCampaignOptions() {
-    const select = control('campaign');
-    select.replaceChildren(element('option', '게시할 캠페인을 골라 주세요', { value: '' }));
-    for (const campaign of campaigns) if (campaign?.id && (!campaign.status || campaign.status === 'ACTIVE')) option(select, campaignLabel(campaign), campaign.id);
-    select.value = project.campaignId;
+    project.campaignId = createMerchantStarterProject({ campaigns, preferredCampaignId: project.campaignId || preferredCampaignId }).campaignId;
+    applyStandardVisitRewards(project);
+    view('campaign-status').textContent = project.campaignId ? '방문 보상은 자동으로 연결돼요.' : '게시할 캠페인을 하나로 정할 수 없어요. 운영팀에 문의해 주세요';
   }
   async function refreshCampaigns({ quiet = false } = {}) {
     if (!loadCampaigns) return true;
@@ -379,40 +412,33 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const loaded = await loadCampaigns();
       if (!active || sequence !== campaignSequence) return true;
       campaigns = loaded;
-      if (!wrapper && !campaignSelectionTouched && !project.campaignId) {
-        project.campaignId = createMerchantStarterProject({ merchantName, campaigns, preferredCampaignId }).campaignId;
-      }
       renderCampaignOptions(); renderRewardGrades(); renderProjectList();
       return true;
     } catch (error) {
+      if (active && sequence === campaignSequence) { campaigns = []; project.campaignId = ''; renderCampaignOptions(); renderRewardGrades(); renderProjectList(); }
       if (active && error?.status === 403 && onAccessDenied) onAccessDenied(error);
-      else if (active && !quiet && sequence === campaignSequence) notice(`게시할 캠페인 목록을 불러오지 못했어요. ${collectibleErrorMessage(error, '편집은 계속할 수 있어요. 저장 목록 새로 보기를 눌러 다시 시도해 주세요.')}`, true);
+      else if (active && !quiet && sequence === campaignSequence) notice(`방문 보상을 확인하지 못했어요. ${collectibleErrorMessage(error, '편집은 계속할 수 있어요. 저장 목록 새로 보기를 눌러 다시 시도해 주세요.')}`, true);
       return false;
     }
   }
   function renderRewardGrades() {
     const host = view('reward-grades'); host.replaceChildren();
-    for (const count of goalsFor(project.campaignId)) {
-      const label = element('label', `${count}회 방문 목표의 수집품 외형`, { className: 'ce-field' });
-      const select = element('select', undefined, { 'data-reward-count': count }); option(select, '연결하지 않음', '');
-      for (const grade of project.grades.filter(item => item.enabled)) option(select, grade.name, grade.id);
-      select.value = project.rewardGrades[String(count)] || ''; label.append(select); host.append(label);
-    }
-    host.append(element('p', '방문 조건·쿠폰·NFT 규칙은 현재 캠페인을 따르고, 여기서는 기존 목표에 보이는 사진 수집품만 연결해요.', { className: 'ce-help' }));
+    host.append(element('p', '1회 브론즈 · 3회 실버 · 5회 골드', { className: 'ce-fixed-rewards' }));
   }
-  // 꾸밀 면(앞/뒤)에 맞는 스티커 배열. 뒷면은 layouts가 없고 효과 대상도 될 수 없다(서버·설계 문서, 앞면 전용 유지).
-  function activeStickers() { return stickerSide === 'back' ? project.back.stickers : project.stickers; }
+  // 스티커는 앞면만 편집한다. 옛 back 데이터는 저장·복원 호환을 위해 그대로 둔다.
+  function activeStickers() { return project.stickers; }
   // 선택한 스티커가 "이 등급만 따로 배치" 중이면 x·y·size·rotation은 그 등급의 layouts를, 아니면 스티커 자체를 읽고 쓴다.
   function stickerPositionTarget(sticker) {
-    if (stickerSide === 'front' && sticker.layouts?.[selectedGrade]) return sticker.layouts[selectedGrade];
+    if (sticker.layouts?.[selectedGrade]) return sticker.layouts[selectedGrade];
     return sticker;
   }
   function stickerLabel(sticker) { return sticker.kind === 'mascot' ? `마스코트 · ${mascotPoseNames[sticker.text] || sticker.text}` : sticker.text; }
+  function renderFixedBack() {
+    const asset = fixedCollectibleBack(project.shape, selectedGrade);
+    view('fixed-back').textContent = `뒷면은 ${asset.shapeLabel} · ${asset.gradeLabel} 고정 음각을 사용해요. 모양과 등급을 바꾸면 정해진 뒷면으로 바뀌어요. 특수 등급은 브론즈 뒷면을 사용해요.`;
+  }
   function renderStickers() {
-    control('sticker-side').value = stickerSide;
-    view('back-mode-row').hidden = stickerSide !== 'back';
-    if (stickerSide === 'back') { control('back-mode').value = project.back.mode; control('back-color').value = project.back.color; }
-    view('sticker-form').hidden = stickerSide === 'back' && project.back.mode !== 'custom';
+    renderFixedBack();
     const list = activeStickers();
     const select = control('sticker-list'); select.replaceChildren();
     if (!list.some(sticker => sticker.id === selectedSticker)) selectedSticker = list.at(-1)?.id || '';
@@ -430,10 +456,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (input.dataset.sticker === 'text' && isMascot) continue; // textarea는 마스코트일 때 숨고 값도 건드리지 않는다.
       input.value = ['x', 'y', 'size', 'rotation'].includes(input.dataset.sticker) ? stickerPositionTarget(sticker)[input.dataset.sticker] : sticker[input.dataset.sticker];
     }
-    view('sticker-layout-toggle').hidden = stickerSide !== 'front' || !sticker;
+    view('sticker-layout-toggle').hidden = !sticker;
     const hasLayout = Boolean(sticker?.layouts?.[selectedGrade]);
-    if (sticker && stickerSide === 'front') control('sticker-grade-only').checked = hasLayout;
-    container.querySelector('[data-action="sticker-layout-reset"]').hidden = stickerSide !== 'front' || !hasLayout;
+    if (sticker) control('sticker-grade-only').checked = hasLayout;
+    container.querySelector('[data-action="sticker-layout-reset"]').hidden = !hasLayout;
     const targets = control('effect-target'), previous = targets.value; targets.replaceChildren();
     for (const [id, name] of [['surface', '전체 표면'], ['photo', '사진'], ['border', '테두리'], ...project.stickers.map(item => [item.id, `스티커 · ${stickerLabel(item)}`])]) option(targets, name, id);
     if ([...targets.options].some(item => item.value === previous)) targets.value = previous;
@@ -593,17 +619,34 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     }
     syncGreetingPreview();
   }
+  function advancePreviewRotation(now = performance.now()) {
+    if (playing && !control('reduce-motion').checked) previewRotation = rotationAngleAt(previewRotation, now - rotationTick, project.rotationSpeed) % 360;
+    rotationTick = now;
+  }
+  function setRotationSpeed(value) {
+    const speed = rotationSpeedValue(Number(value));
+    advancePreviewRotation();
+    if (speed !== rotationSpeedValue(project.rotationSpeed)) mutate(() => { project.rotationSpeed = speed; });
+    output('rotation-speed').textContent = `${speed}×`;
+    output('rotation-speed').setAttribute('aria-label', `회전 속도 ${speed}배`);
+    schedulePreview();
+  }
+  function previewAngle() { return ((project.angle + previewRotation + 540) % 360) - 180; }
   async function drawPreview(time = 0, livingTime = 0) {
     const sequence = ++renderSequence;
     const copy = cloneProject(project);
     const buffer = document.createElement('canvas'); buffer.width = previewCanvas.width; buffer.height = previewCanvas.height;
     try {
       const reducedMotion = control('reduce-motion').checked;
-      await renderCollectible(buffer, copy, selectedGrade, { angle: copy.angle, time, livingTime, reducedMotion, staticFrame: !playing || reducedMotion, merchantName });
+      const angle = previewAngle();
+      await renderCollectible(buffer, copy, selectedGrade, { angle, rotationTime: 0, time, livingTime, reducedMotion, staticFrame: !playing || reducedMotion, merchantName });
       if (!active || sequence !== renderSequence) return;
       previewCanvas.getContext('2d').clearRect(0, 0, 512, 512); previewCanvas.getContext('2d').drawImage(buffer, 0, 0);
       const grade = project.grades.find(item => item.id === selectedGrade);
       view('preview-caption').textContent = `${project.name} · ${grade?.name || ''} · ${project.theme.name} · 두께 ${thicknessPresetLabel(project.thickness) ?? project.thickness}`;
+      output('angle').textContent = `${Math.round(angle)}°`;
+      output('angle').setAttribute('aria-label', `회전 각도 ${Math.round(angle)}도`);
+      container.querySelector('[data-action="play"]').setAttribute('aria-pressed', String(playing));
     } catch (error) { notice(error.message || '미리보기를 만들지 못했어요. 입력은 유지했어요. 자르기 적용을 눌러 다시 시도해 주세요.', true); }
   }
   function schedulePreview() {
@@ -670,6 +713,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     frame = 0;
     if (!active || document.hidden || !anyRenderVisible() || studio.isHome) return;
     const allowMotion = !control('reduce-motion').checked;
+    advancePreviewRotation(now);
     // living은 재생 버튼과 무관하게 "지금 보는 등급"에 걸려 있으면 계속 움직여야 한다(PR #310 리뷰 P2).
     const hasLiving = allowMotion && project.living.items.some(item => item.gradeIds.includes(selectedGrade));
     const coinVisible = renderVisibility.get(previewCanvas), storyVisible = renderVisibility.get(storyCanvas);
@@ -742,21 +786,24 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   async function save(publish = false) {
     if (busy) return;
     if (mediaPending()) { notice('사진·음성을 불러오거나 녹음을 처리하고 있어요. 처리가 끝난 뒤 저장해 주세요.'); return; }
-    if (!project.name.trim()) { navigateStep(4); control('name').closest('details').open = true; notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
-    if (!project.theme.name.trim()) { navigateStep(4); notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
-    if (project.stickers.some(item => !item.text.trim()) || project.back.stickers.some(item => !item.text.trim())) { navigateStep(3); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
-    if (project.stickers.some(item => item.text.split('\n').length > 4) || project.back.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(3); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄을 지워 주세요.', true); return; }
-    if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(4); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
+    if (!project.name.trim()) { navigateStep(1); notice('수집품 이름을 입력해 주세요.', true); control('name').focus(); return; }
+    if (!project.theme.name.trim()) { navigateStep(1); const detail = control('theme').closest('details'); if (detail) detail.open = true; notice('시즌 테마를 입력하거나 기본으로 적어 주세요.', true); control('theme').focus(); return; }
+    if (project.stickers.some(item => !item.text.trim())) { navigateStep(2); studio.selectEditPanel('sticker'); notice('내용이 비어 있는 스티커를 채우거나 삭제해 주세요.', true); return; }
+    if (project.stickers.some(item => item.text.split('\n').length > 4)) { navigateStep(2); studio.selectEditPanel('sticker'); notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지워 주세요.', true); return; }
+    if (project.greetingOverrides.some(item => !item.gradeIds.length && !item.themeName.trim())) { navigateStep(3); studio.selectExtraPanel('voice'); notice('등급이나 시즌 테마를 고르지 않은 인사말 규칙이 있어요. 하나를 고르거나 규칙을 삭제해 주세요.', true); return; }
     // PR #310 리뷰(P1): region 대상 living 항목은 서버가 점 1~20개를 요구한다(rules.ts parseLivingItem). 칠한
     // 점을 전부 지운(또는 아직 칠하지 않은) 항목을 그대로 저장하면 그 등급을 쓰지 않아도 COLLECTIBLE_INVALID_PROJECT로
     // 초안 저장조차 거절된다(validateCollectibleProject는 등급 연결 여부와 무관하게 구조 전체를 검사한다).
     if (project.living.items.some(item => item.target === 'region' && (!item.strokes || item.strokes.length === 0))) {
-      navigateStep(4); control('living-kind').closest('details').open = true; notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
+      navigateStep(3); studio.selectExtraPanel('living'); notice('칠한 점이 없는 living 영역이 있어요. 영역을 칠하거나 그 항목을 삭제해 주세요.', true); return;
     }
+    applyStandardVisitRewards(project);
     if (publish) {
       setBusy(true); const refreshed = await refreshCampaigns(); setBusy(false);
       if (!active || !refreshed) return;
-      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl ? 1 : 4); if (project.story.type !== 'none') control('story-type').closest('details').open = true; notice(reason, true); return; } }
+      applyStandardVisitRewards(project, { includeMissingDefaults: true });
+      const reason = validatePublish(project, campaigns); if (reason) { navigateStep(!project.photo.originalDataUrl || !project.name.trim() ? 1 : project.story.type !== 'none' ? 3 : 4); if (project.story.type !== 'none') studio.selectExtraPanel('story'); notice(reason, true); return; }
+    }
     setBusy(true); notice(publish ? '등급별 게시 이미지를 준비하고 있어요…' : '초안을 저장하고 있어요…');
     // 복원·업그레이드 경로에 놓친 곳이 있어도 서버로 나가는 프로젝트는 항상 v2여야 한다(PR #293 P1 방어선).
     const revision = upgradeProject(cloneProject(project)), savedSerial = editSerial;
@@ -766,7 +813,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (publish) {
         revision.story.frames = await serializeStoryFrames(revision.story);
         for (const rung of SPRITE_SIZE_LADDER) {
-          revision.derived = await serializeDerived(revision, { extraGradeId: selectedGrade, merchantName, angleSide: rung.side, spriteQuality: rung.quality });
+          revision.derived = await serializeDerived(revision, { merchantName, includeAllEnabledGrades: true, angleSide: rung.side, spriteQuality: rung.quality });
           if (!publishSizeProblem(revision)) break;
         }
       }
@@ -833,7 +880,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function controlButtonsRecording(value) { if (!active) return; container.querySelector('[data-action="record"]').disabled = value; container.querySelector('[data-action="record-stop"]').disabled = !value; }
   async function record() {
-    if (studio.isHome || studio.step !== 4 || recorder?.state === 'recording' || recordingPending) return;
+    if (studio.isHome || studio.step !== 3 || recorder?.state === 'recording' || recordingPending) return;
     if (!navigator.mediaDevices?.getUserMedia || !globalThis.MediaRecorder) { notice('이 브라우저는 직접 녹음을 지원하지 않아요. MP3를 올리거나 텍스트 인사말로 계속해 주세요.', true); return; }
     const sourceProject = project;
     const sourceNavigation = navigationSequence;
@@ -844,7 +891,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     updateMediaLocks();
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || document.hidden || studio.isHome || studio.step !== 4 || navigationSequence !== sourceNavigation || project !== sourceProject) { localStream.getTracks().forEach(track => track.stop()); return; }
+      if (!active || sequence !== audioImportSequence || recordingGeneration !== recordSequence || document.hidden || studio.isHome || studio.step !== 3 || navigationSequence !== sourceNavigation || project !== sourceProject) { localStream.getTracks().forEach(track => track.stop()); return; }
       recordingStream = localStream;
       const mimeType = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
       if (!mimeType) { recordingStream.getTracks().forEach(track => track.stop()); recordingStream = null; notice('이 브라우저의 녹음 형식을 아직 지원하지 않아요. MP3를 올리거나 텍스트 인사말로 계속해 주세요.', true); return; }
@@ -886,6 +933,63 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     mutate(() => { project.photo = { originalDataUrl: image.dataUrl, width: image.width, height: image.height }; project.crop = { x: 0, y: 0, zoom: 1 }; project.photoEdits.strokes = []; });
     clearCollectibleRenderCache(); syncValues(); await drawCrop(); schedulePreview(); notice(message);
   }
+  function stopAi() { aiSequence++; clearTimeout(aiPollTimer); aiPollTimer = 0; }
+  function showAiRound(round, sequence, sourceProject, polls = 0) {
+    if (!active || sequence !== aiSequence || project !== sourceProject) return;
+    aiRound = round;
+    const drafts = (round.drafts || []).filter(draft => Number.isSafeInteger(draft.index) && typeof draft.label === 'string' && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(draft.imageDataUrl));
+    if (round.final?.imageDataUrl && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(round.final.imageDataUrl)) drafts.push({ index: -1, label: '완성 그림', imageDataUrl: round.final.imageDataUrl });
+    if (round.status === 'FAILED') {
+      studio.showAi(collectibleErrorMessage({ code: round.failureCode }, 'AI 그림을 만들지 못했어요. 준비한 이미지로 계속하거나 새 초안을 다시 요청해 주세요.'), drafts); return;
+    }
+    if (!['DRAFTING', 'FINALIZING'].includes(round.status)) { studio.showAi('마음에 드는 그림을 골라 스튜디오에서 모양과 효과를 다듬어 주세요.', drafts); return; }
+    studio.showAi('AI가 그림을 만들고 있어요. 준비한 이미지로 먼저 시작해도 돼요.');
+    if (polls >= 60) { studio.showAi('생성이 오래 걸리고 있어요. 잠시 뒤 생성 상태를 다시 확인하거나 준비한 이미지로 계속해 주세요.'); return; }
+    aiPollTimer = setTimeout(async () => {
+      try { showAiRound(await request(`${aiBase}/rounds/${encodeURIComponent(round.id)}`), sequence, sourceProject, polls + 1); }
+      catch (error) {
+        if (!active || sequence !== aiSequence || project !== sourceProject) return;
+        studio.showAi(collectibleErrorMessage(error, '생성 상태를 읽지 못했어요. 상태 다시 확인을 눌러 주세요.'));
+        if (error?.status === 403) onAccessDenied?.(error);
+      }
+    }, 5000);
+  }
+  async function startAi(forceNew = false) {
+    stopAi(); stopHiddenMedia(); studio.showHome(false); studio.showAi('AI 생성 상태를 확인하고 있어요…');
+    const sequence = aiSequence, sourceProject = project;
+    setBusy(true);
+    try {
+      const state = await request(aiBase);
+      if (!active || sequence !== aiSequence || project !== sourceProject) return;
+      if (!state.configured) throw { code: 'AI_ART_NOT_CONFIGURED' };
+      if ((forceNew || !state.round) && !(state.quota?.draftRoundsLeft > 0)) throw { code: 'AI_ART_DAILY_LIMIT' };
+      const round = !forceNew && state.round ? state.round : await request(`${aiBase}/rounds`, { method: 'POST', body: {} });
+      showAiRound(round, sequence, sourceProject);
+    } catch (error) {
+      if (!active || sequence !== aiSequence || project !== sourceProject) return;
+      aiRound = null; studio.showAi(collectibleErrorMessage(error, 'AI 초안을 준비하지 못했어요. 준비한 이미지로 스튜디오에 들어갈 수 있어요.'));
+      if (error?.status === 403) onAccessDenied?.(error);
+    } finally { if (active && sequence === aiSequence) setBusy(false); }
+  }
+  async function latestPhoto() {
+    const sequence = ++uploadSequence, sourceProject = project;
+    setBusy(true); notice('최근 등록한 가게 사진을 확인하고 있어요…');
+    try {
+      const profileBase = `/api/web/v1/merchant/merchants/${encodeURIComponent(merchantId)}`;
+      const profile = await request(`${profileBase}/real-world-profile`);
+      if (!active || sequence !== uploadSequence || project !== sourceProject) return;
+      const photo = profile.photos?.find(item => item.kind === 'STORE');
+      if (!photo || typeof photo.id !== 'string' || !photo.id || photo.id.length > 100) throw new Error('등록한 가게 사진이 없어요. 준비한 이미지를 직접 선택해 주세요.');
+      const response = await fetch(`${profileBase}/photos/${encodeURIComponent(photo.id)}/image`, { credentials: 'same-origin', signal });
+      if (!response.ok) throw Object.assign(new Error(), { status: response.status });
+      const image = await importImage(await response.blob(), photoFileLimits.storedBytes);
+      if (!active || sequence !== uploadSequence || project !== sourceProject || !confirmDiscardIfDirty()) return;
+      resetToNewDraft('', true); await usePhoto(image, '최근 등록한 가게 사진을 가져왔어요. 위치와 모양을 맞춰 주세요.'); studio.showStep(1);
+    } catch (error) {
+      if (active && sequence === uploadSequence && project === sourceProject) notice(error.status ? collectibleErrorMessage(error, '가게 사진을 가져오지 못했어요. 준비한 이미지를 선택해 주세요.') : error.message, true);
+      if (active && error?.status === 403) onAccessDenied?.(error);
+    } finally { if (active) setBusy(false); }
+  }
   function stopHiddenMedia() {
     navigationSequence++;
     playing = false; storyPlaying = false; pointer = null;
@@ -896,8 +1000,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   function navigateStep(step) {
     stopHiddenMedia(); studio.showStep(step); start = performance.now();
-    if (studio.step === 1 || studio.step === 3 || studio.step === 4) drawCrop(); // 4단계 "살아 있는 그림"에도 같은 사진 캔버스가 있다.
-    if (studio.step !== 1) schedulePreview();
+    if (studio.step === 1 || studio.step === 2 || studio.step === 3) drawCrop();
+    if (studio.step >= 3) schedulePreview();
   }
   // 저장하지 않은 편집이 있으면 새로 시작하거나 다른 프로젝트를 열기 전에 묻는다. 거절하면 지금 프로젝트를 그대로 둔다.
   const newProjectDiscardMessage = '저장하지 않은 편집이 있어요. 지금 새로 시작하거나 다른 프로젝트를 열면 사라져요. 계속할까요?';
@@ -908,8 +1012,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     return accepted;
   }
   function resetToNewDraft(menuName = '', suggested = false) {
+    stopAi(); studio.hideAi();
     stopHiddenMedia(); project = createMerchantStarterProject({ merchantName, menuName, suggested, campaigns, preferredCampaignId }); project.theme.name = studio.newTheme;
-    campaignSelectionTouched = false;
     wrapper = null; undo = []; redo = []; selectedGrade = 'bronze'; dirty = false; playing = false; clearCollectibleRenderCache(); syncValues();
   }
   // 게시 중지: 새 손님에게 나가는 것만 멈춘다. 게시 버전과 이미 받은 손님의 수집품은 그대로다.
@@ -947,11 +1051,45 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   }
   async function act(action, id, source) {
     if (action === 'record-stop') { stopRecording(); return; }
-    if (action === 'pause') { playing = false; schedulePreview(); return; }
+    if (action === 'pause') { advancePreviewRotation(); playing = false; schedulePreview(); return; }
     if (action === 'story-stop') { storyPlaying = false; storyCanvas.hidden = true; return; }
     if (busy || loading) return;
-    if (action === 'home') { stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(); return; }
+    if (action === 'ai-start' || action === 'ai-create') { await startAi(action === 'ai-create'); return; }
+    if (action === 'latest-photo') { await latestPhoto(); return; }
+    if (action === 'prepared-photo') {
+      if (!confirmDiscardIfDirty()) return;
+      resetToNewDraft('', true); studio.showStep(1); control('photo').click(); await drawCrop(); schedulePreview(); return;
+    }
+    if (action === 'ai-use') {
+      const draft = Number(id) === -1 ? aiRound?.final : aiRound?.drafts?.find(item => item.index === Number(id));
+      if (!draft || !/^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+=*$/.test(draft.imageDataUrl) || decodedBytes(draft.imageDataUrl) > photoFileLimits.storedBytes) { notice('AI 그림 형식을 읽지 못했어요. 생성 상태를 다시 확인해 주세요.', true); return; }
+      const sequence = aiSequence, sourceProject = project; setBusy(true);
+      try {
+        const dimensions = await inspectImage(draft.imageDataUrl);
+        if (Math.max(dimensions.width, dimensions.height) > photoFileLimits.storedSide) throw new Error('AI 그림이 너무 커요. 준비한 이미지로 계속해 주세요.');
+        if (!active || sequence !== aiSequence || project !== sourceProject || !confirmDiscardIfDirty()) return;
+        resetToNewDraft('', true); await usePhoto({ dataUrl: draft.imageDataUrl, ...dimensions }, 'AI 초안을 가져왔어요. 스튜디오에서 자유롭게 다듬고 저장해 주세요.'); studio.showStep(1);
+      } catch (error) { if (active && sequence === aiSequence) notice(error.message, true); }
+      finally { if (active) setBusy(false); }
+      return;
+    }
+    if (action === 'ai-back') { stopAi(); studio.hideAi(); studio.showHome(); return; }
+    if (action === 'home') { stopAi(); studio.hideAi(); stopHiddenMedia(); studio.sync(project, { dirty, wrapper }); studio.showHome(); return; }
     if (action === 'resume') { navigateStep(studio.step); return; }
+    if (action === 'background-color') {
+      if (!/^#[0-9a-f]{6}$/i.test(id) || project.baseColor.toLowerCase() === id.toLowerCase()) return;
+      mutate(() => { project.baseColor = id.toLowerCase(); }); return;
+    }
+    if (action === 'export-image') {
+      if (!project.photo.originalDataUrl) { notice('먼저 사진을 추가해 주세요.', true); navigateStep(1); return; }
+      const image = document.createElement('canvas'); image.width = image.height = 1024;
+      await renderCollectible(image, cloneProject(project), selectedGrade, { staticFrame: true, angle: 0, textureSize: 1024, merchantName });
+      const file = await new Promise(resolve => image.toBlob(resolve, 'image/png'));
+      if (!file) throw new Error('코인 이미지를 저장하지 못했어요.');
+      const url = URL.createObjectURL(file), link = document.createElement('a');
+      link.href = url; link.download = `${project.name.replace(/[\\/:*?"<>|]/g, '_')}-${selectedGrade}.png`; link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000); notice('현재 등급의 코인 이미지를 PNG로 저장했어요.'); return;
+    }
     if (action === 'step' || action === 'previous-step' || action === 'next-step') { navigateStep(action === 'step' ? id : studio.step + (action === 'next-step' ? 1 : -1)); return; }
     if (action === 'open-project') { stopHiddenMedia(); await loadProject(id); return; }
     if (action === 'season') { studio.selectHomeTheme(id); return; }
@@ -1015,10 +1153,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         const clamped = clampStickerLines(text); text = clamped.text;
         if (clamped.truncated) notice('스티커 내용은 4줄까지만 가능해요. 넘는 줄은 지웠어요.', true);
       }
-      const list = activeStickers(), cap = stickerSide === 'back' ? mediaLimits.backStickers : mediaLimits.stickers;
+      const list = activeStickers(), cap = mediaLimits.stickers;
       if (list.length >= cap) { notice(`스티커는 ${cap}개까지 만들 수 있어요.`, true); return; }
       mutate(() => {
-        const sticker = { id: createId('sticker'), kind, text, x: .5, y: .7, size: 42, rotation: 0, color: '#ffffff', order: list.length, align: 'center', ...(stickerSide === 'front' ? { layouts: {} } : {}) };
+        const sticker = { id: createId('sticker'), kind, text, x: .5, y: .7, size: 42, rotation: 0, color: '#ffffff', order: list.length, align: 'center', layouts: {} };
         list.push(sticker); selectedSticker = sticker.id;
       });
       control('sticker-new').value = '';
@@ -1029,14 +1167,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
       mutate(() => { delete sticker.layouts[selectedGrade]; }); renderStickers(); return;
     }
-    if (action.startsWith('sticker-') && action !== 'sticker-side') {
+    if (action.startsWith('sticker-')) {
       const list = activeStickers();
       const sticker = list.find(item => item.id === selectedSticker); if (!sticker) return;
       mutate(() => {
         if (action === 'sticker-delete') {
           const filtered = list.filter(item => item.id !== sticker.id);
-          if (stickerSide === 'back') project.back.stickers = filtered;
-          else { project.stickers = filtered; project.effects = project.effects.filter(item => item.target !== sticker.id); project.living.items = project.living.items.filter(item => item.target !== sticker.id); }
+          project.stickers = filtered; project.effects = project.effects.filter(item => item.target !== sticker.id); project.living.items = project.living.items.filter(item => item.target !== sticker.id);
         } else { const ordered = [...list].sort((a, b) => a.order - b.order); const index = ordered.indexOf(sticker), other = ordered[index + (action === 'sticker-front' ? 1 : -1)]; if (other) [other.order, sticker.order] = [sticker.order, other.order]; }
       }); renderStickers(); renderEffects(); renderLivingItems(); renderBrushTargetOptions(); return;
     }
@@ -1117,9 +1254,14 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'parallax-clear') {
       mutate(() => { project.parallax.strokes = []; }); drawCrop(); return;
     }
-    if (action === 'template') { selectedTemplate = id; playing = true; start = performance.now(); renderMotionGrades(); schedulePreview(); return; }
-    if (action === 'play' || action === 'replay') { playing = true; if (action === 'replay') start = performance.now(); schedulePreview(); return; }
-    if (action === 'angle-reset') { mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
+    if (action === 'template') { advancePreviewRotation(); selectedTemplate = id; playing = !control('reduce-motion').checked; start = rotationTick = performance.now(); renderMotionGrades(); schedulePreview(); return; }
+    if (action === 'play' || action === 'replay') {
+      if (control('reduce-motion').checked) { notice('움직임 줄이기를 끄면 코인을 회전할 수 있어요.'); return; }
+      if (playing && action === 'play') return;
+      if (action === 'replay') previewRotation = 0;
+      playing = true; start = rotationTick = performance.now(); schedulePreview(); return;
+    }
+    if (action === 'angle-reset') { previewRotation = 0; rotationTick = performance.now(); mutate(() => { project.angle = 0; }); control('angle').value = 0; output('angle').textContent = '0°'; return; }
     if (action === 'thickness-reset') { mutate(() => { project.thickness = 8; }); control('thickness').value = 8; output('thickness').textContent = '8'; studio.sync(project, { dirty, wrapper }); return; }
     if (action === 'record') { await record(); return; }
     if (action === 'audio-delete') { audioImportSequence++; stopRecording(true); recordingStream?.getTracks().forEach(track => track.stop()); recordingStream = null; mutate(() => { project.audio = null; }); view('audio').pause(); view('audio').src = ''; view('audio').hidden = true; waveform.refresh(); return; }
@@ -1139,17 +1281,23 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     if (action === 'copy') {
       if (wrapper) {
         if (busy) return; setBusy(true);
-        try { const saved = await request(`${base}/${encodeURIComponent(wrapper.id)}/copy`, { method: 'POST', body: { expectedVersion: wrapper.version } }); wrapper = saved.project?.id ? saved.project : saved; const current = cloneProject(project); project = { ...current, name: `${current.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: '', rewardGrades: {} }; await refreshList(); }
+        try { const saved = await request(`${base}/${encodeURIComponent(wrapper.id)}/copy`, { method: 'POST', body: { expectedVersion: wrapper.version } }); wrapper = saved.project?.id ? saved.project : saved; const current = cloneProject(project); project = applyStandardVisitRewards({ ...current, name: `${current.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: current.campaignId || createMerchantStarterProject({ campaigns, preferredCampaignId }).campaignId }); await refreshList(); }
         catch (error) { notice(collectibleErrorMessage(error, '시즌 초안을 복사하지 못했어요. 현재 입력을 유지했어요. 다시 시도해 주세요.'), true); return; }
         finally { setBusy(false); }
-      } else { project = { ...cloneProject(project), name: `${project.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: '', rewardGrades: {} }; }
-      undo = []; redo = []; changed(); syncValues(); schedulePreview(); notice('현재 편집 내용을 별도 시즌 초안으로 복사했어요. 테마와 캠페인을 고른 뒤 초안을 저장해 주세요.');
+      } else { const current = cloneProject(project); project = applyStandardVisitRewards({ ...current, name: `${current.name} · 시즌 복사`.slice(0, 80), derived: {}, campaignId: current.campaignId || createMerchantStarterProject({ campaigns, preferredCampaignId }).campaignId }); }
+      undo = []; redo = []; changed(); syncValues(); schedulePreview(); notice('현재 편집 내용을 별도 시즌 초안으로 복사했어요. 방문 보상은 자동으로 이어져요.');
     }
   }
   listen(container, 'click', event => { const target = event.target.closest('[data-action]'); if (target && container.contains(target)) act(target.dataset.action, target.dataset.id, target).catch(error => notice(collectibleErrorMessage(error, error.status ? undefined : error.message || '처리하지 못했어요. 다시 시도해 주세요.'), true)); });
   listen(container, 'pointerdown', event => { if (event.target.matches('input[type="range"],input[type="color"]')) remember(); });
-  listen(container, 'focusin', event => { if (event.target.matches('textarea,input:not([type]),input[type="text"]')) remember(); });
-  listen(container, 'keydown', event => { if (event.target.matches('input[type="range"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) remember(); });
+  listen(container, 'focusin', event => { if (!event.target.dataset.control?.startsWith('background-') && event.target.matches('textarea,input:not([type]),input[type="text"],input[type="number"]')) remember(); });
+  listen(container, 'keydown', event => {
+    const typing = event.target.matches('textarea,input:not([type]),input[type="text"],input[type="number"],input[type="email"],input[type="password"]') || event.target.isContentEditable;
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !typing && ['z', 'y'].includes(event.key.toLowerCase())) {
+      event.preventDefault(); act(event.shiftKey || event.key.toLowerCase() === 'y' ? 'redo' : 'undo').catch(error => notice(collectibleErrorMessage(error), true)); return;
+    }
+    if (event.target.matches('input[type="range"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) remember();
+  });
   listen(container, 'input', event => {
     const target = event.target;
     if (target.dataset.edit) { project.photoEdits[target.dataset.edit] = Number(target.value); changed(); drawCrop(); schedulePreview(); return; }
@@ -1164,12 +1312,12 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       changed(); schedulePreview(); return;
     }
     const field = target.dataset.control;
-    if (field === 'back-color') { project.back.color = target.value; changed(); schedulePreview(); return; }
     if (['zoom', 'crop-x', 'crop-y'].includes(field)) {
       project.crop[field === 'zoom' ? 'zoom' : field.slice(-1)] = Number(target.value); output('zoom').textContent = `${project.crop.zoom.toFixed(2)}배`; changed(); drawCrop(); schedulePreview();
     } else if (field === 'angle' || field === 'thickness') {
-      playing = false; output(field).textContent = `${target.value}${field === 'angle' ? '°' : ''}`;
+      playing = false; previewRotation = 0; output(field).textContent = `${target.value}${field === 'angle' ? '°' : ''}`;
       // The value changes immediately. The expensive final is generated on release.
+    } else if (field === 'rotation-speed') { setRotationSpeed(target.value);
     } else if (['name', 'greeting', 'theme'].includes(field)) {
       if (field === 'theme') project.theme.name = target.value; else project[field] = target.value;
       changed();
@@ -1179,6 +1327,17 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     } else if (target.dataset.overrideText) {
       const override = project.greetingOverrides.find(item => item.id === target.dataset.overrideText);
       if (override) { override.text = target.value; changed(); }
+    } else if (field === 'background-hex' || ['background-r', 'background-g', 'background-b'].includes(field)) {
+      let color;
+      if (field === 'background-hex') {
+        if (!/^#[0-9a-f]{6}$/i.test(target.value)) return; color = target.value.toLowerCase();
+      } else {
+        if (target.value.trim() === '' || !Number.isInteger(Number(target.value)) || Number(target.value) < 0 || Number(target.value) > 255) return;
+        const channels = [1, 3, 5].map(offset => parseInt(project.baseColor.slice(offset, offset + 2), 16));
+        channels[['background-r', 'background-g', 'background-b'].indexOf(field)] = Number(target.value);
+        color = `#${channels.map(value => value.toString(16).padStart(2, '0')).join('')}`;
+      }
+      if (color !== project.baseColor.toLowerCase()) mutate(() => { project.baseColor = color; });
     } else if (['base-color', 'photo-color', 'relief'].includes(field)) {
       project[{ 'base-color': 'baseColor', 'photo-color': 'photoColor', relief: 'relief' }[field]] = field === 'base-color' ? target.value : Number(target.value); changed(); schedulePreview();
     } else if (field === 'story-cartoon') { project.story.cartoon = Number(target.value); changed(); }
@@ -1200,8 +1359,8 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (field === 'project-list') { await loadProject(target.value); return; }
       if (field === 'photo') {
         if (!target.files[0]) return; const sequence = ++uploadSequence, sourceProject = project;
-        const image = await importImage(target.files[0], 3 * 1024 * 1024); if (!active || sequence !== uploadSequence || project !== sourceProject) return;
-        await usePhoto(image, '사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
+        const image = await preparePhotoFile(target.files[0]); if (!active || sequence !== uploadSequence || project !== sourceProject) return;
+        await usePhoto(image, image.normalized ? '큰 사진을 편집용 크기로 줄여 가져왔어요. 기기의 원본 파일은 그대로예요.' : '사진을 올렸어요. 드래그와 확대 조절로 위치를 맞춰 주세요.'); return;
       }
       if (field === 'audio') {
         const file = target.files[0]; if (!file) return;
@@ -1221,12 +1380,10 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         if (project.story.frames.length + frames.length > 5) throw new Error('이야기 장면은 5장까지 올릴 수 있어요.');
         mutate(() => project.story.frames.push(...frames)); renderStoryFrames(); return;
       }
-      if (field === 'shape' || field === 'style') { mutate(() => { project[field] = target.value; if (field === 'style' && target.value !== 'original') project.photoColor = 0; }); control('photo-color').value = project.photoColor; await drawCrop(); return; }
-      if (field === 'angle' || field === 'thickness') { project[field] = Number(target.value); changed(); schedulePreview(); return; }
+      if (field === 'shape' || field === 'style') { mutate(() => { project[field] = target.value; if (field === 'style' && target.value !== 'original') project.photoColor = 0; }); control('photo-color').value = project.photoColor; renderFixedBack(); await drawCrop(); return; }
+      if (field === 'angle' || field === 'thickness') { playing = false; previewRotation = 0; project[field] = Number(target.value); changed(); schedulePreview(); return; }
       if (field === 'sticker-list') { selectedSticker = target.value; renderStickers(); return; }
-      if (field === 'sticker-side') { stickerSide = target.value; selectedSticker = ''; renderStickers(); return; }
       if (field === 'sticker-kind') { syncStickerKindVisibility(); return; }
-      if (field === 'back-mode') { mutate(() => { project.back.mode = target.value; }); renderStickers(); return; }
       if (field === 'brush-target') { brushTarget = target.value; renderBrushTargetOptions(); renderLivingItems(); drawCrop(); return; }
       if (field === 'sticker-grade-only') {
         const sticker = activeStickers().find(item => item.id === selectedSticker); if (!sticker) return;
@@ -1282,23 +1439,13 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
         mutate(() => { item.gradeIds = target.checked ? [...new Set([...item.gradeIds, grade])] : item.gradeIds.filter(id => id !== grade); });
         renderLivingItems(); return;
       }
-      if (field === 'campaign') {
-        campaignSelectionTouched = true;
-        const dropped = [];
-        mutate(() => {
-          project.campaignId = target.value; const goals = goalsFor(target.value);
-          for (const goal of Object.keys(project.rewardGrades)) if (!goals.includes(Number(goal))) { dropped.push(goal); delete project.rewardGrades[goal]; }
-        });
-        renderRewardGrades();
-        if (dropped.length) notice(`선택한 캠페인에 없는 방문 목표(${dropped.join('·')}회)의 수집품 연결은 풀었어요. 게시 전에 연결을 확인해 주세요.`);
-        return;
-      }
       if (field === 'story-type') { mutate(() => { project.story.type = target.value; }); renderStoryFrames(); return; }
-      if (field === 'reduce-motion') { if (target.checked) { playing = false; storyPlaying = false; } schedulePreview(); return; }
-      if (target.dataset.rewardCount) { mutate(() => { if (target.value) project.rewardGrades[target.dataset.rewardCount] = target.value; else delete project.rewardGrades[target.dataset.rewardCount]; }); return; }
+      if (field === 'rotation-speed') { setRotationSpeed(target.value); return; }
+      if (field === 'reduce-motion') { if (target.checked) { advancePreviewRotation(); playing = false; storyPlaying = false; } schedulePreview(); return; }
       if (target.dataset.gradeName) { mutate(() => { project.grades.find(item => item.id === target.dataset.gradeName).name = target.value.trim() || '새 등급'; }); renderGrades(); renderEffects(); return; }
       if (target.dataset.gradeEnabled) {
         const grade = project.grades.find(item => item.id === target.dataset.gradeEnabled);
+        if (DEFAULT_GRADES.some(preset => preset.id === grade.id)) { target.checked = true; return; }
         if (!target.checked && project.grades.filter(item => item.enabled).length === 1) { target.checked = true; notice('미리 볼 등급을 한 개 이상 남겨 주세요.', true); return; }
         let removed = false;
         mutate(() => {
@@ -1314,7 +1461,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
             project.greetingOverrides = project.greetingOverrides.filter(item => item.gradeIds.length > 0 || item.themeName !== '');
           }
         });
-        if (removed) notice('끄신 등급의 방문 목표 연결도 해제했어요. 게시할 때 다른 등급을 선택해 주세요.');
+        if (removed) { applyStandardVisitRewards(project); notice('방문 보상 등급은 1회 브론즈·3회 실버·5회 골드로 다시 고정했어요.'); }
         if (!grade.enabled && selectedGrade === grade.id) selectedGrade = project.grades.find(item => item.enabled).id;
         renderGrades(); renderEffects(); renderMotionGrades(); renderStickers(); renderGreetingOverrides(); renderLivingItems(); return;
       }
@@ -1403,7 +1550,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   listen(previewCanvas, 'pointerdown', event => {
     if (loading) return;
     const point = pointOn(previewCanvas, event), x = (point.x - 512 * .11) / (512 * .78), y = (point.y - 512 * .11) / (512 * .78);
-    if (Math.abs(project.angle) > 15 || playing) { notice('스티커를 드래그하려면 정면 보기와 정지를 눌러 주세요. 위치 조절바는 어느 각도에서도 사용할 수 있어요.'); return; }
+    if (Math.abs(previewAngle()) > 15 || playing) { notice('스티커를 드래그하려면 정면 보기와 정지를 눌러 주세요. 위치 조절바는 어느 각도에서도 사용할 수 있어요.'); return; }
     // 등급별 배치 중인 스티커는 그 등급의 좌표(stickerPositionTarget)로 맞아야 보이는 자리와 드래그 판정이 일치한다.
     const candidate = [...project.stickers].sort((a, b) => b.order - a.order).find(sticker => { const pos = stickerPositionTarget(sticker); return Math.hypot((pos.x - x) * 512, (pos.y - y) * 512) < Math.max(25, pos.size); });
     if (!candidate) return; remember(); selectedSticker = candidate.id; renderStickers(); previewCanvas.setPointerCapture(event.pointerId);
@@ -1457,6 +1604,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   // 'discard' → 사용자가 명시적으로 버리기로 한 이 초안만 지운다. 로그아웃·계정 전환으로 그 계정의 모든 점포
   // 보관본을 지우는 일은 제작기가 열려 있지 않아도 일어나야 하므로 merchant.mjs가 clearCollectibleDrafts로 직접 한다.
   const dispose = (reason = 'navigate') => {
+    stopAi(); aiRound = null;
     clearTimeout(autosaveTimer);
     if (reason === 'discard') clearDraftStorage();
     else saveDraftLocally();
@@ -1467,6 +1615,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
     clearCollectibleRenderCache(); container.replaceChildren();
   };
   // 점주 웹이 제작기를 닫거나 다른 점포로 바꾸기 전에 저장하지 않은 편집을 물어볼 수 있게 한다.
-  dispose.isDirty = () => dirty;
+  dispose.isDirty = () => dirty || mediaPending();
   return dispose;
 }

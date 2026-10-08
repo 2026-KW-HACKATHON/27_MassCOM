@@ -321,4 +321,35 @@ test('discovery keeps same-name branches, unlocated stores and ended campaigns d
     SELECT 'rw-dense-' || n, $1::jsonb, 37.5, 127
     FROM generate_series(1,5001) AS n`, [JSON.stringify({ ...profile, schedule: openSchedule })]);
   await assert.rejects(service.search({ ...query, openOnly: true }), { code: 'DISCOVERY_ZOOM_REQUIRED' });
+
+  await pool.query(`INSERT INTO merchants (id,name,story,road_address,minimum_spend_won,status,is_demo,published_at,category)
+    VALUES ('rw-photo-latest','최신 사진 가게','대표 사진 정렬 확인','서울 최신 사진길',0,'ACTIVE',false,now(),'카페')`);
+  await pool.query(`INSERT INTO merchant_real_world_profiles (merchant_id,profile,latitude,longitude)
+    VALUES ('rw-photo-latest',$1,37.5,127)`, [JSON.stringify(profile)]);
+  await pool.query(`INSERT INTO merchant_members (merchant_id,account_id,role,status)
+    VALUES ('rw-photo-latest','rw-photo-owner','OWNER','ACTIVE')`);
+  const olderDigest = (await store.save(new Uint8Array(24).fill(5))).digest;
+  const sameTimeLowDigest = (await store.save(new Uint8Array(24).fill(6))).digest;
+  const sameTimeHighDigest = (await store.save(new Uint8Array(24).fill(7))).digest;
+  const sameTimeLowId = '00000000-0000-4000-8000-000000000001';
+  const sameTimeHighId = 'ffffffff-ffff-4fff-bfff-ffffffffffff';
+  await pool.query(`INSERT INTO merchant_real_world_photos
+    (id,merchant_id,digest,mime_type,width,height,kind,caption,created_at,updated_at)
+    VALUES
+      ('11111111-1111-4111-8111-111111111111','rw-photo-latest',$1,'image/webp',10,10,'STORE','오래된 매장 사진','2026-10-01T00:00:00Z','2026-10-01T00:00:00Z'),
+      ($2,'rw-photo-latest',$3,'image/webp',10,10,'STORE','같은 시각 낮은 ID','2026-10-07T00:00:00Z','2026-10-07T00:00:00Z'),
+      ($4,'rw-photo-latest',$5,'image/webp',10,10,'STORE','같은 시각 높은 ID','2026-10-07T00:00:00Z','2026-10-07T00:00:00Z')`,
+  [olderDigest, sameTimeLowId, sameTimeLowDigest, sameTimeHighId, sameTimeHighDigest]);
+  const latestDetail = await service.merchant('rw-photo-latest');
+  const oldestId = '11111111-1111-4111-8111-111111111111';
+  assert.deepEqual(latestDetail.photos.map(item => item.id), [
+    oldestId, sameTimeLowId, sameTimeHighId,
+  ]);
+  assert.equal(latestDetail.thumbnail?.id, oldestId);
+  const ownerPhotos = await service.profile('rw-photo-owner', 'rw-photo-latest');
+  assert.deepEqual(ownerPhotos.photos.map(item => item.id), [sameTimeHighId, sameTimeLowId, oldestId]);
+  assert.equal(ownerPhotos.preview?.photos[0]?.id, oldestId);
+  assert.equal((await service.gameContent(['rw-photo-latest']))[0]?.photos[0]?.id, oldestId);
+  const discovery = await service.search({ ...query, query: '최신 사진 가게' });
+  assert.equal(discovery.merchants.find(item => item.id === 'rw-photo-latest')?.thumbnail?.id, oldestId);
 });
