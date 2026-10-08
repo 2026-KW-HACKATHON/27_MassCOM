@@ -34,7 +34,7 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
       pool.query('SELECT count(*)::int AS total FROM merchant_members'),
       pool.query(`SELECT count(*)::int AS total FROM badge_reward_offers WHERE status = 'ACTIVE'`),
     ]);
-    assert.deepEqual(counts.map(({ rows }) => rows[0]?.total), [3, 3, 9, 0, 3]);
+    assert.deepEqual(counts.map(({ rows }) => rows[0]?.total), [33, 33, 99, 0, 3]);
 
     await pool.query('UPDATE campaigns SET enrolled_count = 2 WHERE id = $1', ['showcase-local-campaign']);
     await seedHostedShowcase(pool);

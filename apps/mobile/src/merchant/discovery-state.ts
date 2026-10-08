@@ -70,7 +70,8 @@ export function createDiscoveryState(initial: DiscoveryNavigation = navigationDe
     },
     resolve(request: DiscoveryRequest, page: DiscoveryPage) {
       if (request.generation !== generation || request.fingerprint !== fingerprint(request.query)) return;
-      const merchants = request.cursor ? [...state.merchants, ...page.merchants.filter(item => !state.merchants.some(previous => previous.id === item.id))] : page.merchants;
+      const merchants = (request.cursor ? [...state.merchants, ...page.merchants.filter(item => !state.merchants.some(previous => previous.id === item.id))] : [...page.merchants])
+        .sort((left, right) => (left.distance?.meters ?? Infinity) - (right.distance?.meters ?? Infinity));
       update({ merchants, clusters: page.clusters, nextCursor: page.nextCursor, unlocatedCount: page.unlocatedCount, loading: false, error: null });
     },
     reject(request: DiscoveryRequest, error: string) { if (request.generation === generation) update({ loading: false, error }); },
