@@ -26,7 +26,8 @@ export type CoinCatalog = { merchantId: string; merchantName: string; types: {
     quantity: number; sources: CoinSource[] })[] }[] }[];
 export type CoinRerollTicket = { id: string; grade: 'NORMAL' | 'BRONZE' | 'SILVER' | 'GOLD'; status: 'UNUSED' | 'USED'; acquiredAt: string };
 export type CoinRerollOption = { poolId: string; merchantId: string; merchantName: string; eventName: string;
-  grade: CoinRerollTicket['grade']; entries: (CoinReference & { name: string; weight: number; probability: number })[] };
+  grade: CoinRerollTicket['grade']; oddsExpiresAt?: string;
+  entries: (CoinReference & { name: string; weight: number; probability: number })[] };
 export type CoinReroll = { tickets: CoinRerollTicket[]; sources: CoinSource[]; options: CoinRerollOption[] };
 export type CoinSeriesSlot = CoinReference & { name: string; quantity: number };
 export type CoinSeries = {

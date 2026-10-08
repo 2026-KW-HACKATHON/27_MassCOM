@@ -1,13 +1,13 @@
 import * as Crypto from 'expo-crypto';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
 import { createCommerceApiClient } from '@/commerce/commerce-api';
 import { parseCollectibleArtwork } from '@/commerce/collectible-artwork';
-import { coinErrorMessage, createCoinApiClient, finalRerollFailure, type CoinCollection, type CoinRerollOption, type CoinSource, type CoinSeries, type OwnedCoin, type SeriesTier } from '@/shop/coin-api';
+import { coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, sameRerollOption, type CoinCollection, type CoinRerollOption, type CoinSource, type CoinSeries, type OwnedCoin, type SeriesTier } from '@/shop/coin-api';
 import { clearCoinRerollPending, coinRerollPendingKey, readCoinRerollPending, startOrResumeCoinReroll, type CoinRerollPending } from '@/shop/coin-reroll-pending';
 import { pendingFocusSnapshot } from '@/shop/pending-focus';
 import { getAppPackageId } from '@/config/app-identity';
@@ -58,22 +58,43 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
   const current = useRef(true);
   const inFlight = useRef(false);
   const focusEpoch = useRef(0);
+  const loadGeneration = useRef(0);
 
   const load = useCallback(async () => {
-    try { const value = await api.getCollection(); if (current.current) { setCollection(value); setMessage(undefined); } }
-    catch (error) { if (current.current) setMessage(coinErrorMessage(error)); }
-    finally { if (current.current) { setLoading(false); setRefreshing(false); } }
+    const generation = ++loadGeneration.current;
+    try { const value = await api.getCollection(); if (current.current && loadGeneration.current === generation) { setCollection({ ...value, reroll: { ...value.reroll,
+      options: maskRerollOdds(value.reroll.options, Date.now()) } }); setMessage(undefined); } }
+    catch (error) { if (current.current && loadGeneration.current === generation) setMessage(coinErrorMessage(error)); }
+    finally { if (current.current && loadGeneration.current === generation) { setLoading(false); setRefreshing(false); } }
   }, [api]);
   const loadCoupon = useCallback(async () => {
+    const generation = ++loadGeneration.current;
     const fresh = await api.getCollection();
-    if (current.current) setCollection(fresh);
+    if (current.current && loadGeneration.current === generation) setCollection({ ...fresh, reroll: { ...fresh.reroll,
+      options: maskRerollOdds(fresh.reroll.options, Date.now()) } });
     return fresh.series.find((series) => series.id === usingCoupon?.id);
   }, [api, usingCoupon?.id]);
   const loadCoinDetail = useCallback(() => api.getOwnedDetail(coinDetail!.publicationId, coinDetail!.gradeId),
     [api, coinDetail]);
+  useEffect(() => {
+    const nextExpiry = collection?.reroll.options.reduce((next, option) => option.entries.length && option.oddsExpiresAt
+      ? Math.min(next, Date.parse(option.oddsExpiresAt)) : next, Infinity);
+    if (nextExpiry === undefined || !Number.isFinite(nextExpiry)) return;
+    const timer = setTimeout(() => {
+      setCollection((old) => old && { ...old, reroll: { ...old.reroll,
+        options: maskRerollOdds(old.reroll.options, Date.now()) } });
+      setSelectedOption((old) => old && maskRerollOdds([old], Date.now())[0]);
+      void load();
+    }, Math.max(0, nextExpiry - Date.now()));
+    return () => clearTimeout(timer);
+  }, [collection, load]);
   useFocusEffect(useCallback(() => {
     const epoch = ++focusEpoch.current;
-    current.current = true; void load();
+    current.current = true;
+    setCollection((old) => old && { ...old, reroll: { ...old.reroll,
+      options: maskRerollOdds(old.reroll.options, Date.now(), true) } });
+    setSelectedOption((old) => old && maskRerollOdds([old], Date.now(), true)[0]);
+    void load();
     if (!inFlight.current) setBusyId(undefined);
     void pendingFocusSnapshot(() => readCoinRerollPending(pendingKey), () => inFlight.current)
       .then(({ pending, busy }) => {
@@ -255,9 +276,9 @@ export function CoinCollectionScreen({ apiUrl, accountId, credential, onSessionI
           <Text style={{ color: palette.secondaryLabel }}>이 가게에 지금 사용할 수 있는 리롤 풀과 권리가 없어요.</Text> : null}
         {collection.reroll.options.filter((option) => option.merchantId === selectedSource.merchantId &&
           collection.reroll.tickets.some((ticket) => ticket.status === 'UNUSED' && ticket.grade === option.grade)).map((option) =>
-          <Pressable key={option.poolId} accessibilityRole="button" accessibilityState={{ selected: selectedOption?.poolId === option.poolId }}
+          <Pressable key={`${option.poolId}:${option.grade}`} accessibilityRole="button" accessibilityState={{ selected: sameRerollOption(selectedOption, option) }}
             onPress={() => { setSelectedOption(option); setConfirmReroll(false); }} style={[styles.sourceRow,
-              { backgroundColor: selectedOption?.poolId === option.poolId ? palette.primaryContainer : palette.surface }]}>
+              { backgroundColor: sameRerollOption(selectedOption, option) ? palette.primaryContainer : palette.surface }]}>
             <Text style={{ color: palette.label }}>{rerollGradeName[option.grade]} 리롤권 · {option.eventName}</Text>
             <Text style={{ color: palette.secondaryLabel }}>{option.entries.length ? option.entries.map((entry) => `${entry.name} ${(entry.probability * 100).toLocaleString('ko-KR', { maximumFractionDigits: 4 })}%`).join(' · ')
               : '현재 확률은 해당 가게의 유효한 미사용 뽑기권 보유자에게만 공개돼요.'}</Text>

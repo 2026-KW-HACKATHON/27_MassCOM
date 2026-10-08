@@ -64,6 +64,21 @@ test('switching accounts remounts the shop so a prior account’s odds cannot li
   assert.match(collectionRoute, /<CoinCollectionScreen key=\{auth\.accountId\}/);
 });
 
+test('masked reroll odds do not prevent using an owned coin and reroll ticket', () => {
+  assert.match(collection, /option\.entries\.length \? option\.entries\.map/);
+  assert.match(collection, /현재 확률은 해당 가게의 유효한 미사용 뽑기권 보유자에게만 공개돼요/);
+  assert.match(collection, /selectedOption && confirmReroll \? <FloatingCard/);
+  assert.doesNotMatch(collection, /disabled=\{[^}]*option\.entries\.length/);
+  assert.match(collection, /options: maskRerollOdds\(old\.reroll\.options, Date\.now\(\), true\)/);
+  assert.match(collection, /setTimeout\(\(\) => \{[\s\S]*?options: maskRerollOdds\(old\.reroll\.options, Date\.now\(\)\)/);
+  assert.match(collection, /const generation = \+\+loadGeneration\.current;[\s\S]*?loadGeneration\.current === generation/);
+});
+
+test('reroll rows use pool and grade together for React identity and selection', () => {
+  assert.match(collection, /key=\{`\$\{option\.poolId\}:\$\{option\.grade\}`\}/);
+  assert.equal((collection.match(/sameRerollOption\(selectedOption, option\)/g) ?? []).length, 2);
+});
+
 test('a base series coupon requires an explicit choice after the one-claim consequence is shown', () => {
   assert.match(collection, /시리즈당 쿠폰 1회 · 기본 수령 후 프리즘으로 변경하거나 추가 발급할 수 없어요/);
   assert.doesNotMatch(collection, /Alert\.alert/);

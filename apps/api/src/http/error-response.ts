@@ -326,7 +326,7 @@ function statusForFriend(code: string): number {
 
 function statusForMerchantArt(code: string): number {
   if (code === 'AI_ART_ROUND_NOT_FOUND') return 404;
-  if (code === 'AI_ART_DAILY_LIMIT') return 429;
+  if (code === 'AI_ART_DAILY_LIMIT' || code === 'AI_ART_ACCOUNT_DAILY_LIMIT' || code === 'AI_ART_COOLDOWN') return 429;
   if (code === 'AI_ART_TRIAL_DISABLED') return 403;
   if (code === 'AI_ART_NOT_CONFIGURED' || code === 'AI_ART_BUDGET_EXHAUSTED') return 503;
   if (code === 'ACCOUNT_DELETED') return 410;

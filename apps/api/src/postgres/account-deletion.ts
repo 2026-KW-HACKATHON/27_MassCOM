@@ -462,7 +462,8 @@ async function pseudonymizeAccount(
   // 저장은 같은 계정 잠금(assertActive, postgres/visitor-feedback.ts)을 잡으므로 이 거래와 직렬화되어 삭제 뒤에 행이 생기지 않는다.
   await client.query('DELETE FROM merchant_visitor_feedback WHERE customer_account_id = $1', [accountId]);
   await client.query('DELETE FROM merchant_real_world_reports WHERE reporter_account_id = $1', [accountId]);
-  // AI 가게 그림 라운드는 가게의 자산이라 지우지 않고 요청자 열만 비운다(가게 그림·비용 기록에는 계정 ID가 없다).
+  // AI 가게 그림 라운드와 비용 기록은 가게의 자산이라 지우지 않고 요청자 식별자만 비운다.
+  await client.query('UPDATE ai_art_spend SET account_id = NULL WHERE account_id = $1', [accountId]);
   await client.query(
     'UPDATE merchant_art_rounds SET requested_by_account_id = NULL WHERE requested_by_account_id = $1',
     [accountId],

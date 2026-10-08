@@ -79,7 +79,7 @@ export async function handlePublicAssets(ctx: RouteContext): Promise<boolean> {
     if (!merchantArt) throw new RequestError(503, 'AI_ART_NOT_CONFIGURED');
     const roundId = 'roundId' in artRoute ? decodePathParameter(artRoute.roundId) : '';
     if (artRoute.kind === 'state') {
-      sendJson(response, 200, await merchantArt.getState(merchantId));
+      sendJson(response, 200, await merchantArt.getState(merchantId, accountId));
     } else if (artRoute.kind === 'create') {
       requireEmptyBody(await readJson(request, true));
       sendJson(response, 202, await merchantArt.createRound({ merchantId, accountId }));

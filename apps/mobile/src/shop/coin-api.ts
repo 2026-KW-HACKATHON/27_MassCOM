@@ -19,7 +19,10 @@ export type CoinCatalog = { merchantId: string; merchantName: string; types: { p
 export type CoinRerollGrade = 'NORMAL' | 'BRONZE' | 'SILVER' | 'GOLD';
 export type CoinRerollTicket = { id: string; grade: CoinRerollGrade; status: 'UNUSED' | 'USED'; acquiredAt: string };
 export type CoinRerollOption = { poolId: string; merchantId: string; merchantName: string; eventName: string;
-  grade: CoinRerollGrade; entries: { publicationId: string; gradeId: string; name: string; probability: number; weight: number; remaining?: number }[] };
+  grade: CoinRerollGrade; oddsExpiresAt?: string;
+  entries: { publicationId: string; gradeId: string; name: string; probability: number; weight: number; remaining?: number }[] };
+export const sameRerollOption = (a: Pick<CoinRerollOption, 'poolId' | 'grade'> | undefined,
+  b: Pick<CoinRerollOption, 'poolId' | 'grade'>) => a?.poolId === b.poolId && a.grade === b.grade;
 export type CoinSeries = { id: string; title: string; merchantId: string; merchantName: string; endsAt: string;
   base: SeriesTier; prism: SeriesTier; claimable: 'BASE' | 'PRISM' | null;
   coupon: null | { id: string; tier: 'BASE' | 'PRISM'; title: string; detail: string; expiresAt: string;
@@ -29,6 +32,11 @@ export type SeriesTier = { slots: { publicationId: string; gradeId: string; name
 export type CoinShop = { mileage: { earned: number; spent: number; balance: number }; pools: CoinPool[]; tickets: CoinTicket[] };
 export type CoinCollection = { coins: OwnedCoin[]; series: CoinSeries[]; catalog: CoinCatalog;
   reroll: { tickets: CoinRerollTicket[]; sources: CoinSource[]; options: CoinRerollOption[] } };
+
+export function maskRerollOdds(options: CoinRerollOption[], now: number, clearAll = false): CoinRerollOption[] {
+  return options.map((option) => clearAll || !option.oddsExpiresAt || Date.parse(option.oddsExpiresAt) <= now
+    ? { ...option, entries: [] } : option);
+}
 
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
@@ -97,9 +105,11 @@ export function parseCoinCollection(v: unknown): CoinCollection {
     return ticket as CoinRerollTicket;
   }), sources: reroll.sources.map(parseCoinSource), options: (reroll.options ?? []).map((option: unknown) => {
     if (!record(option) || !str(option.poolId) || !str(option.merchantId) || !str(option.merchantName)
-      || !str(option.eventName) || !oneOf(option.grade, ['NORMAL', 'BRONZE', 'SILVER', 'GOLD']) || !Array.isArray(option.entries)) throw invalid();
+      || !str(option.eventName) || !oneOf(option.grade, ['NORMAL', 'BRONZE', 'SILVER', 'GOLD']) || !Array.isArray(option.entries)
+      || (option.oddsExpiresAt !== undefined && !date(option.oddsExpiresAt))) throw invalid();
     return { poolId: option.poolId, merchantId: option.merchantId, merchantName: option.merchantName,
-      eventName: option.eventName, grade: option.grade as CoinRerollOption['grade'], entries: option.entries.map((entry: unknown) => {
+      eventName: option.eventName, grade: option.grade as CoinRerollOption['grade'],
+      ...(option.oddsExpiresAt ? { oddsExpiresAt: option.oddsExpiresAt } : {}), entries: option.entries.map((entry: unknown) => {
         if (!record(entry) || !str(entry.publicationId) || !str(entry.gradeId) || !str(entry.name)
           || !num(entry.weight) || typeof entry.probability !== 'number' || !Number.isFinite(entry.probability)
           || entry.probability < 0 || entry.probability > 1

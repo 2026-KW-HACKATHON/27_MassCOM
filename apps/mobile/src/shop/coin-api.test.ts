@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { CoinApiError, coinErrorMessage, createCoinApiClient, finalRerollFailure, parseCoinCollection, parseCoinShop } from './coin-api';
+import { CoinApiError, coinErrorMessage, createCoinApiClient, finalRerollFailure, maskRerollOdds, parseCoinCollection, parseCoinShop, sameRerollOption } from './coin-api';
 
 const ticket = { id: 'ticket-1', poolId: 'pool-1', merchantId: 'merchant-1', eventName: '여름 축제',
   grade: 'SILVER', acquiredAt: '2026-07-01T00:00:00Z', expiresAt: '2026-07-31T00:00:00Z', status: 'UNUSED' };
@@ -78,6 +78,29 @@ test('collection accepts all reroll tiers and hidden candidate odds', () => {
   } });
   assert.equal(parsed.reroll.tickets.length, 4);
   assert.deepEqual(parsed.reroll.options[0]?.entries, []);
+});
+
+test('reroll odds disappear at the exact ticket expiry and after focus clears the last ticket', () => {
+  const expiresAt = '2026-10-16T00:00:00.000Z';
+  const option = { poolId: 'pool-1', merchantId: 'merchant-1', merchantName: '참여 가게', eventName: '축제',
+    grade: 'GOLD' as const, oddsExpiresAt: expiresAt,
+    entries: [{ publicationId: 'pub-1', gradeId: 'gold', name: '골드', probability: 1, weight: 1 }] };
+  const clock = Date.parse(expiresAt);
+  assert.equal(maskRerollOdds([option], clock - 1)[0]?.entries.length, 1);
+  assert.equal(maskRerollOdds([option], clock)[0]?.entries.length, 0);
+  assert.equal(maskRerollOdds([option], clock - 1, true)[0]?.entries.length, 0);
+  assert.equal(maskRerollOdds([option], clock, true)[0]?.poolId, 'pool-1');
+  assert.equal(maskRerollOdds([{ ...option, oddsExpiresAt: undefined }], clock - 1)[0]?.entries.length, 0);
+  assert.equal(parseCoinCollection({ coins: [], series: [], reroll: { tickets: [], sources: [], options: [option] } })
+    .reroll.options[0]?.oddsExpiresAt, expiresAt);
+});
+
+test('one pool can offer NORMAL and GOLD rerolls without selecting both rows', () => {
+  const normal = { poolId: 'pool-1', grade: 'NORMAL' as const };
+  const gold = { poolId: 'pool-1', grade: 'GOLD' as const };
+  assert.equal(sameRerollOption(normal, normal), true);
+  assert.equal(sameRerollOption(normal, gold), false);
+  assert.equal(sameRerollOption(undefined, gold), false);
 });
 
 test('owned coin detail uses the collection permission endpoint and parses full artwork', async () => {

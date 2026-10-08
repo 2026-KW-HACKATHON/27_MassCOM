@@ -270,7 +270,7 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
   }
   private async chooseFromBag(client: PoolClient, poolId: string, entries: EntryRow[], minimumRank: number): Promise<EntryRow> {
     const bag = (await client.query<BagRow>('SELECT * FROM coin_shared_bags WHERE pool_id = $1 FOR UPDATE', [poolId])).rows[0];
-    if (!bag) return chooseWeightedCoin(entries.filter(entry => coinGradeRank(entry) >= minimumRank), this.randomInt);
+    if (!bag) return chooseWeightedCoin(entries, this.randomInt);
     const candidates = bagGrades.map((_, index) => ({ rank: index + 1, weight: bagCount(bag, index + 1) }))
       .filter(item => item.rank >= minimumRank && item.weight > 0
         && entries.some(entry => coinGradeRank(entry) === item.rank));
@@ -298,11 +298,14 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
     const pools = (await client.query<PoolRow>(`${poolSql} WHERE pool.merchant_id = ANY($1::text[])
       AND pool.status = 'ACTIVE' AND merchant.status = 'ACTIVE'
       AND pool.purchase_starts_at <= $2 AND pool.purchase_ends_at > $2 AND pool.use_expires_at > $2
-      AND EXISTS (SELECT 1 FROM coin_tickets ticket WHERE ticket.pool_id = pool.id
-        AND ticket.account_id = $3 AND ticket.used_at IS NULL AND ticket.expires_at > $2)
-      ORDER BY pool.created_at DESC`, [merchantIds, now, accountId])).rows;
+      ORDER BY pool.created_at DESC`, [merchantIds, now])).rows;
     const entries = await this.poolEntries(client, pools.map(pool => pool.id));
     const bags = await this.bags(client, pools.map(pool => pool.id));
+    const oddsExpiries = new Map((await client.query<{ pool_id: string; odds_expires_at: Date }>(`SELECT pool_id,
+      max(expires_at) AS odds_expires_at
+      FROM coin_tickets WHERE account_id = $1 AND used_at IS NULL AND expires_at > $2
+        AND pool_id = ANY($3::uuid[]) GROUP BY pool_id`, [accountId, now, pools.map(pool => pool.id)])).rows
+      .map(row => [row.pool_id, row.odds_expires_at.toISOString()]));
     return pools.flatMap(pool => {
       const published = entries.filter(entry => entry.pool_id === pool.id && !entry.media_removed && !entry.sale_unavailable);
       if (published.length !== entries.filter(entry => entry.pool_id === pool.id).length) return [];
@@ -316,11 +319,13 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
             published.filter(other => coinGradeRank(other) === coinGradeRank(entry))
               .reduce((weight, other) => weight + other.weight, 0) : entry.weight), 0);
         return total ? [{ poolId: pool.id, merchantId: pool.merchant_id, merchantName: pool.merchant_name,
-          eventName: pool.event_name, grade, entries: available.map(entry => ({ publicationId: entry.publication_id,
+          eventName: pool.event_name, grade,
+          ...(oddsExpiries.has(pool.id) ? { oddsExpiresAt: oddsExpiries.get(pool.id)! } : {}),
+          entries: oddsExpiries.has(pool.id) ? available.map(entry => ({ publicationId: entry.publication_id,
             gradeId: entry.grade_id, name: nameOf(entry.summary), weight: entry.weight,
             probability: bag ? (bagCount(bag, coinGradeRank(entry)) * entry.weight /
               published.filter(other => coinGradeRank(other) === coinGradeRank(entry))
-                .reduce((weight, other) => weight + other.weight, 0)) / total : entry.weight / total })) }] : [];
+                .reduce((weight, other) => weight + other.weight, 0)) / total : entry.weight / total })) : [] }] : [];
       });
     });
   }
@@ -559,8 +564,7 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
       if (count >= pool.per_account_limit) throw new CoinEconomyError('COIN_POOL_LIMIT_REACHED');
       if (source === 'PURCHASE' && mileage.balance < pool.price) throw new CoinEconomyError('COIN_INSUFFICIENT_MILEAGE');
       const ticketId = this.nextId();
-      const hasBag = (await client.query('SELECT 1 FROM coin_shared_bags WHERE pool_id = $1', [pool.id])).rowCount !== 0;
-      const expiresAt = hasBag ? new Date(now.getTime() + 7 * 86_400_000) : pool.use_expires_at;
+      const expiresAt = new Date(Math.min(now.getTime() + 7 * 86_400_000, pool.use_expires_at.getTime()));
       await client.query(`INSERT INTO coin_tickets
         (id, account_id, pool_id, request_id, source, price, acquired_at, expires_at)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
@@ -785,15 +789,17 @@ export class PostgresCoinEconomyService implements CoinEconomyService {
       for (const entry of input.entries) await client.query(`INSERT INTO coin_pool_entries (pool_id,publication_id,grade_id,weight)
         VALUES ($1,$2,$3,$4)`, [id,entry.publicationId,entry.gradeId,entry.weight]);
       const entries = await this.poolEntries(client,[id]);
-      if (entries.every(entry => coinGradeRank(entry) > 0)
-        && bagGrades.every((_, index) => entries.some(entry => coinGradeRank(entry) === index + 1))) {
-        const active = (await client.query(`SELECT 1 FROM coin_shared_bags bag
-          JOIN coin_pools other ON other.id = bag.pool_id
-          WHERE other.merchant_id = $1 AND other.status = 'ACTIVE' AND other.use_expires_at > $2
-          LIMIT 1`, [input.merchantId, this.now()])).rowCount;
-        if (active) throw new CoinEconomyError('COIN_POOL_UNAVAILABLE');
-        await client.query('INSERT INTO coin_shared_bags(pool_id) VALUES ($1)', [id]);
+      if (!entries.every(entry => coinGradeRank(entry) > 0)
+        || !bagGrades.every((_, index) => entries.some(entry => coinGradeRank(entry) === index + 1))) {
+        throw new CoinEconomyError('INVALID_REQUEST');
       }
+      const active = (await client.query(`SELECT 1 FROM coin_pools other
+          WHERE other.merchant_id = $1 AND other.id <> $3 AND other.use_expires_at > $2
+            AND (other.status = 'ACTIVE' OR EXISTS (SELECT 1 FROM coin_tickets ticket
+              WHERE ticket.pool_id = other.id AND ticket.used_at IS NULL AND ticket.expires_at > $2))
+          LIMIT 1`, [input.merchantId, this.now(), id])).rowCount;
+      if (active) throw new CoinEconomyError('COIN_POOL_UNAVAILABLE');
+      await client.query('INSERT INTO coin_shared_bags(pool_id) VALUES ($1)', [id]);
       const pool = (await client.query<PoolRow>(`${poolSql} WHERE pool.id = $1`,[id])).rows[0]!;
       return viewPool(pool, []);
     });
