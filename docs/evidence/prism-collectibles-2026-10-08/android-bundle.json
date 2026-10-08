@@ -1,0 +1,81 @@
+{
+  "platform": "Android Metro/Hermes export, not an installed APK",
+  "currentBackCount": 12,
+  "currentBackBytes": 767082,
+  "legacyBackCount": 0,
+  "currentBacks": [
+    {
+      "file": "circle-bronze.webp",
+      "path": "assets/7e43181171757cf98d7643c9df30135f",
+      "bytes": 64200,
+      "sha256": "3b15391998d8e3ec845fe484c37ce8549859af9c77f3bc4f3b268eb2baed83a0"
+    },
+    {
+      "file": "circle-silver.webp",
+      "path": "assets/392c911da5865d38965d1b168f6ae319",
+      "bytes": 46938,
+      "sha256": "8a64cf2a9dde14bcca52f6d1a630492e1583469ef3a792e72e4c68c638c74911"
+    },
+    {
+      "file": "circle-gold.webp",
+      "path": "assets/062c86d209102f6132fed9dd08bf9606",
+      "bytes": 63046,
+      "sha256": "d0244454b88c3d2c8e818293c5cdbbf666717b45548a4b6d64856875c4eada37"
+    },
+    {
+      "file": "circle-prism.webp",
+      "path": "assets/73a0116f33b2bacb1c99b0512f0020d7",
+      "bytes": 77152,
+      "sha256": "3deedf5bd0d6f2fcfcaa86650e9384cdab44666f534bb8f2a1869dc07825b4fa"
+    },
+    {
+      "file": "stamp-bronze.webp",
+      "path": "assets/c2cd9ecbc1ea4d8d439eebcad70dac4c",
+      "bytes": 49882,
+      "sha256": "9dfafc81043e1ea676678038ec7a1ebf96cdd1ed85a21888f9fbe5201a73c8c4"
+    },
+    {
+      "file": "stamp-silver.webp",
+      "path": "assets/f881d4e1c76ee587727d5cce543cadd4",
+      "bytes": 47484,
+      "sha256": "eb9559669151c9ac7833b16fc96a42b8e0c77385516650637bd1fe05a871bd58"
+    },
+    {
+      "file": "stamp-gold.webp",
+      "path": "assets/fe3c5666f6d11b0978e7ee50537af12f",
+      "bytes": 46346,
+      "sha256": "be1f88db0cdacca981fccf38a8ab15b27b9531e3d18e53c7e27c7b0c7bd34af3"
+    },
+    {
+      "file": "stamp-prism.webp",
+      "path": "assets/0c0601ab60945eca98f89b631039c413",
+      "bytes": 77566,
+      "sha256": "aaddb608ca82cdb6ea16d127f64f461e72e88a106fafd33918903ff1d5e76ffa"
+    },
+    {
+      "file": "serrated-bronze.webp",
+      "path": "assets/2a7228368f14fb9bb828150ca8bad1df",
+      "bytes": 73796,
+      "sha256": "6a678eeebd4d75864e95e3a262d4815cf698187569eeef5962a16c6d6fc5b43a"
+    },
+    {
+      "file": "serrated-silver.webp",
+      "path": "assets/4a46c7e3db59878845caa030e119fc45",
+      "bytes": 52000,
+      "sha256": "f37f7cea5656970b94f8b3f32893c0c5d9126ff123779217c340bcd5dea99563"
+    },
+    {
+      "file": "serrated-gold.webp",
+      "path": "assets/59c48b577a2843de488aa64c17981123",
+      "bytes": 70100,
+      "sha256": "ebb98bec402f3ca44058e837bbf9dc9dc0aabd3c98c6ba0f9dc42ae40fcfd91f"
+    },
+    {
+      "file": "serrated-prism.webp",
+      "path": "assets/28bce2a85b0cf1a2d885aba18f3a6860",
+      "bytes": 98572,
+      "sha256": "b21d6a602f3d8fd5f3708b1b635c2906733d3d16dab9d56fe4994dda38e7ebfa"
+    }
+  ],
+  "bundle": "_expo/static/js/android/entry-b80d64316d93ce6bed7b5dba5014f98a.hbc"
+}

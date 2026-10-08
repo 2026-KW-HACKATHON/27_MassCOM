@@ -16,6 +16,13 @@ const projectDelayMs = Math.min(5000, Math.max(0, Number(process.env.COLLECTIBLE
 const syntheticAi = process.env.COLLECTIBLE_QA_AI === '1';
 let aiRound = null;
 let published;
+// 로컬 화면 검수를 재시작할 때에만 명시적으로 백업한 합성 제작물을 복원한다.
+if (process.env.COLLECTIBLE_QA_SEED_FILE) {
+  const seed = JSON.parse((await readFile(process.env.COLLECTIBLE_QA_SEED_FILE, 'utf8')).replace(/^\uFEFF/, ''));
+  for (const wrapper of seed.projects || []) projects.set(wrapper.id, wrapper);
+  campaign.publication = seed.publication || null;
+  published = [...projects.values()].find(wrapper => wrapper.publicationId === campaign.publication?.publicationId);
+}
 const json = (response, body, status = 200) => { response.writeHead(status, {'content-type':'application/json','cache-control':'no-store'}); response.end(JSON.stringify(body)); };
 const full = project => ({ id: randomUUID(),merchantId:merchant.id,version:1,status:'DRAFT',publicationId:null,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),project });
 createServer(async (request,response) => {
@@ -108,11 +115,11 @@ createServer(async (request,response) => {
     }
     const names=new Map([['/merchant/','merchant.html'],['/app/','index.html'],['/admin/','admin.html']]);
     let file=names.get(path);
-    // 마스코트와 collectible-backs/v1 고정 자산도 읽는다. 경로 구분자·상위 폴더 이동은 허용하지 않는다.
-    if(!file){const match=path.match(/^\/(?:(?:app|merchant|admin)\/)?assets\/((?:[a-z0-9-]+\/){0,2})([a-z0-9-]+\.(?:mjs|css|png))$/);if(match)file=`assets/${match[1]}${match[2]}`;}
+    // 마스코트와 collectible-backs 고정 자산도 읽는다. 경로 구분자·상위 폴더 이동은 허용하지 않는다.
+    if(!file){const match=path.match(/^\/(?:(?:app|merchant|admin)\/)?assets\/((?:[a-z0-9-]+\/){0,2})([a-z0-9-]+\.(?:mjs|css|png|webp))$/);if(match)file=`assets/${match[1]}${match[2]}`;}
     if(!file){response.writeHead(404).end();return;}
     const bytes=await readFile(new URL(file,root));
-    const mime=file.endsWith('.mjs')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':'text/html; charset=utf-8';
+    const mime=file.endsWith('.mjs')?'text/javascript':file.endsWith('.css')?'text/css':file.endsWith('.png')?'image/png':file.endsWith('.webp')?'image/webp':'text/html; charset=utf-8';
     response.writeHead(200,{'content-type':mime,'cache-control':'no-store'});response.end(bytes);
   } catch (error) { json(response,{code:'QA_ERROR',message:error.message},500); }
 }).listen(port,'127.0.0.1',()=>console.log(`Synthetic local UI fixture ready on ${port}. No external accounts/data.`));

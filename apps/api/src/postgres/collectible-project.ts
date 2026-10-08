@@ -21,6 +21,10 @@ type ProjectInput = MerchantInput & { projectId: string };
 type VersionInput = ProjectInput & { expectedVersion: number };
 const standardVisitGoals = [1, 3, 5] as const;
 const standardVisitRewardGrades = { '1': 'bronze', '3': 'silver', '5': 'gold' } as const;
+const standardVisitPublicationGradeIds = ['bronze', 'silver', 'gold', 'prism'] as const;
+function publicationGradeIds(project: CollectibleProject): string[] {
+  return project.grades.filter(grade => grade.enabled).map(grade => grade.id);
+}
 
 export function isStandardVisitGoalSet(goals: readonly number[]): boolean {
   const counts = [...goals].sort((a, b) => a - b);
@@ -30,7 +34,19 @@ export function isStandardVisitGoalSet(goals: readonly number[]): boolean {
 export function standardizeStandardVisitPublicationProject(project: unknown): CollectibleProject {
   const draft = upgradeCollectibleProject(project);
   draft.rewardGrades = { ...standardVisitRewardGrades };
-  return validateCollectibleProject(draft, true);
+  const result = validateCollectibleProject(draft, true);
+  for (const gradeId of standardVisitPublicationGradeIds) {
+    if (!result.grades.some(grade => grade.id === gradeId && grade.enabled)) {
+      throw new CollectibleProjectError('COLLECTIBLE_INVALID_PROJECT');
+    }
+  }
+  for (const gradeId of publicationGradeIds(result)) {
+    if (!Object.hasOwn(result.derived, gradeId)) throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+    if (result.living.items.some(item => item.gradeIds.includes(gradeId)) && !result.derived[gradeId]?.living) {
+      throw new CollectibleProjectError('COLLECTIBLE_NOT_READY');
+    }
+  }
+  return result;
 }
 
 export class PostgresCollectibleProjectService implements CollectibleProjectService {
@@ -113,8 +129,7 @@ export class PostgresCollectibleProjectService implements CollectibleProjectServ
       if (!isStandardVisitGoalSet(goals.rows.map(goal => goal.target_visit_count))) throw new CollectibleProjectError('COLLECTIBLE_CAMPAIGN_UNAVAILABLE');
       const publicationId = randomUUID();
       const grades: { gradeId: string; summary: CollectibleArtwork; detail: Omit<CollectibleDetail, keyof CollectibleArtwork> }[] = [];
-      for (const gradeId of new Set(Object.values(project.rewardGrades))) {
-        if (!gradeId) continue;
+      for (const gradeId of publicationGradeIds(project)) {
         const { projectId, publicationId: _publication, gradeId: _grade, gradeName, shape, theme, name, thumbnailDataUrl, ...detail } =
           collectibleSnapshot(project, row.id, publicationId, gradeId);
         grades.push({ gradeId, summary: { projectId, publicationId, gradeId, gradeName, shape, theme, name, thumbnailDataUrl }, detail });

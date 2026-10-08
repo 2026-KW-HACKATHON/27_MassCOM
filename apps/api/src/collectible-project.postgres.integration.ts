@@ -70,6 +70,10 @@ test('claim inserts capture fixed standard grades once, never backfill, leave re
   await pool.query(`INSERT INTO campaign_goals (campaign_id,target_visit_count,display_name) VALUES ('campaign-b',1,'첫 도장'),('campaign-b',3,'세 번째 도장'),('campaign-b',5,'다섯 번째 도장')`);
   await assert.rejects(projects.publish({ ...input,projectId:draft.id,expectedVersion:1,campaignId:'campaign-b' }), { code:'COLLECTIBLE_CAMPAIGN_UNAVAILABLE' });
   const published = await projects.publish({ ...input,projectId:draft.id,expectedVersion:1,campaignId:'campaign-a' });
+  const publishedGrades = await pool.query<{ grade_id: string; summary: { gradeName?: string } }>(
+    'SELECT grade_id, summary FROM collectible_publication_grades WHERE publication_id = $1 ORDER BY grade_id', [published.publicationId]);
+  assert.deepEqual(publishedGrades.rows.map(row => [row.grade_id, row.summary.gradeName]),
+    [['bronze', '브론즈'], ['custom', '가게 특별판'], ['gold', '골드'], ['prism', '프리즘'], ['silver', '실버']]);
   await assert.rejects(projects.getAcquired({accountId:'before-publish',entitlementId:beforeId}), {code:'COLLECTIBLE_NOT_FOUND'});
   await assert.rejects(projects.save({ ...input,projectId:draft.id,expectedVersion:2,project:raw }), {code:'COLLECTIBLE_PUBLISHED_IMMUTABLE'});
   const fresh = await claim('customer-new','fresh'); const entitlementId = fresh.redeemed.grantedRewards[0]!.entitlementId;
@@ -212,7 +216,7 @@ test('acquisitions store references only; the list reads the per-grade summary a
   assert.deepEqual(stored.rows[0], { publication_id: published.publicationId, grade_id: 'bronze' });
   const grades = await pool.query<{ grade_id: string; summary: Record<string, unknown>; detail: Record<string, unknown> }>(
     'SELECT grade_id, summary, detail FROM collectible_publication_grades WHERE publication_id = $1 ORDER BY grade_id', [published.publicationId]);
-  assert.deepEqual(grades.rows.map(row => row.grade_id), ['bronze', 'gold', 'silver']);
+  assert.deepEqual(grades.rows.map(row => row.grade_id), ['bronze', 'custom', 'gold', 'prism', 'silver']);
   assert.deepEqual(Object.keys(grades.rows[0]!.summary).sort(), ['gradeId', 'gradeName', 'name', 'projectId', 'publicationId', 'shape', 'theme', 'thumbnailDataUrl']);
   assert.equal('imageDataUrl' in grades.rows[0]!.summary, false); assert.equal('thumbnailDataUrl' in grades.rows[0]!.detail, false);
   const artwork = (await new PostgresCollectionReader(pool).getCollection('customer-ref')).collectibles[0]!.artwork!;
@@ -364,7 +368,7 @@ test('operator media removal blanks a publication only through the guarded funct
     await assert.rejects(client.query(`DELETE FROM collectible_publication_grades WHERE publication_id = $1`, [published.publicationId]), /immutable/);
   } finally { await client.query('ROLLBACK'); client.release(); }
   const removed = await pool.query('SELECT * FROM collectible_remove_publication_media($1)', [published.publicationId]);
-  assert.deepEqual(removed.rows, [{ removed_publication_id: published.publicationId, cleared_grades: 3 }]);
+  assert.deepEqual(removed.rows, [{ removed_publication_id: published.publicationId, cleared_grades: 5 }]);
   assert.equal((await pool.query('SELECT 1 FROM campaign_collectible_publications')).rowCount, 0);
   const grades = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = $1', [published.publicationId]);
   assert.equal(JSON.stringify(grades.rows).includes('data:'), false);
@@ -431,7 +435,7 @@ test('operator removal follows copies and the same stored photo: copied publicat
   assert.deepEqual(cleared.rows.map(row => row.id).sort(), [original.id, copy.id, copyOfCopy.id, leaf.id, reupload.id].sort());
   assert.ok((await projects.get({ ...input, projectId: other.id })).project);
   const media = await pool.query('SELECT summary, detail FROM collectible_publication_grades WHERE publication_id = ANY($1)', [[originalPublished.publicationId, copyPublished.publicationId]]);
-  assert.equal(media.rowCount, 6); assert.equal(JSON.stringify(media.rows).includes('data:'), false);
+  assert.equal(media.rowCount, 10); assert.equal(JSON.stringify(media.rows).includes('data:'), false);
   await assert.rejects(projects.getAcquired({ accountId: 'customer-copy', entitlementId }), { code: 'COLLECTIBLE_NOT_FOUND' });
   assert.equal((await pool.query('SELECT 1 FROM collectible_project_contributors WHERE project_id = ANY($1)', [[original.id, copy.id, copyOfCopy.id, leaf.id, reupload.id]])).rowCount, 0);
 });

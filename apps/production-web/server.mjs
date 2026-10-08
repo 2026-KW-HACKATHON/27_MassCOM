@@ -2,7 +2,12 @@ import { createServer as createHttpServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COLLECTIBLE_BACK_FILES, COLLECTIBLE_BACK_VERSION } from './assets/collectible-back-assets.mjs';
+import {
+  COLLECTIBLE_BACK_FILES,
+  COLLECTIBLE_BACK_LEGACY_FILES,
+  COLLECTIBLE_BACK_LEGACY_VERSION,
+  COLLECTIBLE_BACK_VERSION,
+} from './assets/collectible-back-assets.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const files = new Map([
@@ -32,7 +37,12 @@ for (const file of ['collectible-model.mjs', 'collectible-back-assets.mjs', 'col
 }
 for (const file of COLLECTIBLE_BACK_FILES) {
   for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) {
-    files.set(`${prefix}collectible-backs/${COLLECTIBLE_BACK_VERSION}/${file}`, [`assets/collectible-backs/${COLLECTIBLE_BACK_VERSION}/${file}`, 'image/png']);
+    files.set(`${prefix}collectible-backs/${COLLECTIBLE_BACK_VERSION}/${file}`, [`assets/collectible-backs/${COLLECTIBLE_BACK_VERSION}/${file}`, 'image/webp']);
+  }
+}
+for (const file of COLLECTIBLE_BACK_LEGACY_FILES) {
+  for (const prefix of ['/assets/', '/app/assets/', '/merchant/assets/']) {
+    files.set(`${prefix}collectible-backs/${COLLECTIBLE_BACK_LEGACY_VERSION}/${file}`, [`assets/collectible-backs/${COLLECTIBLE_BACK_LEGACY_VERSION}/${file}`, 'image/png']);
   }
 }
 // 마스코트 스티커·뒷면 도장이 쓰는 얼굴 포즈. collectible-model.mjs MASCOT_POSES/MASCOT_BLINK와 파일 이름을 맞춘다.

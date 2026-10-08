@@ -14,6 +14,11 @@ const sourcePixels = (width = 4, height = 4) => {
   }
   return pixels;
 };
+const flatPixels = (width = 8, height = 4, value = 190) => {
+  const pixels = new Uint8ClampedArray(width * height * 4);
+  for (let index = 0; index < pixels.length; index += 4) { pixels[index] = pixels[index + 1] = pixels[index + 2] = value; pixels[index + 3] = 255; }
+  return pixels;
+};
 
 const pixelAt = (pixels, width, x, y) => Array.from(pixels.slice((y * width + x) * 4, (y * width + x) * 4 + 4));
 const reliefSample = (gradeId, style = 'raised') => processPhotoPixels(sourcePixels(), 4, 4, {}, style, collectibleReliefTint(createProject(), gradeId), 0, 55);
@@ -111,6 +116,18 @@ test('custom grade relief tint uses the same alias and fallback behavior as fron
   assert.equal(collectibleReliefTint(project, 'local'), '#FFF1DC');
 });
 
+test('default prism relief uses spatial cyan magenta violet iridescence instead of one purple tint', () => {
+  const source = flatPixels();
+  const tint = collectibleReliefTint(createProject(), 'prism');
+  const front = processPhotoPixels(source, 8, 4, {}, 'raised', tint, 0, 80, 0);
+  const tilted = processPhotoPixels(source, 8, 4, {}, 'raised', tint, 0, 80, 45);
+  const left = pixelAt(front, 8, 1, 2), right = pixelAt(front, 8, 6, 2), moved = pixelAt(tilted, 8, 6, 2);
+  const distance = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]);
+  assert.ok(distance(left, right) > 80, `prism front should have visible spatial color separation: ${left} vs ${right}`);
+  assert.ok(distance(right, moved) > 35, `prism front should shift color by angle: ${right} vs ${moved}`);
+  for (const sample of [left, right, moved]) assert.ok(Math.max(...sample.slice(0, 3)) - Math.min(...sample.slice(0, 3)) > 35, `prism sample must stay saturated, not silver-gray: ${sample}`);
+});
+
 test('relief styles tint ordinary color and clean brush RGB through the selected grade', () => {
   const colorStroke = { tool: 'color', size: .25, color: '#0044aa', points: [{ x: .5, y: .5 }] };
   const cleanStroke = { tool: 'clean', size: .25, points: [{ x: .5, y: .5 }] };
@@ -122,7 +139,7 @@ test('relief styles tint ordinary color and clean brush RGB through the selected
   const goldColor = pixelAt(brushSample('gold', colorStroke), 4, 2, 2);
   const prismColor = pixelAt(brushSample('prism', colorStroke), 4, 2, 2);
   assert.ok(goldColor[0] > goldColor[2] && goldColor[1] > goldColor[2], `painted gold relief must keep gold palette: ${goldColor}`);
-  assert.ok(prismColor[2] > prismColor[1] && prismColor[0] > prismColor[1], `painted prism relief must keep prism palette: ${prismColor}`);
+  assert.ok(Math.max(...prismColor.slice(0, 3)) - Math.min(...prismColor.slice(0, 3)) > 35, `painted prism relief must not collapse to silver-gray: ${prismColor}`);
 });
 
 test('relief erase and restore preserve alpha and never mutate the original pixels', () => {

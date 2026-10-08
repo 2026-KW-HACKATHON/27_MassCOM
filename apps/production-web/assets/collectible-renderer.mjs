@@ -46,12 +46,23 @@ export function traceShape(context, shape, width, height, offsetX = 0, offsetY =
 }
 const clamp = (value, min = 0, max = 255) => Math.min(max, Math.max(min, value));
 const rgb = hex => /^#[0-9a-f]{6}$/i.test(hex || '') ? [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)) : [199, 151, 78];
+const PRISM_COLORS = Object.freeze(['#00D5FF', '#8B5CF6', '#FF2DB8', '#FFFFFF']);
+const PRISM_FOIL = Object.freeze(['#00D5FF', '#8B5CF6', '#FF2DB8', '#38F8C8', '#C026D3', '#00D5FF']);
+const PRISM_FOIL_RGB = PRISM_FOIL.map(rgb);
+const isPrismPalette = colors => colors.length >= 4 && colors[0] === '#00D5FF' && colors[1] === '#8B5CF6' && colors[2] === '#FF2DB8';
+const mixRgb = (a, b, t) => a.map((value, index) => value + (b[index] - value) * t);
+const prismRgbAt = (x, y, width, height, angle = 0, grey = 0) => {
+  const phase = ((x / Math.max(1, width - 1)) * .46 + (y / Math.max(1, height - 1)) * .28 + Math.sin(angle * Math.PI / 180) * .22 + grey * .18 + 1) % 1;
+  const position = phase * (PRISM_FOIL_RGB.length - 1), index = Math.floor(position), blend = position - index;
+  return mixRgb(PRISM_FOIL_RGB[index], PRISM_FOIL_RGB[Math.min(PRISM_FOIL_RGB.length - 1, index + 1)], blend);
+};
 
 /** Pure deterministic pixel operation, shared by preview and final export. */
 export function processPhotoPixels(input, width, height, edits = {}, style = 'original', color = '#c7974e', photoColor = 100, relief = 45, angle = 0) {
   const source = new Uint8ClampedArray(input);
   const result = new Uint8ClampedArray(input);
   const base = rgb(color);
+  const prismRelief = /^#8b5cf6$/i.test(color || '');
   const reliefAmount = Math.max(0, Math.min(100, relief || 0)) / 100;
   const brightness = (edits.brightness || 0) * 2.55;
   const contrast = 1 + (edits.contrast || 0) / 100;
@@ -101,7 +112,8 @@ export function processPhotoPixels(input, width, height, edits = {}, style = 'or
     const cavity = -reliefAmount * Math.hypot(signedDx, signedDy) * 110;
     const depthBias = -reliefAmount * signedDepthAt(x, y) * (1 - photoColor / 100) * 28;
     return values.map((value, channel) => {
-      const metal = base[channel] * (.52 + grey * .58);
+      const metalBase = prismRelief ? prismRgbAt(x, y, width, height, angle, grey)[channel] : base[channel];
+      const metal = metalBase * (.52 + grey * .58);
       return clamp(metal * (1 - photoColor / 100) + value * photoColor / 100 + directional * 100 + bevel + cavity + depthBias);
     });
   };
@@ -260,7 +272,7 @@ function effectPaint(context, effect, size, angle, time = 0, shape = 'circle') {
     const shift = Math.sin(phase * Math.PI) * size * .55;
     const gradient = context.createLinearGradient(-size * .3 + shift, 0, size * 1.3 + shift, size);
     if (effect.type === 'hologram') {
-      ['#ad76ff', '#48e5ce', '#ffc85e', '#ed91ee', '#4dd5ef'].forEach((color, index) => gradient.addColorStop(index / 4, color));
+      ['#7C3AED', '#00D5FF', '#FF2DB8', '#38F8C8', '#C026D3'].forEach((color, index) => gradient.addColorStop(index / 4, color));
       context.globalCompositeOperation = 'color'; context.globalAlpha = strength * .8;
     } else if (effect.type === 'pearl') {
       gradient.addColorStop(0, '#e2c8e7'); gradient.addColorStop(.5, '#f8faf6'); gradient.addColorStop(1, '#b9dfda');
@@ -427,7 +439,13 @@ async function frontFor(project, gradeId, size, angle, time, applyEffects = true
   }
   const border = canvasOf(size, size), borderContext = border.getContext('2d');
   traceShape(borderContext, project.shape, size * .97, size * .97, size * .015, size * .015);
-  borderContext.strokeStyle = project.baseColor || '#c7974e'; borderContext.lineWidth = size * .055; borderContext.stroke();
+  const rimColors = collectibleMetalColors(gradeId, project.grades?.find(item => item.id === gradeId)?.name ?? project.gradeName ?? '');
+  if (isPrismPalette(rimColors)) {
+    const rim = borderContext.createLinearGradient(size * (.1 + Math.sin(angle * Math.PI / 180) * .18), 0, size, size);
+    rimColors.forEach((color, index) => rim.addColorStop(index / (rimColors.length - 1), color));
+    borderContext.strokeStyle = rim;
+  } else borderContext.strokeStyle = project.baseColor || '#c7974e';
+  borderContext.lineWidth = size * .055; borderContext.stroke();
   for (const effect of applyEffects ? effectsForGrade(project, gradeId, 'border') : []) {
     const overlay = canvasOf(size, size), overlayContext = overlay.getContext('2d');
     overlayContext.drawImage(border, 0, 0); effectPaint(overlayContext, effect, size, angle, time, project.shape);
@@ -451,7 +469,7 @@ export async function backFor(project, gradeId, size) {
 /** Same grade aliases and metal stops as the mobile material preset. */
 export function collectibleMetalColors(gradeId, gradeName = '') {
   const grade = `${gradeId} ${gradeName}`.toLowerCase();
-  return /prism|special|프리즘|특별/.test(grade) ? ['#67E8F9', '#E8C5FF', '#FFFFFF']
+  return /prism|special|프리즘|특별/.test(grade) ? [...PRISM_COLORS]
     : /gold|골드|금색|금등급/.test(grade) ? ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C']
       : /silver|실버|은색|은등급/.test(grade) ? ['#D3E2EF', '#FFFFFF', '#8DACC8']
         : ['#E3BB8B', '#FFF1DC', '#A9673F'];
@@ -684,17 +702,17 @@ async function livingSpriteFor(project, gradeId, side, quality) {
   return { dataUrl: encodeImage(sprite, quality), count, columns: grid.columns, cellWidth, cellHeight, periodMs, box };
 }
 /**
- * 연결된 등급(campaignId와 무관하게 rewardGrades가 가리키는 등급)만 게시용으로 굽는다(설계 문서 "서버 검증" 3번
- * 근거: 연결되지 않은 등급까지 구우면 본문 용량을 낭비한다). extraGradeId는 편집기 미리보기용으로 지금 보는
- * 등급도 함께 구울 때 쓴다. base·effectMasks는 웹 뷰어가 각도별로 효과를 다시 합성하는 데 여전히 필요해
- * 연결된 등급에 한해 만든다(PR #293 P2: WP2에서 한 번 뺐다가 되살림).
+ * 기본 호출은 rewardGrades가 가리키는 등급만 굽는다. 점주 발행은 includeAllEnabledGrades로 프리즘과
+ * 추가 활성 등급까지 보존한다. extraGradeId는 개별 편집기 미리보기용이다.
+ * base·effectMasks는 웹 뷰어가 각도별 효과를 다시 합성하는 데 필요하다(PR #293 P2).
  * angleSide·spriteQuality는 게시 크기 사다리(editor.mjs publishSizeProblem 루프)가 바꿔 가며 다시 부르는 값이다.
  */
-export async function serializeDerived(project, { extraGradeId, angleSide = 448, spriteQuality = .85 } = {}) {
+export async function serializeDerived(project, { extraGradeId, includeAllEnabledGrades = false, angleSide = 448, spriteQuality = .85 } = {}) {
   const linked = new Set(Object.values(project.rewardGrades || {}));
   if (extraGradeId) linked.add(extraGradeId);
   const derived = {};
-  for (const grade of project.grades.filter(item => item.enabled !== false && linked.has(item.id))) {
+  // 게시할 때는 프리즘과 추가 등급까지 보존한다. 기존 호출은 연결된 보상 등급만 굽는다.
+  for (const grade of project.grades.filter(item => item.enabled !== false && (includeAllEnabledGrades || linked.has(item.id)))) {
     const front = await frontFor(project, grade.id, 512, 0, 0);
     const base = await frontFor(project, grade.id, 512, 0, 0, false);
     const back = await backFor(project, grade.id, 512);

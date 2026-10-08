@@ -16,19 +16,27 @@ test('empty draft and source photo round trip preserve original bytes; publish r
 });
 
 
-test('standard visit publication ignores crafted reward mappings and requires ready bronze silver gold grades', () => {
+test('standard visit publication ignores crafted reward mappings and requires ready bronze silver gold prism grades', () => {
   const crafted = photoProject();
   crafted.rewardGrades = { '5': 'custom', '3': 'bronze', '1': 'custom' };
   const published = standardizeStandardVisitPublicationProject(crafted);
   assert.deepEqual(published.rewardGrades, { '1': 'bronze', '3': 'silver', '5': 'gold' });
 
   const disabled = photoProject();
-  disabled.grades.find(grade => grade.id === 'silver')!.enabled = false;
+  disabled.grades.find(grade => grade.id === 'prism')!.enabled = false;
   assert.throws(() => standardizeStandardVisitPublicationProject(disabled), { code: 'COLLECTIBLE_INVALID_PROJECT' });
 
   const missingDerived = photoProject();
-  delete missingDerived.derived.gold;
+  delete missingDerived.derived.prism;
   assert.throws(() => standardizeStandardVisitPublicationProject(missingDerived), { code: 'COLLECTIBLE_NOT_READY' });
+
+  const missingCustomDerived = photoProject();
+  delete missingCustomDerived.derived.custom;
+  assert.throws(() => standardizeStandardVisitPublicationProject(missingCustomDerived), { code: 'COLLECTIBLE_NOT_READY' });
+
+  const missingCustomLiving = photoProject();
+  missingCustomLiving.living.items = [{ id: 'living-custom', kind: 'sway', target: 'region', gradeIds: ['custom'], amplitude: 20, pivot: { x: .5, y: .5 }, strokes: [{ x: .4, y: .4 }, { x: .6, y: .6 }] }];
+  assert.throws(() => standardizeStandardVisitPublicationProject(missingCustomLiving), { code: 'COLLECTIBLE_NOT_READY' });
 });
 
 test('standard visit campaign goals must be exactly 1, 3 and 5', () => {

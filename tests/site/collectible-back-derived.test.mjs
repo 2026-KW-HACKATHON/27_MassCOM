@@ -139,6 +139,23 @@ test('serializeDerived bakes base + a mask for a linked grade with a hologram ef
   } finally { dom.restore(); }
 });
 
+test('publication includes prism and future enabled grades without reviving disabled grades', async () => {
+  const dom = installMiniDom();
+  clearCollectibleRenderCache();
+  try {
+    const project = createProject();
+    project.rewardGrades = { 1: 'bronze', 3: 'silver', 5: 'gold' };
+    project.grades.push({ id: 'season-2027', name: '봄 한정', enabled: true }, { id: 'retired', name: '종료', enabled: false });
+    const derived = await serializeDerived(project, { includeAllEnabledGrades: true });
+    assert.deepEqual(Object.keys(derived), ['bronze', 'silver', 'gold', 'prism', 'season-2027']);
+    for (const id of ['prism', 'season-2027']) {
+      assert.match(derived[id].imageDataUrl, /^data:image\//);
+      assert.match(derived[id].backImageDataUrl, /^data:image\//);
+      assert.match(derived[id].thumbnailDataUrl, /^data:image\//);
+    }
+  } finally { clearCollectibleRenderCache(); dom.restore(); }
+});
+
 test('serializeDerived skips a disabled grade even if it is linked or the preview grade', async () => {
   const dom = installMiniDom();
   try {

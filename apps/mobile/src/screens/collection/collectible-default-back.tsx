@@ -74,22 +74,22 @@ export function fixedBackGrade(gradeId: string, _gradeName: string): FixedBackGr
 
 const fixedBackImages: Record<FixedBackShape, Record<FixedBackGrade, number>> = {
   circle: {
-    bronze: require('../../../assets/images/collectibles/backs/v1/circle-bronze.png'),
-    silver: require('../../../assets/images/collectibles/backs/v1/circle-silver.png'),
-    gold: require('../../../assets/images/collectibles/backs/v1/circle-gold.png'),
-    prism: require('../../../assets/images/collectibles/backs/v1/circle-prism.png'),
+    bronze: require('../../../assets/images/collectibles/backs/v2/circle-bronze.webp'),
+    silver: require('../../../assets/images/collectibles/backs/v2/circle-silver.webp'),
+    gold: require('../../../assets/images/collectibles/backs/v2/circle-gold.webp'),
+    prism: require('../../../assets/images/collectibles/backs/v2/circle-prism.webp'),
   },
   stamp: {
-    bronze: require('../../../assets/images/collectibles/backs/v1/stamp-bronze.png'),
-    silver: require('../../../assets/images/collectibles/backs/v1/stamp-silver.png'),
-    gold: require('../../../assets/images/collectibles/backs/v1/stamp-gold.png'),
-    prism: require('../../../assets/images/collectibles/backs/v1/stamp-prism.png'),
+    bronze: require('../../../assets/images/collectibles/backs/v2/stamp-bronze.webp'),
+    silver: require('../../../assets/images/collectibles/backs/v2/stamp-silver.webp'),
+    gold: require('../../../assets/images/collectibles/backs/v2/stamp-gold.webp'),
+    prism: require('../../../assets/images/collectibles/backs/v2/stamp-prism.webp'),
   },
   serrated: {
-    bronze: require('../../../assets/images/collectibles/backs/v1/serrated-bronze.png'),
-    silver: require('../../../assets/images/collectibles/backs/v1/serrated-silver.png'),
-    gold: require('../../../assets/images/collectibles/backs/v1/serrated-gold.png'),
-    prism: require('../../../assets/images/collectibles/backs/v1/serrated-prism.png'),
+    bronze: require('../../../assets/images/collectibles/backs/v2/serrated-bronze.webp'),
+    silver: require('../../../assets/images/collectibles/backs/v2/serrated-silver.webp'),
+    gold: require('../../../assets/images/collectibles/backs/v2/serrated-gold.webp'),
+    prism: require('../../../assets/images/collectibles/backs/v2/serrated-prism.webp'),
   },
 };
 

@@ -1,4 +1,4 @@
-import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel, STANDARD_VISIT_REWARD_LABELS, applyStandardVisitRewards, isStandardVisitCampaign } from './collectible-model.mjs';
+import { createProject, createMerchantStarterProject, createGrade, createId, cloneProject, cropTransform, clamp, upgradeProject, resolveGreeting, MASCOT_POSES, strokeAlpha, LIVING_KINDS, MASCOT_BLINK, parallaxLivingPointTotal, PARALLAX_LIVING_POINT_BUDGET, thicknessPresetLabel, DEFAULT_GRADES, STANDARD_VISIT_REWARD_LABELS, applyStandardVisitRewards, isStandardVisitCampaign } from './collectible-model.mjs';
 import { renderCollectible, renderCrop, renderStory, serializeDerived, serializeStoryFrames, validateStory, clearCollectibleRenderCache } from './collectible-renderer.mjs';
 import { createCollectibleStudio } from './collectible-studio.mjs';
 import { fixedCollectibleBack } from './collectible-back-assets.mjs';
@@ -102,7 +102,7 @@ export function publishSizeProblem(revision) {
   }
   if ((revision.story?.frames || []).some(frame => frame.previewDataUrl && decodedBytes(frame.previewDataUrl) > mediaLimits.scene)) return '이야기 장면 미리보기가 너무 커요. 더 단순한 장면 사진으로 바꿔 다시 시도해 주세요. 입력은 유지했어요.';
   const body = new TextEncoder().encode(JSON.stringify({ project: revision })).length;
-  if (body > mediaLimits.body) return `수집품 전체가 ${(body / MiB).toFixed(1)} MB로 서버 한도 8 MB를 넘었어요. 작은 사진·음성으로 바꾸거나 쓰지 않는 장면 사진과 등급을 줄여 다시 저장해 주세요. 입력은 그대로 있어요.`;
+  if (body > mediaLimits.body) return `수집품 전체가 ${(body / MiB).toFixed(1)} MB로 서버 한도 8 MB를 넘었어요. 작은 사진·음성으로 바꾸거나 쓰지 않는 장면 사진과 특수등급을 줄여 다시 저장해 주세요. 입력은 그대로 있어요.`;
   return '';
 }
 
@@ -111,6 +111,7 @@ export function validatePublish(project, campaigns) {
   if (!project.photo.originalDataUrl) return '대표 사진 한 장을 올려 주세요.';
   if (!project.campaignId) return '방문 보상이 아직 준비되지 않았어요. 코인은 초안으로 저장할 수 있어요.';
   if (Object.keys(project.rewardGrades).length !== 3 || STANDARD_VISIT_REWARD_LABELS.some(({ count, gradeId }) => project.rewardGrades[count] !== gradeId || !project.grades.some(grade => grade.id === gradeId && grade.enabled))) return '방문 보상은 1회 브론즈·3회 실버·5회 골드로 자동 지급돼요. 보상 정보를 다시 확인해 주세요.';
+  if (DEFAULT_GRADES.some(({ id }) => !project.grades.some(grade => grade.id === id && grade.enabled))) return '브론즈·실버·골드·프리즘 네 기본 등급을 모두 준비해 주세요.';
   if (Array.isArray(campaigns)) {
     const campaign = campaigns.find(item => item.id === project.campaignId);
     if (!campaign || !isStandardVisitCampaign(campaign)) return '방문 보상을 지금 게시할 수 없어요. 코인을 초안으로 저장하고 나중에 다시 시도해 주세요.';
@@ -385,7 +386,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       const row = element('div', undefined, { className: 'ce-grade-row' });
       const name = element('input', undefined, { value: grade.name, maxlength: 40, 'aria-label': `${grade.name} 표시 이름`, 'data-grade-name': grade.id });
       const enabled = element('input', undefined, { type: 'checkbox', 'data-grade-enabled': grade.id }); enabled.checked = grade.enabled;
-      enabled.disabled = ['bronze', 'silver', 'gold'].includes(grade.id);
+      enabled.disabled = DEFAULT_GRADES.some(preset => preset.id === grade.id);
       const label = element('label', undefined, { className: 'ce-check' }); label.append(enabled, document.createTextNode(' 사용')); row.append(name, label); view('grade-manager').append(row);
     }
     renderRewardGrades();
@@ -394,11 +395,6 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
   function renderCampaignOptions() {
     project.campaignId = createMerchantStarterProject({ campaigns, preferredCampaignId: project.campaignId || preferredCampaignId }).campaignId;
     applyStandardVisitRewards(project);
-    for (const id of Object.values(project.rewardGrades)) {
-      let grade = project.grades.find(item => item.id === id);
-      if (!grade) { grade = createProject().grades.find(item => item.id === id); project.grades.push(grade); }
-      grade.enabled = true;
-    }
     view('campaign-status').textContent = project.campaignId ? '방문 보상은 자동으로 연결돼요.' : '방문 보상 준비 중 · 코인은 초안으로 저장할 수 있어요.';
   }
   async function refreshCampaigns({ quiet = false } = {}) {
@@ -789,7 +785,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (publish) {
         revision.story.frames = await serializeStoryFrames(revision.story);
         for (const rung of SPRITE_SIZE_LADDER) {
-          revision.derived = await serializeDerived(revision, { merchantName, angleSide: rung.side, spriteQuality: rung.quality });
+          revision.derived = await serializeDerived(revision, { merchantName, includeAllEnabledGrades: true, angleSide: rung.side, spriteQuality: rung.quality });
           if (!publishSizeProblem(revision)) break;
         }
       }
@@ -1414,7 +1410,7 @@ export function mountCollectibleEditor(container, { merchantId, merchantName = '
       if (target.dataset.gradeName) { mutate(() => { project.grades.find(item => item.id === target.dataset.gradeName).name = target.value.trim() || '새 등급'; }); renderGrades(); renderEffects(); return; }
       if (target.dataset.gradeEnabled) {
         const grade = project.grades.find(item => item.id === target.dataset.gradeEnabled);
-        if (['bronze', 'silver', 'gold'].includes(grade.id)) { target.checked = true; return; }
+        if (DEFAULT_GRADES.some(preset => preset.id === grade.id)) { target.checked = true; return; }
         if (!target.checked && project.grades.filter(item => item.enabled).length === 1) { target.checked = true; notice('미리 볼 등급을 한 개 이상 남겨 주세요.', true); return; }
         let removed = false;
         mutate(() => {

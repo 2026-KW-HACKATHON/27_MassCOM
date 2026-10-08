@@ -60,9 +60,10 @@ test('기본 뒷면은 모양·등급별 고정 로컬 이미지만 사용한다
   const back = readFileSync(new URL('./collectible-default-back.tsx', import.meta.url), 'utf8');
   for (const shape of ['circle', 'stamp', 'serrated']) {
     for (const grade of ['bronze', 'silver', 'gold', 'prism']) {
-      assert.match(back, new RegExp(`collectibles/backs/v1/${shape}-${grade}\\.png`));
+      assert.match(back, new RegExp(`collectibles/backs/v2/${shape}-${grade}\\.webp`));
     }
   }
+  assert.doesNotMatch(back, /collectibles\/backs\/v1\/[^'"]+\.png/);
   assert.match(back, /collectibleFixedBackSource\(shape, gradeId, gradeName\)/);
   assert.doesNotMatch(back, /mascotArt\.stamp/);
   assert.doesNotMatch(back, /MassCOM 월계 수집/);

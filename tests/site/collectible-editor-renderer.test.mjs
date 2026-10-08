@@ -80,6 +80,6 @@ test('publication asks only for photo, name, and fixed standard visit reward map
 test('metal edge aliases and stops agree with mobile grades', () => {
   assert.deepEqual(collectibleMetalColors('', '금등급'), ['#B9750C', '#FFE18A', '#FFFFFF', '#D99A1C']);
   assert.deepEqual(collectibleMetalColors('', '은색'), ['#D3E2EF', '#FFFFFF', '#8DACC8']);
-  assert.deepEqual(collectibleMetalColors('gold', '특별'), ['#67E8F9', '#E8C5FF', '#FFFFFF']);
+  assert.deepEqual(collectibleMetalColors('gold', '특별'), ['#00D5FF', '#8B5CF6', '#FF2DB8', '#FFFFFF']);
   assert.deepEqual(collectibleMetalColors('unknown'), ['#E3BB8B', '#FFF1DC', '#A9673F']);
 });

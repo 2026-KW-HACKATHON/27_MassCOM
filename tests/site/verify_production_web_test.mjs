@@ -48,13 +48,15 @@ test('운영 웹은 로컬 기본 바인딩을 유지하고 명시한 컨테이�
 
 function element() {
   const listeners = new Map();
-  return {
+  const value = {
     textContent: '',
     children: [],
     className: '',
     attributes: {},
+    dataset: {},
     setAttribute(name, value) { this.attributes[name] = String(value); },
     getAttribute(name) { return this.attributes[name] ?? null; },
+    removeAttribute(name) { delete this.attributes[name]; },
     append(...children) { this.children.push(...children); },
     replaceChildren() { this.children = []; },
     addEventListener(type, callback) { listeners.set(type, callback); },
@@ -62,6 +64,16 @@ function element() {
     async dispatch(type) { return listeners.get(type)?.(); },
     async submit() { return listeners.get('submit')?.({ preventDefault() {}, currentTarget: this }); },
   };
+  value.classList = {
+    toggle(className, force) {
+      const classes = new Set(String(value.className || '').split(/\s+/).filter(Boolean));
+      const on = force === undefined ? !classes.has(className) : Boolean(force);
+      if (on) classes.add(className); else classes.delete(className);
+      value.className = [...classes].join(' ');
+      return on;
+    },
+  };
+  return value;
 }
 
 function documentFixture() {
@@ -987,7 +999,7 @@ test('직원 목록 실패가 늦게 도착해도 닫힌 관리자 탭을 다시
 
 function merchantDocument() {
   const nodes = Object.fromEntries(['merchant-status', 'merchant-login', 'merchant-logout',
-    'merchant-content', 'merchant-memberships', 'merchant-code', 'merchant-registration',
+    'merchant-content', 'merchant-owner-nav', 'merchant-memberships', 'merchant-code', 'merchant-registration',
     'merchant-claim-form', 'merchant-claim-merchant', 'merchant-claim-token',
     'merchant-claim-reference', 'merchant-claim-confirm', 'merchant-claim-resolve',
     'merchant-claim-submit', 'merchant-claim-result', 'merchant-claim-scan',
@@ -998,6 +1010,29 @@ function merchantDocument() {
   const select = { ...element(), value: 'real-merchant' };
   const button = element();
   nodes['merchant-registration'].querySelector = name => name === 'select' ? select : button;
+  nodes['merchant-creator'] = { ...element(), hidden: true };
+  nodes['merchant-claim-section'] = { ...element(), hidden: false };
+  nodes['merchant-overview'] = { ...element(), hidden: true };
+  nodes['merchant-feedback'] = { ...element(), hidden: true };
+  nodes['merchant-reversal'] = { ...element(), hidden: true };
+  const merchantViewSpecs = [
+    ['merchant-overview', 'results'],
+    ['merchant-feedback', 'results'],
+    ['merchant-creator', 'create'],
+    ['merchant-claim-section', 'claim'],
+    ['merchant-reversal', 'results'],
+  ];
+  const merchantViewButtons = ['create', 'claim', 'results'].map(target => {
+    const viewButton = element();
+    viewButton.dataset.merchantViewTarget = target;
+    return viewButton;
+  });
+  const merchantViewSections = () => merchantViewSpecs.map(([id, view]) => {
+    const section = nodes[id];
+    section.dataset = { ...(section.dataset || {}), merchantView: view };
+    if (!section.classList) section.classList = element().classList;
+    return section;
+  });
   const listeners = new Map();
   const documentListeners = new Map();
   const documentRegistrations = [];
@@ -1005,9 +1040,15 @@ function merchantDocument() {
     addEventListener(type, callback) { documentRegistrations.push(type); documentListeners.set(type, callback); },
     getElementById(id) { return nodes[id]; },
     querySelector() { return select; },
+    querySelectorAll(selector) {
+      if (selector === '[data-merchant-view]') return merchantViewSections();
+      if (selector === '[data-merchant-view-target]') return merchantViewButtons;
+      return [];
+    },
     createElement() { return element(); },
     defaultView: { addEventListener(type, callback) { listeners.set(type, callback); } },
   };
+  doc.body = doc;
   const click = (target, options = {}) => {
     const event = { target, button: 0, defaultPrevented: false,
       preventDefault() { this.defaultPrevented = true; }, ...options };
@@ -2937,25 +2978,32 @@ test('방문 고객 의견은 빈 결과를 안내하고 재조회 전의 의견
 test('점포 웹 가게 현황 화면은 점포 운영 화면 맨 위에 있고 HTML 문자열·인라인 스타일 없이 접근성 연결을 갖춘다', () => {
   const merchantHtml = readFileSync(join(web, 'merchant.html'), 'utf8');
   const merchantScript = readFileSync(join(web, 'assets/merchant.mjs'), 'utf8');
-  assert.match(merchantHtml, /<section id="merchant-overview" class="panel[^"]*" aria-labelledby="merchant-overview-title" hidden>/);
+  assert.match(merchantHtml, /<nav id="merchant-owner-nav" class="merchant-view-nav" aria-label="점주 방문 보상 화면" hidden>/);
+  assert.match(merchantHtml, /data-merchant-view-target="create"[^>]*>방문 보상 만들기<\/button>/);
+  assert.match(merchantHtml, /data-merchant-view-target="claim"[^>]*>방문 확인<\/button>/);
+  assert.match(merchantHtml, /data-merchant-view-target="results"[^>]*>운영 결과<\/button>/);
+  assert.match(merchantHtml, /<section id="merchant-overview" class="panel[^"]*" data-merchant-view="results" aria-labelledby="merchant-overview-title" hidden>/);
   assert.match(merchantHtml, /<h2 id="merchant-overview-title">가게 현황<\/h2>/);
   assert.match(merchantHtml, /id="merchant-overview-status"[^>]*role="status"[^>]*aria-live="polite"/);
   assert.match(merchantHtml, /<h3 id="merchant-readiness-title">오픈 준비 체크리스트<\/h3>/);
   assert.match(merchantHtml, /<ol id="merchant-readiness-list"[^>]*aria-labelledby="merchant-readiness-title"/);
   assert.match(merchantHtml, /<ul id="merchant-overview-cards"/);
+  assert.match(merchantHtml, /<h2 id="merchant-operations-title">직원·방문 자료<\/h2>/);
+  assert.match(merchantHtml, /방문 보상은 플랫폼의 1·3·5회 기준으로 고정됩니다/);
+  assert.doesNotMatch(merchantHtml, /merchant-extension|캠페인 연장|연장 기간|기간 연장 확정/);
   assert.match(merchantHtml, /<section id="merchant-feedback"[^>]*aria-labelledby="merchant-feedback-title" hidden>/);
   assert.match(merchantHtml, /<h2 id="merchant-feedback-title">방문 고객 의견<\/h2>/);
   assert.match(merchantHtml, /<ul id="merchant-feedback-notes"[^>]*aria-labelledby="merchant-feedback-notes-title"/);
   assert.ok(merchantHtml.indexOf('<section id="merchant-feedback"') > merchantHtml.indexOf('<section id="merchant-overview"'));
   assert.ok(merchantHtml.indexOf('<section id="merchant-feedback"') < merchantHtml.indexOf('<section id="merchant-creator"'));
-  // #merchant-content의 첫 구역이다(제작기·내 점포·직원 등록보다 앞).
+  // #merchant-content 안에서 탭 내비게이션 바로 다음 구역이다(제작기·내 점포·직원 등록보다 앞).
   const content = merchantHtml.indexOf('<section id="merchant-content"');
   const overviewAt = merchantHtml.indexOf('<section id="merchant-overview"');
   assert.ok(content > 0 && overviewAt > content);
   for (const later of ['id="merchant-creator"', 'aria-labelledby="merchant-stores-title"', 'id="merchant-reversal"']) {
     assert.ok(merchantHtml.indexOf(later) > overviewAt, later);
   }
-  assert.equal(merchantHtml.slice(content, overviewAt).replace(/<section id="merchant-content"[^>]*>/, '').trim(), '');
+  assert.match(merchantHtml.slice(content, overviewAt), /<nav id="merchant-owner-nav"[\s\S]*data-merchant-view-target="results"[\s\S]*<\/nav>\s*$/);
   // 카드 링크가 가리키는 제목은 키보드 이동이 되도록 tabindex -1을 가진다.
   assert.match(merchantHtml, /<h3 id="merchant-visit-title" tabindex="-1">/);
   assert.match(merchantHtml, /<h3 id="merchant-redemption-title" tabindex="-1">/);

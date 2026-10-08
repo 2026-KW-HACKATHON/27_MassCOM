@@ -110,6 +110,13 @@ export function isStandardVisitCampaign(campaign) {
 
 export function applyStandardVisitRewards(project) {
   project.rewardGrades = standardVisitRewardGrades();
+  // 제작·저장 등급은 네 기본 등급을 모두 유지한다. 방문 지급 조건은 위의 세 연결만 쓴다.
+  // 이전 초안의 비활성 기본 등급을 복구해도 이름·효과·특수등급 식별자는 바꾸지 않는다.
+  for (const preset of DEFAULT_GRADES) {
+    const grade = project.grades.find(item => item.id === preset.id);
+    if (grade) grade.enabled = true;
+    else project.grades.push({ ...preset });
+  }
   return project;
 }
 

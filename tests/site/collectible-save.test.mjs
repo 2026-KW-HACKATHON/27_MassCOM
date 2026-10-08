@@ -49,4 +49,6 @@ test('게시 검증은 자동 방문 보상 매핑과 정확한 1·3·5회 활�
   assert.match(validatePublish(project, [{ ...validCampaign, goals: [1, 3] }]), /방문 보상을 지금 게시할 수 없어요/);
   assert.match(validatePublish({ ...project, rewardGrades: { 1: 'silver', 3: 'gold', 5: 'bronze' } }, [validCampaign]), /1회 브론즈·3회 실버·5회 골드/);
   assert.match(validatePublish({ ...project, grades: project.grades.map(grade => grade.id === 'bronze' ? { ...grade, enabled: false } : grade) }, [validCampaign]), /1회 브론즈·3회 실버·5회 골드/);
+  assert.match(validatePublish({ ...project, grades: project.grades.filter(grade => grade.id !== 'prism') }, [validCampaign]), /브론즈·실버·골드·프리즘 네 기본 등급/);
+  assert.match(validatePublish({ ...project, grades: project.grades.map(grade => grade.id === 'prism' ? { ...grade, enabled: false } : grade) }, [validCampaign]), /브론즈·실버·골드·프리즘 네 기본 등급/);
 });

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import {
-  angleFrameIndex, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
+  angleFrameIndex, applyStandardVisitRewards, cloneProject, createGrade, createProject, cropTransform, effectsForGrade, motionForGrade,
   particleAt, resolveGreeting, resolveSticker, shapePath, shapePoints, stickerLineOffsets, stickerLines, THICKNESS_PRESETS, thicknessPresetLabel, toggleEffectGrade, upgradeProject,
 } from '../../apps/production-web/assets/collectible-model.mjs';
 
@@ -39,6 +39,27 @@ test('새 시즌·특수등급을 추가해도 기존 효과와 보상 연결은
   assert.deepEqual(effectsForGrade(project, special.id), []);
   assert.equal(effectsForGrade(project, 'bronze')[0].type, 'hologram');
   assert.deepEqual(effectsForGrade(project, 'prism'), []);
+});
+
+test('표준 방문 연결은 네 기본 등급을 복구하고 특수등급·편집 설정을 보존한다', () => {
+  const project = createProject();
+  project.grades = project.grades.filter(grade => grade.id !== 'prism');
+  project.grades[0].name = '우리 가게 브론즈';
+  project.grades[1].enabled = false;
+  project.grades.push(createGrade('겨울 기념', { id: 'winter-special' }));
+  project.effects.push({ id: 'holo', type: 'hologram', target: 'surface', gradeIds: ['winter-special'], strength: 50 });
+  project.rewardGrades = { 1: 'winter-special', 3: 'prism', 5: 'bronze', 7: 'gold' };
+  const effects = cloneProject(project).effects;
+
+  assert.equal(applyStandardVisitRewards(project), project);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+  for (const id of ['bronze', 'silver', 'gold', 'prism']) assert.equal(project.grades.find(grade => grade.id === id)?.enabled, true, id);
+  assert.equal(project.grades.find(grade => grade.id === 'bronze').name, '우리 가게 브론즈');
+  assert.equal(project.grades.find(grade => grade.id === 'winter-special').name, '겨울 기념');
+  assert.deepEqual(project.effects, effects);
+  const repaired = cloneProject(project);
+  applyStandardVisitRewards(project);
+  assert.deepEqual(project, repaired, '복구를 반복해도 등급이나 보상 연결이 늘지 않는다');
 });
 
 test('복수 등급 효과 토글과 미리보기 선택을 독립적으로 처리한다', () => {

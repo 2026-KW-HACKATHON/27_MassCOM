@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
-import { mountCollectibleEditor } from '../../apps/production-web/assets/collectible-editor.mjs';
+import { mediaLimits, mountCollectibleEditor, publishSizeProblem, SPRITE_SIZE_LADDER } from '../../apps/production-web/assets/collectible-editor.mjs';
 import { configureCreator, loadCreatorCampaigns, loadMerchant } from '../../apps/production-web/assets/merchant.mjs';
 import { createProject } from '../../apps/production-web/assets/collectible-model.mjs';
 import { createFakeApi } from '../fixtures/collectible-fake-api.mjs';
@@ -168,8 +168,8 @@ test('게시한 뒤에도 장면 미리보기 같은 파생 필드 때문에 저
   const publish = api.calls.find(call => call.path.endsWith('/publish'));
   assert.deepEqual(publish.body, { expectedVersion: 1, campaignId: 'campaign-a' });
   const created = api.calls.find(call => call.method === 'POST' && call.path === '/collectible-projects');
-  // 새 점포 초안은 1·3·5회 목표가 기본 연결되므로 세 등급 모두 굽는다.
-  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold']);
+  // 제작·저장은 프리즘을 포함한 네 기본 등급, 방문 지급은 1·3·5회 세 등급이다.
+  assert.deepEqual(Object.keys(created.body.project.derived), ['bronze', 'silver', 'gold', 'prism']);
   assert.ok(created.body.project.story.frames[0].previewDataUrl, '게시용 장면 미리보기를 함께 보낸다');
   assert.match(ui.notice, /게시했어요/);
   assert.equal(api.store.get('project-1').status, 'PUBLISHED');
@@ -311,18 +311,20 @@ test('게시용 완성·뒷면 이미지·썸네일·장면 미리보기는 WebP
   assert.match(ui.notice, /게시했어요/);
 });
 
-// Issue #284 WP2 설계 6번: 연결된 등급만 derived를 만든다(본문 용량 절약). 미리보기 중인 등급은 보상 연결이
-// 없어도 함께 만든다(편집기가 지금 보는 등급을 publish 직후에도 그대로 보여 줄 수 있어야 한다).
-test('serializeDerived는 보상에 연결된 등급과 지금 보는 등급만 굽고, 연결되지 않은 다른 등급은 비워 둔다', async () => {
+test('게시하면 미리보기와 보상 연결에 상관없이 프리즘을 포함한 네 기본 등급을 모두 저장한다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await ui.upload(photoFile);
   await ui.click('publish');
   const project = created(api);
-  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '고정 보상 세 등급만 굽고 prism은 빠진다');
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' }, '프리즘 제작이 방문 지급 조건을 늘리지 않는다');
+  for (const [gradeId, asset] of Object.entries(project.derived)) {
+    for (const key of ['imageDataUrl', 'thumbnailDataUrl', 'backImageDataUrl', 'baseDataUrl']) assert.match(asset[key], /^data:image\//, `${gradeId}.${key}`);
+  }
 });
 
-test('프리즘을 미리 보는 중 게시해도 저장 payload는 필수 방문 보상 세 등급만 굽고 프리즘 메타데이터는 유지한다', async () => {
+test('프리즘을 미리 보는 중 게시해도 네 기본 등급의 이미지와 프리즘 이름을 함께 보존한다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await ui.upload(photoFile);
@@ -333,33 +335,99 @@ test('프리즘을 미리 보는 중 게시해도 저장 payload는 필수 방�
 
   await ui.click('publish');
   const project = created(api);
-  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '미리보기 등급인 prism 파생 이미지는 본문에 싣지 않는다');
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
   assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
   assert.equal(project.grades.find(grade => grade.id === 'prism').name, '프리즘 편집', '프리즘 등급 메타데이터는 저장한다');
   assert.equal(project.grades.find(grade => grade.id === 'prism').enabled, true, '프리즘 등급은 계속 편집 가능한 상태로 남는다');
   assert.equal(ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').getAttribute('aria-pressed'), 'true', '게시 뒤에도 보던 프리즘 탭은 유지한다');
 });
 
-test('연결된 세 등급 모두 홀로그램 효과가 있어도 base·mask를 되살린 게시 본문은 8 MB 한도보다 충분히 작다(PR #293 P2 회귀)', async () => {
+test('네 기본 등급 모두 홀로그램 효과가 있어도 base·mask·각도 프레임을 포함한 게시 본문은 8 MB 한도 안이다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
   await ui.upload(photoFile);
   ui.control('effect-type').value = 'hologram';
   await ui.click('effect-add');
-  for (const gradeId of ['bronze', 'silver', 'gold']) {
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) {
     const checkbox = ui.container.querySelector(`input[data-effect-grade][data-grade="${gradeId}"]`);
     checkbox.checked = true; checkbox.dispatchEvent({ type: 'change' }); await settle();
   }
   dom.document.encodedBytes = 80 * 1024; // 실제 사진 한 장 크기를 흉내 낸 값(개별 상한 안에서 여유 있게 큰 편)
   await ui.click('publish');
   const project = created(api);
-  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'silver'], '지금 보는 등급·보상 연결 등급 세 개만 굽는다');
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
   for (const asset of Object.values(project.derived)) {
     assert.match(asset.baseDataUrl, /^data:image\//, '홀로그램 효과가 있는 등급은 base를 다시 만든다');
     assert.match(asset.effectMasks?.surface, /^data:image\//, '홀로그램 효과가 있는 등급은 surface mask를 다시 만든다');
+    assert.match(asset.angleFrames?.dataUrl, /^data:image\//, '네 등급 모두 각도별 재질 프레임을 보존한다');
   }
   const bodyBytes = new TextEncoder().encode(JSON.stringify({ project })).length;
-  assert.ok(bodyBytes < 8 * MiB, `세 등급에 base·mask를 되살려도 본문은 8 MB보다 충분히 작아야 한다(${bodyBytes} bytes)`);
+  assert.ok(bodyBytes < 8 * MiB, `네 등급의 base·mask·각도 프레임까지 본문은 8 MB 안이어야 한다(${bodyBytes} bytes)`);
+});
+
+test('전체 본문이 큰 네 등급은 모두 유지한 채 448→384→320→256 각도 프레임으로 줄여 게시한다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  const original = `data:image/png;base64,${Buffer.alloc(1536 * 1024, 7).toString('base64')}`;
+  await ui.upload({ ...photoFile, size: 1536 * 1024, dataUrl: original });
+  ui.control('effect-type').value = 'hologram'; await ui.click('effect-add');
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) {
+    const checkbox = ui.container.querySelector(`input[data-effect-grade][data-grade="${gradeId}"]`);
+    checkbox.checked = true; checkbox.dispatchEvent({ type: 'change' }); await settle();
+  }
+  const prototype = Object.getPrototypeOf(document.createElement('canvas'));
+  const encode = prototype.toDataURL;
+  prototype.toDataURL = function (type, quality) {
+    // 코어 이미지와 mask는 개별 상한 안이다. 큰 각도 atlas만 전체 본문을 넘기도록 구성한다.
+    this.ownerDocument.encodedBytes = this.width === 160 ? 64 * 1024
+      : type === 'image/png' ? 128 * 1024
+      : this.width > 512 ? ({ 1792: 600, 1536: 512, 1280: 256, 1024: 128 }[this.width] * 1024)
+      : 256 * 1024;
+    return encode.call(this, type, quality);
+  };
+  try { await ui.click('publish'); } finally { prototype.toDataURL = encode; }
+
+  assert.match(ui.notice, /게시했어요/);
+  const project = created(api);
+  assert.deepEqual(Object.keys(project.derived).sort(), ['bronze', 'gold', 'prism', 'silver']);
+  assert.deepEqual(project.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+  assert.equal(project.photo.originalDataUrl, original, '원본 사진을 다시 압축하거나 삭제하지 않는다');
+  for (const rung of SPRITE_SIZE_LADDER) {
+    const atlasEncodes = dom.document.encodes.filter(item => item.type === 'image/webp' && item.width === rung.side * 4 && item.height === rung.side * 3);
+    assert.equal(atlasEncodes.length, 4, `${rung.side}px 단계에도 네 등급이 모두 남는다`);
+    assert.ok(atlasEncodes.every(item => item.quality === rung.quality));
+  }
+  for (const asset of Object.values(project.derived)) assert.equal(asset.angleFrames.side, 256);
+  assert.equal(publishSizeProblem(project), '', '본문과 모든 개별 asset 상한을 통과한다');
+  assert.ok(new TextEncoder().encode(JSON.stringify({ project })).length <= mediaLimits.body);
+});
+
+test('특수등급 추가·이름 변경·미리보기 전환·재열기로 기본 네 등급과 기존 특수등급을 잃지 않는다', async () => {
+  const api = createFakeApi();
+  const ui = await mount(api);
+  await ui.upload(photoFile);
+  await ui.change('grade-name', '겨울 기념'); await ui.click('grade-add');
+  const specialId = ui.container.querySelector('[data-action="grade-preview"][aria-pressed="true"]').dataset.id;
+  const name = ui.container.querySelector(`[data-grade-name="${specialId}"]`);
+  name.value = '겨울 한정 기념'; name.dispatchEvent({ type: 'change' }); await settle();
+  for (const gradeId of ['bronze', 'prism', specialId]) {
+    ui.container.querySelector(`[data-action="grade-preview"][data-id="${gradeId}"]`).dispatchEvent({ type: 'click' }); await settle();
+  }
+  await ui.click('draft');
+  const draft = created(api);
+  assert.equal(draft.grades.length, 5);
+  assert.equal(draft.grades.find(grade => grade.id === specialId).name, '겨울 한정 기념');
+  assert.deepEqual(draft.derived, {}, '초안은 원본·설정으로 보존하고 게시 시 파생 이미지를 만든다');
+  assert.deepEqual(draft.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
+
+  await ui.click('publish');
+  const published = api.store.get('project-1').project;
+  assert.deepEqual(Object.keys(published.derived).sort(), ['bronze', 'gold', 'prism', 'silver', specialId].sort());
+  assert.equal(published.grades.find(grade => grade.id === specialId).name, '겨울 한정 기념');
+  assert.deepEqual(published.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' }, '특수등급은 추가 방문 보상으로 자동 연결하지 않는다');
+  await ui.change('project-list', 'project-1');
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism', specialId]) assert.ok(ui.container.querySelector(`[data-action="grade-preview"][data-id="${gradeId}"]`), gradeId);
+  assert.equal(ui.container.querySelector(`[data-grade-name="${specialId}"]`).value, '겨울 한정 기념');
 });
 
 test('WebP 인코딩을 지원하지 않는 브라우저는 PNG로 게시한다', async () => {
@@ -703,30 +771,33 @@ test('인사말 규칙 추가·삭제와 미리보기는 resolveGreeting 우선�
 test('선택형 등급을 끄면(삭제에 준함) 그 등급의 스티커 전용 배치·동작·인사말 규칙 참조를 지운다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
-  ui.container.querySelector('[data-action="grade-preview"][data-id="prism"]').dispatchEvent({ type: 'click' }); await settle();
+  await ui.change('grade-name', '기념 등급'); await ui.click('grade-add');
+  const specialId = ui.container.querySelector('[data-action="grade-preview"][aria-pressed="true"]').dataset.id;
   ui.control('sticker-new').value = '글자';
   await ui.click('sticker-add');
   const xInput = ui.container.querySelector('[data-sticker="x"]');
   xInput.value = '0.1'; xInput.dispatchEvent({ type: 'input' }); await settle();
   ui.control('sticker-grade-only').checked = true; ui.control('sticker-grade-only').dispatchEvent({ type: 'change' }); await settle();
 
-  const motionBox = ui.container.querySelector('[data-motion-grade="rotate"][data-grade="prism"]');
+  const motionBox = ui.container.querySelector(`[data-motion-grade="rotate"][data-grade="${specialId}"]`);
   motionBox.checked = true; motionBox.dispatchEvent({ type: 'change' }); await settle();
 
-  ui.control('greeting-override-text').value = '프리즘 인사말';
+  ui.control('greeting-override-text').value = '기념 등급 인사말';
   await ui.click('greeting-override-add');
-  const overrideGradeBox = ui.container.querySelector('input[data-override-grade][data-grade="prism"]');
+  const overrideGradeBox = ui.container.querySelector(`input[data-override-grade][data-grade="${specialId}"]`);
   overrideGradeBox.checked = true; overrideGradeBox.dispatchEvent({ type: 'change' }); await settle();
 
-  // 지금 보는 등급을 다른 곳으로 옮긴 뒤(한 개 이상 남겨야 끌 수 있다) prism을 끈다.
+  // 기본 네 등급은 유지하고 새로 만든 선택형 등급만 끈다.
   ui.container.querySelector('[data-action="grade-preview"][data-id="silver"]').dispatchEvent({ type: 'click' }); await settle();
-  const prismEnabled = ui.container.querySelector('[data-grade-enabled="prism"]');
-  prismEnabled.checked = false; prismEnabled.dispatchEvent({ type: 'change' }); await settle();
+  const specialEnabled = ui.container.querySelector(`[data-grade-enabled="${specialId}"]`);
+  specialEnabled.checked = false; specialEnabled.dispatchEvent({ type: 'change' }); await settle();
 
   await ui.click('draft');
   const saved = created(api);
-  assert.equal(saved.stickers[0].layouts.prism, undefined, '끈 등급의 전용 배치는 지운다');
-  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes('prism'), false, '끈 등급의 동작 참조를 지운다');
+  assert.equal(saved.grades.find(grade => grade.id === specialId).enabled, false, '선택형 등급의 식별자·이름은 보존하고 비활성 표시만 남긴다');
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) assert.equal(saved.grades.find(grade => grade.id === gradeId).enabled, true, gradeId);
+  assert.equal(saved.stickers[0].layouts[specialId], undefined, '끈 등급의 전용 배치는 지운다');
+  assert.equal(saved.motion.find(item => item.type === 'rotate').gradeIds.includes(specialId), false, '끈 등급의 동작 참조를 지운다');
   assert.equal(saved.greetingOverrides.length, 0, '등급 참조가 모두 사라지고 테마 조건도 없는 규칙은 함께 지운다');
 });
 
@@ -806,16 +877,18 @@ test('방문 보상 횟수와 등급은 점주 화면에서 조작할 수 없다
 });
 
 
-test('필수 방문 보상 등급은 조작된 체크 해제도 저장 전에 고정값으로 되돌린다', async () => {
+test('프리즘을 포함한 네 기본 등급은 조작된 체크 해제도 저장 전에 되돌리고 방문 지급은 세 연결로 유지한다', async () => {
   const api = createFakeApi();
   const ui = await mount(api);
-  const bronze = ui.container.querySelector('[data-grade-enabled="bronze"]');
-  assert.equal(bronze.disabled, true, '브론즈는 필수 등급이라 UI에서 끌 수 없다');
-  bronze.checked = false; bronze.dispatchEvent({ type: 'change' }); await settle();
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) {
+    const checkbox = ui.container.querySelector(`[data-grade-enabled="${gradeId}"]`);
+    assert.equal(checkbox.disabled, true, `${gradeId}는 필수 등급이라 UI에서 끌 수 없다`);
+    checkbox.checked = false; checkbox.dispatchEvent({ type: 'change' }); await settle();
+    assert.equal(checkbox.checked, true, '조작된 체크 해제는 즉시 되돌린다');
+  }
   await ui.click('draft');
   const saved = created(api);
-  assert.equal(bronze.checked, true, '조작된 체크 해제는 즉시 되돌린다');
-  assert.equal(saved.grades.find(grade => grade.id === 'bronze').enabled, true);
+  for (const gradeId of ['bronze', 'silver', 'gold', 'prism']) assert.equal(saved.grades.find(grade => grade.id === gradeId).enabled, true, gradeId);
   assert.deepEqual(saved.rewardGrades, { 1: 'bronze', 3: 'silver', 5: 'gold' });
 });
 
