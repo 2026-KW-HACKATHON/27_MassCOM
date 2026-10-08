@@ -29,7 +29,8 @@ Issue #438. 작업 브랜치 `feat/collection-next-actions`, 시작 기준은 PR
 - 점주 관련 웹 시험 17/17 PASS, 별도 점주 동선·제작기 주변 집중 시험은 [O1 기록](SELECTED_MERCHANT_FLOW_2026-10-09.md).
 - 모바일 접근성 계약, 로컬 gate, JS 구문·diff 공백 검사 PASS.
 - 브라우저: 실제 HomeScreen/DiscoveryProvider, CoinCollectionScreen, CoinReveal과 실제 RNW/Reanimated를 사용한 합성 읽기 전용 fixture. 홈 첫 방문·권리·진행·로딩·오류, 도감 보유/미보유·빈 상태·merchantId 목적지, 개봉·건너뛰기·수동 유지·복구·움직임 감소 확인. [결과](evidence/selected-actions-2026-10-09/browser-checks.json), [캡처·재현](evidence/selected-actions-2026-10-09/README.md).
-- 독립 검토에서 홈의 오래된 CTA·획득 직후 누락을 찾아 회귀 시험과 함께 수정했다.
+- 독립 검토에서 홈의 오래된 CTA·획득 직후 누락을 찾아 회귀 시험과 함께 수정했다. 최종 집중 재검토에서 기존 지적 잔여0건.
+- 소스 `833f0000`으로 운영·시연 Android export 각각 PASS. 빌드 출처 SHA를 고정했으며 시연 OAuth는 번들용 공개 QA 형식 식별자다. 실제 Google 로그인·APK 설치·배포를 뜻하지 않는다.
 
 ## 실행하지 않은 것과 남은 위험
 

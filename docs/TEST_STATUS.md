@@ -11,7 +11,7 @@ PR #435 `644beb75` 위 `feat/collection-next-actions`. 공통 고객 UI는 운�
 | `node --test tests/site/merchant-actions-overview.test.mjs tests/site/merchant-*.test.mjs` | PASS | 17/17 |
 | 모바일 접근성 계약 / `tools/gate.sh` / `git diff --check` | PASS | 소스 계약·비밀·충돌·대형 파일·문서·배포표 검사, 실제 운영 배포는 아님 |
 | 실제 RNW 컴포넌트 브라우저 QA | PASS | 홈/도감/가게 코인 단계·건너뛰기·수동 유지·복구·움직임 감소. 합성 데이터, 라우터·음향/진동 경계 mock |
-| 운영·시연 Android export | NOT_RUN | 최종 소스 커밋으로 실행 후 갱신. 첫 시도는 빌드 출처 SHA 누락으로 config 검사에서 종료 |
+| 운영·시연 Android export | PASS | 소스 `833f000010cba51629e0f6582e5616881a9801ca`, 두 variant 각각 `npx expo export --platform android`. 시연 OAuth는 공개 QA 형식 식별자이며 실제 로그인 검증 아님. 첫 시도 SHA 누락은 설정 후 재실행 해소 |
 | Android 설치·TalkBack·200% 글자·음향·진동·실제 QR/쿠폰·점주 계정 | NOT_RUN | 자동 시험/브라우저로 대체하지 않음 |
 | P4 잔여 확률 표시·X2 강화권 지급 | BLOCKED | 표시 기준/잔여 데이터·동일 방문 인증/보상 규칙 미확정. [근거](SELECTED_POLICY_REVIEW_2026-10-09.md) |
 
