@@ -72,6 +72,9 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 
 ## 증거 링크
 
+- [제품 경험·지역 가치·사업화 기반 보고서 — 공유 풀 수정본](docs/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.md) ([Word 원본](docs/source/PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.docx))
+- [완성 과제와 수정·개선 제안](docs/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.md) ([Word 원본](docs/source/COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.docx))
+
 - 시험·상태: [TEST_STATUS](docs/TEST_STATUS.md) · [PROJECT_STATE](docs/PROJECT_STATE.md) · [HANDOFF](docs/HANDOFF.md) · [평가 대응표](docs/EVALUATION_MAP.md)
 - 시연: [5분 시연·질의 대비](docs/DEMO_RUNBOOK.md) · [대체 시연 영상(웹 체험 4분 8초, 390×844, 이전 `/play/` 번들)](docs/evidence/submission-2026-10-08-recheck/demo-flow-390.webm) · [공개 체험 재측정](docs/evidence/submission-2026-10-08-recheck/README.md)
 - 배포: 운영 API·웹은 main `687427c2`, 시연 API는 `2d483ed`, `/play/` 번들은 소스 `5ca98955`입니다(migration 68건). `687427c2` 재배포의 별도 증거 JSON은 아직 없습니다. 원장을 올린 [`09dfceb0` 운영 배포](docs/evidence/production-deployment-09dfceb-2026-10-08.json)와 [시연 배포](docs/evidence/showcase-deployment-2d483ed-2026-10-08.json)를 함께 봅니다.
@@ -528,3 +531,4 @@ npm run test:postgres --prefix apps/api
 
 [current-test-status]: docs/TEST_STATUS.md
 [current-handoff-history]: docs/HANDOFF_HISTORY.md
+

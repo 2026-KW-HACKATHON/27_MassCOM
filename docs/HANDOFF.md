@@ -1,5 +1,13 @@
 # HANDOFF
 
+**2026-10-09 최신 첨부 보고서 두 개 문서 보관**
+
+- 브랜치: `docs/shared-pool-and-completion-reports-2026-10-09`, 기준 main 커밋 `8aa8b724ab460f84bf554daffb8d2dd070488b44`. 이 항목은 해당 문서 브랜치의 작업 기록이다.
+- 추가: [공유 풀 수정 보고서](PRODUCT_EXPERIENCE_SHARED_POOL_2026-10-09.md), [완성 과제·수정 개선안](COMPLETION_TASKS_AND_IMPROVEMENTS_2026-10-09.md), 각 Word 원본은 `docs/source`에 보관.
+- PASS: 원본 일치·ZIP/XML·링크·크기·비밀값 검사. 앱 시험과 전체 gate는 NOT_RUN. 기존 앱 구현 상태를 변경하지 않는다.
+- PR #431은 닫힌 상태로 유지한다. 새 PR 생성·기존 PR 재개·main 병합은 수행하지 않는다.
+- 다음 작업: 사용자의 후속 요청이 있을 때 문서 검토와 통합을 진행한다.
+
 **2026-10-09 PR #429에 main `a1a3eef3` 병합 충돌 해결 (미커밋)**
 
 - 위치: `.worktrees/pr429`, 브랜치 `feat/collectible-reeded-edge`, HEAD `9a433fee`. PR #430 반영 main `a1a3eef3` 병합의 충돌 파일을 수정 중이며 Git index는 의도대로 미병합 상태다. PR #429의 회전·Flame 오라·옆면과 main의 T3 혜택·T4 코스·T8 공공자료 점포 고지 및 접근성 이름을 함께 보존한다.
@@ -191,3 +199,4 @@ bash tests/bootstrap/check_pr_korean_test.sh  # checker 자체 회귀 시험
 
 - 2026-09-22부터 2026-10-07까지의 날짜별 인수인계 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 그대로 보존한다. 과거 기록의 “현재”, “열린 PR”, “다음 명령”은 작성 당시의 상태다.
 - 다음 중단 전 이 14절의 기준 SHA·브랜치·PR·공개 버전·검증 상태·다음 명령만 실제 근거에 맞춰 갱신한다.
+
