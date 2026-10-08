@@ -2,7 +2,7 @@
 
 ## 2026-10-08 점진적 공개·점주 1인 2역·최소 크기 (Issue #412 T2c, 배포하지 않음)
 
-기준 main `cd01c0d6`(PR #422 병합) 위의 작업 브랜치 `feat/first-use-v2c`이며 앱 코드와 문서만 바뀌었다. API·DB·migration은 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행했다.
+기준 main `48a14811`(PR #420 병합) 위의 작업 브랜치 `feat/first-use-v2c`이며 앱 코드와 문서만 바뀌었다. API·DB·migration은 바뀌지 않았다. 아래 검사는 이 브랜치의 worktree에서 2026-10-08 KST에 직접 실행했다.
 
 | 대상 | 결과 | 증거·경계 |
 | --- | --- | --- |
@@ -18,7 +18,7 @@
 
 ### Issue #412 T2c 로컬 검사
 
-환경: macOS, `feat/first-use-v2c` worktree(main `cd01c0d6` 위로 리베이스한 뒤), 2026-10-08 KST.
+환경: macOS, `feat/first-use-v2c` worktree(main `48a14811` 위로 리베이스한 뒤), 2026-10-08 KST.
 
 | 명령 | 결과 |
 | --- | --- |
