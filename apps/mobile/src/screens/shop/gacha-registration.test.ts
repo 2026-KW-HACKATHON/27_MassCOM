@@ -33,6 +33,7 @@ function settleExistingRerollResult(initialPhase: string, motionAllowed = true):
     activeResult,
     phaseRef,
     motionAllowed,
+    openingComplete: { current: false },
     skipRequested: { current: false },
     drawInFlight: { current: false },
     cardOpacity: { set: () => undefined },
@@ -139,7 +140,9 @@ function press(control: Element) {
 
 function renderMachine(initialPhase: rules.GachaPhase | 'opening' = 'album-registration', award = result) {
   const states: unknown[] = [initialPhase];
+  const refs: { current: unknown }[] = [];
   let cursor = 0;
+  let refCursor = 0;
   let closeCount = 0;
   const react = {
     createElement: (type: unknown, props: Element['props'], ...children: unknown[]) => ({ type, props: props ?? {}, children: children.flat(Infinity) }),
@@ -148,7 +151,11 @@ function renderMachine(initialPhase: rules.GachaPhase | 'opening' = 'album-regis
       if (!(index in states)) states[index] = initial;
       return [states[index], (value: unknown) => { states[index] = value; }];
     },
-    useRef: (initial: unknown) => ({ current: initial === 'detail' ? states[0] : initial }),
+    useRef: (initial: unknown) => {
+      const index = refCursor++;
+      if (!(index in refs)) refs[index] = { current: index === 2 && initialPhase === 'opening' ? award : initial === 'detail' ? states[0] : initial };
+      return refs[index];
+    },
     useCallback: (callback: unknown) => callback,
     useMemo: (factory: () => unknown) => factory(),
     useEffect: () => undefined,
@@ -171,6 +178,7 @@ function renderMachine(initialPhase: rules.GachaPhase | 'opening' = 'album-regis
   runInNewContext(ts.transpileModule(source, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS } }).outputText, context);
   const render = () => {
     cursor = 0;
+    refCursor = 0;
     return context.exports.GachaMachine({
       snapshot: {
         mileage: { balance: 100 }, grades: [{ grade: 'BRONZE', price: 10, total: 2 }], items: [],

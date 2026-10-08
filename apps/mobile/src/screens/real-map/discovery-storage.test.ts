@@ -40,7 +40,7 @@ test('map hydration and writes are guarded by the current account scope', () => 
 
 test('계정 전환 뒤 이전 출발 주소 조회가 새 계정 화면에 돌아오지 않는다', async () => {
   const source = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
-  const body = source.slice(source.indexOf('async function findManualOrigin()'), source.indexOf('function chooseManual('));
+  const body = source.slice(source.indexOf('async function findManualOrigin()'), source.indexOf('const chooseManual='));
   let resolve!: (value: unknown) => void;
   const response = new Promise((done) => { resolve = done; });
   const generation = { current: 1 };

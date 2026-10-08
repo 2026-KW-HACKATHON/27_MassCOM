@@ -70,7 +70,7 @@ assert.ok(block, 'API preflight block exists');
 const real = data.stores.map(({ id }) => ({ id, demo: true }));
 for (const [merchants, expected] of [
   [real, undefined],
-  [real.slice(0, 29), 1],
+  [real.slice(0, -1), 1],
   [[...real, real[0]], 1],
   [[{ ...real[0], id: 'showcase-local-merchant' }, ...real.slice(1)], 1],
   [[{ ...real[0], demo: false }, ...real.slice(1)], 1],

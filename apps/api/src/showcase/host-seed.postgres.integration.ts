@@ -36,7 +36,9 @@ test('hosted seed preserves practice progress, converges under retries, and reje
       pool.query('SELECT count(*)::int AS total FROM merchant_members'),
       pool.query(`SELECT count(*)::int AS total FROM badge_reward_offers WHERE status = 'ACTIVE'`),
     ]);
-    assert.deepEqual(counts.map(({ rows }) => rows[0]?.total), [31, 31, 93, 0, 3]);
+    assert.deepEqual(counts.map(({ rows }) => rows[0]?.total), [
+      WOLGYE_STORES.length + 1, WOLGYE_STORES.length + 1, 3 * (WOLGYE_STORES.length + 1), 0, 3,
+    ]);
     const course = await pool.query<{ status: string; steps: number }>(
       `SELECT c.status, (SELECT count(*)::int FROM course_steps WHERE course_id=c.id) AS steps
        FROM courses c WHERE c.id=$1`, [SHOWCASE_COURSE_ID]);

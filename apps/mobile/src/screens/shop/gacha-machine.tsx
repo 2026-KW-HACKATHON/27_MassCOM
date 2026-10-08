@@ -60,11 +60,13 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
   const [phase, setPhase] = useState<GachaPhase | 'opening'>('detail');
+  const [openingFinished, setOpeningFinished] = useState(false);
   const phaseRef = useRef<typeof phase>('detail');
   const consumedResult = useRef<ShopRerollResult | undefined>(undefined);
   const activeResult = useRef<ShopRerollResult | undefined>(undefined);
   const drawInFlight = useRef(false);
   const skipRequested = useRef(false);
+  const openingComplete = useRef(false);
   const [registeredReceiptId, setRegisteredReceiptId] = useState<string>();
   const [drawing, setDrawing] = useState<ShopGradeView>();
   const [pendingCloseMessage, setPendingCloseMessage] = useState<string>();
@@ -117,7 +119,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     if (consumedResult.current === result) {
       if (activeResult.current === result && phaseRef.current !== 'result' && phaseRef.current !== 'album-registration') {
         drawInFlight.current = false;
-        if (!motionAllowed || result.replayed || skipRequested.current) {
+        if (!motionAllowed || result.replayed || skipRequested.current || openingComplete.current) {
           skipRequested.current = false;
           const timer = setTimeout(() => {
             if (activeResult.current === result) startRewardReveal('reward-mileage');
@@ -132,7 +134,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     }
     consumedResult.current = result;
     activeResult.current = result;
-    if (!motionAllowed || result.replayed || skipRequested.current) {
+    if (!motionAllowed || result.replayed || skipRequested.current || openingComplete.current) {
       skipRequested.current = false;
       drawInFlight.current = false;
       const timer = setTimeout(() => {
@@ -151,7 +153,10 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   const resultStyle = useAnimatedStyle(() => ({ opacity: cardOpacity.get(), transform: [{ scale: cardScale.get() }] }));
 
   const finishOpening = useCallback(() => {
-    if (phaseRef.current !== 'opening' || activeResult.current !== result) return;
+    if (phaseRef.current !== 'opening' || openingComplete.current) return;
+    openingComplete.current = true;
+    setOpeningFinished(true);
+    if (!result || activeResult.current !== result) return;
     startRewardReveal('reward-mileage');
   }, [result, startRewardReveal]);
 
@@ -160,21 +165,24 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
     drawInFlight.current = true;
     setDrawing(selected);
     skipRequested.current = false;
+    openingComplete.current = false;
+    setOpeningFinished(false);
     setPendingCloseMessage(undefined);
     activeResult.current = undefined;
-    advancePhase('pending');
+    advancePhase('opening');
     burst.set(0);
     cardScale.set(0.55); cardOpacity.set(0);
     const succeeded = await onDraw(selected);
     if (!succeeded) {
       drawInFlight.current = false;
       skipRequested.current = false;
-      advancePhase(phaseRef.current === 'pending' ? 'detail' : phaseRef.current);
+      advancePhase(phaseRef.current === 'opening' ? 'detail' : phaseRef.current);
     }
   };
   const skip = () => {
     if (phaseRef.current === 'opening') {
-      burst.set(1); cardScale.set(1); cardOpacity.set(1); startRewardReveal('reward-mileage');
+      skipRequested.current = true;
+      finishOpening();
       return;
     }
     const next = gachaPhaseAfter(phaseRef.current, { type: 'skip', busy });
@@ -189,9 +197,9 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
   const displayPhase = phase;
   const rewardPhase = displayPhase === 'reward-mileage' || displayPhase === 'reward-clothing' || displayPhase === 'reward-character' ? displayPhase : undefined;
   const showResult = !!rewardPhase || displayPhase === 'result' || displayPhase === 'pop';
-  const animating = displayPhase === 'opening';
+  const animating = displayPhase === 'opening' && !openingFinished;
   const requestClose = () => {
-    if (displayPhase === 'pending') {
+    if (displayPhase === 'pending' || drawInFlight.current) {
       setPendingCloseMessage('구매 확인 중이에요. 결과를 받으면 닫을 수 있어요.');
       return;
     }
@@ -203,7 +211,7 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
       <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
         <View style={styles.topBar}>
           <Text style={styles.balance}>보유 {snapshot.mileage.balance.toLocaleString('ko-KR')} 마일리지</Text>
-          {animating ? <Control label="건너뛰기" onPress={skip} /> : displayPhase === 'pending'
+          {animating ? <Control label="건너뛰기" onPress={skip} /> : displayPhase === 'pending' || (displayPhase === 'opening' && !result)
             ? <Control label="구매 확인 중" disabled onPress={() => {}} />
             : <Control label="닫기" onPress={onClose} />}
         </View>
@@ -246,10 +254,12 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
                 onPress={() => { void startDraw(selected); }}
               />
             </>
-          ) : displayPhase === 'pending' ? (
+          ) : displayPhase === 'pending' || displayPhase === 'opening' ? (
             <>
-              <Text accessibilityRole="header" style={styles.heading}>친구를 만나러 가는 중…</Text>
-              <View style={styles.stageArea}><StampDrawStage phase="idle" /></View>
+              <Text accessibilityRole="header" style={styles.heading}>{displayPhase === 'opening' ? '우표를 여는 중…' : '친구를 만나러 가는 중…'}</Text>
+              <View style={styles.stageArea}>{displayPhase === 'opening' && !openingFinished ? <Pressable accessibilityRole="button" accessibilityLabel="연출 건너뛰기" onPress={finishOpening}>
+                <StampDrawStage phase="opening" onComplete={finishOpening} />
+              </Pressable> : <Text accessibilityLiveRegion="polite" style={styles.description}>뽑기 결과를 확인하고 있어요.</Text>}</View>
               <Text accessibilityLiveRegion="polite" style={styles.description}>뽑기 결과를 확인하고 있어요.</Text>
               {pendingCloseMessage ? <Text accessibilityLiveRegion="polite" style={styles.error}>{pendingCloseMessage}</Text> : null}
             </>
@@ -265,11 +275,8 @@ export function GachaMachine({ snapshot, profile, bonusSaving, bonusError, onEqu
           ) : result ? (
             <>
               <Text accessibilityRole="header" style={styles.heading}>{rewardPhase ? '보상을 하나씩 열어요' : showResult ? result.replayed ? '이전 결과를 확인했어요' : '새 친구를 만났어요!' : '두근두근, 누가 나올까요?'}</Text>
-              {!showResult ? (
-                <View style={styles.stageArea}>
-                  <StampDrawStage phase="opening" onComplete={finishOpening} />
-                </View>
-              ) : <View style={styles.resultWrap}>
+              {!showResult ? <View style={styles.stageArea}><Text accessibilityLiveRegion="polite" style={styles.description}>뽑기 결과를 확인하고 있어요.</Text></View>
+                : <View style={styles.resultWrap}>
                 {motionAllowed && !result.replayed && !alreadyRegistered ? <Animated.View pointerEvents="none" style={[styles.resultRays, burstStyle]}><BurstRays color={tone.color} /></Animated.View> : null}
                 {motionAllowed && !result.replayed && !alreadyRegistered ? <ConfettiBurst colors={[tone.color, tone.pale, '#FFFFFF']} leafColor={tone.color} originX={150} originY={140} width={300} height={360} count={grade === 'GOLD' ? 34 : grade === 'SILVER' ? 22 : 12} /> : null}
                 <Animated.View style={[styles.resultCard, { borderColor: tone.color }, resultStyle]} accessible accessibilityLabel={resultAccessibilityLabel(result, rewardPhase)}>

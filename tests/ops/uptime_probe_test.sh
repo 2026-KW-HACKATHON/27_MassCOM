@@ -165,7 +165,7 @@ grep -q '::warning::prod_merchants' "$scratch/out" || fail 'slow response did no
 grep -q '::warning::tls_api.masscom.kr' "$scratch/out" || fail 'expiring certificate did not warn'
 [[ "$(calls 'issue create')" == 0 ]] || fail 'warnings opened an issue'
 
-# 6. 판정 기준: 30곳보다 적거나 가상/운영 점포가 섞이면 실패, 내려오지 않는 JS content-type도 실패.
+# 6. 판정 기준: 원본 점포가 빠지거나 가상/운영 점포가 섞이면 실패, 내려오지 않는 JS content-type도 실패.
 no_issue
 run 'FAKE_SHOWCASE_MERCHANTS={"merchants":[{"id":"a","demo":true},{"id":"b","demo":true}]}' --
 [[ "$code" == 1 ]] && grep -q 'showcase_merchants' "$scratch/gh/title" || fail 'two showcase merchants were accepted'
@@ -177,11 +177,11 @@ run "FAKE_SHOWCASE_MERCHANTS=$wrong_demo" --
 no_issue
 legacy_mixed="$(printf '%s' "$FAKE_REAL_SHOWCASE_MERCHANTS" | jq '.merchants[0].id = "showcase-local-merchant"')"
 run "FAKE_SHOWCASE_MERCHANTS=$legacy_mixed" --
-[[ "$code" == 1 ]] || fail 'a retired virtual merchant mixed into thirty stores was accepted'
+[[ "$code" == 1 ]] || fail 'a retired virtual merchant mixed into catalog stores was accepted'
 no_issue
 too_many="$(printf '%s' "$FAKE_REAL_SHOWCASE_MERCHANTS" | jq '.merchants += [.merchants[0]]')"
 run "FAKE_SHOWCASE_MERCHANTS=$too_many" --
-[[ "$code" == 1 ]] || fail 'more than thirty public showcase stores were accepted'
+[[ "$code" == 1 ]] || fail 'an extra public showcase store was accepted'
 no_issue
 duplicate="$(printf '%s' "$FAKE_REAL_SHOWCASE_MERCHANTS" | jq '.merchants[1] = .merchants[0]')"
 run "FAKE_SHOWCASE_MERCHANTS=$duplicate" --

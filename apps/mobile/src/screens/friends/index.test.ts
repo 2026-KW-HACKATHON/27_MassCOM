@@ -16,7 +16,7 @@ test('#298: 친구 is a hidden tab reached from the home header / 내 정보, wi
   // demo-not-configured, loaded — keeps a way back even though 친구 is no longer in the bottom bar.
   assert.match(tabRoute, /<BackHeader title=\{FRIENDS_TITLE\}>/);
   assert.match(read('../../ui/back-header.tsx'), /accessibilityLabel="뒤로"/);
-  assert.match(tabRoute, /<Mascot interactive pose="friends" size=\{heroMascotSize\(fontScale, 112\)\} \/>/);
+  assert.match(tabRoute, /<AccountCompanion interactive pose="friends" size=\{heroMascotSize\(fontScale, 112\)\} \/>/);
   assert.match(tabRoute, /<SkyBackdrop><AuthRequiredRoute header=\{header\} \/><\/SkyBackdrop>/);
   assert.match(tabRoute, /key=\{auth\.accountId\}/);
   assert.match(tabRoute, /header=\{header\}/);

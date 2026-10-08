@@ -6,6 +6,7 @@ import { useAuthSession } from '@/auth/auth-provider';
 import { useDiscovery, useDiscoveryOnFocus } from '@/discovery/discovery-provider';
 import { atLeast, mailEntryVisible } from '@/discovery/discovery-stage';
 import { friendArt } from '@/shop/shop-art';
+import { selectedCompanion } from '@/shop/selected-companion';
 import { equippedClothingArt, AvatarWardrobe, type EquippedClothingArt } from '@/shop/wardrobe';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { colorsForScheme } from '@/theme/palette';
@@ -33,7 +34,8 @@ export function ProfileStrip({ avatarArt, avatarClothing, avatarContent, mileage
   const shownBalance = mileageBalance ?? data.shop?.mileage.balance;
   useDiscoveryOnFocus();
   if (!credential) return null;
-  const art = avatarArt ?? (data?.shop?.avatar ? friendArt[data.shop.avatar] : undefined) ?? mascotArt['logo-badge'];
+  const avatar = selectedCompanion(data.shop);
+  const art = avatarArt ?? (avatar ? friendArt[avatar] : undefined) ?? mascotArt.wave;
   const clothing = avatarClothing ?? equippedClothingArt(data?.shop);
   return <View style={[styles.row, wrap && { flexWrap: 'wrap' }]}>
     <Link href="/profile" asChild><Pressable accessibilityRole="button" accessibilityLabel="내 프로필과 한 줄 소개 편집" style={StyleSheet.flatten([styles.identity, wrap && { flexBasis: '100%' }])}>

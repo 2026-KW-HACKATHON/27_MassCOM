@@ -83,10 +83,10 @@ test('Settings 더 즐기기 lists friends/mail and play as labelled switches an
   assert.match(settings, /disabled=\{optInBusy \|\| discovery\.forced \|\| !discovery\.ready\}/);
 });
 
-test('도감 entries: room after the first coin, the play hint from the first coin on (it stays for a regular who never opted in), nothing drawn before', () => {
-  assert.match(entry, /const showRoom = atLeast\(stage, 'after-first'\);/);
+test('도감 entries: room is available before the first coin, play hint still follows progression', () => {
+  assert.doesNotMatch(entry, /showRoom = atLeast\(stage, 'after-first'\)/);
+  assert.match(entry, /accessibilityLabel="내 공간 꾸미기"/);
   assert.match(entry, /const showPlay = optIn\.play \|\| stage !== 'first-coin';/);
-  assert.match(entry, /if \(!showRoom && !showPlay\) return null;/);
   // Pressing the hint is the person's own opt-in, then it opens the games.
   assert.match(entry, /if \(!optIn\.play\) void setOptIn\(\{ play: true \}\); router\.push\('\/play'\);/);
 });

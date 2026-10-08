@@ -13,7 +13,8 @@ test('profile strip reloads identity and clothing on focus while the room uses s
   assert.match(source, /refreshToken = 0,/);
   assert.match(source, /useFocusEffect\(useCallback\(\(\) => \{ setFocusToken\(\(value\) => value \+ 1\); \}, \[\]\)\);/);
   assert.equal((source.match(/api\.getShop\(\)/g) ?? []).length, 1, 'appearance reads GET /shop once and derives every avatar field from it');
-  assert.match(source, /art: snapshot\.avatar \? friendArt\[snapshot\.avatar\] : undefined/);
+  assert.match(source, /const avatar = selectedCompanion\(snapshot\)/);
+  assert.match(source, /art: avatar \? friendArt\[avatar\] : undefined/);
   assert.match(source, /clothing: equippedClothingArt\(snapshot\)/);
   assert.match(source, /return useShopAvatarAppearance\(apiUrl, credential, refreshToken\)\?\.art;/);
   const effect = source.slice(source.indexOf('useEffect(() => {'));

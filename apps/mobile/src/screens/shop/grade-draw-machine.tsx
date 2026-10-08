@@ -34,10 +34,12 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   const motionAllowed = useMotionEnabled();
   useDrawMusic();
   const [phase, setPhase] = useState<'detail' | 'pending' | 'opening' | 'result' | 'album-registration'>('detail');
+  const [openingFinished, setOpeningFinished] = useState(false);
   const [closeNotice, setCloseNotice] = useState(false);
   const [registeredDrawId, setRegisteredDrawId] = useState<string>();
   const seen = useRef<GradeDrawResult | undefined>(undefined);
   const drawInFlight = useRef(false);
+  const openingComplete = useRef(false);
   const tone = gradeStyle[result?.grade ?? pool.grade];
 
   useEffect(() => {
@@ -45,20 +47,21 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
     if (seen.current === result) {
       const resume = setTimeout(() => {
         setPhase((current) => {
-          if (current === 'album-registration' || current === 'opening' || current === 'result') return current;
-          if (result.replayed || !motionAllowed) return 'result';
+          if (current === 'album-registration' || current === 'result') return current;
+          if (result.replayed || !motionAllowed || openingComplete.current) return 'result';
+          if (current === 'opening') return current;
           return 'opening';
         });
       }, 0);
       return () => clearTimeout(resume);
     }
     seen.current = result;
-    if (result.replayed || !motionAllowed) {
+    if (result.replayed || !motionAllowed || openingComplete.current) {
       drawInFlight.current = false;
-      const replay = setTimeout(() => setPhase('result'), 0);
+      const replay = setTimeout(() => setPhase((current) => current === 'album-registration' ? current : 'result'), 0);
       return () => clearTimeout(replay);
     }
-    const enter = setTimeout(() => setPhase('opening'), 0);
+    const enter = setTimeout(() => setPhase((current) => current === 'album-registration' ? current : 'opening'), 0);
     drawInFlight.current = false;
     void drawHaptic();
     return () => { clearTimeout(enter); };
@@ -68,14 +71,16 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
     if (drawInFlight.current || busy || !pool.total || balance < pool.price) return;
     drawInFlight.current = true;
     setCloseNotice(false);
-    setPhase('pending');
+    openingComplete.current = false;
+    setOpeningFinished(false);
+    setPhase('opening');
     if (!await onDraw()) {
       drawInFlight.current = false;
       setPhase('detail');
     }
   };
   const close = () => {
-    if (phase === 'pending' || busy) { setCloseNotice(true); return; }
+    if (phase === 'pending' || drawInFlight.current || busy) { setCloseNotice(true); return; }
     onClose();
   };
   const displayedBalance = result?.balance ?? balance;
@@ -84,7 +89,10 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
   const registrationItem = result && reward ? gradeRegistrationItem(result, registeredDrawId === result.drawId) : undefined;
   const alreadyRegistered = !!result && registeredDrawId === result.drawId;
   const finishOpening = () => {
-    if (phase !== 'opening' || seen.current !== result) return;
+    if (phase !== 'opening' || openingComplete.current) return;
+    openingComplete.current = true;
+    setOpeningFinished(true);
+    if (!result || seen.current !== result) return;
     setPhase('result');
     playUiSound('success'); void drawHaptic();
   };
@@ -92,8 +100,8 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
     <View style={[styles.root, { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 16 }]}>
       <View style={styles.topBar}>
         <Text style={styles.balance}>보유 {displayedBalance.toLocaleString('ko-KR')} 마일리지</Text>
-        {phase === 'opening' ? <Control label="연출 건너뛰기" onPress={finishOpening} />
-          : <Control label="닫기" disabled={phase === 'pending' || busy} onPress={close} />}
+        {phase === 'opening' && !openingFinished ? <Control label="연출 건너뛰기" onPress={finishOpening} />
+          : <Control label="닫기" disabled={phase === 'pending' || (phase === 'opening' && !result) || busy} onPress={close} />}
       </View>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {phase === 'detail' ? <>
@@ -119,7 +127,9 @@ export function GradeDrawMachine({ pool, balance, result, busy, error, refreshin
         </> : phase === 'pending' || phase === 'opening' ? <>
           <Text accessibilityRole="header" style={styles.heading}>{phase === 'pending' ? '뽑기 결과 확인 중…' : '우표를 여는 중…'}</Text>
           <View style={styles.stageArea}>
-            <StampDrawStage phase={phase === 'opening' ? 'opening' : 'idle'} onComplete={phase === 'opening' ? finishOpening : undefined} />
+            {phase === 'opening' && !openingFinished ? <Pressable accessibilityRole="button" accessibilityLabel="연출 건너뛰기" onPress={finishOpening}>
+              <StampDrawStage phase="opening" onComplete={finishOpening} />
+            </Pressable> : <Text accessibilityLiveRegion="polite" style={styles.description}>뽑기 결과를 확인하고 있어요.</Text>}
           </View>
           {phase === 'pending' ? <Text accessibilityLiveRegion="polite" style={styles.description}>요청을 확인하고 있어요.</Text> : null}
           {closeNotice ? <Text style={styles.error}>구매 확인이 끝나면 닫을 수 있어요.</Text> : null}

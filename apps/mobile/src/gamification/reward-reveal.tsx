@@ -13,6 +13,7 @@ import Animated, {
 
 import { focusForAccessibility } from '@/accessibility/focus-component';
 import { Companion } from '@/ui/companion';
+import { AccountCompanion } from '@/ui/account-companion';
 import { playUiSound } from '@/sound/ui-sounds';
 
 import type { Coupon, OpenedReward } from './badge-api';
@@ -83,7 +84,7 @@ function RevealBody({ result, onClose, onUse, companionArt }: { result: OpenedRe
             </Animated.View>
           </View>
           <View style={{ alignItems: 'center' }}>
-            <Companion art={companionArt} celebrate size={112} />
+            {companionArt !== undefined ? <Companion art={companionArt} celebrate size={112} /> : <AccountCompanion pose="cheer" size={112} />}
           </View>
           <Text ref={title} accessibilityRole="header" style={styles.revealTitle}>
             {result.replayed ? '이미 받은 쿠폰이에요' : '쿠폰이 나왔어요!'}

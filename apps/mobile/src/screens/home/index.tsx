@@ -23,7 +23,7 @@ import { couponExpiryNotice } from '@/gamification/coupon-expiry';
 import { HomeRewardCard } from '@/gamification/home-reward-card';
 import { RewardReveal } from '@/gamification/reward-reveal';
 import { useDiscovery } from '@/discovery/discovery-provider';
-import { atLeast, cheapestDrawPrice, shopEntryVisible } from '@/discovery/discovery-stage';
+import { cheapestDrawPrice, shopEntryVisible } from '@/discovery/discovery-stage';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { TabGlyph } from '@/navigation/tab-glyph';
 import { useShopAvatarAppearance } from '@/shop/use-shop-avatar-art';
@@ -125,11 +125,9 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
   const heading = { color: world.cardInk, fontSize: 21, fontWeight: '800' as const };
   const body = { color: world.cardMuted, fontSize: 13, lineHeight: 19 };
   const quick = { flex: 1, minHeight: 66, borderRadius: 20, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 4, backgroundColor: world.card };
-  // Progressive disclosure (Issue #412): the room and exhibit open after the first coin, friends and neighbours only by opt-in.
-  const showRoom = atLeast(stage, 'after-first');
-  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 once the coin shop answered with no ticket.
+  // The room is available at first login; a coin-shop read with no ticket needs no error on Home.
   // A coin-shop read that failed has no answer yet, so its failure stays visible (nothing else says why the section is missing).
-  const errorText = homeErrorText(data?.errors ?? [], [...(showRoom ? [] : ['studio' as const]), ...(data?.coinShop && !ticketGroups.size ? ['coins' as const] : [])]);
+  const errorText = homeErrorText(data?.errors ?? [], data?.coinShop && !ticketGroups.size ? ['coins' as const] : []);
   const quickRow = <View style={{ flexDirection: 'row', gap: 12 }}>
     {optIn.social ? <Link href="/friends" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="friends" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>친구</Text></Pressable></Link> : null}
     <Link href="/claim" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten(quick)}><TabGlyph name="claim" color={palette.primary} size={27} /><Text style={{ color: world.cardInk, fontWeight: '800' }}>방문 인증</Text></Pressable></Link>
@@ -158,22 +156,22 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
             <Text style={{ color: palette.onPrimaryContainer, fontSize: 13 }}>{firstStore.reason} 첫 코인과 방문 조건 보기 ›</Text>
           </Pressable></Link> : null}
         {compactHome ? quickRow : null}
-        {showRoom ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text accessibilityRole="header" style={heading}>마이룸</Text>
           <Link href="/studio" asChild><Pressable accessibilityRole="button" accessibilityLabel={guestbook.unreadCount ? `꾸미기, 새 방명록 ${guestbook.unreadCount}개` : '꾸미기'}
             style={StyleSheet.flatten({ minHeight: 48, paddingHorizontal: 16, borderRadius: 22, flexDirection: 'row', alignItems: 'center', gap: 8, justifyContent: 'center', backgroundColor: world.card })}>
             <Text style={{ color: palette.primary, fontWeight: '800' }}>꾸미기</Text>
             {guestbook.unreadCount ? <GuestbookUnreadDot /> : null}
           </Pressable></Link>
-        </View> : null}
-        {showRoom ? data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={roomItems}
+        </View>
+        {data?.studio ? <View style={{ alignItems: 'center' }}><StudioScene studio={data.studio.studio} items={roomItems}
           furnitureItems={data.studio.furnitureItems} avatar={data.studio.avatar} clothing={equippedClothingArt(shop)} apiUrl={apiUrl}
           width={sceneWidth} height={sceneHeight} experienceProfile={experience.snapshot?.profile}
           emptyAction={emptyRoom && collectedCount > 0 ? { label: `수집품 ${collectedCount}개 · 방에 놓기`, onPress: () => router.push('/studio') } : undefined} /></View>
           : <View style={{ height: sceneHeight, alignItems: 'center', justifyContent: 'center', gap: 12 }}>
             <Text style={body}>{failed('studio') ? '마이룸을 불러오지 못했어요.' : '마이룸을 불러오고 있어요.'}</Text>
             {failed('studio') ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}><Text style={{ color: palette.primary }}>다시 불러오기</Text></Pressable> : null}
-          </View> : null}
+          </View>}
         {ticketGroups.size ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text accessibilityRole="header" style={heading}>보유 뽑기권</Text>
           <Link href="/coin-shop" asChild><Pressable accessibilityRole="button" style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: palette.primary, fontSize: 13 }}>모두 보기</Text></Pressable></Link>
@@ -206,10 +204,10 @@ export function HomeScreen({ apiUrl, credential, onSessionInvalid }: Props) {
           <Text style={{ color: palette.onPrimaryContainer, fontSize: 13 }}>Ⓟ {(shop?.mileage.balance ?? 0).toLocaleString('ko-KR')} 보유 · 상점 보기 ›</Text>
         </Pressable></Link> : null}
         {!compactHome ? quickRow : null}
-        {showRoom || optIn.social ? <View style={{ flexDirection: 'row', gap: 12 }}>
-          {showRoom ? <Link href="/home/exhibit" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>동행·코인 전시</Text></Pressable></Link> : null}
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Link href="/home/exhibit" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>동행·코인 전시</Text></Pressable></Link>
           {optIn.social ? <Link href="/room-explore" asChild><Pressable accessibilityRole="button" style={StyleSheet.flatten({ ...quick, minHeight: 48 })}><Text style={body}>가게 이웃 만나기</Text></Pressable></Link> : null}
-        </View> : null}
+        </View>
         {errorText ? <Pressable accessibilityRole="button" onPress={() => void load()} style={{ minHeight: 48, justifyContent: 'center' }}>
           <Text accessibilityLiveRegion="polite" style={{ ...body, color: palette.error }}>{errorText}</Text>
         </Pressable> : null}

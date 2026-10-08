@@ -47,7 +47,7 @@ test('#342는 별도 연출 라이브러리에 의존하지 않는다', () => {
 test('구매 완료 결과는 오류 표시와 무관하게 실제 뽑기 상태를 복원한다', () => {
   assert.match(shop, /onDraw=\{buy\}/);
   assert.match(machine, /const succeeded = await onDraw\(selected\);/);
-  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(phaseRef\.current === 'pending' \? 'detail' : phaseRef\.current\)/);
+  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(phaseRef\.current === 'opening' \? 'detail' : phaseRef\.current\)/);
   assert.doesNotMatch(machine, /phase === 'pending' && !busy && error \? 'picker'/);
 });
 
@@ -91,7 +91,7 @@ test('보상 화면은 기다려도 유지되고 다음 버튼을 눌러야 다�
   }
   assert.match(machine, /const finishOpening = useCallback\(\(\) => \{[\s\S]*?startRewardReveal\('reward-mileage'\)/, '개봉 영상 완료 뒤 첫 보상은 여전히 보여야 한다');
   assert.match(machine, /onComplete=\{finishOpening\}/, '개봉 영상 완료 콜백이 화면 전환에 연결되어야 한다');
-  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(phaseRef\.current === 'pending' \? 'detail' : phaseRef\.current\)/, '구매 실패는 보상 화면으로 이동하지 않아야 한다');
+  assert.match(machine, /if \(!succeeded\)[\s\S]*?advancePhase\(phaseRef\.current === 'opening' \? 'detail' : phaseRef\.current\)/, '구매 실패는 보상 화면으로 이동하지 않아야 한다');
 });
 
 test('최종 보상 요약 뒤 도감 등록 확인으로 넘어가고 마일리지는 등록 항목에 넣지 않는다', () => {

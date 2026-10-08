@@ -77,7 +77,7 @@ async function withFreshShowcaseDatabase(run: (pool: Pool) => Promise<void>): Pr
   }
 }
 
-test('local showcase seed is repeatable with 30 public-data stores and one hidden practice store', async () => {
+test('local showcase seed is repeatable with public-data stores and one hidden practice store', async () => {
   await withFreshShowcaseDatabase(async (pool) => {
     const first = await seedLocalShowcase(pool);
     const second = await seedLocalShowcase(pool);
@@ -88,10 +88,10 @@ test('local showcase seed is repeatable with 30 public-data stores and one hidde
     });
 
     const rows = await snapshot(pool);
-    assert.equal(WOLGYE_STORES.length, 30);
-    assert.equal(rows.merchants.length, 31);
-    assert.equal(rows.campaigns.length, 31);
-    assert.equal(rows.goals.length, 93);
+    assert.ok(WOLGYE_STORES.length >= 300);
+    assert.equal(rows.merchants.length, WOLGYE_STORES.length + 1);
+    assert.equal(rows.campaigns.length, WOLGYE_STORES.length + 1);
+    assert.equal(rows.goals.length, 3 * (WOLGYE_STORES.length + 1));
     assert.equal(rows.members.length, 1);
     const course = await pool.query<{ merchant_id: string }>(
       'SELECT merchant_id FROM course_steps WHERE course_id = $1 ORDER BY position', [SHOWCASE_COURSE_ID]);
@@ -105,7 +105,7 @@ test('local showcase seed is repeatable with 30 public-data stores and one hidde
        FROM collectible_publications WHERE campaign_id LIKE 'showcase-wolgye-%-campaign'
        GROUP BY reward_grades ->> '5' ORDER BY top_grade`);
     assert.deepEqual(grades.rows, [
-      { top_grade: 'gold', total: 29 }, { top_grade: 'prism', total: 1 },
+      { top_grade: 'gold', total: WOLGYE_STORES.length - 1 }, { top_grade: 'prism', total: 1 },
     ]);
 
     // 연습 점포의 가상 혜택은 재실행해도 늘거나 초기화되지 않는다.
@@ -137,7 +137,8 @@ test('local showcase seed is repeatable with 30 public-data stores and one hidde
 
     const catalog = new PostgresMerchantCatalog(pool);
     const listed = await catalog.listPublicMerchants();
-    assert.equal(listed.length, 30);
+    assert.equal(listed.length, WOLGYE_STORES.length);
+    assert.deepEqual(listed.map((merchant) => merchant.id).sort(), WOLGYE_STORES.map((store) => store.id).sort());
     assert.ok(listed.every((merchant) => merchant.id.startsWith('showcase-wolgye-')));
     assert.ok(listed.every((merchant) => merchant.demo));
     const demoDetails = new PostgresRealWorldService(pool, { includeDemo: true });
@@ -201,12 +202,18 @@ test('Wolgye demo stores appear in showcase discovery with station distances and
       origin: { latitude: 37.6341068, longitude: 127.0589231, basis: 'MANUAL' as const },
       campaignOnly: true,
     };
-    const page = await showcase.search(query);
-    assert.equal(page.merchants.length, 30);
-    assert.equal(page.nextCursor, null);
-    assert.equal(page.merchants.filter((merchant) => merchant.id.startsWith('showcase-wolgye-')).length, 30);
+    const pages = [] as Awaited<ReturnType<typeof showcase.search>>[];
+    let cursor: string | null = null;
+    do {
+      const page = await showcase.search({ ...query, limit: 100, ...(cursor ? { cursor } : {}) });
+      pages.push(page);
+      cursor = page.nextCursor;
+    } while (cursor);
+    const pageMerchants = pages.flatMap((page) => page.merchants);
+    assert.equal(pageMerchants.length, WOLGYE_STORES.length);
+    assert.deepEqual(pageMerchants.map((merchant) => merchant.id).sort(), WOLGYE_STORES.map((store) => store.id).sort());
     const nearest = WOLGYE_STORES[0]!;
-    assert.equal(page.merchants.find((merchant) => merchant.id === nearest.id)?.distance?.meters, nearest.distanceM);
+    assert.equal(pageMerchants.find((merchant) => merchant.id === nearest.id)?.distance?.meters, nearest.distanceM);
     const categoryPage = await showcase.search({ ...query, category: nearest.category });
     assert.ok(categoryPage.merchants.some((merchant) => merchant.id === nearest.id));
     assert.ok(categoryPage.merchants.every((merchant) => merchant.category === nearest.category));
@@ -374,7 +381,7 @@ test('damaged practice fixture is refused without changing its seeded rows', asy
       // Restore only this disposable test database for the next independent corruption case.
       await pool.query('TRUNCATE courses, merchant_members, campaign_goals, campaigns, merchants CASCADE');
       await seedLocalShowcase(pool);
-      assert.equal(before.merchants.length, 31);
+      assert.equal(before.merchants.length, WOLGYE_STORES.length + 1);
     }
   });
 });

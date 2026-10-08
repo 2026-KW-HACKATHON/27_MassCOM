@@ -9,6 +9,7 @@ import { CharacterArt } from '@/illustration/character-art';
 import { PackArt } from '@/illustration/artwork';
 import { ThemePackBoard } from '@/experience/theme-pack-board';
 import { useExperience } from '@/experience/use-experience';
+import { notifyProfileUpdated } from '@/friends/profile-updates';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { consentRecheckLabel, consentRequiredMessage } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
@@ -409,6 +410,7 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
     try {
       const { avatar } = await api.setAvatar(itemId);
       shop.applyAvatar(avatar);
+      notifyProfileUpdated();
       if (targetReveal && revealRef.current === targetReveal) {
         setReveal(undefined);
         setRevealReceiptId(undefined);
@@ -615,6 +617,19 @@ export function ShopScreen({ apiUrl, accountId, credential, onSessionInvalid, ga
         <View style={styles.section}>
           <Text accessibilityRole="header" style={styles.sectionTitle}>가게 친구</Text>
           <View style={styles.grid}>
+            <Pressable accessibilityRole="button" accessibilityLabel={snapshot.avatar === null ? '기본 펭귄 동행, 선택됨' : '기본 펭귄 동행으로 바꾸기'}
+              accessibilityState={{ selected: snapshot.avatar === null, disabled: avatarBusy || snapshot.avatar === null }}
+              disabled={avatarBusy || snapshot.avatar === null}
+              onPress={() => Alert.alert('기본 펭귄과 함께할까요?', '언제든 보유한 가게 친구를 다시 선택할 수 있어요.', [
+                { text: '취소', style: 'cancel' }, { text: '펭귄 선택', onPress: () => void chooseAvatar(null) },
+              ])}
+              style={styles.cell}>
+              <View importantForAccessibility="no-hide-descendants" style={[styles.cellRing, snapshot.avatar === null && styles.cellRingAvatar]}>
+                <Mascot pose="wave" size={64} breathe={false} />
+              </View>
+              <Text style={styles.cellName}>기본 펭귄</Text>
+              {snapshot.avatar === null ? <View style={styles.avatarChip}><Text style={styles.avatarChipText}>대표</Text></View> : null}
+            </Pressable>
             {grid.map((cell) => <FriendCell key={cell.id} cell={cell} onPress={() => confirmAvatar(cell)} styles={styles} />)}
           </View>
         </View>

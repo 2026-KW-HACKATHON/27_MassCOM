@@ -21,8 +21,10 @@ test('recommendations put a saved collectible goal and eligible open shops ahead
 });
 
 
-test('unverified and break-time business states are not recommended as immediately visitable',()=>{
-  assert.deepEqual(recommendStops([{...base,id:'unknown',business:{...base.business,state:'UNKNOWN'}},{...base,id:'break',business:{...base.business,state:'BREAK'}},base],new Set(),new Set()).map(m=>m.id),['a']);
+test('unknown hours remain plan candidates after open shops; known break and closed shops are excluded',()=>{
+  assert.deepEqual(recommendStops([{...base,id:'unknown',business:{...base.business,state:'UNKNOWN'},distance:{...base.distance!,meters:10}},
+    {...base,id:'break',business:{...base.business,state:'BREAK'}},{...base,id:'closed',business:{...base.business,state:'CLOSED'}},base],
+    new Set(),new Set()).map(m=>m.id),['a','unknown']);
 });
 test('older saved course drops coordinates, route geometry, invalid and repeated stops',()=>{
   const old=JSON.stringify([{merchantId:'a',dwellMinutes:20,origin:{latitude:37.6,longitude:127},geometry:[[127,37.6]]},{merchantId:'a',dwellMinutes:30},{merchantId:'b',dwellMinutes:15},{merchantId:'bad',dwellMinutes:500}]);

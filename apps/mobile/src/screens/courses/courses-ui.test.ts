@@ -21,6 +21,12 @@ test('scene uses each step own coin thumbnail and claim follows up with one cour
   assert.match(claim, /연합 미션 다시 불러오기/);
 });
 
+test('the demo alliance mission links its next store to a preselected test visit only in demo builds', () => {
+  assert.match(source, /course\?\.title\.startsWith\('시연 연합 미션'\) && canShowTestVisitSection\(getAppPackageId\(\)\)/);
+  assert.match(source, /pathname: '\/claim', params: \{ merchantId: nextStep\.merchantId \}/);
+  assert.match(claim, /selectedMerchantId && demo\.some\(merchant => merchant\.id === selectedMerchantId\)/);
+});
+
 test('consent refusal leads to the shared recheck flow and changing detail ids hides old data', () => {
   assert.match(source, /needsConsentRecheck\(cause\)/);
   assert.match(source, /errorNeedsConsent \? recheckConsent/);

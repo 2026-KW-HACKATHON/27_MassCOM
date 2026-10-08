@@ -141,10 +141,10 @@ def main() -> None:
     if not (page.korean and page.main and page.local_css and page.csp):
         fail("한국어·본문·로컬 CSS·CSP 중 하나가 없음")
     stores = json.loads((Path(__file__).resolve().parent.parent / "apps/api/src/showcase/wolgye-stores.json").read_text(encoding="utf-8"))["stores"]
-    if len(stores) != 30:
-        fail("월계 공공데이터 점포 원본 수가 30이 아님")
+    if len(stores) < 300 or len({store["id"] for store in stores}) != len(stores):
+        fail("월계 공공데이터 점포 원본이 300곳 미만이거나 ID가 중복됨")
     if page.merchants != len(stores):
-        fail("월계 가게 수가 30이 아님")
+        fail("월계 가게 수가 원본과 다름")
     if any(
         "실제 가게 정보로 만든 시연 · 참여하지 않은 가게" not in " ".join(card)
         for card in page.merchant_visible

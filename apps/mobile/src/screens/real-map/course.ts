@@ -22,10 +22,10 @@ export function setDwell(stops: readonly CourseStop[], index: number, minutes: n
   return stops.map((stop,i)=>i===index?{...stop,dwellMinutes:minutes}:stop);
 }
 export function recommendStops(merchants: readonly MerchantSummary[], visited: ReadonlySet<string>, interested: ReadonlySet<string>, remaining: ReadonlyMap<string,number|null>=new Map()): MerchantSummary[] {
-  return merchants.filter(m=>m.position && m.business.state === 'OPEN')
-    .sort((a,b)=> Number(interested.has(b.id))-Number(interested.has(a.id)) ||
+  return merchants.filter(m=>m.position && (m.business.state === 'OPEN' || m.business.state === 'UNKNOWN'))
+    .sort((a,b)=> Number(b.business.state === 'OPEN')-Number(a.business.state === 'OPEN') ||
+      Number(interested.has(b.id))-Number(interested.has(a.id)) ||
       Number(b.campaign?.state==='ACTIVE'&&b.campaign.rewardAvailability==='AVAILABLE')-Number(a.campaign?.state==='ACTIVE'&&a.campaign.rewardAvailability==='AVAILABLE') ||
-      Number(b.business.state==='OPEN')-Number(a.business.state==='OPEN') ||
       Number(visited.has(a.id))-Number(visited.has(b.id)) ||
       (remaining.get(a.id)??Infinity)-(remaining.get(b.id)??Infinity) ||
       (a.distance?.meters ?? Infinity)-(b.distance?.meters ?? Infinity)).slice(0,5);

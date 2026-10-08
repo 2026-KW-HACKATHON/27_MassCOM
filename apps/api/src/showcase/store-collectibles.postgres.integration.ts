@@ -41,8 +41,8 @@ test('hosted seed publishes one collectible per Wolgye store, idempotently, and 
     await seedHostedShowcase(pool);
     await Promise.all(Array.from({ length: 4 }, () => seedHostedShowcase(pool)));
     await seedHostedShowcase(pool);
-    // Each of the 30 public-data campaigns has one publication and three grade snapshots.
-    assert.deepEqual(await publicationCounts(pool), [30, 30, 90, 30]);
+    // Each public-data campaign has one publication and three grade snapshots.
+    assert.deepEqual(await publicationCounts(pool), [WOLGYE_STORES.length, WOLGYE_STORES.length, 3 * WOLGYE_STORES.length, WOLGYE_STORES.length]);
     const gradeRows = await pool.query<{ campaign_id: string; grades: string[] }>(
       `SELECT link.campaign_id, array_agg(grade.grade_id ORDER BY grade.grade_id) AS grades
        FROM campaign_collectible_publications link
@@ -86,7 +86,7 @@ test('hosted seed publishes one collectible per Wolgye store, idempotently, and 
         assert.equal(course.steps[0]?.artwork?.thumbnailDataUrl, item.artwork.thumbnailDataUrl);
       }
     }
-    assert.deepEqual(await publicationCounts(pool), [30, 30, 90, 30]);
+    assert.deepEqual(await publicationCounts(pool), [WOLGYE_STORES.length, WOLGYE_STORES.length, 3 * WOLGYE_STORES.length, WOLGYE_STORES.length]);
   } finally {
     await pool.end();
   }

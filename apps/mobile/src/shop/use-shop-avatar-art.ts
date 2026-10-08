@@ -5,6 +5,7 @@ import type { ImageSourcePropType } from 'react-native';
 import type { AccountCredential } from '@/auth/account-credential';
 
 import { friendArt } from './shop-art';
+import { selectedCompanion } from './selected-companion';
 import { createShopApiClient } from './shop-api';
 import { equippedClothingArt, type EquippedClothingArt } from './wardrobe';
 
@@ -42,11 +43,12 @@ export function useShopAvatarAppearance(
       try {
         const snapshot = await api.getShop();
         if (current) {
+          const avatar = selectedCompanion(snapshot);
           setLoaded({
             apiUrl,
             credential,
             appearance: {
-              art: snapshot.avatar ? friendArt[snapshot.avatar] : undefined,
+              art: avatar ? friendArt[avatar] : undefined,
               clothing: equippedClothingArt(snapshot),
             },
           });

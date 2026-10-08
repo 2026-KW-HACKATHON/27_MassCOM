@@ -14,7 +14,9 @@ test('포털 첫 행동은 시연 체험과 Android 설치이며 검증 기록�
   assert.match(html, /<details class="truth-board">[\s\S]*?지금 사실인 것[\s\S]*?VERIFIED[\s\S]*?BLOCKED[\s\S]*?<\/details>/);
   assert.match(html, /2026-10-01 KST 기준 검증 기록/);
   assert.doesNotMatch(html, /Phase 4|출시 준비/);
-  assert.match(hero, /월계동 공공자료 점포 30곳/);
+  const storeCount = JSON.parse(readFileSync(new URL('../../apps/api/src/showcase/wolgye-stores.json', import.meta.url), 'utf8')).stores.length;
+  assert.ok(storeCount >= 300);
+  assert.ok(hero.includes(`월계동 공공자료 점포 ${storeCount}곳`));
   assert.match(hero, /방문·코인은 가상 기록/);
   assert.match(hero, /앱 수집품은 NFT가 아닙니다/);
 });

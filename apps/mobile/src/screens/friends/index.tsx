@@ -39,7 +39,7 @@ import { worldForScheme } from '@/theme/world';
 import { BounceButton } from '@/ui/bounce-button';
 import { canUseCamera } from '@/ui/can-use-camera';
 import { FloatingCard } from '@/ui/floating-card';
-import { Mascot } from '@/ui/mascot';
+import { AccountCompanion } from '@/ui/account-companion';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 import { Stagger } from '@/ui/stagger';
@@ -375,7 +375,7 @@ export function FriendsScreen({
   const profileCard = (
       <Stagger index={profileOnly ? 0 : 1}>
         <FloatingCard style={styles.card}>
-          {profileOnly ? <View style={{ alignItems: 'center' }}><Mascot pose="sleep" size={180} /><Text accessibilityRole="header" style={styles.sectionTitle}>내 프로필</Text></View> : null}
+          {profileOnly ? <View style={{ alignItems: 'center' }}><AccountCompanion pose="sleep" size={180} /><Text accessibilityRole="header" style={styles.sectionTitle}>내 프로필</Text></View> : null}
           <Text style={styles.eyebrow}>{profileOnly ? '이름과 한 줄 소개' : '내 친구 코드'}</Text>
           {editing ? (
             <View style={{ gap: 8 }}>

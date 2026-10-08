@@ -113,9 +113,9 @@ test('each home section names its own loading or failure instead of waiting for 
   // 보유 뽑기권 has no empty heading or "none yet" card any more: it appears only with a ticket, and a failed read is still named below.
   assert.doesNotMatch(overview, /뽑기권을 불러오지 못했어요|뽑기권 확인 중|아직 뽑기권이 없어요/);
   assert.match(overview, /\{ticketGroups\.size \? <View[^>]*>\s*<Text accessibilityRole="header" style=\{heading\}>보유 뽑기권<\/Text>/);
-  // A failure is named only for what is on screen: no 마이룸 before the room opens, no 뽑기권 once the coin shop answered with no ticket.
+  // The room is always visible, including before a first coin; a coin-shop read with no ticket needs no error here.
   // A coin-shop read that failed has no answer, so its failure stays named (the section is missing and nothing else says why).
-  assert.match(overview, /const errorText = homeErrorText\(data\?\.errors \?\? \[\], \[\.\.\.\(showRoom \? \[\] : \['studio' as const\]\), \.\.\.\(data\?\.coinShop && !ticketGroups\.size \? \['coins' as const\] : \[\]\)\]\);/);
+  assert.match(overview, /const errorText = homeErrorText\(data\?\.errors \?\? \[\], data\?\.coinShop && !ticketGroups\.size \? \['coins' as const\] : \[\]\);/);
   assert.match(overview, /\{errorText \? <Pressable[\s\S]*?\{errorText\}<\/Text>/);
   assert.match(overview, /failed\('collection'\) \|\| failed\('merchants'\) \? '방문 목표를 불러오지 못했어요'/);
 });
@@ -125,19 +125,19 @@ test('a superseded or revisited load never asks for a recommendation, so the fir
   assert.match(overview, /request === generation\.current && needsFirstStoreRecommendation\(collection\.visits\.length, hadRecommendations\)/);
 });
 
-test('progressive disclosure: the room and exhibit open after the first coin; friends and neighbours only by opt-in', () => {
+test('first-coin accounts see their empty room immediately; friends and neighbours remain opt-in', () => {
   assert.match(overview, /const \{ stage, optIn, loadCollection, loadCoinShop \} = discovery;/);
-  assert.match(overview, /const showRoom = atLeast\(stage, 'after-first'\);/);
-  // Both room blocks (heading + scene) are behind showRoom; the first-coin empty-room action stays on the scene.
-  assert.match(overview, /\{showRoom \? <View[^>]*>\s*<Text accessibilityRole="header" style=\{heading\}>마이룸<\/Text>/);
-  assert.match(overview, /\{showRoom \? data\?\.studio \? <View[\s\S]*?<StudioScene/);
+  assert.doesNotMatch(overview, /const showRoom =|\{showRoom \?/);
+  assert.match(overview, /<Text accessibilityRole="header" style=\{heading\}>마이룸<\/Text>/);
+  assert.match(overview, /\{data\?\.studio \? <View[\s\S]*?<StudioScene/);
   assert.match(overview, /emptyAction=\{emptyRoom && collectedCount > 0 \?/);
-  assert.match(overview, /\{showRoom \? <Link href="\/home\/exhibit" asChild>/);
+  assert.match(overview, /<Link href="\/home\/exhibit" asChild>/);
   assert.match(overview, /\{optIn\.social \? <Link href="\/friends" asChild>/);
   assert.match(overview, /\{optIn\.social \? <Link href="\/room-explore" asChild>/);
-  // 방문 인증 stays the one always-on quick action; a row with nothing in it is not drawn.
+  // 방문 인증 and the room remain available even with no coins or visits.
   assert.match(overview, /<Link href="\/claim" asChild>/);
-  assert.match(overview, /\{showRoom \|\| optIn\.social \? <View/);
+  assert.match(overview, /<Link href="\/studio" asChild>/);
+  assert.match(read('../../app/(tabs)/index.tsx'), /key=\{auth\.accountId\}/);
 });
 
 test('the shop card appears right after the first coin once a draw is affordable, with the price from the server', () => {

@@ -187,7 +187,8 @@ test('#309 the production entry point has no guest-trial route; the local showca
     const context = await fetch(`${local}/merchant/merchants/${state.trialMerchantId}/context`, { headers: bearer });
     assert.equal(context.status, 200);
     const merchants = await (await fetch(`${local}/merchants`)).json() as { merchants: { id: string }[] };
-    assert.equal(merchants.merchants.length, 30);
+    assert.equal(merchants.merchants.length, WOLGYE_STORES.length);
+    assert.deepEqual(merchants.merchants.map((merchant) => merchant.id).sort(), WOLGYE_STORES.map((store) => store.id).sort());
     assert.ok(merchants.merchants.every((merchant) => merchant.id !== state.trialMerchantId));
     assert.ok(merchants.merchants.every((merchant) => merchant.id !== SHOWCASE_PRACTICE_MERCHANT_ID));
   }));
@@ -246,13 +247,15 @@ test('#309 start creates a guest account, a hidden trial store copied from the p
 
     // 체험 가게는 누구의 목록·추천에도 나오지 않는다(체험자 본인 포함).
     const listed = await new PostgresMerchantCatalog(pool).listPublicMerchants();
-    assert.equal(listed.length, 30);
+    assert.equal(listed.length, WOLGYE_STORES.length);
+    assert.deepEqual(listed.map((merchant) => merchant.id).sort(), WOLGYE_STORES.map((store) => store.id).sort());
     assert.ok(listed.every((merchant) => merchant.id !== trial.merchant_id));
     assert.ok(listed.every((merchant) => merchant.id !== SHOWCASE_PRACTICE_MERCHANT_ID));
     const recommendations = new PostgresRecommendationSource(pool);
     for (const accountId of [session.accountId, 'acct_someone_else']) {
       const candidates = await recommendations.listCandidates(accountId);
-      assert.equal(candidates.length, 30, accountId);
+      assert.equal(candidates.length, WOLGYE_STORES.length, accountId);
+      assert.deepEqual(candidates.map((candidate) => candidate.merchantId).sort(), WOLGYE_STORES.map((store) => store.id).sort());
       assert.ok(candidates.every((candidate) => candidate.merchantId !== trial.merchant_id), accountId);
       assert.ok(candidates.every((candidate) => candidate.merchantId !== SHOWCASE_PRACTICE_MERCHANT_ID), accountId);
     }

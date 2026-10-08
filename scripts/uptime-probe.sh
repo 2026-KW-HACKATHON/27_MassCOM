@@ -15,6 +15,8 @@ set -uo pipefail
 prod_api=https://api.masscom.kr
 show_api=https://demo-api.masscom.kr
 web=https://masscom.kr
+store_catalog="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/apps/api/src/showcase/wolgye-stores.json"
+expected_store_ids="$(jq -c -e '[.stores[].id] | select(length >= 300 and length == (unique | length)) | sort' "$store_catalog")" || exit 1
 slow_seconds=3
 tls_warn_days=14
 # 시험용 재정의(워크플로는 설정하지 않는다): 재시도 대기 초, 요청 시간 예산 초.
@@ -98,9 +100,9 @@ tier1() {
   check prod_health "$prod_api/health" '.status == "ok"'
   check prod_merchants "$prod_api/merchants" '.merchants | type == "array"'
   check showcase_health "$show_api/health" '.status == "ok"'
-  # 고객 시연은 월계 공공자료 점포 30곳만 허용한다. 연습 가게와 은퇴 fixture는 장애로 잡는다.
+  # 고객 시연은 공공자료 카탈로그의 점포만 허용한다. 연습 가게와 은퇴 fixture는 장애로 잡는다.
   merchant_id=''
-  if check showcase_merchants "$show_api/merchants" '.merchants | type == "array" and length == 30 and all(.[]; .demo == true and (.id | startswith("showcase-wolgye-"))) and (map(.id) | unique | length == 30)'; then
+  if check showcase_merchants "$show_api/merchants" "(.merchants | type == \"array\") and ([.merchants[].id] | sort == $expected_store_ids) and (.merchants | all(.[]; .demo == true))"; then
     merchant_id="$(jq -r '.merchants[0].id | @uri' "$tmp/body")"
   fi
   if [[ -n "$merchant_id" ]]; then

@@ -43,7 +43,7 @@ test('실제 시연 웹은 읽기 전용 계약을 통과한다', () => {
   assert.equal(run(source).status, 0);
 });
 
-test('실제 시연 웹은 월계 공공데이터 음식점 30곳을 표시한다', () => {
+test('실제 시연 웹은 공공데이터 음식점 목록 전체를 표시한다', () => {
   const html = readFileSync(join(source, 'index.html'), 'utf8');
   assert.match(html, /href="assets\/showcase\.css\?v=20260929"/);
   assert.match(html, /role="group" aria-label="월계 가게 목록"/);

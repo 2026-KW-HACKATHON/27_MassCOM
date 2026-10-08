@@ -326,13 +326,14 @@ export function ClaimRedeemScreen({
         if (!active) return;
         const demo = merchants.filter((merchant) => merchant.demo);
         setTestVisitMerchants(demo);
-        setSelectedTestVisitMerchantId((current) => current ?? demo[0]?.id);
+        setSelectedTestVisitMerchantId((current) =>
+          (selectedMerchantId && demo.some(merchant => merchant.id === selectedMerchantId) ? selectedMerchantId : current) ?? demo[0]?.id);
       })
       .catch(() => {
         if (active) setTestVisitMessage('체험 가게 목록을 불러오지 못했습니다.');
       });
     return () => { active = false; };
-  }, [apiUrl, showTestVisitSection]);
+  }, [apiUrl, selectedMerchantId, showTestVisitSection]);
 
   useEffect(() => {
     if (!identity) return;

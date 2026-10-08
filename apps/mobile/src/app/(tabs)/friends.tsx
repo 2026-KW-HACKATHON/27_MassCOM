@@ -6,8 +6,8 @@ import { AuthRequiredRoute } from '@/screens/auth-required/route';
 import { DemoConfigurationRequired } from '@/screens/demo-configuration-required';
 import { FRIENDS_TITLE, FriendsScreen } from '@/screens/friends';
 import { BackHeader } from '@/ui/back-header';
+import { AccountCompanion } from '@/ui/account-companion';
 import { heroMascotSize } from '@/ui/large-text';
-import { Mascot } from '@/ui/mascot';
 import { SkyBackdrop } from '@/ui/sky-backdrop';
 import { SkyScrollView } from '@/ui/sky-scroll-view';
 
@@ -19,8 +19,8 @@ export default function FriendsRoute() {
   const header = (
     <BackHeader title={FRIENDS_TITLE}>
       <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-        {/* Decorative: it still wiggles for a tap, but adds no stop for screen readers. */}
-        <Mascot interactive pose="friends" size={heroMascotSize(fontScale, 112)} />
+        {/* The current companion stays visible on this header and can greet on tap. */}
+        <AccountCompanion interactive pose="friends" size={heroMascotSize(fontScale, 112)} />
       </View>
     </BackHeader>
   );

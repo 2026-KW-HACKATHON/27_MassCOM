@@ -446,6 +446,8 @@ test('the role screen greets with the waving mascot and the logo badge instead o
 test('celebration and reward reveal use the chosen companion with a cheering fallback', () => {
   assert.match(readSource('gamification/celebration.tsx'), /<Companion art=\{companionArt\} celebrate/);
   assert.match(readSource('gamification/reward-reveal.tsx'), /<Companion art=\{companionArt\} celebrate/);
+  assert.match(readSource('gamification/celebration.tsx'), /companionArt !== undefined[\s\S]*?<AccountCompanion pose="cheer"/);
+  assert.match(readSource('gamification/reward-reveal.tsx'), /companionArt !== undefined[\s\S]*?<AccountCompanion pose="cheer"/);
   assert.match(read('companion.tsx'), /<Mascot pose=\{celebrate \? 'cheer' : 'wave'\}/);
 });
 

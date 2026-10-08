@@ -21,6 +21,7 @@ import type { AfterVisitAction } from '@/commerce/after-visit-action';
 import { useMotionEnabled } from '@/motion/use-motion';
 import { tierColors } from '@/theme/medal-colors';
 import { Companion } from '@/ui/companion';
+import { AccountCompanion } from '@/ui/account-companion';
 
 import type { BadgeBook } from './badge-api';
 import {
@@ -150,7 +151,9 @@ function CelebrationBody({ content, variant, onClose, primaryAction, onPrimaryAc
         }}>
           <StampStage theme={theme} reduceMotion={reduceMotion} size={shownBeat > 1 && !reduceMotion ? Math.round(stageSize * 0.6) : stageSize} />
         </Pressable>
-        {(cheering || companionArt) && shownBeat === 1 ? <Companion art={companionArt} celebrate size={Math.min(140, Math.round(stage * 0.62))} /> : null}
+        {shownBeat === 1 ? companionArt !== undefined
+          ? <Companion art={companionArt} celebrate size={Math.min(140, Math.round(stage * 0.62))} />
+          : <AccountCompanion pose="cheer" size={Math.min(140, Math.round(stage * 0.62))} /> : null}
 
         <Text ref={title} accessibilityRole="header" style={styles.celebrationTitle}>
           {publicDataDemoStoreName(content.merchantId, content.merchantName)} 도장 쾅!

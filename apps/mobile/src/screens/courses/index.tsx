@@ -4,11 +4,13 @@ import { ActivityIndicator, Image, Pressable, RefreshControl, StyleSheet, Text, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { getAppPackageId } from '@/config/app-identity';
 import { createCourseApiClient, type Course } from '@/courses/course-api';
 import { clearedCourseDetail } from '@/courses/course-detail-state';
 import { courseChipText, courseStateText } from '@/courses/course-copy';
 import { consentRecheckLabel, consentRequiredMessage, needsConsentRecheck } from '@/privacy/consent-flow';
 import { useConsentRecheck } from '@/privacy/consent-recheck';
+import { canShowTestVisitSection } from '@/navigation/showcase-entry';
 import { colorsForScheme } from '@/theme/palette';
 import { BackHeader } from '@/ui/back-header';
 import { FloatingCard } from '@/ui/floating-card';
@@ -65,6 +67,7 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
   }
   const course = courseId && courses?.[0]?.id === courseId ? courses[0] : undefined;
   const nextStep = course?.steps.find(step => !step.done && step.state === 'AVAILABLE');
+  const demoVisit = course?.title.startsWith('시연 연합 미션') && canShowTestVisitSection(getAppPackageId());
   return <SkyBackdrop><SkyScrollView header={<BackHeader title={courseId ? '연합 미션 상세' : '연합 미션'} />}
     contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} progressViewOffset={insets.top} />}>
     {courses === undefined && !error ? <View style={styles.center}><ActivityIndicator color={palette.primary} /><Text style={{ color: palette.label }}>연합 미션을 불러오는 중</Text></View> : null}
@@ -84,6 +87,7 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
       <FloatingCard style={styles.card}>
         <Text selectable style={[styles.title, { color: palette.label }]}>{course.title}</Text>
         <Text selectable style={{ color: palette.secondaryLabel }}>{course.situationLabel}</Text>
+        {demoVisit ? <Text style={{ color: palette.secondaryLabel }}>시연 데이터로 만드는 가상 방문 미션이에요. 실제 가게 참여나 혜택은 포함되지 않아요.</Text> : null}
         <Text accessibilityLiveRegion="polite" style={{ color: palette.label }}>{courseStateText(course)}</Text>
         {course.state === 'UNLOCKED' ? <Text style={{ color: palette.primary, fontWeight: '800' }}>완료 배지 · {course.title}</Text> : null}
       </FloatingCard>
@@ -92,6 +96,11 @@ export function CoursesScreen({ apiUrl, credential, onSessionInvalid, courseId }
         <Text style={{ color: palette.secondaryLabel }}>방문 순서는 자유예요. 가게 상세에서 현재 영업 상태와 거리를 확인해 주세요.</Text>
         <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/merchants/[merchantId]', params: { merchantId: nextStep.merchantId } })}
           style={[styles.button, { backgroundColor: palette.primary }]}><Text style={[styles.buttonText, { color: palette.onPrimary }]}>가게 영업 상태·거리 보기</Text></Pressable>
+        {demoVisit ? <Pressable accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/claim', params: { merchantId: nextStep.merchantId } })}
+          style={[styles.button, { backgroundColor: palette.primary }]}>
+          <Text style={[styles.buttonText, { color: palette.onPrimary }]}>시연용 테스트 방문 만들기</Text>
+        </Pressable> : null}
       </FloatingCard> : null}
       {course.steps.map(step => <FloatingCard key={step.position} style={styles.step}>
         <View style={styles.stepCopy}>

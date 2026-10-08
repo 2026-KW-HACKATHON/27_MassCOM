@@ -3,15 +3,16 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const station = { lat: 37.6341068, lng: 127.0589231 };
+const campus = { lat: 37.6206, lng: 127.0567 };
 const outputPath = fileURLToPath(new URL('../apps/api/src/showcase/wolgye-stores.json', import.meta.url));
 const attribution = '출처: 소상공인시장진흥공단 상가(상권)정보(공공데이터포털, 2026-06-30 기준)';
 
-function distanceM({ lat, lng }) {
+function distanceM({ lat, lng }, origin = station) {
   const radians = Math.PI / 180;
-  const deltaLat = (lat - station.lat) * radians;
-  const deltaLng = (lng - station.lng) * radians;
+  const deltaLat = (lat - origin.lat) * radians;
+  const deltaLng = (lng - origin.lng) * radians;
   const arc = Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(station.lat * radians) * Math.cos(lat * radians) * Math.sin(deltaLng / 2) ** 2;
+    Math.cos(origin.lat * radians) * Math.cos(lat * radians) * Math.sin(deltaLng / 2) ** 2;
   return 2 * 6371000 * Math.asin(Math.sqrt(arc));
 }
 
@@ -22,8 +23,24 @@ function categoryOf({ category_mid: mid, category_small: small }) {
   return { 한식: '한식', 중식: '중식', 일식: '일식', 서양식: '양식', 비알코올: '카페', 주점: '주점' }[mid] ?? '기타';
 }
 
+function toStore(row, distance) {
+  return {
+    id: `showcase-wolgye-${row.source_ids.semas}`,
+    name: [row.name.trim(), row.branch?.trim()].filter(Boolean).join(' '),
+    category: categoryOf(row),
+    categoryMid: row.category_mid,
+    roadAddress: row.road_address,
+    lat: row.lat,
+    lng: row.lng,
+    distanceM: Math.round(distance),
+    sourceId: row.source_ids.semas,
+    dataDate: row.data_date,
+  };
+}
+
 export function selectWolgyeStores(rows) {
   if (!Array.isArray(rows)) throw new Error('입력은 점포 배열이어야 합니다');
+  const sourceIds = new Set();
   const candidates = rows.map(row => {
     if (row.source !== 'SEMAS' || !/^[A-Za-z0-9]+$/.test(row.source_ids?.semas ?? '') ||
         !row.name?.trim() || !row.road_address?.trim() ||
@@ -34,6 +51,8 @@ export function selectWolgyeStores(rows) {
       throw new Error('SEMAS 점포의 필수 필드가 없습니다');
     }
     if (row.data_date !== '2026-06-30') throw new Error('SEMAS 기준일이 출처 표기의 2026-06-30과 다릅니다');
+    if (sourceIds.has(row.source_ids.semas)) throw new Error('SEMAS 점포 ID가 중복되었습니다');
+    sourceIds.add(row.source_ids.semas);
     return { row, distanceM: distanceM(row) };
   }).sort((a, b) => a.distanceM - b.distanceM || a.row.source_ids.semas.localeCompare(b.row.source_ids.semas));
 
@@ -46,21 +65,26 @@ export function selectWolgyeStores(rows) {
     if (names.has(name) || (categoryCounts.get(row.category_mid) ?? 0) >= 6) continue;
     names.add(name);
     categoryCounts.set(row.category_mid, (categoryCounts.get(row.category_mid) ?? 0) + 1);
-    stores.push({
-      id: `showcase-wolgye-${row.source_ids.semas}`,
-      name,
-      category: categoryOf(row),
-      categoryMid: row.category_mid,
-      roadAddress: row.road_address,
-      lat: row.lat,
-      lng: row.lng,
-      distanceM: Math.round(distance),
-      sourceId: row.source_ids.semas,
-      dataDate: row.data_date,
-    });
+    stores.push(toStore(row, distance));
     if (stores.length === 30) break;
   }
   if (stores.length !== 30) throw new Error(`선정 가능한 점포가 ${stores.length}개뿐입니다 (30개 필요)`);
+  const selectedIds = new Set(stores.map(store => store.sourceId));
+  const selectedLocations = new Set(stores.map(store => `${store.name}|${store.roadAddress}`));
+  const nearby = candidates
+    .filter(({ row }) => !selectedIds.has(row.source_ids.semas) &&
+      !/구내식당|유흥\s*주점/.test(row.category_small) && distanceM(row, campus) <= 2500)
+    .sort((a, b) => distanceM(a.row, campus) - distanceM(b.row, campus) ||
+      a.row.source_ids.semas.localeCompare(b.row.source_ids.semas));
+  for (const { row, distanceM: distance } of nearby) {
+    const name = [row.name.trim(), row.branch?.trim()].filter(Boolean).join(' ');
+    const location = `${name}|${row.road_address}`;
+    if (selectedLocations.has(location)) continue;
+    selectedLocations.add(location);
+    stores.push(toStore(row, distance));
+    if (stores.length === 330) break;
+  }
+  if (stores.length !== 330) throw new Error(`광운대 주변 추가 점포가 ${stores.length - 30}개뿐입니다 (300개 필요)`);
   return { attribution, stores };
 }
 

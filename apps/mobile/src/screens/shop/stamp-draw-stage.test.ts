@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import {
@@ -56,6 +57,21 @@ test('completion latch allows only the first ended error or watchdog race to fin
   assert.equal(markStampOpeningComplete(latch), true);
   assert.equal(markStampOpeningComplete(latch), false);
   assert.equal(markStampOpeningComplete(latch), false);
+});
+
+test('supplied stamp media fits the app budget and the reveal carries the effect audio track', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../../assets/videos/gacha-stamp-audio-manifest.json', import.meta.url), 'utf8'));
+  for (const item of Object.values(manifest.outputs) as { file: string; sha256: string; bytes: number }[]) {
+    const bytes = readFileSync(new URL(`../../../assets/videos/${item.file}`, import.meta.url));
+    assert.ok(bytes.length <= 3 * 1024 * 1024, `${item.file} exceeds 3 MiB`);
+    assert.equal(bytes.length, item.bytes);
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), item.sha256);
+  }
+  const idle = readFileSync(new URL('../../../assets/videos/gacha-stamp-idle.mp4', import.meta.url));
+  const reveal = readFileSync(new URL('../../../assets/videos/gacha-stamp-reveal.mp4', import.meta.url));
+  assert.equal(idle.includes(Buffer.from('mp4a')), false);
+  assert.equal(reveal.includes(Buffer.from('mp4a')), true);
+  assert.equal(STAMP_REVEAL_DURATION_MS, 5040);
 });
 
 test('stage owns lifecycle guards without letting callback rerenders restart opening', () => {

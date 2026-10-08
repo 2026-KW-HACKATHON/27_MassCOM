@@ -35,6 +35,8 @@ import { createRouteRequestGate, routePlanKey } from './route-request';
 import { discoveryStorageKeys, loadDiscoveryStorage } from './discovery-storage';
 import { getAppPackageId } from '@/config/app-identity';
 import { clusterMarkerId, clusterQueryBounds, markersForDiscovery } from './server-clusters';
+import { boundsAround, validMapViewport } from './map-viewport';
+import { withLocationTimeout } from './gps-timeout';
 import type { MapCluster } from '../../../../api/src/real-world-contract';
 import { CourseStop, buildWalkingRouteInput, fetchCourseDetails, createCourse, moveStop, recommendStops, replaceStop, restoreCourse, serializeCourse, setDwell } from './course';
 
@@ -80,6 +82,8 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   const [courseDetails,setCourseDetails]=useState<Record<string,MerchantDetail|null>>({});
   const locationGeneration = useRef(0);
   const searchDelay = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapReady = useRef(false);
+  const requestedCamera = useRef<{ latitude: number; longitude: number; until: number } | null>(null);
   const hydratedScope = useRef<string | null>(null);
   const storageKeys = useMemo(() => auth.accountId ? discoveryStorageKeys({ accountId: auth.accountId, apiUrl, packageId: getAppPackageId() ?? '' }) : null, [auth.accountId, apiUrl]);
   const storageScope = storageKeys?.navigation ?? null;
@@ -134,9 +138,10 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       .then(entries=>{if(alive)setCourseDetails(Object.fromEntries(entries));});
     return()=>{alive=false;controller.abort();};},[api,course,courseReady,focused]);
   useEffect(()=>{if(state.mode==='list')scrim.scrollY.set(0);},[state.mode,scrim.scrollY]);
+  useEffect(()=>{if(state.mode==='list')mapReady.current=false;},[state.mode]);
   useEffect(()=>{if(storageKeys&&hydratedScope.current===storageScope)void AsyncStorage.setItem(storageKeys.navigation,savedNavigation).catch(()=>undefined);},[savedNavigation,storageKeys,storageScope]);
   useEffect(()=>{if(storageKeys&&courseReady&&hydratedScope.current===storageScope)void AsyncStorage.setItem(storageKeys.course,serializeCourse(course)).catch(()=>undefined);},[course,courseReady,storageKeys,storageScope]);
-  useFocusEffect(useCallback(()=>{if(!foreground){setFocused(false);return;}setFocused(true);return()=>{setFocused(false);setGpsPrompt(false);setRoute(null);setRouteMessage('복귀 시 최신 영업 정보와 경로를 다시 확인하세요.');locationGeneration.current++;request.current?.abort();clusterRequest.current?.abort();clusterGeneration.current++;routeGate.invalidate();if(discoveryState.snapshot().origin?.basis==='CURRENT_LOCATION'){discoveryState.setOrigin(null);setGpsMessage('내 위치를 사용하지 않습니다');}discoveryState.invalidate();};},[routeGate,foreground]));
+  useFocusEffect(useCallback(()=>{if(!foreground){setFocused(false);return;}setFocused(true);return()=>{setFocused(false);setGpsPrompt(false);setRoute(null);setRouteMessage('복귀 시 최신 영업 정보와 경로를 다시 확인하세요.');locationGeneration.current++;request.current?.abort();clusterRequest.current?.abort();clusterGeneration.current++;routeGate.invalidate();setGpsMessage('내 위치를 사용하지 않습니다');if(discoveryState.snapshot().origin?.basis==='CURRENT_LOCATION'){discoveryState.setOrigin(null);}discoveryState.invalidate();};},[routeGate,foreground]));
 
   const load = useCallback((cursor=false)=>{
     if(hydratedScope.current!==storageScope || !apiUrl)return;
@@ -161,9 +166,19 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
     discoveryState.select(id);router.push({pathname:'/merchants/[merchantId]',params:{merchantId:id,from:source}});
   }
   function viewport(value:{bounds:Bounds;camera:typeof initialCamera}) {
+    if(!mapReady.current||!validMapViewport(value))return;
+    const requested=requestedCamera.current;
+    if(requested&&Date.now()<requested.until&&
+      (Math.abs(value.camera.latitude-requested.latitude)>.002||Math.abs(value.camera.longitude-requested.longitude)>.002))return;
+    requestedCamera.current=null;
     setBounds(previous=>JSON.stringify(previous)===JSON.stringify(value.bounds)?previous:value.bounds);
     setCamera(previous=>JSON.stringify(previous)===JSON.stringify(value.camera)?previous:value.camera);
   }
+  const showArea=useCallback((point:Point) => {
+    requestedCamera.current={...point,until:Date.now()+2000};
+    setBounds(boundsAround(point,initialBounds));
+    setCamera({latitude:point.latitude,longitude:point.longitude,zoom:initialCamera.zoom});
+  },[]);
   function loadClusterPage(cluster:MapCluster,cursor?:string,baseQuery?:DiscoveryQuery) {
     const generation=++clusterGeneration.current;clusterRequest.current?.abort();const controller=new AbortController();clusterRequest.current=controller;
     const query:DiscoveryQuery=baseQuery??{bounds:clusterQueryBounds(cluster.bounds,cluster.id,state.query?.zoom??camera.zoom,state.query?.bounds??bounds),zoom:Math.min(camera.zoom+2,20),query:state.filters.query.trim()||undefined,
@@ -194,17 +209,20 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   async function requestGps() {
     const generation=++locationGeneration.current;setGpsMessage('현재 위치 확인 중');
     try {
-      if(!(await Location.hasServicesEnabledAsync())){if(generation===locationGeneration.current)setGpsMessage('기기 위치 서비스가 꺼져 있습니다. 설정에서 켜거나 출발지를 직접 고르세요.');return;}
-      const permission=await Location.requestForegroundPermissionsAsync();
+      const services=await withLocationTimeout(Location.hasServicesEnabledAsync(),15000);
+      if(generation!==locationGeneration.current)return;
+      if(!services){setGpsMessage('기기 위치 서비스가 꺼져 있습니다. 설정에서 켜거나 출발지를 직접 고르세요.');return;}
+      const permission=await withLocationTimeout(Location.requestForegroundPermissionsAsync(),15000);
       if(generation!==locationGeneration.current)return;
       if(permission.status!=='granted'){setGpsMessage('위치 권한이 거부되었습니다. 출발지를 직접 고를 수 있습니다.');return;}
-      const fix=await Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced});
+      const fix=await withLocationTimeout(Location.getCurrentPositionAsync({accuracy:Location.Accuracy.Balanced}),15000);
       if(generation!==locationGeneration.current)return;
       if(!Number.isFinite(fix.timestamp)||Date.now()-fix.timestamp>60000){setGpsMessage('위치 정보가 오래되었습니다. 다시 확인하거나 출발지를 직접 고르세요.');return;}
       if(!Number.isFinite(fix.coords.latitude)||!Number.isFinite(fix.coords.longitude)||fix.coords.accuracy===null||!Number.isFinite(fix.coords.accuracy)||fix.coords.accuracy>100){setGpsMessage('위치 정확도가 낮습니다. 출발지를 직접 고르세요.');return;}
       routeGate.invalidate();discoveryState.setOrigin({latitude:fix.coords.latitude,longitude:fix.coords.longitude,basis:'CURRENT_LOCATION'});
       setGpsMessage(`현재 위치 사용 중 · 정확도 약 ${Math.round(fix.coords.accuracy)}m`);setRoute(null);
-    } catch {if(generation===locationGeneration.current)setGpsMessage('위치를 확인하지 못했습니다. 출발지를 직접 고르세요.');}
+    } catch(error) {if(generation===locationGeneration.current)setGpsMessage(error instanceof Error&&error.message==='LOCATION_TIMEOUT'
+      ? '현재 위치 확인 시간이 지났어요. 다시 확인하거나 출발지를 직접 고르세요.' : '위치를 확인하지 못했습니다. 출발지를 직접 고르세요.');}
   }
   async function findManualOrigin() {
     if(!manualText.trim())return;setOriginMessage('주소를 찾는 중');setPlaces([]);
@@ -212,7 +230,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
     try {const result=await api.places({query:manualText.trim()});if(generation!==locationGeneration.current)return;setPlaces(result.places.filter(place=>Date.parse(place.expiresAt)>Date.now()));setOriginMessage(result.places.length?'검색 결과에서 출발지를 선택하세요.':'주소를 찾지 못했습니다.');}
     catch(error){if(generation!==locationGeneration.current)return;setOriginMessage(error instanceof DiscoveryApiError&&error.code==='MAP_NOT_CONFIGURED'?'장소 검색 키가 연결되지 않았습니다. 지도에서 출발지를 직접 고르세요.':'주소 검색에 실패했습니다.');}
   }
-  function chooseManual(point:Point,label:string,expiresAt?:string) {routeGate.invalidate();discoveryState.setOrigin({...point,basis:'MANUAL'},expiresAt);setOriginMessage(`${label} 출발`);setPlaces([]);setRoute(null);}
+  const chooseManual=useCallback((point:Point,label:string,expiresAt?:string) => {locationGeneration.current++;setGpsMessage('내 위치를 사용하지 않습니다');routeGate.invalidate();discoveryState.setOrigin({...point,basis:'MANUAL'},expiresAt);setOriginMessage(`${label} 출발`);setPlaces([]);setRoute(null);},[routeGate]);
   function updateCourse(next:CourseStop[]) {routeGate.invalidate();setCourseDetails({});setCourse(next);setRoute(null);setRouteMessage('순서가 바뀌었습니다. 보행 경로를 다시 확인하세요.');}
   async function calculateRoute() {
     const origin=state.origin;
@@ -259,6 +277,8 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   </>;
   const filterSummary=[state.filters.query.trim()&&`검색: ${state.filters.query.trim()}`,state.filters.category,
     state.filters.openOnly&&'영업 중',state.filters.campaignOnly&&'캠페인',state.filters.unvisitedOnly&&'미방문',state.filters.interestedOnly&&'목표 수집품 가게'].filter(Boolean).join(' · ');
+  const locationSummary=state.origin?.basis==='MANUAL' ? gpsMessage==='내 위치를 사용하지 않습니다'
+    ? '직접 선택한 출발지 사용 중' : `직접 선택한 출발지 사용 중 · ${gpsMessage}` : gpsMessage;
   const controls=<>
     <AppHeader title="탐색" subtitle="가게와 코스 찾기" compact /><View style={styles.header}><View style={styles.actions}>{button('지도',()=>discoveryState.setMode('map'),state.mode==='map')}{button('목록',()=>discoveryState.setMode('list'),state.mode==='list')}<Pressable accessibilityRole="button" onPress={refresh} style={styles.button}><Text style={styles.buttonText}>새로고침</Text></Pressable></View></View>
     {state.mode==='map'?<View style={styles.mapSearch}><Fold title="검색·필터" summary={filterSummary||undefined}>{searchTools}</Fold></View>:searchTools}
@@ -268,27 +288,31 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
       {originMessage?<Text accessibilityRole="alert" style={styles.notice}>{originMessage}</Text>:null}
       {wantedResolution?.status==='unavailable'?<View style={styles.panel}><Text accessibilityRole="alert" style={styles.notice}>{wantedResolution.label}</Text>{button('공간에서 새 목표 고르기',()=>router.push('/studio'))}</View>:null}
       {wantedResolution?.status==='completed'?<Text style={styles.muted}>{wantedResolution.label}</Text>:null}
-      <Fold title="출발지·위치 선택" summary={state.origin?.basis==='MANUAL'?'직접 선택한 출발지 사용 중':gpsMessage}>
-      <View style={styles.actions}><Pressable accessibilityRole="button" onPress={()=>setGpsPrompt(true)} style={styles.button}><Text style={styles.buttonText}>현재 위치</Text></Pressable>{button('지도 중심을 출발지로',()=>chooseManual(camera,'선택한 지도 중심'))}</View>
+      <Fold title="출발지·위치 선택" summary={locationSummary}>
+      <View style={styles.actions}><Pressable accessibilityRole="button" onPress={()=>setGpsPrompt(true)} style={styles.button}><Text style={styles.buttonText}>현재 위치</Text></Pressable>{state.origin?.basis==='CURRENT_LOCATION'?<Pressable accessibilityRole="button" onPress={()=>showArea(state.origin!)} style={styles.button}><Text style={styles.buttonText}>현재 위치 주변 가게 보기</Text></Pressable>:null}<Pressable accessibilityRole="button" onPress={()=>chooseManual(camera,'선택한 지도 중심')} style={styles.button}><Text style={styles.buttonText}>지도 중심을 출발지로</Text></Pressable></View>
       {gpsPrompt?<View style={styles.panel}><Text accessibilityRole="header" style={styles.heading}>이번 한 번 현재 위치 사용</Text><Text style={styles.muted}>선택 사항입니다. 위치를 한 번 확인해 직선거리와 보행 경로 출발지에 사용합니다. 거리 계산을 위해 서비스 서버에 좌표가 전달되고, 보행 경로를 요청할 때만 TMAP에 출발 좌표가 전달됩니다. 백그라운드 위치나 이동 경로를 수집하지 않고, 친구 공유·로그·기기 저장에 남기지 않습니다. 출발지를 직접 고를 수도 있습니다.</Text><View style={styles.actions}><Pressable accessibilityRole="button" onPress={()=>setGpsPrompt(false)} style={styles.button}><Text style={styles.buttonText}>취소</Text></Pressable><Pressable accessibilityRole="button" onPress={()=>{setGpsPrompt(false);void requestGps();}} style={styles.button}><Text style={styles.buttonText}>이번 한 번 위치 확인</Text></Pressable></View></View>:null}
-      <Text style={styles.muted}>{gpsMessage}</Text>
+      <Text accessibilityLiveRegion="polite" style={styles.muted}>{gpsMessage}</Text>
       <View style={styles.actions}><TextInput value={manualText} onChangeText={setManualText} placeholder="출발 주소 직접 검색" placeholderTextColor={world.cardMuted} accessibilityLabel="출발 주소" style={[styles.input,{flex:1,minWidth:160}]} onSubmitEditing={()=>{void findManualOrigin();}}/><Pressable accessibilityRole="button" onPress={()=>{void findManualOrigin();}} style={styles.button}><Text style={styles.buttonText}>찾기</Text></Pressable></View>
-      {places.map(place=><View key={place.id}>{button(`${place.name} · ${place.roadAddress}`,()=>chooseManual(place.point,place.name,place.expiresAt))}</View>)}
+      {places.map(place=><View key={place.id}><Pressable accessibilityRole="button" onPress={()=>chooseManual(place.point,place.name,place.expiresAt)} style={styles.button}><Text style={styles.buttonText}>{place.name} · {place.roadAddress}</Text></Pressable></View>)}
       </Fold>
       {selectedCluster&&clusterPage?.clusterId===selectedCluster.id?<View style={styles.panel}><Text accessibilityRole="header" style={styles.heading}>지도 범위 전체 {selectedCluster.count}곳 · 불러온 {clusterPage.merchants.length}곳</Text><Text style={styles.muted}>개인 방문·목표 필터는 불러온 목록에 적용됩니다.</Text>{clusterPage.error?<Text accessibilityRole="alert" style={styles.notice}>{clusterPage.error} · 다시 확인해 주세요.</Text>:null}{clusterPage.loading?<ActivityIndicator accessibilityLabel="건물 가게 불러오는 중"/>:null}{clusterLeafVisible.map(m=>row(m,'map'))}{clusterPage.nextCursor?<Pressable accessibilityRole="button" onPress={()=>loadClusterPage(selectedCluster,clusterPage.nextCursor!,clusterPage.query)} style={styles.button}><Text style={styles.buttonText}>이 범위 가게 더 보기</Text></Pressable>:null}<Pressable accessibilityRole="button" onPress={()=>{clusterRequest.current?.abort();clusterGeneration.current++;setSelectedCluster(null);setClusterPage(null);}} style={styles.button}><Text style={styles.buttonText}>범위 닫기</Text></Pressable></View>:null}
       {clusterIds.length>1?<View style={styles.panel}><Text style={styles.heading}>같은 건물 가게 {clusterIds.length}곳</Text>{clusterIds.map(id=>state.merchants.find(m=>m.id===id)).filter((m):m is MerchantSummary=>!!m).map(m=>row(m,'map'))}</View>:null}
       {selected?<View style={styles.panel}><Text style={styles.heading}>선택한 가게</Text>{row(selected,state.mode==='map'?'map':'list')}</View>:null}
       {state.error==='DISCOVERY_ZOOM_REQUIRED'?<View style={styles.panel}><Text accessibilityRole="alert" style={styles.notice}>이 범위에 영업 중인 가게가 너무 많습니다. 지도를 확대하거나 영업 중 필터를 해제하세요.</Text>{state.filters.openOnly?button('영업 중 필터 해제',()=>discoveryState.setFilters({openOnly:false})):null}</View>:state.error?<Text accessibilityRole="alert" style={styles.notice}>가게 정보를 불러오지 못했어요. 연결을 확인하고 새로고침해 주세요.</Text>:null}
       {state.loading?<ActivityIndicator accessibilityLabel="가게 불러오는 중"/>:null}
-      <Text accessibilityRole="header" style={styles.heading}>가게 {visible.length}곳</Text>
+      <Text accessibilityRole="header" style={styles.heading}>{state.loading||!state.query?'가게 찾는 중':state.error&&!visible.length?'가게 정보를 확인할 수 없음':`가게 ${visible.length}곳`}</Text>
       {unlocatedNotice(state.unlocatedCount)?<Text style={styles.muted}>{unlocatedNotice(state.unlocatedCount)}</Text>:null}
-      {!state.loading&&!visible.length?<Text style={styles.notice}>조건에 맞는 실제 가게가 없습니다. 필터를 조정하거나 지도를 이동해 보세요.</Text>:null}
+      {!state.loading&&state.query&&!state.error&&!visible.length?<View style={styles.panel}>
+        <Text style={styles.notice}>현재 지도 범위에서 가게를 찾지 못했어요. 광운대 주변으로 돌아가거나 검색 조건을 바꿔 주세요.</Text>
+        <View style={styles.actions}><Pressable accessibilityRole="button" onPress={()=>showArea(initialCamera)} style={styles.button}><Text style={styles.buttonText}>광운대 주변 보기</Text></Pressable>{filterSummary?button('검색·필터 지우기',()=>discoveryState.setFilters({query:'',category:null,campaignOnly:false,openOnly:false,unvisitedOnly:false,interestedOnly:false})):null}</View>
+      </View>:null}
       {visible.map(m=>row(m,'list'))}
       {state.nextCursor?<Pressable accessibilityRole="button" onPress={()=>load(true)} style={styles.button}><Text style={styles.buttonText}>{state.loading?'불러오는 중':'더 보기'}</Text></Pressable>:null}
-      <View style={styles.panel}><Text accessibilityRole="header" style={styles.heading}>짧은 탐험 코스</Text><Text style={styles.muted}>저장한 목표 수집품·방문 진행·영업 상태·거리 순으로 제안합니다. 이동 시간은 실제 보행 경로를 요청할 때만 표시합니다.</Text>
+      <View style={styles.panel}><Text accessibilityRole="header" style={styles.heading}>짧은 탐험 코스</Text><Text style={styles.muted}>영업 확인된 가게를 먼저, 저장한 목표 수집품·방문 진행·거리를 고려해 제안합니다. 영업시간 미확인 가게는 출발 전 확인하세요. 이동 시간은 실제 보행 경로를 요청할 때만 표시합니다.</Text>
         {!course.length&&suggestions.length?button('추천 가게로 코스 만들기',()=>updateCourse(createCourse(suggestions.map(m=>m.id)))):null}
+        {!state.loading&&state.query&&!state.error&&!course.length&&!suggestions.length?<Text style={styles.muted}>이 범위에는 위치가 확인된 코스 후보가 없어요. 광운대 주변 보기나 검색 조건 변경을 이용해 주세요.</Text>:null}
         {course.map((stop,index)=>{const latest=courseDetails[stop.merchantId];const m=latest===undefined?state.merchants.find(item=>item.id===stop.merchantId):latest;return <View key={`${stop.merchantId}-${index}`} style={styles.courseStop}>
-          <Text style={styles.name}>{index+1}. {latest===null?'가게 정보 확인 실패 · 다른 가게 선택':m?publicDataDemoStoreName(m.id, m.name):'가게 최신 정보 확인 중'} · 머무름 {stop.dwellMinutes}분</Text>
+          <Text style={styles.name}>{index+1}. {latest===null?'가게 정보 확인 실패 · 다른 가게 선택':m?publicDataDemoStoreName(m.id, m.name):'가게 최신 정보 확인 중'} · 머무름 {stop.dwellMinutes}분{m?.business.state==='UNKNOWN'?' · 영업시간 미확인':''}</Text>
           <View style={styles.actions}>{button('앞으로',()=>updateCourse(moveStop(course,index,index-1)))}{button('뒤로',()=>updateCourse(moveStop(course,index,index+1)))}{button('-5분',()=>updateCourse(setDwell(course,index,stop.dwellMinutes-5)))}{button('+5분',()=>updateCourse(setDwell(course,index,stop.dwellMinutes+5)))}{button('빼기',()=>updateCourse(course.filter((_,i)=>i!==index)))}</View>
           <ScrollView horizontal contentContainerStyle={styles.actions}>{suggestions.filter(option=>!course.some((entry,i)=>i!==index&&entry.merchantId===option.id)).map(option=><View key={option.id}>{button(`${publicDataDemoStoreName(option.id, option.name)}으로 변경`,()=>updateCourse(replaceStop(course,index,option.id)))}</View>)}</ScrollView>
         </View>;})}
@@ -308,7 +332,7 @@ export function RealMapScreen({ apiUrl, credential, onSessionInvalid, initialMod
   </View> : <View style={[styles.screen,{paddingBottom:clearance}]}>
     {isLargeText(fontScale)?<ScrollView keyboardShouldPersistTaps="handled" onScroll={scrim.onScroll} scrollEventThrottle={16} style={styles.largeMapControls}>{controls}</ScrollView>:controls}
     <View style={[styles.mapCanvas,fontScale>=1.8&&{minHeight:100}]}><TmapMap camera={camera} markers={mapMarkers} selectedId={state.selectedId} route={route?.geometry??null} padding={{top:0,right:0,bottom:0,left:0}} active={focused&&foreground} style={{flex:1}}
-      onReady={()=>undefined} onError={()=>setOriginMessage('지도를 열지 못했어요. 목록에서 가게를 찾아볼 수 있어요.')} onViewport={viewport} onSelect={(id:string)=>{const server=state.clusters.find(item=>clusterMarkerId(item.id)===id);if(server){openServerCluster(server);return;}select(id,'map');const matches=sameBuilding(id);if(matches.length>1)setClusterIds(matches.map(m=>m.id));}} onCluster={cluster}/></View>
+      onReady={()=>{mapReady.current=true;}} onError={()=>setOriginMessage('지도를 열지 못했어요. 목록에서 가게를 찾아볼 수 있어요.')} onViewport={viewport} onSelect={(id:string)=>{const server=state.clusters.find(item=>clusterMarkerId(item.id)===id);if(server){openServerCluster(server);return;}select(id,'map');const matches=sameBuilding(id);if(matches.length>1)setClusterIds(matches.map(m=>m.id));}} onCluster={cluster}/></View>
     <ScrollView keyboardShouldPersistTaps="handled" style={styles.mapPanel}>{panels}</ScrollView>
     <StatusBarScrim scrollY={scrim.scrollY} />
   </View>;

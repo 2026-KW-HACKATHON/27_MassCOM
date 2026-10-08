@@ -65,7 +65,7 @@ test('등급 뽑기 요청 오류는 같은 요청 복구와 닫기를 다시 �
   const draw = readFileSync(fileURLToPath(new URL('./grade-draw-machine.tsx', import.meta.url)), 'utf8');
   assert.match(draw, /onRecover \? <Control label="이전 뽑기 결과 다시 확인"/);
   const startSource = draw.slice(draw.indexOf('const start = async () => {'), draw.indexOf('const displayedBalance ='));
-  const run = new Function('onDraw', 'onClose', 'setPhase', 'setCloseNotice', 'drawInFlight', 'pool', 'balance', 'busy', 'phase',
+  const run = new Function('onDraw', 'onClose', 'setPhase', 'setCloseNotice', 'setOpeningFinished', 'openingComplete', 'drawInFlight', 'pool', 'balance', 'busy', 'phase',
     `${startSource}; return { start, close };`) as (...args: unknown[]) => { start: () => Promise<void>; close: () => void };
   let phase = 'detail';
   let closed = false;
@@ -73,11 +73,11 @@ test('등급 뽑기 요청 오류는 같은 요청 복구와 닫기를 다시 �
   const setPhase = (value: string) => { phase = value; };
   const drawPromise = new Promise<boolean>((resolve) => { setTimeout(() => resolve(false), 0); });
   const drawInFlight = { current: false };
-  const common = [() => { drawing = true; return drawPromise; }, () => { closed = true; }, setPhase, () => {}, drawInFlight, { total: 1, price: 100 }, 200];
+  const common = [() => { drawing = true; return drawPromise; }, () => { closed = true; }, setPhase, () => {}, () => {}, { current: false }, drawInFlight, { total: 1, price: 100 }, 200];
   const active = run(...common, false, phase);
   const pending = active.start();
   assert.equal(drawing, true);
-  assert.equal(phase, 'pending');
+  assert.equal(phase, 'opening');
   return pending.then(() => {
     assert.equal(phase, 'detail');
     assert.equal(drawInFlight.current, false, 'a failed purchase releases the same-tick draw guard');
@@ -234,6 +234,13 @@ test('PR #312 "대표 해제": 가진 친구는(대표든 아니든) 탭할 수 
   const friendCell = screen.slice(screen.indexOf('function FriendCell('));
   assert.match(friendCell, /accessibilityRole=\{cell\.owned \? 'button' : undefined\}/);
   assert.match(friendCell, /disabled=\{!cell\.owned\}/);
+});
+
+test('default penguin is an explicit selectable companion without an inventory item', () => {
+  assert.match(screen, /accessibilityLabel=\{snapshot\.avatar === null \? '기본 펭귄 동행, 선택됨' : '기본 펭귄 동행으로 바꾸기'\}/);
+  assert.match(screen, /<Mascot pose="wave" size=\{64\} breathe=\{false\} \/>/);
+  assert.match(screen, /'펭귄 선택', onPress: \(\) => void chooseAvatar\(null\)/);
+  assert.match(screen, /shop\.applyAvatar\(avatar\);\s*notifyProfileUpdated\(\);/);
 });
 
 test('PR #312 리뷰 7번 + 2차 confirm-review: 대표 설정 성공·실패 둘 다, 그 응답이 시작된 모달이 아직 떠 있을 때만 그 모달을 건드린다', () => {

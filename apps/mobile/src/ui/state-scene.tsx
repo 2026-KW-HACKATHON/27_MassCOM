@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import type { MascotPose } from './mascot-art';
 import { BounceButton } from './bounce-button';
 import { FloatingCard } from './floating-card';
-import { Mascot } from './mascot';
+import { AccountCompanion } from './account-companion';
 import { useUiStyles } from './use-ui-styles';
 
 const poseByKind: Record<'empty' | 'error' | 'loading', MascotPose> = { empty: 'sleep', error: 'puzzled', loading: 'search' };
@@ -21,7 +21,7 @@ export function StateScene({ kind, title, body, action, framed = true }: Props) 
   const styles = useUiStyles();
   const content = (
     <View style={styles.sceneContent} accessibilityLiveRegion={kind === 'empty' ? 'none' : 'polite'}>
-      <Mascot pose={poseByKind[kind]} size={132} />
+      <AccountCompanion pose={poseByKind[kind]} size={132} />
       <Text style={styles.sceneTitle}>{title}</Text>
       {body ? <Text style={styles.sceneBody}>{body}</Text> : null}
       {action ? <BounceButton label={action.label} onPress={action.onPress} disabled={action.disabled} variant="secondary" /> : null}

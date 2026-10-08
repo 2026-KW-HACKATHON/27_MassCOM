@@ -109,16 +109,18 @@ NODE
 
 node - "$repo_root/apps/api/src/showcase/wolgye-stores.json" <<'NODE'
 const api = 'https://demo-api.masscom.kr';
-const expectedIds = new Set(require(process.argv[2]).stores.map(({ id }) => id));
+const stores = require(process.argv[2]).stores;
+const expectedIds = new Set(stores.map(({ id }) => id));
+if (stores.length < 300 || expectedIds.size !== stores.length) throw new Error('showcase store catalog is incomplete');
 (async () => {
   const health = await fetch(`${api}/health`, { signal: AbortSignal.timeout(8000) });
   if (!health.ok || (await health.json()).status !== 'ok') throw new Error('showcase API health is not ready');
   const catalog = await fetch(`${api}/merchants`, { signal: AbortSignal.timeout(8000) });
   const body = await catalog.json();
-  if (!catalog.ok || !Array.isArray(body.merchants) || body.merchants.length !== 30 ||
-      new Set(body.merchants.map(({ id }) => id)).size !== 30 ||
+  if (!catalog.ok || !Array.isArray(body.merchants) || body.merchants.length !== expectedIds.size ||
+      new Set(body.merchants.map(({ id }) => id)).size !== expectedIds.size ||
       !body.merchants.every((merchant) => merchant.demo === true && expectedIds.has(merchant.id))) {
-    throw new Error('showcase API does not serve exactly the thirty real-data stores');
+    throw new Error('showcase API does not serve exactly the catalog real-data stores');
   }
 })().catch(() => { console.error('SHOWCASE_API_NOT_READY'); process.exitCode = 1; });
 NODE

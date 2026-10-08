@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Pool, PoolClient } from 'pg';
 
 import { SHOWCASE_SEED_CAMPAIGN_BACKDATE_DAYS } from './all-access.js';
+import { seedDemoAllianceCourse } from './demo-alliance-course.js';
 import { seedWolgyeStores, WOLGYE_COURSE_STORES, WOLGYE_STORES } from './wolgye-seed.js';
 
 export const SHOWCASE_MERCHANT_ID = 'showcase-local-merchant';
@@ -316,6 +317,7 @@ export async function seedShowcaseFixtureData(
         JSON.stringify(course.rows[0].merchant_ids) !== JSON.stringify(WOLGYE_COURSE_STORES.map((store) => store.id))) {
       throw new Error(fixtureError);
     }
+    await seedDemoAllianceCourse(client, now);
     await client.query('COMMIT');
     transactionStarted = false;
     return { merchantId: SHOWCASE_PRACTICE_MERCHANT_ID, campaignId: SHOWCASE_PRACTICE_CAMPAIGN_ID };

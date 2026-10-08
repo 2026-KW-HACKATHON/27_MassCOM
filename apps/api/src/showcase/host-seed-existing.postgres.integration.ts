@@ -10,7 +10,7 @@ import { PostgresCourseService } from '../postgres/courses.js';
 import { seedHostedShowcase } from './host-seed.js';
 import { seedStoreCollectibles } from './store-collectibles.js';
 import { SHOWCASE_COURSE_ID } from './local-seed.js';
-import { WOLGYE_COURSE_STORES } from './wolgye-seed.js';
+import { WOLGYE_COURSE_STORES, WOLGYE_STORES } from './wolgye-seed.js';
 
 const testUrl = process.env.TEST_SHOWCASE_HOST_DATABASE_URL;
 const safeTestTarget = (() => {
@@ -155,12 +155,14 @@ test('existing A/B/C become hidden while old visit, reward, and collected coin r
     assert.deepEqual(before, [3, 3, 3, 1, 1, 1]);
     await pool.query('ALTER TABLE campaigns DROP CONSTRAINT showcase_test_reject_practice');
     await seedHostedShowcase(pool);
-    assert.deepEqual(await counts(pool), [34, 34, 96, 1, 1, 1]);
+    assert.deepEqual(await counts(pool), [
+      WOLGYE_STORES.length + 4, WOLGYE_STORES.length + 4, 3 * WOLGYE_STORES.length + 6, 1, 1, 1,
+    ]);
     // 시드 전에 받은 보상권의 수집품 참조는 그대로 보존된다.
     const acquisitions = await pool.query('SELECT 1 FROM collectible_acquisitions');
     assert.equal(acquisitions.rowCount, 1);
     const publications = await pool.query('SELECT 1 FROM campaign_collectible_publications');
-    assert.equal(publications.rowCount, 31);
+    assert.equal(publications.rowCount, WOLGYE_STORES.length + 1);
     const afterVisit = await pool.query(
       `SELECT to_jsonb(v) AS snapshot FROM visit_events v
        WHERE id = '66666666-6666-4666-8666-666666666666'`,

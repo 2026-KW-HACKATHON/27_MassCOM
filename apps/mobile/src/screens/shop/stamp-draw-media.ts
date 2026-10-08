@@ -8,7 +8,7 @@ export type StampDrawSoundSettings = {
   soundEffectsVolume: number;
 };
 
-export const STAMP_REVEAL_DURATION_MS = 4208;
+export const STAMP_REVEAL_DURATION_MS = 5040;
 export const STAMP_REVEAL_WATCHDOG_MS = 12_000;
 
 export type StampPlaybackConfig = {
