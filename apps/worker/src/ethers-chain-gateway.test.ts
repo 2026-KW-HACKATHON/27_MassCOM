@@ -4,7 +4,12 @@ import test from 'node:test';
 import { FeeData, Transaction, Wallet, makeError, type JsonRpcApiProvider, type Log } from 'ethers';
 
 import { EthersMintChainGateway, contractCallError } from './ethers-chain-gateway.js';
-import { ChainConfigurationError, RetryableChainError, type MintWorkItem } from './mint-worker.js';
+import {
+  ChainConfigurationError,
+  MintEventMismatchError,
+  RetryableChainError,
+  type MintWorkItem,
+} from './mint-worker.js';
 
 const callException = (data: string | null) =>
   makeError('call failed', 'CALL_EXCEPTION', {
@@ -264,4 +269,136 @@ test('상시 실행: 조회 시작 블록을 갱신하면 이후 이벤트 조�
   ranges.length = 0;
   await assert.rejects(gateway.findMintByRewardKey(item), notFound);
   assert.deepEqual(ranges, [[700, 1000], [50, 699]]);
+});
+
+// confirmMint의 영수증 대기. ethers 6.17의 waitForTransaction은 조회 오류를 RPC 주소째 console.log하고, 비동기 Promise
+// 실행기 안에서 던져 처리되지 않은 거절로 프로세스를 죽이며, 시간 초과 뒤에도 리스너를 남긴다. 직접 만든 유한 조회로 대체했다.
+const rpcSecret = 'https://base-sepolia.example/v2/SECRET-API-KEY-1234';
+
+type ReceiptProvider = {
+  getTransactionReceipt(hash: string): Promise<unknown>;
+  getBlockNumber(): Promise<number>;
+  destroy(): void;
+};
+
+function receiptGateway(overrides: Partial<ReceiptProvider>, confirmations = 1) {
+  const gateway = new EthersMintChainGateway({
+    rpcUrl: rpcSecret, chainId: item.chainId, contractAddress: item.contractAddress,
+    minterAddress: '0x5000000000000000000000000000000000000005', confirmations, fromBlock: 0,
+    receiptWaitMs: 60, receiptPollMs: 10,
+  });
+  const provider = (gateway as unknown as { provider: ReceiptProvider }).provider;
+  provider.getTransactionReceipt = async () => null;
+  provider.getBlockNumber = async () => 0;
+  Object.assign(provider, overrides);
+  return { gateway, provider };
+}
+
+const timeoutCount = () => process.getActiveResourcesInfo().filter((name) => name === 'Timeout').length;
+const settle = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const hash = `0x${'cc'.repeat(32)}`;
+
+test('영수증 조회가 RPC 주소가 든 오류를 던져도 아무것도 로그로 남기지 않고 코드만 있는 재시도 오류가 된다', async (t) => {
+  const logged: unknown[][] = [];
+  for (const method of ['log', 'error', 'warn', 'info', 'debug'] as const) {
+    t.mock.method(console, method, (...args: unknown[]) => { logged.push(args); });
+  }
+  const failing = () => Promise.reject(new Error(`could not coalesce error (url=${rpcSecret})`));
+  const { gateway } = receiptGateway({ getTransactionReceipt: failing, getBlockNumber: failing });
+
+  const error = await gateway.confirmMint(item, hash).catch((caught: unknown) => caught);
+
+  assert.ok(error instanceof RetryableChainError);
+  assert.equal(error.code, 'RECEIPT_LOOKUP_FAILED');
+  assert.equal(error.cause, undefined);
+  assert.doesNotMatch(`${error.message} ${error.stack}`, /SECRET-API-KEY/);
+  assert.deepEqual(logged, []);
+  gateway.close();
+});
+
+test('getBlockNumber만 실패해도 처리되지 않은 거절 없이 재시도 오류로 끝난다', async (t) => {
+  const unhandled: unknown[] = [];
+  const record = (reason: unknown) => { unhandled.push(reason); };
+  process.on('unhandledRejection', record);
+  t.after(() => { process.off('unhandledRejection', record); });
+  const { gateway } = receiptGateway({
+    getTransactionReceipt: async () => ({ status: 1, blockNumber: 7, logs: [] }),
+    getBlockNumber: () => Promise.reject(new Error(`connect failed ${rpcSecret}`)),
+  });
+
+  await assert.rejects(
+    gateway.confirmMint(item, hash),
+    (caught: unknown) => caught instanceof RetryableChainError && caught.code === 'RECEIPT_LOOKUP_FAILED',
+  );
+  await settle(20);
+  assert.deepEqual(unhandled, []);
+  gateway.close();
+});
+
+test('영수증이 아직 없으면 기한까지 여러 번 다시 조회한 뒤 재시도 오류가 된다', async () => {
+  let calls = 0;
+  const { gateway } = receiptGateway({ getTransactionReceipt: async () => { calls += 1; return null; } });
+  const startedAt = Date.now();
+
+  await assert.rejects(
+    gateway.confirmMint(item, hash),
+    (caught: unknown) => caught instanceof RetryableChainError && caught.code === 'RECEIPT_LOOKUP_FAILED',
+  );
+
+  assert.ok(Date.now() - startedAt >= 55, '기한(60ms)보다 일찍 포기하면 안 된다');
+  assert.ok(calls >= 3, `기한 안에서 계속 조회해야 한다(조회 ${calls}회)`);
+  gateway.close();
+});
+
+test('기한이 지나면 조회가 멈추고 남는 타이머가 없다', async () => {
+  let calls = 0;
+  const timersBefore = timeoutCount();
+  const { gateway } = receiptGateway({ getTransactionReceipt: async () => { calls += 1; return null; } });
+
+  await assert.rejects(gateway.confirmMint(item, hash), RetryableChainError);
+  const callsAtDeadline = calls;
+  await settle(60);
+
+  assert.equal(calls, callsAtDeadline, '기한 뒤에도 조회가 이어졌다');
+  assert.ok(timeoutCount() <= timersBefore, '기한 뒤에도 타이머가 남았다');
+  gateway.close();
+});
+
+test('확인 깊이가 찰 때까지 기다린 뒤 영수증을 돌려준다', async () => {
+  const receipt = { status: 0, blockNumber: 10, logs: [] };
+  const heads = [10, 10, 11];
+  const { gateway } = receiptGateway({
+    getTransactionReceipt: async () => receipt,
+    getBlockNumber: async () => heads.shift() ?? 11,
+  }, 2);
+
+  // 깊이 2가 차면(블록 11) 영수증을 받고, 되돌려진 거래이므로 영구 오류로 닫힌다.
+  await assert.rejects(
+    gateway.confirmMint(item, hash),
+    (caught: unknown) => caught instanceof MintEventMismatchError && caught.code === 'MINT_TRANSACTION_REVERTED',
+  );
+  assert.deepEqual(heads, []);
+  gateway.close();
+});
+
+test('깊이가 영영 차지 않으면 되돌려진 거래로 단정하지 않고 재시도 오류가 된다', async () => {
+  const { gateway } = receiptGateway({
+    getTransactionReceipt: async () => ({ status: 0, blockNumber: 10, logs: [] }),
+    getBlockNumber: async () => 10,
+  }, 2);
+
+  await assert.rejects(
+    gateway.confirmMint(item, hash),
+    (caught: unknown) => caught instanceof RetryableChainError && caught.code === 'RECEIPT_LOOKUP_FAILED',
+  );
+  gateway.close();
+});
+
+test('close는 공급자를 정리한다', () => {
+  let destroyed = 0;
+  const { gateway } = receiptGateway({ destroy: () => { destroyed += 1; } });
+
+  gateway.close();
+
+  assert.equal(destroyed, 1);
 });

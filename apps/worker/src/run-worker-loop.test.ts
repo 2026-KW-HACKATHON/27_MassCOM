@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseWorkerLoopSettings, safeErrorFields } from './run-worker-loop.js';
+import { installCrashHandlers, parseWorkerLoopSettings } from './run-worker-loop.js';
+import { safeErrorFields } from './run-worker.js';
 
 test('반복 설정은 기본값과 허용 범위를 가진다', () => {
   const defaults = parseWorkerLoopSettings({});
@@ -57,4 +58,30 @@ test('환경변수 검증 메시지는 변수 이름만 담으므로 원인을 �
     name: 'Error',
     message: 'WORKER_IDLE_POLL_MS must be an integer between 500 and 60000',
   });
+});
+
+test('잡히지 않은 예외·거절은 RPC 주소 없이 MINT_WORKER_CRASHED 한 줄을 남기고 종료 코드 1로 끝낸다', (t) => {
+  const lines: string[] = [];
+  t.mock.method(console, 'log', (line: unknown) => { lines.push(String(line)); });
+  const exits: number[] = [];
+  const secret = new Error('request failed https://base-sepolia.example/v2/SECRET-API-KEY-1234');
+  Object.assign(secret, { code: 'NETWORK_ERROR' });
+
+  const listenersOf = (event: string) => (process as NodeJS.EventEmitter).listeners(event);
+  for (const event of ['uncaughtException', 'unhandledRejection']) {
+    const before = new Set(listenersOf(event));
+    const dispose = installCrashHandlers((code) => { exits.push(code); });
+    const added = listenersOf(event).filter((listener) => !before.has(listener));
+    assert.equal(added.length, 1, `${event} 리스너가 하나 추가되어야 한다`);
+    (added[0] as (error: unknown) => void)(secret);
+    dispose();
+    assert.equal(listenersOf(event).filter((listener) => !before.has(listener)).length, 0);
+  }
+
+  assert.deepEqual(exits, [1, 1]);
+  assert.equal(lines.length, 2);
+  for (const line of lines) {
+    assert.deepEqual(JSON.parse(line), { event: 'MINT_WORKER_CRASHED', name: 'Error', code: 'NETWORK_ERROR' });
+    assert.doesNotMatch(line, /SECRET-API-KEY/);
+  }
 });

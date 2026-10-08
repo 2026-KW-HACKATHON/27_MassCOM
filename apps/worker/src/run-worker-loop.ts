@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { createConfiguredWorker } from './run-worker.js';
+import { createConfiguredWorker, safeErrorFields } from './run-worker.js';
 import { abortableSleep, runWorkerLoop } from './worker-loop.js';
 
 export type WorkerLoopSettings = {
@@ -52,22 +52,25 @@ function boundedInteger(
   return parsed;
 }
 
-// ethers·pg 오류 메시지에는 RPC 주소(키 포함 가능)나 연결 문자열이 들어갈 수 있어 이름과 코드만 남긴다.
-// 환경변수 검증 메시지("NAME is required", "NAME must be ...")는 변수 이름만 담으므로 원인 파악을 위해 남긴다.
-const configMessage = /^[A-Z][A-Z0-9_]+ (is required|must )[^\r\n]*$/;
-
-export function safeErrorFields(error: unknown): { name: string; code?: string; message?: string } {
-  if (!(error instanceof Error)) return { name: 'NonError' };
-  const code = (error as Error & { code?: unknown }).code;
-  return {
-    name: error.name,
-    ...(typeof code === 'string' ? { code } : {}),
-    ...(configMessage.test(error.message) ? { message: error.message } : {}),
-  };
-}
-
 function log(event: string, fields: Record<string, unknown> = {}): void {
   console.log(JSON.stringify({ event, ...fields }));
+}
+
+/**
+ * 잡히지 않은 예외·거절은 라이브러리가 RPC 주소(키 포함 가능)를 담은 메시지를 stderr에 그대로 찍고 죽게 두므로,
+ * 이름과 코드만 한 줄 남기고 종료 코드 1로 끝낸다(컨테이너 재시작 정책이 다시 띄운다). 반환값은 리스너를 떼는 함수다.
+ */
+export function installCrashHandlers(exit: (code: number) => void = process.exit): () => void {
+  const crash = (error: unknown): void => {
+    log('MINT_WORKER_CRASHED', safeErrorFields(error));
+    exit(1);
+  };
+  process.on('unhandledRejection', crash);
+  process.on('uncaughtException', crash);
+  return () => {
+    process.off('unhandledRejection', crash);
+    process.off('uncaughtException', crash);
+  };
 }
 
 export async function runWorkerLoopFromEnvironment(
@@ -114,7 +117,7 @@ export async function runWorkerLoopFromEnvironment(
       errorBackoff: settings.errorBackoff,
       onHealthy: (processed) => {
         heartbeat();
-        if (processed) log('MINT_WORKER_PROCESSED_ONE_JOB');
+        if (processed) log('MINT_WORKER_JOB_HANDLED');
       },
       onError: (error, nextDelayMs) => {
         log('MINT_WORKER_ITERATION_FAILED', { ...safeErrorFields(error), retryInMs: nextDelayMs });
@@ -127,6 +130,7 @@ export async function runWorkerLoopFromEnvironment(
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  installCrashHandlers();
   try {
     await runWorkerLoopFromEnvironment();
   } catch (error) {

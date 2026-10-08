@@ -9,6 +9,7 @@ import {
   type EventLog,
   type Log,
   type Signer,
+  type TransactionReceipt,
 } from 'ethers';
 
 import {
@@ -54,6 +55,10 @@ type GatewayOptions = {
    * broadcasts an unlocked account's transaction in one call.
    */
   signer?: Signer;
+  /** confirmMint가 영수증과 확인 깊이를 기다리는 상한(ms). 기본 30초. */
+  receiptWaitMs?: number;
+  /** confirmMint가 영수증을 다시 조회하기까지의 간격(ms). 기본 2초. */
+  receiptPollMs?: number;
 };
 
 export class EthersMintChainGateway implements MintChainGateway {
@@ -68,8 +73,8 @@ export class EthersMintChainGateway implements MintChainGateway {
   private scanFromBlock: number;
 
   constructor(private readonly options: GatewayOptions) {
-    // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, and
-    // waitForTransaction then waits for a next block that an automining chain never produces.
+    // cacheTimeout -1: a block number cached for 250ms can predate a just-mined receipt, which
+    // would make the confirmation-depth check in waitForReceipt see a head older than the receipt.
     this.provider = new JsonRpcProvider(options.rpcUrl, options.chainId, {
       staticNetwork: true,
       cacheTimeout: -1,
@@ -454,18 +459,13 @@ export class EthersMintChainGateway implements MintChainGateway {
     }
   }
 
+  /** Releases the provider's network resources (pending requests, polling). Call once on shutdown. */
+  close(): void {
+    this.provider.destroy();
+  }
+
   async confirmMint(item: MintWorkItem, transactionHash: string): Promise<ChainMintResult> {
-    let receipt;
-    try {
-      receipt = await this.provider.waitForTransaction(
-        transactionHash,
-        this.options.confirmations,
-        30_000,
-      );
-    } catch {
-      throw new RetryableChainError('RECEIPT_LOOKUP_FAILED');
-    }
-    if (!receipt) throw new RetryableChainError('RECEIPT_NOT_READY');
+    const receipt = await this.waitForReceipt(transactionHash);
     if (receipt.status !== 1) throw new MintEventMismatchError('MINT_TRANSACTION_REVERTED');
 
     const eventFragment = this.contractInterface.getEvent('MascotMinted');
@@ -477,6 +477,35 @@ export class EthersMintChainGateway implements MintChainGateway {
     );
     if (matching.length !== 1) throw new MintEventMismatchError('MINT_EVENT_COUNT_MISMATCH');
     return this.resultFromEvent(item, matching[0]!, undefined);
+  }
+
+  /**
+   * Bounded poll for a receipt that is at least `confirmations` deep. This replaces ethers'
+   * provider.waitForTransaction (6.17), which console.logs receipt-fetch errors with the full RPC
+   * URL (API key included), throws from inside an async Promise executor so a getBlockNumber
+   * failure becomes an unhandled rejection that kills the process, and leaves its block listener
+   * running after the timeout. RPC errors are swallowed here on purpose: they embed the RPC URL,
+   * so only a code-only RetryableChainError ever leaves this method.
+   */
+  private async waitForReceipt(transactionHash: string): Promise<TransactionReceipt> {
+    const waitMs = this.options.receiptWaitMs ?? 30_000;
+    const pollMs = this.options.receiptPollMs ?? 2_000;
+    const deadline = Date.now() + waitMs;
+    for (;;) {
+      try {
+        const receipt = await this.provider.getTransactionReceipt(transactionHash);
+        if (receipt) {
+          const head = await this.provider.getBlockNumber();
+          if (head - receipt.blockNumber + 1 >= this.options.confirmations) return receipt;
+        }
+      } catch {
+        // Retry until the deadline; see the method comment for why the error is dropped.
+      }
+      const remaining = deadline - Date.now();
+      // Same code the old waitForTransaction timeout (and any lookup failure) produced.
+      if (remaining <= 0) throw new RetryableChainError('RECEIPT_LOOKUP_FAILED');
+      await new Promise<void>((resolve) => setTimeout(resolve, Math.min(pollMs, remaining)));
+    }
   }
 
   private async resultFromEvent(

@@ -1,3 +1,4 @@
+import { hostname } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
 import { Pool } from 'pg';
@@ -17,13 +18,68 @@ export type ConfiguredWorker = {
   close(): Promise<void>;
 };
 
+// ethers·pg 오류 메시지에는 RPC 주소(키 포함 가능)나 연결 문자열이 들어갈 수 있어 이름과 코드만 남긴다.
+// 환경변수 검증 메시지("NAME is required", "NAME must be ...")는 변수 이름만 담으므로 원인 파악을 위해 남긴다.
+const configMessage = /^[A-Z][A-Z0-9_]+ (is required|must )[^\r\n]*$/;
+
+export function safeErrorFields(error: unknown): { name: string; code?: string; message?: string } {
+  if (!(error instanceof Error)) return { name: 'NonError' };
+  const code = (error as Error & { code?: unknown }).code;
+  return {
+    name: error.name,
+    ...(typeof code === 'string' ? { code } : {}),
+    ...(configMessage.test(error.message) ? { message: error.message } : {}),
+  };
+}
+
+/**
+ * 유휴 연결의 오류(DB 재시작, `pg_terminate_backend` 등)는 풀이 'error'로 내보내는데 리스너가 없으면 프로세스가
+ * 죽는다. 한 줄만 남기고 넘기면 다음 반복의 질의가 정상 경로로 실패해 백오프한다. 연결 문자열은 남기지 않는다.
+ */
+export function createWorkerPool(connectionString: string, max: number): Pool {
+  const pool = new Pool({ connectionString, max });
+  pool.on('error', (error) => {
+    console.error(JSON.stringify({ event: 'MINT_WORKER_DB_POOL_ERROR', ...safeErrorFields(error) }));
+  });
+  return pool;
+}
+
+/**
+ * 반복마다 한 건을 처리하되, 첫 반복 뒤로는 기록된 커서에서 이벤트 조회 시작 블록을 다시 계산해 게이트웨이에 넘긴다.
+ * 오래 떠 있는 프로세스의 조회 범위가 시작 시점부터 계속 늘어나지 않게 한다(첫 반복은 시작 때 계산한 값을 쓴다).
+ */
+export function scanRefreshingRunOnce(deps: {
+  repository: { getEventScanStart(chainId: number, contractAddress: string): Promise<number> };
+  gateway: { setScanFromBlock(fromBlock: number): void };
+  worker: { runOnce(workerId: string): Promise<boolean> };
+  chainId: number;
+  contractAddress: string;
+  workerId: string;
+}): () => Promise<boolean> {
+  let firstRun = true;
+  return async () => {
+    if (!firstRun) {
+      deps.gateway.setScanFromBlock(
+        await deps.repository.getEventScanStart(deps.chainId, deps.contractAddress),
+      );
+    }
+    firstRun = false;
+    return deps.worker.runOnce(deps.workerId);
+  };
+}
+
+/** 컨테이너 둘이 같은 WORKER_ID를 받아도 임대 소유자(lease_owner)가 겹치지 않게 호스트 이름과 pid를 붙인다. */
+export function workerLeaseOwner(raw: string | undefined): string {
+  return `${raw?.trim() || 'local-mint-worker'}-${hostname()}-${process.pid}`;
+}
+
 export async function createConfiguredWorker(environment = process.env): Promise<ConfiguredWorker> {
   const databaseUrl = required(environment.DATABASE_URL, 'DATABASE_URL');
   const rpcUrl = required(environment.CHAIN_RPC_URL, 'CHAIN_RPC_URL');
   const chainId = requiredInteger(environment.CHAIN_ID, 'CHAIN_ID');
   const contractAddress = required(environment.NFT_CONTRACT_ADDRESS, 'NFT_CONTRACT_ADDRESS');
   const minterAddress = required(environment.MINTER_ADDRESS, 'MINTER_ADDRESS');
-  const workerId = environment.WORKER_ID?.trim() || 'local-mint-worker';
+  const workerId = workerLeaseOwner(environment.WORKER_ID);
   // 확정 때 고정하는 공개 메타데이터·그림의 출처(Issue #254). 한 번 쓰면 바꿀 수 없으므로 기본값 없이 반드시 받는다.
   const nftMetadataOrigin = parseNftMetadataOrigin(environment.NFT_METADATA_ORIGIN);
   const confirmations = requiredInteger(
@@ -64,7 +120,7 @@ export async function createConfiguredWorker(environment = process.env): Promise
   // sweep -> markPrepared -> submit sequence, while the rest of the repository (lease, finalize,
   // etc.) needs its own connections concurrently; a pool of 1-2 would let the lock holder starve
   // everything else that shares this pool within the same process.
-  const pool = new Pool({ connectionString: databaseUrl, max: databasePoolMax });
+  const pool = createWorkerPool(databaseUrl, databasePoolMax);
   try {
     const repository = new PostgresMintRepository(pool, {
       chainFromBlock,
@@ -87,18 +143,12 @@ export async function createConfiguredWorker(environment = process.env): Promise
       ...(signerResolution.mode === 'service' ? { signer: signerResolution.signer } : {}),
     });
     const worker = new MintWorker(repository, gateway);
-    let firstRun = true;
     return {
-      async runOnce() {
-        // 처음 한 번은 위에서 방금 계산한 값을 쓴다. 이후에는 반복마다 기록된 커서에서 다시 계산해, 오래 떠 있는
-        // 프로세스의 이벤트 조회 범위가 시작 시점부터 계속 늘어나지 않게 한다.
-        if (!firstRun) {
-          gateway.setScanFromBlock(await repository.getEventScanStart(chainId, contractAddress));
-        }
-        firstRun = false;
-        return worker.runOnce(workerId);
+      runOnce: scanRefreshingRunOnce({ repository, gateway, worker, chainId, contractAddress, workerId }),
+      async close() {
+        gateway.close();
+        await pool.end();
       },
-      close: () => pool.end(),
     };
   } catch (error) {
     await pool.end();

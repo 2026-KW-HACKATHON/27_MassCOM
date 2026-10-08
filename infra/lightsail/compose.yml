@@ -160,12 +160,14 @@ services:
       CHAIN_ID: ${NFT_CHAIN_ID:-}
       NFT_CONTRACT_ADDRESS: ${NFT_CONTRACT_ADDRESS:-}
       MINTER_ADDRESS: ${NFT_MINTER_ADDRESS:-}
-      CHAIN_FROM_BLOCK: ${NFT_CHAIN_FROM_BLOCK:-0}
+      # 기본값을 두지 않는다. 비어 있으면 Worker가 시작을 거절한다(0부터 훑어 RPC 조회 한도를 넘기는 일을 막는다).
+      CHAIN_FROM_BLOCK: ${NFT_CHAIN_FROM_BLOCK:-}
       CHAIN_CONFIRMATIONS: ${NFT_CHAIN_CONFIRMATIONS:-1}
       CHAIN_RECEIPT_TIMEOUT_MS: ${NFT_CHAIN_RECEIPT_TIMEOUT_MS:-600000}
       MINTER_MIN_BALANCE_WEI: ${NFT_MINTER_MIN_BALANCE_WEI:-0}
       # 확정 때 고정하는 공개 메타데이터의 출처라 환경 파일로 바꿀 수 없게 운영 값으로 고정한다(Issue #254).
       NFT_METADATA_ORIGIN: https://masscom.kr
+      # Worker가 호스트 이름과 pid를 뒤에 붙여 임대 소유자(lease_owner)를 컨테이너마다 다르게 만든다.
       WORKER_ID: masscom-mint-worker
       WORKER_IDLE_POLL_MS: ${NFT_WORKER_IDLE_POLL_MS:-3000}
       WORKER_HEARTBEAT_FILE: /tmp/mint-worker.heartbeat
@@ -194,7 +196,8 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    # SIGTERM을 받으면 처리 중인 한 건을 끝내고 멈춘다. 그 한 건이 끝날 시간을 준다.
+    # SIGTERM을 받으면 처리 중인 한 건을 끝내고 멈춘다. 60초는 보통의 한 건(영수증 대기 최대 30초 포함)에는 충분하지만
+    # 끝난다는 보장은 아니다. 못 끝내고 SIGKILL되면 임대 만료(30초)와 기록된 서명 거래 재전송으로 복구된다.
     stop_grace_period: 60s
     read_only: true
     tmpfs:

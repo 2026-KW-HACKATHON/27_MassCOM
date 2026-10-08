@@ -18,7 +18,9 @@ const baseEnv = {
 function render(extraArgs = [], extraEnv = {}) {
   const env = { ...process.env, ...baseEnv, ...extraEnv };
   // 호스트에 이미 있는 값이 시험을 바꾸지 않게 한다.
-  delete env.NFT_MINTER_KEY_DIR;
+  for (const name of Object.keys(env)) {
+    if (name.startsWith('NFT_') || name === 'COMPOSE_PROFILES') delete env[name];
+  }
   Object.assign(env, extraEnv);
   const rendered = execFileSync('docker', ['compose', '-f', composeFile, ...extraArgs, 'config', '--format', 'json'], {
     cwd: repoRoot, encoding: 'utf8', env, stdio: ['ignore', 'pipe', 'pipe'],
@@ -26,7 +28,8 @@ function render(extraArgs = [], extraEnv = {}) {
   return JSON.parse(rendered).services;
 }
 
-const worker = () => render(['--profile', 'nft-live'], { NFT_MINTER_KEY_DIR: '/srv/minter', NFT_CHAIN_ID: '84532' })['mint-worker'];
+const worker = (extraEnv = {}) =>
+  render(['--profile', 'nft-live'], { NFT_MINTER_KEY_DIR: '/srv/minter', ...extraEnv })['mint-worker'];
 
 test('평소 배포(프로파일 없음)에는 Worker가 없고, 필수 키 폴더 변수 없이도 렌더된다', () => {
   const services = render();
@@ -36,10 +39,27 @@ test('평소 배포(프로파일 없음)에는 Worker가 없고, 필수 키 폴�
   }
 });
 
-test('배포 스크립트는 Worker를 이름으로 올리지 않아 평소 배포가 켜지 못한다', () => {
+// 배포 스크립트가 Worker를 켜는 길만 막는다: `up` 대상으로 지정, `--profile nft-live`, COMPOSE_PROFILES.
+// 이름이 나오는 것 자체는 막지 않는다(go-live 전에 migrate 앞에서 `stop mint-worker`, 배포 때 `build mint-worker`를 넣을 예정).
+test('배포 스크립트는 Worker를 올리지도(up), 프로파일을 켜지도 않는다', () => {
   for (const file of ['scripts/deploy-lightsail.sh', 'scripts/deploy-lightsail-web.sh', 'scripts/lightsail-web-rollback.sh']) {
-    assert.doesNotMatch(readFileSync(resolve(repoRoot, file), 'utf8'), /mint-worker|nft-live/, file);
+    const commands = readFileSync(resolve(repoRoot, file), 'utf8')
+      .replace(/\r\n/g, '\n')
+      .replace(/\\\n/g, ' ')
+      .split('\n')
+      .filter((line) => !/^\s*#/.test(line));
+    for (const command of commands) {
+      assert.doesNotMatch(command, /--profile[ =]+["']?nft-live|COMPOSE_PROFILES/, `${file}: ${command.trim()}`);
+      if (/\bmint-worker\b/.test(command)) {
+        assert.doesNotMatch(command, /\bup\b/, `${file}: ${command.trim()}`);
+      }
+    }
   }
+});
+
+test('runtime.env.example에는 COMPOSE_PROFILES가 없다(넣으면 모든 compose 명령이 발행을 켠다)', () => {
+  const example = readFileSync(resolve(repoRoot, 'infra/lightsail/runtime.env.example'), 'utf8');
+  assert.doesNotMatch(example, /COMPOSE_PROFILES/);
 });
 
 test('운영 API는 Worker 프로파일을 켜도 발행 준비 중(PREPARING)으로 고정된다(D-054)', () => {
@@ -106,7 +126,31 @@ test('Worker 환경에는 개인키·복구 문구·잠금 해제 계정 변수�
   }
   assert.equal(environment.ALLOW_UNLOCKED_LOCAL_MINTER, undefined);
   assert.equal(environment.NFT_METADATA_ORIGIN, 'https://masscom.kr');
-  assert.equal(environment.CHAIN_ID, '84532');
+});
+
+// 체인 설정은 기본값 없이 환경 파일에서만 온다. 비어 있으면 Worker가 시작을 거절한다(조회 시작 블록이 0이면 RPC 조회 한도를
+// 넘기고, 체인 ID를 추측하면 엉뚱한 체인에 보낼 수 있다). 값이 있으면 그대로 전달한다.
+test('체인 설정에는 기본값이 없어 비어 있으면 비어 있는 채로 전달되고, 있으면 그대로 전달된다', () => {
+  const names = ['CHAIN_RPC_URL', 'CHAIN_ID', 'NFT_CONTRACT_ADDRESS', 'MINTER_ADDRESS', 'CHAIN_FROM_BLOCK'];
+  const empty = worker().environment;
+  for (const name of names) assert.equal(empty[name], '', `${name}에 기본값이 있으면 안 된다`);
+
+  const filled = worker({
+    NFT_CHAIN_ID: '84532',
+    NFT_CHAIN_FROM_BLOCK: '47152878',
+    NFT_CHAIN_RPC_URL: 'https://rpc.example.test',
+    NFT_CONTRACT_ADDRESS: '0x1edca95bb453d8456cfe28c6e24c4e51172e36c4',
+    NFT_MINTER_ADDRESS: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  }).environment;
+  assert.equal(filled.CHAIN_ID, '84532');
+  assert.equal(filled.CHAIN_FROM_BLOCK, '47152878');
+  assert.equal(filled.CHAIN_RPC_URL, 'https://rpc.example.test');
+  assert.equal(filled.NFT_CONTRACT_ADDRESS, '0x1edca95bb453d8456cfe28c6e24c4e51172e36c4');
+  assert.equal(filled.MINTER_ADDRESS, '0x70997970C51812dc3A010C7d01b50e0d17dc79C8');
+});
+
+test('Worker의 결과 대기 기본값은 10분이다(24시간이 아니다)', () => {
+  assert.equal(worker().environment.CHAIN_RECEIPT_TIMEOUT_MS, '600000');
 });
 
 test('Worker 이미지는 저장소 루트가 키 폴더(/run/minter)를 포함하지 않는 위치에 둔다', () => {
