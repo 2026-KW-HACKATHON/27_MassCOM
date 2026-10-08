@@ -5,7 +5,7 @@
 ## 1. 기준 커밋과 작업 위치
 
 기준 시각: 2026-10-09 KST
-기준 main 커밋 SHA: `b37063c0` (통합 HEAD `9545b503`)
+기준 main 커밋 SHA: `b37063c0` (통합 HEAD `48ad22be`)
 브랜치 `fix/ai-image-gap-fixes`, worktree `.worktrees/ai-image-gap-fixes`. 최신 소스는 통합되어 커밋되었으며 부모가 PR 준비를 진행한다.
 
 ## 2. 현재 구현
@@ -68,3 +68,5 @@ OpenAI 키는 서버 비밀 파일에만 둔다. 자동/가상 시험을 실제 
 - 이전 브랜치 검증과 main 병합 전 브라우저 캡처는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 당시 범위 그대로 보존한다.
 - 최신 main 이후 development 캡처는 별도 표기하고 hosted real-only 시각 검수와 혼동하지 않는다.
 - 한국어 PR 검사와 Lore 커밋 규칙을 따른다. AI 공동 작성자 표시는 넣지 않는다.
+
+최종 추가 통합: PR #446, main9282477d·2cfcc8e8 반영, 제품 코드 API 변경 없이 모바일2233/2233·사이트495/495·CI연결105·병렬CI2/2·gate PASS. 공개 배포는 미실행이다.

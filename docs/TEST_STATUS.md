@@ -1638,3 +1638,10 @@ Phase 2 카탈로그 통합 테스트 자체는 QR·방문 시험과 분리되�
 첫 export는 agent 편집 중 아직 생성되지 않은 `collectible-motion` import로 실패했고 파일 안정화 뒤 운영·시연 두 번 모두 통과했다. 최초 모바일 검사의 기존 plugin/인라인 이미지 기대값은 새 계약에 맞춰 수정하고 전체 785개를 다시 실행했다. 필수 v3 36개 제품 시험의 기존 31 PASS / 2 BLOCKED / 3 NOT_RUN은 바꾸지 않는다. Android는 완성된 재질 정면을 회전하며 웹처럼 각도마다 홀로그램·메탈릭 재질을 다시 계산하지 않는다.
 
 원격 `dd1dc050`의 [PR 전체 CI run453](https://github.com/2026-KW-HACKATHON/27_MassCOM/actions/runs/36663494995)은 모든 단계 SUCCESS다. Ubuntu/Node24.10.0·PostgreSQL16.10에서 컨테이너·Chrome·API/PG·Worker/Anvil·Android 운영/시연 번들까지 통과했다. 위 Windows의 넓은 묶음 실패는 당시 로컬 환경 기록으로 유지하며 원격 CI의 통과와 구분한다. 이후 첨부 이미지 UI 반영분은 별도 로컬/브라우저 검수와 해당 커밋의 CI가 필요하다.
+
+
+## 2026-10-09 PR #446 최종 통합 검증
+
+main `9282477d`의 수집 후 다음 행동과 `2cfcc8e8`의 병렬 CI를 `48ad22be`까지 병합했다. 최종 API677/677(이후 API 소스 변경 없음), 모바일2233/2233, 사이트495/495, 타입·빌드·lint 경고0를 확인했다. 새 PostgreSQL migration75/75와 전체600 PASS/3 SKIP 뒤 해당 호스트 시드3건을 독립된 새 DB에서 각각 통과해 고유603건의 근거를 확보했다. CI 연결에서 빠진 연합 미션 사이트 시험을 추가해105개 연결 검증과 병렬 CI 시험2/2·로컬게이트가 통과했다. API·Worker 생산 의존성 audit0, 모바일은 저장소의 기한 있는 기존 예외를 적용한 audit PASS다. GitHub CI 결과는 별도로 확인하며 아직 자동 통과를 주장하지 않는다.
+
+이전 양성 시연 캡처는8aa8b724/43c0cee0 기준이고 최신 개발 화면·시험은 [병합 검수](evidence/alliance-draw-2026-10-09/integration-9545b503.json)와 구분했다. 새 API/DB/설치본 배포·유료 이미지 생성·Android 실기기는 NOT_RUN이다.

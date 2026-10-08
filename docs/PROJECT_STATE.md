@@ -1,4 +1,4 @@
-현재 자동 시험 합계(2026-10-09 KST, main `b37063c0`를 병합한 HEAD `9545b503` 기준): API 단위 677/677 · 모바일 2220/2220. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)). 이 한 줄은 README와 PROJECT_STATE가 동일하다. 이전 기준선·브랜치별 수치는 [HANDOFF_HISTORY](docs/HANDOFF_HISTORY.md)에 보존한다.
+현재 자동 시험 합계(2026-10-09 KST, main `2cfcc8e8`을 병합한 `fix/ai-image-gap-fixes`, 최종 통합 `48ad22be` 기준): API 단위 677/677 · 모바일 2233/2233. 사이트495/495, PostgreSQL 고유603건(전체600 PASS/3 SKIP 후 해당3건 독립 PASS), 타입·빌드·lint 경고0·게이트 PASS. 필수36개 시험 ID는31 PASS / 2 BLOCKED / 3 NOT_RUN이며 실기기·유료 생성·새 소스 배포 검증을 대신하지 않습니다.
 
 ## 2026-10-09 PR #435 도감 등록 리뷰 후속 (파일 수정만·미커밋)
 
