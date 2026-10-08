@@ -427,3 +427,10 @@ npm run test:postgres
 
 
 Windows에서 npm의 단일따옴표 glob은 0건으로 끝날 수 있습니다. 실제 단위 시험은 PowerShell에서 `$apiTestPaths = @(rg --files src -g "*.test.ts"); node node_modules/tsx/dist/cli.mjs --test @apiTestPaths`로 실행합니다. PostgreSQL 시험은 폐기용 DB의 모든 migration 적용 뒤 전용 프로세스 하나로 실행합니다.
+
+
+## 코스 (Issue #412 T4 A, D-093)
+
+`routes/courses.ts`는 `GET /me/courses`, `GET /me/courses/:id`, `POST /me/courses/:id/unlock`을 처리한다. GET은 도감과 같은 동의 경계이고 unlock만 현재 놀이 동의·계정 제한·빈 JSON 본문을 요구한다. 관리자 웹 세션/CSRF 경로는 `/api/web/admin/courses`(GET/POST), `/:id/check`·`/:id/publish`·`/:id/pause`(POST)다. 응답은 목록 `{courses}`, 단건 `{course}`, unlock `{course,replayed}`다.
+
+`course-rules.ts`는 입력·진행·게시 규칙, `postgres/courses.ts`는 새 코스 표 쓰기와 기존 보상권·점포·캠페인 읽기를 맡는다. `counts_from`이 없으면 게시 전 보상권도 세며 리롤은 단계를 취소하지 않는다. 추천의 선택 `course` 필드는 기존 reasonCode를 확장하지 않는다. migration `0072_courses.sql`은 추가 전용이고 배포하지 않았다. 자세한 규칙은 [D-093](../../docs/DECISIONS.md)이다.

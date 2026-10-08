@@ -7,6 +7,7 @@ import { Pool } from 'pg';
 import { runMigrations } from '../postgres/migrate.js';
 import { PostgresAccountLifecycle } from '../postgres/account-lifecycle.js';
 import { seedHostedShowcase } from './host-seed.js';
+import { SHOWCASE_COURSE_ID } from './local-seed.js';
 import { grantShowcaseStaff } from './grant-staff.js';
 
 const testUrl = process.env.TEST_SHOWCASE_HOST_DATABASE_URL;
@@ -35,6 +36,10 @@ test('hosted seed preserves A progress, converges under retries, and rejects fix
       pool.query(`SELECT count(*)::int AS total FROM badge_reward_offers WHERE status = 'ACTIVE'`),
     ]);
     assert.deepEqual(counts.map(({ rows }) => rows[0]?.total), [3, 3, 9, 0, 3]);
+    const course = await pool.query<{ status: string; steps: number }>(
+      `SELECT c.status, (SELECT count(*)::int FROM course_steps WHERE course_id=c.id) AS steps
+       FROM courses c WHERE c.id=$1`, [SHOWCASE_COURSE_ID]);
+    assert.deepEqual(course.rows[0], { status: 'ACTIVE', steps: 3 });
 
     await pool.query('UPDATE campaigns SET enrolled_count = 2 WHERE id = $1', ['showcase-local-campaign']);
     await seedHostedShowcase(pool);

@@ -532,7 +532,7 @@ test('D-023: a visit earns the reward without any campaign enrollment even when 
   } finally { await pool.end(); }
 });
 
-test('0032 keeps the deployed API statements working and, with 0043, accepts exactly the sixteen audit actions', { skip }, async () => {
+test('0032 keeps deployed API statements working and 0072 preserves the complete audit action union', { skip }, async () => {
   const pool = new Pool({ connectionString: testUrl });
   const client = await pool.connect();
   try {
@@ -579,6 +579,12 @@ test('0032 keeps the deployed API statements working and, with 0043, accepts exa
       await assert.rejects(client.query(sql, params), (error: { code?: string }) => error.code === '23514');
       await client.query('ROLLBACK TO SAVEPOINT refused');
     };
+    // 0072도 0068의 목적 action을 보존하고 코스 action 네 개만 보탠다.
+    for (const action of ['CAMPAIGN_PURPOSE_SET', 'COURSE_CREATED', 'COURSE_CHECKED', 'COURSE_PUBLISHED', 'COURSE_PAUSED']) {
+      await client.query(
+        `INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, after_state)
+         VALUES ($1, 'new-admin', $2, $3, '{}')`, [randomUUID(), merchantId, action]);
+    }
     await reject(`INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, after_state)
       VALUES ($1, 'x', $2, 'MERCHANT_OWNER_GRANTED', '{}')`, [randomUUID(), merchantId]);
     await reject(`INSERT INTO platform_admin_audit(id, actor_account_id, merchant_id, action, after_state, target_account_id)
@@ -589,7 +595,7 @@ test('0032 keeps the deployed API statements working and, with 0043, accepts exa
       consent_document_ref) VALUES ($1, 1, $2, '전화', '', 30, 'PAUSED', '기록', '010-1234-5678')`, [randomUUID(), merchantId]);
     const check = await client.query<{ definition: string }>(
       `SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'platform_admin_audit_action_check'`);
-    assert.equal((check.rows[0]!.definition.match(/'[A-Z_]+'::text/g) ?? []).length, 16);
+    assert.equal((check.rows[0]!.definition.match(/'[A-Z_]+'::text/g) ?? []).length, 21);
   } finally {
     await client.query('ROLLBACK');
     client.release();

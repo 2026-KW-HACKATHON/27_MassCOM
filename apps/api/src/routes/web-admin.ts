@@ -1,3 +1,4 @@
+import { parseSuggestedHour } from '../course-rules.js';
 import { AdminError, type AdminCampaignDraftInput, type MerchantInput } from '../postgres/admin.js';
 import type { PublishCoinPoolInput, PublishCoinSeriesInput } from '../coin-economy.js';
 import { authLoginClientKey, requireWebCookie } from '../http/request-auth.js';
@@ -44,6 +45,33 @@ export async function handleWebAdmin(ctx: RouteContext): Promise<boolean> {
     }
     const accountId = await webAuth.resolveSession(requireWebCookie(request, 'web_session'), origin);
     if (!(await admin.isAdmin(accountId))) throw new AdminError('ADMIN_FORBIDDEN');
+    if (path === '/api/web/admin/courses' || /^\/api\/web\/admin\/courses\/[^/]+\/(check|publish|pause)$/.test(path)) {
+      if (!deps.courses) throw new RequestError(503, 'COURSES_NOT_CONFIGURED');
+      if (path === '/api/web/admin/courses' && request.method === 'GET') {
+        sendJson(response, 200, { courses: await deps.courses.adminList(accountId) }); return true;
+      }
+      if (request.method !== 'POST') throw new RequestError(405, 'METHOD_NOT_ALLOWED');
+      const decision = coinWriteLimiter.consume(accountId);
+      if (!decision.allowed) {
+        response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+        throw new RequestError(429, 'COURSE_WRITE_RATE_LIMITED');
+      }
+      const body = await readJson(request);
+      if (path === '/api/web/admin/courses') {
+        sendJson(response, 201, { course: await deps.courses.adminCreate(accountId, body) }); return true;
+      }
+      const action = path.match(/^\/api\/web\/admin\/courses\/([^/]+)\/(check|publish|pause)$/)!;
+      const id = decodePathParameter(action[1]!);
+      if (action[2] === 'check') {
+        requireOnlyKeys(body, ['suggestedHour']);
+        sendJson(response, 200, { course: await deps.courses.adminCheck(accountId, id, parseSuggestedHour(body.suggestedHour)) });
+      } else {
+        requireEmptyBody(body);
+        sendJson(response, 200, { course: action[2] === 'publish'
+          ? await deps.courses.adminPublish(accountId, id) : await deps.courses.adminPause(accountId, id) });
+      }
+      return true;
+    }
     if (path === '/api/web/admin/room-reports' && request.method === 'GET') {
       if (!roomCommunity) throw new RequestError(503, 'ROOM_COMMUNITY_NOT_CONFIGURED');
       sendJson(response, 200, { reports: await roomCommunity.listReports(accountId) }); return true;

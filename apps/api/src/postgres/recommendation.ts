@@ -1,4 +1,5 @@
 import type { Pool } from 'pg';
+import type { CourseService } from '../course-rules.js';
 
 import type {
   RecommendationCandidate,
@@ -22,6 +23,7 @@ export class PostgresRecommendationSource implements RecommendationSource {
   constructor(
     private readonly pool: Pool,
     private readonly now: () => Date = () => new Date(),
+    private readonly courses?: Pick<CourseService, 'list'>,
   ) {}
 
   async listCandidates(accountId: string): Promise<readonly RecommendationCandidate[]> {
@@ -62,18 +64,30 @@ export class PostgresRecommendationSource implements RecommendationSource {
       [accountId, this.now()],
     );
 
-    return result.rows.map((row) => ({
-      merchantId: row.merchant_id,
-      merchantName: row.merchant_name,
-      roadAddress: row.road_address,
-      campaignId: row.campaign_id,
-      campaignTitle: row.campaign_title,
-      enrollmentStatus: row.enrollment_open ? 'OPEN' : 'FULL',
-      progressVisitCount: row.progress_visit_count,
-      rewardGoals: [...parseRewardGoals(row.reward_goals)].sort(
-        (left, right) => left.targetVisitCount - right.targetVisitCount,
-      ),
-      demo: row.is_demo,
-    }));
+    const inProgress = (await this.courses?.list(accountId) ?? [])
+      .filter(course => course.done > 0 && course.done < course.total)
+      .sort((left, right) => (left.total - left.done) - (right.total - right.done) ||
+        (left.startsAt ? Date.parse(left.startsAt) : 0) - (right.startsAt ? Date.parse(right.startsAt) : 0) ||
+        left.id.localeCompare(right.id));
+    return result.rows.map((row) => {
+      const course = inProgress.find(course => course.steps.find(step => !step.done)?.merchantId === row.merchant_id);
+      return {
+        merchantId: row.merchant_id,
+        merchantName: row.merchant_name,
+        roadAddress: row.road_address,
+        campaignId: row.campaign_id,
+        campaignTitle: row.campaign_title,
+        enrollmentStatus: row.enrollment_open ? 'OPEN' : 'FULL',
+        progressVisitCount: row.progress_visit_count,
+        rewardGoals: [...parseRewardGoals(row.reward_goals)].sort(
+          (left, right) => left.targetVisitCount - right.targetVisitCount,
+        ),
+        demo: row.is_demo,
+        ...(course ? {
+          courseHint: { courseId: course.id, title: course.title, situation: course.situation, done: course.done, total: course.total },
+          courseStartsAt: course.startsAt,
+        } : {}),
+      };
+    });
   }
 }

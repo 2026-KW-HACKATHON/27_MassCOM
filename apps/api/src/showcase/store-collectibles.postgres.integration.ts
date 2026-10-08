@@ -7,8 +7,10 @@ import { Pool } from 'pg';
 
 import { PostgresClaimSlotService } from '../postgres/claim-slot-service.js';
 import { PostgresCollectionReader } from '../postgres/collection.js';
+import { PostgresCourseService } from '../postgres/courses.js';
 import { runMigrations } from '../postgres/migrate.js';
 import { seedHostedShowcase } from './host-seed.js';
+import { SHOWCASE_COURSE_ID } from './local-seed.js';
 import { storeCollectibleArt } from './store-collectible-art.js';
 
 const testUrl = process.env.TEST_SHOWCASE_HOST_DATABASE_URL;
@@ -73,6 +75,12 @@ test('hosted seed publishes one collectible per virtual store, idempotently, and
       assert.ok(item.artwork.name);
       assert.ok(item.artwork.shape);
       assert.equal(item.artwork.thumbnailDataUrl, storeCollectibleArt[(['a', 'b', 'c'] as const)[index]!].thumbnail);
+      if (index === 0) {
+        const afterCampaign = new Date(now.getTime() + 31 * 86400000);
+        const course = await new PostgresCourseService(pool, { includeDemo: true, now: () => afterCampaign })
+          .get(accountId, SHOWCASE_COURSE_ID);
+        assert.equal(course.steps[0]?.artwork?.thumbnailDataUrl, item.artwork.thumbnailDataUrl);
+      }
     }
     assert.deepEqual(await publicationCounts(pool), [3, 3, 9, 3]);
   } finally {

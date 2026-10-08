@@ -230,7 +230,7 @@ export class PostgresRetentionService {
    * Rollback repair for 0042: older API images still insert the deletion ledger but do not know the play tables.
    * Persist only the number of fully processed candidates, never an account ID. Resume with one OFFSET query,
    * then keyset-page within this run, including live-only pages. Each deletion transaction shares one row budget
-   * across all three tables and commits its scan position with its deletes. A partial page stays at its start.
+   * across all four tables and commits its scan position with its deletes. A partial page stays at its start.
    * Candidate pages have their own fixed budget; reaching the end resets the position for the next sweep.
    */
   private async purgeDeletedPlayData(hmacSecret: string, now: Date, progress: RetentionCount): Promise<void> {
@@ -251,6 +251,9 @@ export class PostgresRetentionService {
             GROUP BY account_id ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
            UNION
            (SELECT account_id FROM studios WHERE ($1::text IS NULL OR account_id > $1)
+            ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
+           UNION
+           (SELECT DISTINCT account_id FROM course_unlocks WHERE ($1::text IS NULL OR account_id > $1)
             ORDER BY account_id LIMIT ($2::bigint + $3::bigint))
          ) candidates ORDER BY account_id LIMIT $2 OFFSET $3`,
         [cursor, this.playBatchSize, cursor === null ? position.toString() : '0'],
@@ -287,11 +290,11 @@ export class PostgresRetentionService {
           await client.query('BEGIN');
           // All identifiers are fixed here; every table has a primary key for the limited selection.
           for (const [table, key] of [['play_runs', 'id'], ['play_records', '(account_id, kind)'],
-            ['studios', 'account_id']] as const) {
+            ['studios', 'account_id'], ['course_unlocks', '(account_id, course_id)']] as const) {
             const remaining = this.playBatchSize - deleted;
             if (remaining === 0) break;
             const result = await client.query(`DELETE FROM ${table} WHERE ${key} IN (
-              SELECT ${key === '(account_id, kind)' ? 'account_id, kind' : key} FROM ${table}
+              SELECT ${key.startsWith('(') ? key.slice(1, -1) : key} FROM ${table}
               WHERE account_id = ANY($1::text[]) ORDER BY ${key} LIMIT $2
             )`, [goneAccounts, remaining]);
             deleted += result.rowCount ?? 0;
@@ -299,7 +302,8 @@ export class PostgresRetentionService {
           const remainingAccounts = (await client.query<{ account_id: string }>(
             `SELECT account_id FROM play_runs WHERE account_id = ANY($1::text[])
              UNION SELECT account_id FROM play_records WHERE account_id = ANY($1::text[])
-             UNION SELECT account_id FROM studios WHERE account_id = ANY($1::text[])`, [goneAccounts],
+             UNION SELECT account_id FROM studios WHERE account_id = ANY($1::text[])
+             UNION SELECT account_id FROM course_unlocks WHERE account_id = ANY($1::text[])`, [goneAccounts],
           )).rows.map((row) => row.account_id);
           // Deleted candidates disappear from the ordered list, so only surviving accounts advance the offset.
           // Partial pages retain their starting offset, even when some accounts have already disappeared.

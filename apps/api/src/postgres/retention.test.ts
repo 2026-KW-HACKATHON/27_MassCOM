@@ -363,6 +363,34 @@ test('deleted play rows share one cap across runs, records, and studios', async 
   assert.notEqual(smallBacklog.counts.find(({ step }) => step === 'deleted_play_data')?.capHit, true);
 });
 
+test('deleted-account repair discovers and deletes orphaned course unlocks within its row budget', async () => {
+  const account = 'deleted-course-user';
+  const lifecycle = new PostgresAccountLifecycle({ hmacSecret: secret });
+  let remaining = 1;
+  const seen: string[] = [];
+  const query = async (sql: string, values?: unknown[]) => {
+    seen.push(sql);
+    if (sql.includes(') candidates ORDER BY account_id')) return { rows: remaining ? [{ account_id: account }] : [] };
+    if (sql.includes('FROM account_deletion_requests')) return {
+      rows: [{ account_reference_hash: lifecycle.referenceHash(account) }],
+    };
+    if (sql.startsWith('DELETE FROM course_unlocks')) {
+      assert.equal((values?.[0] as string[])[0], account);
+      assert.match(sql, /WHERE \(account_id, course_id\) IN \(\s*SELECT account_id, course_id/);
+      remaining = 0;
+      return { rows: [], rowCount: 1 };
+    }
+    if (sql.startsWith('SELECT account_id FROM play_runs')) return { rows: remaining ? [{ account_id: account }] : [] };
+    if (sql.startsWith('SELECT position FROM retention_scan_progress')) return { rows: [{ position: '0' }] };
+    return { rows: [{ count: 0 }], rowCount: 0 };
+  };
+  const pool = { query, connect: async () => ({ query, release: () => undefined }) } as unknown as Pool;
+  const result = await new PostgresRetentionService(pool, { now: () => now }).run({ hmacSecret: secret });
+  assert.equal(result.counts.find(({ step }) => step === 'deleted_play_data')?.count, 1);
+  assert.equal(remaining, 0);
+  assert.ok(seen.some(sql => sql.includes('SELECT account_id FROM course_unlocks')));
+});
+
 test('invalid play retention limits fail before a database connection', () => {
   const pool = { connect: () => { throw new Error('database accessed'); } } as unknown as Pool;
   for (const options of [{ playBatchSize: 0 }, { playMaxBatches: 0 },

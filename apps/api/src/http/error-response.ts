@@ -11,6 +11,7 @@ import { CoinEconomyError } from '../coin-economy.js';
 import { CollectibleProjectError } from '../collectible-project.js';
 import { ExperienceError } from '../collection-experience.js';
 import { CustomerIdentityError } from '../customer-identity.js';
+import { CourseError } from '../course-rules.js';
 import { FriendError } from '../friends.js';
 import { FurnitureError } from '../furniture.js';
 import { GoogleIdTokenError } from '../google-id-token.js';
@@ -46,6 +47,12 @@ import { sendJson } from './response.js';
 
 /** 서비스·요청 처리 중 던져진 오류를 HTTP 응답으로 바꾼다. 아는 오류는 상태·코드(필요하면 Retry-After)를, 모르는 오류는 500 INTERNAL_ERROR를 낸다. */
 export function respondWithError(response: ServerResponse, error: unknown): void {
+  if (error instanceof CourseError) {
+    const status = error.code === 'ACCOUNT_DELETED' ? 410 : error.code === 'COURSE_NOT_FOUND' ? 404
+      : error.code === 'COURSE_INVALID_INPUT' ? 400 : 409;
+    sendJson(response, status, { code: error.code, ...(error.reasons.length ? { reasons: error.reasons } : {}) });
+    return;
+  }
   if (error instanceof RealWorldError) {
     sendJson(response, error.status, { code: error.code, ...(error.retryable ? { retryable: true } : {}) });
     return;
