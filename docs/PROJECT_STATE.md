@@ -1,6 +1,6 @@
 # 프로젝트 상태
 
-현재 자동 시험 합계(2026-10-08 KST, Issue #412 T3 브랜치 `feat/purpose-campaigns`에 PR #420·#423 반영 main `8841efea`를 병합한 기준): API 단위 615/615 · 모바일 2093/2093. 두 수치 모두 병합 후 이 브랜치에서 측정했습니다(main 대비 API 18건·모바일 16건 증가, PostgreSQL 통합은 543건 중 540 pass / 0 fail / 3 skip). 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](TEST_STATUS.md)). 2026-10-01 기준선(main `61bde48`)과 그 뒤 브랜치별 로컬 검증 수치는 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했습니다.
+현재 자동 시험 합계(2026-10-09 KST, 미완성 보완 브랜치 `fix/ai-image-gap-fixes`, main `055d0523` 기준): API 단위 618/618 · 모바일 2093/2093. 이 브랜치에서 재실행했고 PostgreSQL 통합은 재실행하지 않았습니다. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`([전체 근거](docs/TEST_STATUS.md)).
 
 README의 같은 이름 줄과 운영 문서 검사가 이 줄을 서로 대조합니다. 새 시험을 실행하면 두 줄을 함께 고칩니다.
 

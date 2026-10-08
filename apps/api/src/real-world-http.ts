@@ -11,7 +11,7 @@ type Deps = {
   realWorld?: PostgresRealWorldService | undefined; tmap?: TmapProvider | undefined; mapProvider?: MapProvider | undefined;
   resolveAccountId(): Promise<string>; resolveWebAccountId(channel: 'merchant' | 'admin'): Promise<string>;
   readBody(maxBytes?: number): Promise<Body>; decode(value: string): string;
-  send(status: number, value: unknown): void; consumeEvent(): void; consumeMap?(): void;
+  send(status: number, value: unknown): void; consumeEvent(): void; consumeWrite?(accountId: string): void; consumeMap?(): void;
 };
 const fail = (code = 'INVALID_REQUEST', status = 400): never => { throw new RealWorldError(code, status); };
 const object = (value: unknown): Body => value && typeof value === 'object' && !Array.isArray(value) ? value as Body : fail();
@@ -45,6 +45,12 @@ export async function handleRealWorldHttp(d: Deps): Promise<boolean> {
     const accountId = await d.resolveWebAccountId(channel);
     const merchantId = id(d.decode(web[2]!));
     const suffix = web[3]!;
+    if (method === 'PUT' && suffix === 'real-world-profile' ||
+        method === 'POST' && (suffix === 'photos' || /^reports\/[^/]+\/resolve$/.test(suffix)) ||
+        method === 'DELETE' && /^photos\/[^/]+$/.test(suffix)) {
+      const consumeWrite = d.consumeWrite ?? fail('REAL_WORLD_NOT_CONFIGURED', 503);
+      consumeWrite(accountId);
+    }
     if (suffix === 'real-world-profile') {
       if (method === 'GET') d.send(200, await svc.profile(accountId, merchantId));
       else if (method === 'PUT') {

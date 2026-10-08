@@ -1,3 +1,21 @@
+# 2026-10-09 미완성 보완·OpenAI 키 연결
+
+브랜치 `fix/ai-image-gap-fixes`, 기준 main `055d0523`. 새 API/DB/설치본 소스는 배포하지 않았다.
+
+| 검증 | 결과 | 근거 |
+| --- | --- | --- |
+| API 전체 단위 시험 | PASS 618/618 | `npm test --prefix apps/api` |
+| 모바일 전체 단위 시험 | PASS 2093/2093 | 날짜 순환에 의존하던 기존 놀이 시험은 날짜를 고정하고 정확한 카드 순서 단언을 유지한 뒤 전체 재실행 |
+| API typecheck/build · 모바일 typecheck/lint | PASS | 각 npm 명령 |
+| 고지·운영 웹 관련 시험 | PASS 173/173 | legal-pages/production-recovery/store-go-live-admin/verify_production_web |
+| AI 운영·시연 제어 | PASS | `enable_ai_art_test.sh`, fake-Docker 113회 |
+| 비밀 검사 | PASS | `check_secrets_test.sh`; 실제 키는 저장소 밖 소유자 입력 파일과 서버 mode600 파일 |
+| OpenAI 키 인증·API 서비스 | PASS | GET models 200, 양쪽 ENABLED/healthy ([실측](evidence/openai-ai-art-enable-2026-10-09.json)) |
+| 공개 web v1 경로 | PASS | 무인증 점주 프로필 조회 404→401, 양쪽 health 200 |
+| 실제 유료 생성·PostgreSQL 통합·실기기·새 API/DB/설치본 배포 | NOT_RUN | 키 활성화·단위 검증과 별개 |
+
+필수 36개 상태 31 PASS / 2 BLOCKED / 3 NOT_RUN은 유지한다. 이하 이전 기록은 보존한다.
+
 # 테스트 상태
 
 ## 2026-10-08 점주 목적형 캠페인·혜택 시간대·"첫 방문" 표기 정정 (Issue #412 트랙 T3 PR 1, 배포 동결)

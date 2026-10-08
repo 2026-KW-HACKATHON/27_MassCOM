@@ -155,7 +155,7 @@ export function createApiServer(input: ApiDeps) {
   const runtime = createApiRuntime(deps);
   const {
     resolveAccountId, requireCurrentPlayConsent,
-    socialWriteLimiter, discoveryEventLimiter,
+    socialWriteLimiter, discoveryEventLimiter, merchantProfileWriteLimiter,
     discoveryMapLimiter,
   } = runtime;
   return createServer(async (request, response) => {
@@ -190,6 +190,13 @@ export function createApiServer(input: ApiDeps) {
           if (!decision.allowed) {
             response.setHeader('Retry-After', String(decision.retryAfterSeconds));
             throw new RealWorldError('EVENT_RATE_LIMITED', 429, true);
+          }
+        },
+        consumeWrite: accountId => {
+          const decision = merchantProfileWriteLimiter.consume(accountId);
+          if (!decision.allowed) {
+            response.setHeader('Retry-After', String(decision.retryAfterSeconds));
+            throw new RealWorldError('MERCHANT_PROFILE_RATE_LIMITED', 429);
           }
         },
         consumeMap: () => {

@@ -1,8 +1,12 @@
 # HANDOFF
 
-기준 시각: 2026-10-08 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
+기준 시각: 2026-10-09 KST. 이 문서는 다음 작업의 현재 상태만 기록한다. 날짜별 원문은 [HANDOFF_HISTORY](HANDOFF_HISTORY.md)에 보존했다. 문서보다 실제 Git·PR·서버·설치본 상태가 우선한다.
 
 ## 1. 기준 커밋과 작업 위치
+
+- 2026-10-09 미완성 보완: 브랜치 `fix/ai-image-gap-fixes`, worktree `.worktrees/ai-image-gap-fixes`, 기준 main `055d0523`. real-world 쓰기 계정별 제한, 방문 CSV 고지·동의 버전, 활성 Worker 배포/복구 검증, 운영 AI 관리 wrapper를 보완했다. 이 소스는 아직 운영·시연에 배포하지 않았다.
+- 실제 서버 변경: 소유자가 키를 직접 입력했고 두 API 모두 기존 이미지로 `ENABLED`·`healthy` 확인. 월 예산은 각 USD 5, 하루 시안·최종 각 3회다. 기존 Caddy에 web v1 matcher만 추가해 무인증 점주 프로필 401을 확인했다. 실제 유료 생성·새 migration·APK·NFT 활성화는 미실행이다([근거](evidence/openai-ai-art-enable-2026-10-09.json)).
+- 새 `privacy-2026-10-09` 소스는 API·웹·양쪽 APK·시연 웹을 같은 릴리스로 제공해야 한다. 구 설치본이 업데이트 안내에 막힐 수 있으므로 API만 먼저 배포하지 않는다. 키 설정만 갱신한 이번 서버는 기존 동의 버전을 유지한다.
 
 - 기준 main 커밋 SHA: `687427c26d7826e4661b97e162e094467ba39a18`(PR #408 병합 시점, 2026-10-08 KST). Issue #407의 앱 코드 커밋 `5ca98955e7ae26aea1a54d8a19b47eeae6bce2ea`가 들어 있다. [Issue #409](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/409)·[Issue #410](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/410)의 코드는 그 위에 얹혀 main에 있고 배포하지 않았다. 최신 main SHA는 `git log -1 origin/main`으로 확인한다. 작업 위치는 `git worktree list`와 `git status -sb`로 확인한다. 제출 기준선은 마감 시점의 최신 `main`이며, 확정 SHA는 [SUBMISSION_CHECKLIST](SUBMISSION_CHECKLIST.md)와 `SUBMISSION_EVIDENCE.json`의 `baselineCommit`에 기록한다.
 - PR #413(운영 웹 Caddy `/api/web/v1/*` 라우트 수정, `ff5b5b6a`)과 PR #414([Issue #412](https://github.com/2026-KW-HACKATHON/27_MassCOM/issues/412)의 놀이 변경, 결정 D-082, `108f6b38`), PR #415(같은 이슈의 첫 사용 경험, 결정 D-083~D-087, `e06c97cd`), PR #421(같은 이슈의 T5 운영 품질, `b707ed09`), PR #422(같은 이슈의 T1 API 서버 구조 정리, 결정 D-088, `cd01c0d6`), PR #420(NFT 발행 Worker 상시 실행, 결정 D-089, `48a14811`)는 병합됐다. 최신 main 확인은 위와 같이 `git log -1 origin/main`으로 한다.

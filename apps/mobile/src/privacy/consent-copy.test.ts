@@ -77,8 +77,8 @@ test('the always-visible summary is accurate on retention and sharing, because i
   // Items: the session and notification settings, who else sees what, and what a store owner receives.
   assert.match(purpose!.text, /로그인 세션·알림 설정/);
   assert.match(purpose!.text, /친구·같은 가게 이웃이 내 방과 방명록을 볼 수 있고/);
-  assert.match(purpose!.text, /권한 있는 점주는 가명 고객 표시로 된 방문 CSV/);
-  assert.match(privacyPage, /방문 CSV는 인정 방문의 가명 고객 표시/);
+  assert.match(purpose!.text, /권한 있는 점주는 방문일·방문시각·캠페인·방문구분·보상·쿠폰 건수가 담긴 방문 CSV/);
+  assert.match(privacyPage, /방문 CSV는 인정 방문의 방문일·초 단위 방문시각/);
   // Three entries, and the full notice is still the longer text the summary points at.
   assert.equal(consentSummary.length, 3);
   assert.match(purpose!.text, /전체 항목은 "자세히 보기"/);
@@ -91,14 +91,17 @@ test('the full notice says at least what the summary says: room and guestbook sh
   assert.match(privacyPage, /허용된 방 방문자에게 작성자의 별명과 글이 보이며/);
   assert.match(purpose, /친구·같은 가게 이웃에게는 내가 공개 범위를 정한 뒤에만/);
   assert.match(purpose, /허용된 방문자에게 내 방과 방명록\(작성자의 별명과 글\)이 보여요/);
-  // A store owner with permission gets a visit CSV with pseudonymous labels (privacy.html: 점주 직접 운영).
-  assert.match(privacyPage, /권한 있는 점주에게만 제공하는 방문 CSV는 인정 방문의 가명 고객 표시·한국 날짜·첫 방문\/재방문·보상 현황으로 제한합니다/);
-  assert.match(purpose, /권한 있는 점주에게만 제공하는 방문 CSV는 인정 방문의 가명 고객 표시·한국 날짜·첫 방문\/재방문·보상 현황으로 제한해요/);
-  // The summary and the full notice agree on both facts, and the page already discloses them, so the privacy version is unchanged.
+  // The CSV exposes visit time to the second and counts, but has no customer label.
+  for (const copy of [privacyPage, purpose]) {
+    assert.match(copy, /방문일·초 단위 방문시각/);
+    assert.match(copy, /캠페인·방문구분\(MassCOM 확인 기준\)·수집보상·쿠폰 발급·쿠폰 사용 건수/);
+  }
+  assert.doesNotMatch(privacyPage, /방문 CSV는 인정 방문의 가명 고객 표시/);
+  assert.doesNotMatch(purpose, /방문 CSV는 인정 방문의 가명 고객 표시/);
   const summary = consentSummary[0]!.text;
   assert.match(summary, /친구·같은 가게 이웃이 내 방과 방명록을 볼 수 있고/);
-  assert.match(summary, /권한 있는 점주는 가명 고객 표시로 된 방문 CSV/);
-  assert.equal(CONSENT_PRIVACY_VERSION, 'privacy-2026-10-07');
+  assert.match(summary, /권한 있는 점주는 방문일·방문시각·캠페인·방문구분·보상·쿠폰 건수가 담긴 방문 CSV/);
+  assert.equal(CONSENT_PRIVACY_VERSION, 'privacy-2026-10-09');
 });
 
 test('the web consent page counts title/body pairs in this file, so only the four notice items may use those key names', () => {

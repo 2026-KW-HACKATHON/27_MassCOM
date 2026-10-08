@@ -9,7 +9,7 @@ const REQUEST_TIMEOUT_MS = 8000;
 // index.html이 보여 주는 이용약관·개인정보 문구의 버전(Issue #253). 서버 상수와 공개 페이지의 버전은 시험이 서로 비교한다.
 // 서버가 다른 버전을 요구하면 이 화면의 문구에는 동의를 받지 않고 새로 열도록 안내한다.
 const CONSENT_TERMS_VERSION = 'terms-2026-10-06';
-const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-07';
+const CONSENT_PRIVACY_VERSION = 'privacy-2026-10-09';
 const collectionRequests = new WeakMap();
 
 const nftLabels = {

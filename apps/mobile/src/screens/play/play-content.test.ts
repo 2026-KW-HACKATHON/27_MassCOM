@@ -105,7 +105,7 @@ test('memory tokens are the coins of distinct visited stores, each naming its st
 
 test('six stores fill every card and a seventh is ignored', () => {
   const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
-  const content = playContent(ids.map((id) => coin(id)), ids.map((id) => store(id)), apiUrl);
+  const content = playContent(ids.map((id) => coin(id)), ids.map((id) => store(id)), apiUrl, new Date('2026-10-08T03:00:00Z'));
   assert.deepEqual(content.memoryTokens.map((item) => item.merchantId), ['a', 'b', 'c', 'd', 'e', 'f']);
 });
 

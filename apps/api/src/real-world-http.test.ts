@@ -48,6 +48,32 @@ test('photo upload checks web identity before reading large body', async () => {
   assert.equal(read, false);
 });
 
+test('real-world web writes use the account limiter before reading a body or mutating', async () => {
+  let read = 0, writes = 0, limited = 0;
+  const svc = {
+    profile: async () => ({}),
+    updateProfile: async () => { writes++; },
+    createPhoto: async () => { writes++; },
+    deletePhoto: async () => { writes++; },
+    resolveReport: async () => { writes++; },
+  } as unknown as PostgresRealWorldService;
+  for (const [method, path] of [
+    ['PUT', '/api/web/v1/merchant/merchants/m1/real-world-profile'],
+    ['POST', '/api/web/v1/merchant/merchants/m1/photos'],
+    ['DELETE', '/api/web/v1/merchant/merchants/m1/photos/p1'],
+    ['POST', '/api/web/v1/merchant/merchants/m1/reports/r1/resolve'],
+  ]) {
+    await assert.rejects(handleRealWorldHttp({ request: { method } as never, response: {} as never,
+      path: path!, realWorld: svc, resolveAccountId: async () => 'account', resolveWebAccountId: async () => 'owner',
+      readBody: async () => { read++; return {}; }, decode: decodeURIComponent,
+      send: () => {}, consumeEvent: () => {}, consumeWrite: accountId => {
+        assert.equal(accountId, 'owner'); limited++; throw new RealWorldError('MERCHANT_PROFILE_RATE_LIMITED', 429);
+      },
+    }), (error: unknown) => error instanceof RealWorldError && error.status === 429);
+  }
+  assert.equal(limited, 4); assert.equal(read, 0); assert.equal(writes, 0);
+});
+
 test('event body rejects location and other extra fields before storage', async () => {
   let stored = false;
   await assert.rejects(handleRealWorldHttp({ request: { method: 'POST' } as never, response: {} as never,
