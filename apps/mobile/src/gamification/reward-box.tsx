@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import type { AppColors } from '@/theme/palette';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { playUiSound } from '@/sound/ui-sounds';
 
 import { BadgeApiError, type OpenedReward, type Reward, type RewardMilestone } from './badge-api';
@@ -46,7 +47,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
   }, [openApi]);
   const ready = reward.state === 'READY';
   const offerLine = reward.offer && (reward.state === 'LOCKED' || reward.state === 'READY')
-    ? `${reward.offer.merchantName} · ${reward.offer.title}`
+    ? `${publicDataDemoStoreName(reward.offer.merchantId, reward.offer.merchantName)} · ${reward.offer.title}`
     : null;
 
   async function openBox() {
@@ -83,7 +84,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
     <View style={[styles.boxRowCard, ready && styles.boxRowCardReady]}>
       <GiftBox ref={box} milestone={reward.milestone} mood={moods[reward.state]} size={64} colors={medal} glowColor={palette.primary} />
       <View style={styles.boxRowBody}>
-        <View accessible accessibilityLabel={rewardAccessibilityLabel(reward, earnedTiers)} style={styles.boxRowCopy}>
+        <View accessible accessibilityLabel={`${rewardAccessibilityLabel(reward, earnedTiers)}${offerLine ? `, ${offerLine}` : ''}`} style={styles.boxRowCopy}>
           {/* One Text node: a row of two bold Texts was measured narrower than drawn on Samsung phones and clipped "황금 상자" to "황금". */}
           <Text textBreakStrategy="simple" style={styles.boxName}>
             {rewardBoxName(reward.milestone)}
@@ -92,7 +93,7 @@ export function RewardBoxCard({ reward, earnedTiers, onOpen, onRevealed, onOpenF
           <View style={[styles.chip, { backgroundColor: chip.background }]}>
             <Text style={[styles.chipText, { color: chip.foreground }]}>{rewardStatusText(reward, earnedTiers)}</Text>
           </View>
-          {offerLine ? <Text numberOfLines={2} style={styles.boxOffer}>{offerLine}</Text> : null}
+          {offerLine ? <Text style={styles.boxOffer}>{offerLine}</Text> : null}
         </View>
         {ready ? (
           <Pressable

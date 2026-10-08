@@ -103,7 +103,7 @@ MassCOM은 동네 가게를 발견하고 방문을 기록해 마스코트를 모
 | 새 약관 동의 화면 제출 `BLOCKED`(미동의 허용 계정이 기기 Google 계정 선택기에 없음, 비밀번호 필요한 계정 추가는 금지) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 | #257 사진 수집품 native 상세 화면 `NOT_RUN`(보유 계정 없음) | [실기 캡처](docs/evidence/device-captures-2026-10-01/README.md) |
 
-현재 자동 시험 합계(T8, 2026-10-09 KST, `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`): API 단위 615/615 · PostgreSQL 549건 중 546 PASS / 0 FAIL / 3 SKIP · 모바일 2094/2094 (PASS). SKIP 대상 hosted 전용 시험 3건은 전용 disposable runner에서 3/3 PASS. CI wiring·접근성·웹 export·문서 검사와 전체 gate PASS. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`(자세한 내용은 `docs/TEST_STATUS.md`). 이전 기준선·브랜치별 로컬 검증 수치는 `docs/HANDOFF_HISTORY.md`에 보존했습니다.
+현재 자동 시험 합계(T8, 2026-10-09 KST, `feat/showcase-wolgye-stores`, 기준 `055d05237a6f65cfe4b00e29ce95c26d6eb67ece`): API 단위 615/615 · PostgreSQL 549건 중 546 PASS / 0 FAIL / 3 SKIP · 모바일 2105/2105 (PASS). SKIP 대상 hosted 전용 시험 3건은 전용 disposable runner에서 3/3 PASS. CI wiring·접근성·웹 export·문서 검사와 전체 gate PASS. 필수 36개 시험 ID는 31 `PASS` / 2 `BLOCKED` / 3 `NOT_RUN`(자세한 내용은 `docs/TEST_STATUS.md`). 이전 기준선·브랜치별 로컬 검증 수치는 `docs/HANDOFF_HISTORY.md`에 보존했습니다.
 
 아래 "실제 기능 상태" 표가 기능별 자세한 근거이며, 이 요약과 어긋나면 아래 표·링크한 문서를 최신으로 봅니다.
 

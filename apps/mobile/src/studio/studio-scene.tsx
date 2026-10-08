@@ -9,6 +9,7 @@ import { badgeFrame, cosmeticFrames } from '@/illustration/art-catalog';
 import type { DisplayExperienceProfile } from '@/experience/experience-api';
 import type { EquippedClothingArt } from '@/shop/wardrobe';
 import { merchantArtSource } from '@/screens/collection/merchant-art';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { CollectibleFaceOutline } from '@/screens/collection/collectible-default-back';
 import { gradeMaterialFor, gradeMaterialPresets } from '@/screens/collection/grade-material';
 import { GradeMaterialLayer } from '@/screens/collection/grade-material-layer';
@@ -142,7 +143,7 @@ export function StudioScene({ studio, items, avatar, clothing, apiUrl, onItemPre
           return (
             <Pressable key={item.entitlementId ?? `${item.merchantId}-${index}`}
               accessibilityRole={onItemPress ? 'button' : 'image'}
-              accessibilityLabel={`${item.displayName}, ${item.merchantName}`}
+              accessibilityLabel={`${item.displayName}, ${publicDataDemoStoreName(item.merchantId, item.merchantName)}`}
               disabled={!onItemPress} onPress={() => onItemPress?.(item)}
               style={[styles.item, { borderColor: accent, width: width * (shelf ? 0.13 : 0.17), height: height * (shelf ? 0.13 : 0.17),
                 left: width * (shelf ? (column ? 0.79 : 0.08) : (0.15 + column * 0.27)),

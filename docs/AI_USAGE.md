@@ -399,3 +399,8 @@ AI 사용은 허용되지만 결과물을 팀 전체가 이해하고 설명할 �
 
 - Codex가 모바일 기본 뒷면 컴포넌트, 등급 금속색 재사용, 로컬 마스코트 도장, 각도별 면 판정·옆면 이동, 접근성 이름과 회귀 시험을 구현했다. 독립 시험 담당이 신규 시험 9개를 작성했고, 독립 코드 검토에서 구체적인 결함은 발견되지 않았다. 서버·DB·공유·봉투·축하 로직 변경, 새 의존성, 커밋은 없다.
 - 검증: 수집 화면 196/196, `npx tsc --noEmit`, `npm run lint`, `git diff --check` PASS. `npx tsx`의 IPC `EPERM`으로 같은 시험 전체를 `node --import tsx --test`로 실행했다. Android 운영·시연 실기와 스크린샷·TalkBack·동작 줄이기는 NOT_RUN이다.
+
+## 2026-10-09 — T8 공공자료 시연 점포 카드 고지 리뷰 수정
+
+- 사용자 지정 범위에서 Codex가 공통 ID helper·고객 카드/행/지도/수집/보상 고지·접근성 이름과 회귀 시험을 작성했다. native explore·executor·code-reviewer가 범위 탐색·독립 화면 수정·검토를 보조했다. API/schema·의존성 추가와 Git add/commit/stash/rebase/push는 없다.
+- 검증: 모바일 동일 glob Node loader 2105/2105, typecheck·lint·접근성·지갑 표면 PASS. 정확한 `npm test`는 sandbox tsx IPC `EPERM`으로 시작 전 BLOCKED. Android/TalkBack·브라우저·배포 NOT_RUN. 세부 증거·예외는 `docs/TEST_STATUS.md` T8 절에 있다.

@@ -4,6 +4,7 @@ import { Pressable, RefreshControl, StyleSheet, Text, View, useColorScheme } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { AccountCredential } from '@/auth/account-credential';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { createCommerceApiClient, type CollectionSnapshot } from '@/commerce/commerce-api';
 import { colorsForScheme } from '@/theme/palette';
 import { worldForScheme } from '@/theme/world';
@@ -123,11 +124,11 @@ export function HomeTicketsScreen({ apiUrl, credential, onSessionInvalid }: {
         ) : (
           tickets.tickets.map((ticket) => (
             <FloatingCard key={ticket.entitlementId} onPress={() => openTicket(ticket)}
-              accessibilityLabel={`${ticket.merchantName} ${ticket.displayName} 가게권`}
+              accessibilityLabel={`${publicDataDemoStoreName(ticket.merchantId, ticket.merchantName)} ${ticket.displayName} 가게권`}
               accessibilityHint="개봉 연출 보기" style={styles.ticketCard}>
               <View style={styles.ticketStub}><Text style={styles.ticketStubText}>{ticket.targetVisitCount}</Text></View>
               <View style={styles.ticketBody}>
-                <Text style={styles.ticketName}>{ticket.merchantName}</Text>
+                <Text style={styles.ticketName}>{publicDataDemoStoreName(ticket.merchantId, ticket.merchantName)}</Text>
                 <Text style={styles.ticketMeta}>{ticket.targetVisitCount}회 목표 · {ticket.displayName}</Text>
                 <Text style={styles.ticketHint}>가게권 열기 ›</Text>
               </View>
@@ -145,6 +146,7 @@ export function HomeTicketsScreen({ apiUrl, credential, onSessionInvalid }: {
     {opening ? (
       <CollectibleReveal
         entitlementIds={[opening.entitlementId]}
+        merchantId={opening.merchantId}
         merchantName={opening.merchantName}
         load={commerceApi.getCollectible}
         collectibles={collection?.collectibles ?? tickets.tickets}

@@ -26,6 +26,7 @@ import { RewardReveal } from '@/gamification/reward-reveal';
 import { RewardTrack } from '@/gamification/reward-track';
 import { useBadgeBook } from '@/gamification/use-badge-book';
 import { useMerchantCatalog } from '@/merchant/use-merchant-catalog';
+import { publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { useTabBarClearance } from '@/navigation/use-tab-bar-clearance';
 import { colorsForScheme } from '@/theme/palette';
 import { AppHeader } from '@/ui/app-header';
@@ -633,7 +634,7 @@ export function CollectionScreen({
             mint={{ apiUrl, nftMinting: collection.nftMinting, binding, busyEntitlementId, onConfirmMint: confirmMint }}
             onToggleFavorite={toggleCollectibleFavorite}
             onOpenDetail={(entitlementId, merchantName, localDetail) => setCollectibleDetail({ entitlementId, merchantName, localDetail, client: api })}
-            onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantName: group.merchantName,
+            onShare={(group) => void shareCollectible({ thumbnailDataUrl: group.artwork.thumbnailDataUrl, merchantId: group.merchantId, merchantName: group.merchantName,
               name: group.artwork.name, gradeId: group.artwork.gradeId, gradeName: group.artwork.gradeName, shape: group.artwork.shape })}
           /> : null}
         </Section>
@@ -741,7 +742,7 @@ export function CollectionScreen({
               collection.visits.map((visit) => (
                 <FloatingCard key={visit.visitEventId} style={styles.visitRow}>
                   <View style={styles.visitLeft}>
-                    <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{visit.merchantName}</Text>
+                    <Text selectable style={[styles.visitMerchant, { color: palette.label }]}>{publicDataDemoStoreName(visit.merchantId, visit.merchantName)}</Text>
                     <Text style={[styles.itemMeta, { color: palette.secondaryLabel }]}>{visit.campaignTitle}</Text>
                   </View>
                   <View style={styles.visitRight}>

@@ -339,7 +339,7 @@ test('cards read their story, campaign, reason and progress aloud; the tap is on
     assert.ok(source.includes(`accessibilityHint={${hint}}`), `${file} hint`);
   }
   const discovery = readSource('screens/real-map/index.tsx');
-  assert.match(discovery, /accessibilityLabel=\{`\$\{merchant\.name\}, \$\{merchant\.roadAddress\}/);
+  assert.match(discovery, /accessibilityLabel=\{`\$\{publicDataDemoStoreName\(merchant\.id, merchant\.name\)\}, \$\{merchant\.roadAddress\}/);
   assert.match(discovery, /accessibilityHint="상세 보기와 코스 추가 동작이 있습니다"/);
   assert.match(read('floating-card.tsx'), /accessibilityHint=\{accessibilityHint\}/);
 });

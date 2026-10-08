@@ -3,6 +3,7 @@ import { Pressable, Text, View, type LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, Line, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import type { Coupon } from './badge-api';
+import { PUBLIC_DATA_DEMO_STORE_LABEL, isPublicDataDemoStore, publicDataDemoStoreName } from '@/merchant/public-data-demo-store';
 import { couponAccessibilityLabel, couponExpiryLabel, couponStatusLabel, rewardBoxName } from './badge-rules';
 import { couponExpiryReminderLabel } from './coupon-expiry';
 import { useGamificationTheme } from './theme';
@@ -23,7 +24,7 @@ export function CouponTicket({ coupon, onUse, now = new Date() }: { coupon: Coup
   const muted = faded ? { color: medal.ticketMuted, opacity: 1 } : undefined;
   const stamped = coupon.status === 'REDEEMED';
   const expiryReminder = couponExpiryReminderLabel(coupon, now);
-  const accessibleCopy = [couponAccessibilityLabel(coupon), expiryReminder].filter(Boolean).join(', ');
+  const accessibleCopy = [couponAccessibilityLabel(coupon), isPublicDataDemoStore(coupon.merchantId) ? PUBLIC_DATA_DEMO_STORE_LABEL : undefined, expiryReminder].filter(Boolean).join(', ');
   const statusStyle = coupon.status === 'ISSUED'
     ? { backgroundColor: palette.successContainer, color: palette.onSuccessContainer }
     : coupon.status === 'REDEEMED'
@@ -74,7 +75,7 @@ export function CouponTicket({ coupon, onUse, now = new Date() }: { coupon: Coup
       >
         <Text style={[styles.ticketEyebrow, muted]}>{rewardBoxName(coupon.milestone)} 쿠폰</Text>
         <Text style={[styles.ticketTitle, muted]}>{coupon.title}</Text>
-        <Text style={[styles.ticketMerchant, muted]}>{coupon.merchantName}</Text>
+        <Text style={[styles.ticketMerchant, muted]}>{publicDataDemoStoreName(coupon.merchantId, coupon.merchantName)}</Text>
         {/* Used or expired coupons drop the long detail so nothing sits under the stamp. */}
         {!faded && coupon.detail.trim() ? <Text style={styles.ticketDetail}>{coupon.detail}</Text> : null}
       </View>

@@ -80,7 +80,7 @@ function StampSlot({ stamp, width, apiUrl }: { stamp: PassportStamp; width: numb
             <Text style={styles.stampMystery}>?</Text>
           </View>
         )}
-        <Text numberOfLines={2} textBreakStrategy="simple" style={styles.stampName}>{stamp.name}</Text>
+        <Text textBreakStrategy="simple" style={styles.stampName}>{stamp.name}</Text>
         <Text style={styles.stampStatus}>{stamp.statusText}</Text>
         <Text style={styles.stampStatus}>{stamp.goalText}</Text>
       </Pressable>

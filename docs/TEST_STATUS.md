@@ -8,12 +8,16 @@
 | --- | --- | --- |
 | API unit/typecheck/build | PASS | `npm test --prefix apps/api` 615/615; `npm run typecheck --prefix apps/api`; `npm run build --prefix apps/api`. |
 | PostgreSQL 통합 | PASS | migration 적용 뒤 `npm run test:postgres`: 전체 549건 중 546 PASS / 0 FAIL / 3 SKIP, 총 실행 시간 571,422.879667 ms. SKIP 세 건은 별도 fresh Docker hosted runner에서 각각 실행해 3/3 PASS했다. 접속 URL과 비밀값은 기록하지 않는다. |
-| 모바일 시험/typecheck/lint | PASS | `npm test --prefix apps/mobile` 2094/2094; `npm run typecheck --prefix apps/mobile`; `npm run lint --prefix apps/mobile`. |
+| 모바일 시험/typecheck/lint | PASS | 최초 T8 `npm test --prefix apps/mobile` 2094/2094. 리뷰 고지 수정(HEAD `29afaf46` + 미커밋 변경): 동일 glob의 `node --import tsx --test 'src/**/*.test.ts'` 2105/2105, `npm run typecheck`, `npm run lint` PASS(`apps/mobile`에서 실행). 정확한 `npm test`는 sandbox의 tsx CLI IPC socket `listen EPERM`으로 시험 시작 전 BLOCKED; Node loader는 같은 시험 파일 전부를 실행한다. |
 | 원본 선택기·생성 데이터 | PASS | 선택기 시험 2/2; 생성 JSON 30개. 기준일이 아닌 입력과 좌표 범위 오류는 거절한다. |
 | CI·접근성·웹 체험 export | PASS | CI wiring 94개 시험 파일 연결, 모바일 accessibility semantics 검사, `/play/`이 사용하는 showcase 웹 export PASS. export 빌드는 `EXPO_NO_DOTENV=1 CI=1 MASSCOM_BUILD_SOURCE_COMMIT=055d05237a6f65cfe4b00e29ce95c26d6eb67ece`와 test-only OAuth client id `123-demo.apps.googleusercontent.com`을 사용해 uncommitted working tree를 컴파일했다. 이 빌드 출처 표식은 release provenance가 아니다. 컴파일 경로 확인이며 실제 로그인·브라우저 수용·공개 반영 증거도 아니다. |
 | 운영 문서 검사 | PASS | `bash tests/bootstrap/verify_operations_docs_test.sh`; README와 PROJECT_STATE의 현재 합계 문장 일치 검사 포함. |
 | 전체 gate | PASS | `LC_ALL=C bash tools/gate.sh` 종료 0, 모든 subgate PASS. |
 | 공개 서버·앱·웹 반영 | `NOT_RUN` | 배포·릴리스는 이 작업 범위에 없다. 기존 공개 `/play/`와 설치본이 33개를 제공한다고 주장하지 않는다. |
+
+**리뷰 차단 고지 수정(2026-10-09, HEAD `29afaf46` + 미커밋 변경).** 모바일 공통 helper는 `showcase-wolgye-` ID에만 “실제 가게 정보로 만든 시연 · 참여하지 않은 가게”를 붙인다. 탐색 목록·지도 선택/클러스터/제안 행·provider 마커 제목, 추천, 홈 첫 가게/뽑기권/방문 목표, 동네 지도 pin/overflow/callout, 코스·교체 선택·도착 행, 식사 초대 선택/상세, 시연 방문 선택/미리보기/축하, 방문 기록·도장판·친구 여권, 수집품/시리즈/상세/뒷면/봉투/공유 카드, 코인 도감·뽑기권 상점·뽑기 결과, 마이룸/친구 방/이웃 목록·공유 이미지, 놀이 가게/발견 코인, 쿠폰·사용 요약·보상 상자에 적용했다. `/play/` 웹 체험은 같은 Expo renderer를 사용한다. 명시적 접근성 이름에도 고지를 넣고 고지가 있는 가게명은 줄 수로 자르지 않는다. 가게 상세 `story`의 전체 고지, 원본 API 이름, API/schema/서버 권한·보상 규칙은 그대로다.
+
+신규 모바일 시험 11건(분류 helper와 production JSX/접근성 이름·마커/도장·공유 view model)으로 2094→2105건이다. 기존 source 단언은 가게명 helper 호출을 정확히 확인하도록 바꾸되 기존 주소·시연 표식·상태·진행·링크·줄바꿈·대비 단언을 유지했다. 친구 여권의 과거 `merchantId: null` 행은 ID가 없어 공공자료 점포를 분류할 수 없다. 실제 T8 seed ID가 있는 행은 분류된다. API/schema 변경은 하지 않았다. API/PostgreSQL/웹 export는 위 최초 T8 증거를 유지하며 이번 수정에서 다시 실행하지 않았다. 실제 Android/TalkBack/브라우저 렌더·새 웹 export·배포는 `NOT_RUN`이다. `bash tests/mobile/check_accessibility_semantics_test.sh`, `bash tests/release/check_release_wallet_surface_test.sh` PASS; 전체 gate `LC_ALL=C bash tools/gate.sh` 종료 0 PASS(위 행 참조). 사용자 지시로 Git add/commit/stash/rebase/push를 실행하지 않았다.
 
 **변경한 기존 단언:**
 

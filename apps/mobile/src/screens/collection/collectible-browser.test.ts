@@ -16,8 +16,9 @@ test('both card types fill one column at large font scale and keep grades visibl
   assert.doesNotMatch(source, /width: '48%'/);
   assert.match(source, /numberOfLines=\{1\} adjustsFontSizeToFit minimumFontScale=\{0\.8\} style=\{collectionStyles\.walletButtonText\}/);
   assert.match(source, /numberOfLines=\{2\}[^>]*groupName[^>]*>\{group\.artwork\.name\}/);
-  assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{group\.artwork\.gradeName\} · \{group\.merchantName\}/);
-  assert.match(source, /numberOfLines=\{2\}[^>]*groupMeta[^>]*>\{detail\.gradeName\} · \{item\.merchantName\}/);
+  assert.match(source, /groupMeta[^>]*>\{group\.artwork\.gradeName\} · \{publicDataDemoStoreName\(group\.merchantId, group\.merchantName\)\}/);
+  assert.match(source, /groupMeta[^>]*>\{detail\.gradeName\} · \{publicDataDemoStoreName\(item\.merchantId, item\.merchantName\)\}/);
+  assert.doesNotMatch(source, /numberOfLines=\{2\}[^>]*groupMeta/);
   assert.match(source, /numberOfLines=\{2\}[^>]*favoriteName[^>]*>\{group\.artwork\.name\}/);
   assert.match(source, /favoriteGrade[^>]*>\{group\.artwork\.gradeName\}/);
 });
@@ -85,6 +86,6 @@ test('an acquired collectible can show its store using the entitlement merchant 
   const detail = readFileSync(new URL('./collectible-detail.tsx', import.meta.url), 'utf8');
   const collection = readFileSync(new URL('./index.tsx', import.meta.url), 'utf8');
   assert.match(collection, /collection\?\.collectibles\.find\(\(item\) => item\.entitlementId === collectibleDetail\.entitlementId\)\?\.merchantId/);
-  assert.match(detail, /accessibilityRole="link" accessibilityLabel=\{`\$\{merchantName\} 보기`\}/);
+  assert.match(detail, /accessibilityRole="link" accessibilityLabel=\{`\$\{publicDataDemoStoreName\(merchantId, merchantName\)\} 보기`\}/);
   assert.match(detail, /params: \{ merchantId, from: 'collection' \}/);
 });
